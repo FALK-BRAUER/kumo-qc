@@ -143,10 +143,12 @@ def score_symbol(algorithm: Any, symbol: Any) -> dict[str, Any] | None:
     d_tenkan = _mid(daily["high"], daily["low"], 9)
     d_kijun = _mid(daily["high"], daily["low"], 26)
     d_cloud_a = ((d_tenkan + d_kijun) / 2).shift(26)
+    d_cloud_b = _mid(daily["high"], daily["low"], 52).shift(26)
 
     d_price = daily["close"].iloc[-1]
     d_tenkan_now = d_tenkan.iloc[-1]
     d_cloud_a_now = d_cloud_a.iloc[-1]
+    d_cloud_b_now = d_cloud_b.iloc[-1]
     ma200 = daily["close"].rolling(200).mean().iloc[-1]
 
     # ── ADX / DMI — Wilder period-9, on daily bars ────────────────────────────
@@ -160,18 +162,18 @@ def score_symbol(algorithm: Any, symbol: Any) -> dict[str, Any] | None:
     # Guard: any NaN means insufficient history for that indicator
     critical_values = [
         w_cloud_a_now, w_cloud_b_now, w_tenkan_now, w_kijun_now, w_price_26_ago,
-        d_cloud_a_now, d_tenkan_now, ma200, adx_now, plus_di_now, minus_di_now,
+        d_cloud_a_now, d_cloud_b_now, d_tenkan_now, ma200, adx_now, plus_di_now, minus_di_now,
     ]
     if any(pd.isna(v) for v in critical_values):
         return None
 
     # ── 8-condition Blue Flag checklist (CLAUDE.md order) ─────────────────────
     conditions: list[bool] = [
-        bool(w_price > w_cloud_a_now),                                            # 1. weekly price above cloud
+        bool(w_price > max(w_cloud_a_now, w_cloud_b_now)),                           # 1. weekly price above cloud top
         bool(w_tenkan_now > w_kijun_now),                                         # 2. weekly tenkan > kijun
         bool(w_price > w_price_26_ago),                                           # 3. weekly chikou > price 26 bars ago
         bool(w_cloud_a_now > w_cloud_b_now),                                      # 4. weekly cloud green
-        bool(d_price > d_cloud_a_now),                                            # 5. daily price above cloud
+        bool(d_price > max(d_cloud_a_now, d_cloud_b_now)),                        # 5. daily price above cloud top
         bool(d_price > d_tenkan_now),                                             # 6. daily price above tenkan
         bool(adx_rising and plus_di_now > minus_di_now and adx_now >= 20),       # 7. ADX rising + +DI > -DI + ADX ≥ 20
         bool(d_price > ma200),                                                    # 8. price above 200-day MA
