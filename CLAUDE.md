@@ -80,7 +80,26 @@ QC_API_TOKEN=...
 QC_PROJECT_ID=32033824
 ```
 
-## Commit Policy
-- Conventional Commits: feat|fix|chore|refactor(scope): description
-- Never commit: .env*, secrets, API tokens, account numbers
-- Always commit: algorithm/, ui/, scripts/, CLAUDE.md
+## Commit + Push Policy
+
+**Commit:** after every logical unit of work. Never batch unrelated changes.
+
+**Pre-commit checklist (mandatory):**
+1. `git status` — scan for unexpected files (data/, .env.local, *.json.bak, node_modules/)
+2. Confirm `.gitignore` covers any new file types before staging
+3. No secrets, tokens, or account numbers in diff
+
+**Push:** push immediately after every clean commit. This repo's disaster (2026-05-23) happened because 26 local commits were never pushed — directory deletion wiped everything. Push is the backup.
+
+**Push command:** `git push origin main` from kumo-qc/
+
+**Never push if:**
+- `git diff --stat HEAD~1 | grep data/` is non-empty
+- Any `.env*` file appears in the diff
+- `git log origin/main..HEAD` shows commits with 100+ file additions (check the diff first)
+
+**Conventional Commits format:**
+- `feat(scope):` new capability
+- `fix(scope):` bug fix
+- `chore:` config, gitignore, tooling
+- `refactor(scope):` restructure without behavior change
