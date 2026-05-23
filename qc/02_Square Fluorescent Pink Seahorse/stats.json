@@ -1,0 +1,16 @@
+{
+  "name": "Square Fluorescent Pink Seahorse",
+  "backtestId": "70e192338cb7e3eb0014f1fb47a72346",
+  "projectId": 32033824,
+  "sharpe": 0,
+  "cagr": 0,
+  "maxDrawdown": 0,
+  "totalTrades": 0,
+  "winRate": 0,
+  "netProfit": 0,
+  "sparkline": "",
+  "completed": true,
+  "created": "2026-05-23 11:25:19",
+  "projectName": "backtest_bct",
+  "algorithm_downloaded": true
+}
