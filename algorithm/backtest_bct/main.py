@@ -1,59 +1,82 @@
 """
-BCT backtest signal audit — QC project 32033824 (backtest_bct).
-Pure signal logger, no order placement. Used for Phase 4 validation.
-Compares BCT signal output against kumo-trader scanner CSV results.
+Phase 4: BCT backtest validation — pure signal audit, no orders placed.
+
+Saves results to QC Object Store as JSON (key: "bct_signals") so they
+can be retrieved via the Object Store API after the backtest completes.
+Also logs SIGNAL lines via self.log() for debugging.
+
+Output format in object store:
+  {
+    "date": [ {"ticker": ..., "score": ..., "rating": ..., "conditions": [...]}, ... ],
+    ...
+  }
 """
+import json
 
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from AlgorithmImports import *  # noqa: F401,F403
 
-from AlgorithmImports import *
-from bct_signal import score_symbol_native
+from bct_signal import score_symbol
+from universe_filter import BCTUniverseFilter
 
 
-class BacktestBCT(QCAlgorithm):
+class BCTBacktestAlgorithm(QCAlgorithm):
 
-    def Initialize(self):
-        self.SetStartDate(2026, 5, 8)
-        self.SetEndDate(2026, 5, 22)
-        self.SetCash(100000)
-        self.SetBrokerageModel(BrokerageName.InteractiveBrokersBrokerage)
+    def initialize(self) -> None:
+        self.set_time_zone("America/New_York")
+        self.set_start_date(2026, 5, 8)
+        self.set_end_date(2026, 5, 22)
+        self.set_cash(100_000)
+        self.set_benchmark("SPY")
 
-        # Universe: same coarse filter as live_bct
-        self.AddUniverse(self.CoarseFilter)
+        self.universe_settings.resolution = Resolution.DAILY
 
-        self.Schedule.On(
-            self.DateRules.WeekStart(),
-            self.TimeRules.AfterMarketOpen("SPY", 30),
-            self.ScoreAndLog,
+        self._filter = BCTUniverseFilter()
+        self._active: set = set()
+        self._signals: dict = {}  # date -> list of signal dicts
+
+        self.add_universe(
+            self._filter.coarse_selection,
+            self._filter.fine_selection,
         )
 
-        self._universe: list[Symbol] = []
+        # 4:05 PM ET — daily bars settled, safe to call History()
+        self.schedule.on(
+            self.date_rules.every_day(),
+            self.time_rules.at(16, 5),
+            self._audit_signals,
+        )
 
-    def CoarseFilter(self, coarse):
-        filtered = [
-            c for c in coarse
-            if c.HasFundamentalData
-            and c.Price > 10
-            and c.DollarVolume > 5_000_000
-        ]
-        filtered.sort(key=lambda c: c.DollarVolume, reverse=True)
-        return [c.Symbol for c in filtered[:200]]
+    def on_securities_changed(self, changes: SecurityChanges) -> None:
+        for s in changes.added_securities:
+            self._active.add(s.symbol)
+        for s in changes.removed_securities:
+            self._active.discard(s.symbol)
 
-    def OnSecuritiesChanged(self, changes):
-        for s in changes.AddedSecurities:
-            self._universe.append(s.Symbol)
-        for s in changes.RemovedSecurities:
-            if s.Symbol in self._universe:
-                self._universe.remove(s.Symbol)
+    def _audit_signals(self) -> None:
+        date_str = self.time.strftime("%Y-%m-%d")
+        day_signals = []
 
-    def ScoreAndLog(self):
-        date_str = self.Time.strftime("%Y-%m-%d")
-        for symbol in self._universe:
-            score, rating = score_symbol_native(self, symbol)
-            if score >= 6:
-                self.Log(f"SIGNAL|{date_str}|{symbol}|score={score}/8|rating={rating}")
+        for symbol in list(self._active):
+            result = score_symbol(self, symbol)
+            if result is None or result["score"] < 6:
+                continue
 
-    def OnData(self, data: Slice):
-        pass
+            cond_str = ",".join("T" if c else "F" for c in result["conditions"])
+            self.log(
+                f"SIGNAL|{date_str}|{symbol.value}|{result['rating']}|"
+                f"{result['score']}/8|{cond_str}"
+            )
+            day_signals.append({
+                "ticker": symbol.value,
+                "score": result["score"],
+                "rating": result["rating"],
+                "conditions": result["conditions"],
+            })
+
+        self._signals[date_str] = day_signals
+        self.log(f"AUDIT_SUMMARY|{date_str}|count={len(day_signals)}|universe={len(self._active)}")
+
+    def on_end_of_algorithm(self) -> None:
+        payload = json.dumps(self._signals)
+        self.object_store.save("bct_signals", payload)
+        self.log(f"BACKTEST_COMPLETE|signals_saved|dates={len(self._signals)}")

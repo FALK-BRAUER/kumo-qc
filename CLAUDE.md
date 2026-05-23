@@ -103,3 +103,69 @@ QC_PROJECT_ID=32033824
 - `fix(scope):` bug fix
 - `chore:` config, gitignore, tooling
 - `refactor(scope):` restructure without behavior change
+
+## Worker Regime — State Management
+
+Workers on kumo-qc maintain state in two places. Both are mandatory, not optional.
+
+### 1. Handoff files (local)
+
+Every worker session writes a handoff before closing. Location: `zz_handoffs/YYYY-MM-DD-<feature>.md`.
+
+Required sections:
+- **Current task** — specific subtask in flight + last action + next action
+- **What we did** — concrete changes (file:line or function name, not prose)
+- **Decisions** — the WHY behind each architectural choice
+- **Current state** — working / partial / broken
+- **What's left** — ordered list, specific enough to resume cold
+- **Context** — gotchas, constraints, non-obvious deps
+- **Files changed** — from `git diff --stat`
+
+Rule: if `git status` shows changes and you haven't written or updated the handoff in the last commit, the session is not done.
+
+### 2. GitHub Issues (remote, persistent)
+
+Each discrete work item gets a GitHub issue in `FALK-BRAUER/kumo-qc`. Workers must:
+
+1. **Open an issue** when starting a new work item (if one doesn't exist)
+2. **Add a progress comment** when partially done (what's done, what's left)
+3. **Close the issue** (with `Closes #N` in the commit message) when complete
+
+Issue format:
+```
+Title: <one-line description>
+Body:
+## Goal
+[What this achieves]
+
+## Acceptance Criteria
+- [ ] specific verifiable outcome
+- [ ] specific verifiable outcome
+
+## Context
+[Non-obvious constraints, links to relevant code]
+```
+
+Labels used: `phase-2-backtest`, `phase-5-live`, `cockpit`, `worker-regime`, `p0`, `p1`, `p2`
+
+### Regime summary
+
+| State | Where it lives | When to update |
+|-------|---------------|----------------|
+| In-progress notes | GitHub issue comment | After each meaningful action |
+| Session summary | `zz_handoffs/` file | Before every session close |
+| Completed work | Git commit (pushed) | Immediately after clean commit |
+| Pending work | GitHub issue open | Until merged + closed |
+
+**Why both?** Handoffs are fast to write mid-session. GitHub issues survive worker crashes, directory deletions, and agent context resets. The May 23 disaster proved that local-only state = single point of failure.
+
+### Destructive action policy
+
+Workers **MUST NOT** run any of the following without explicit written authorization from fintrack (Claude Code commander):
+- `rm -rf` on any directory
+- `git reset --hard` beyond the current working tree
+- `git push --force`
+- Dropping/truncating database tables
+- Deleting branches
+
+When in doubt: write a handoff, open a GitHub issue, and stop. Do NOT improvise a cleanup. The May 23 incident: Worker B deleted the entire kumo-qc directory following an orchestrator's "archive or delete" instruction. Orchestrators do not have destructive authority — only fintrack does.
