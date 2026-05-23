@@ -51,13 +51,34 @@ API credentials: User ID + API Token from QC account settings → macOS keychain
 ## Project Phases
 | Phase | Status | Description |
 |-------|--------|-------------|
-| 1 | 🔲 | QC account setup + API credentials + local LEAN CLI |
-| 2 | 🔲 | BCT signal port — implement 8-condition checklist in QC Python |
-| 3 | 🔲 | Universe filter — coarse (6k→200) + fine (BCT score → 5-10) |
-| 4 | 🔲 | Backtest vs kumo-trader scanner results (validation gate) |
-| 5 | 🔲 | Paper live trading — DUK434934 via QC IBKR brokerage |
-| 6 | 🔲 | Cockpit adapter — Next.js reads QC REST API |
-| 7 | 🔲 | Live trading gate — Falk manual approval before U18777181 |
+| 1 | ✅ | QC account setup + API credentials + local LEAN CLI |
+| 2 | ✅ | BCT signal port — 8-condition checklist in QC Python (bct_signal.py) |
+| 3 | ✅ | Universe filter — coarse (6k→200) + fine (BCT score ≥7 → 5-10) |
+| 4 | ✅ | Backtest validation — 74.2% recall / 100% precision vs scanner; ADX 71% match (data feed delta, not bug) |
+| 5 | 🔲 | Paper live trading — gate.py unlock → deploy.py → DUK434934 (Falk decision) |
+| 6 | ✅ | Cockpit adapter — Next.js reads QC REST API (server-only auth, 4 route handlers) |
+| 7 | ✅ | Live trading gate — gate.py + live-gate QC parameter + DU account prefix check |
+
+## QC Project IDs
+| Project | ID | Purpose |
+|---------|----|---------|
+| backtest_bct | 32033824 | Signal audit only (no orders) |
+| performance_bct | 32034565 | Full return simulation |
+| live_bct | not deployed | Awaiting Falk gate.py unlock |
+
+## Credentials (keychain only)
+```
+security find-generic-password -s "qc-user-id" -a "kumo-qc" -w     → QC user ID
+security find-generic-password -s "qc-api-token" -a "kumo-qc" -w   → QC API token
+security find-generic-password -s "kumo-qc" -a "qc-live-gate" -w   → UNLOCKED or absent
+```
+
+UI credentials: set in `ui/.env.local` (gitignored):
+```
+QC_USER_ID=...
+QC_API_TOKEN=...
+QC_PROJECT_ID=32033824
+```
 
 ## Commit Policy
 - Conventional Commits: feat|fix|chore|refactor(scope): description

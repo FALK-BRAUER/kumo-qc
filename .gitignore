@@ -33,3 +33,10 @@ npm-debug.log*
 .idea/
 .vscode/
 *.swp
+
+# QC market data dumps — never commit
+data/
+
+# UI secrets and temp files
+ui/.env.local
+ui/temp-find-project.js
