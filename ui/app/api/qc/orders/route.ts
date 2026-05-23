@@ -58,6 +58,9 @@ function resolveDirection(raw: QCOrderRaw['direction']): string {
   return ORDER_DIRECTION_MAP[raw] ?? String(raw);
 }
 
+// Ensure Node.js runtime for crypto module compatibility
+export const runtime = 'nodejs';
+
 export async function GET() {
   try {
     const data = await qcFetch<QCOrdersResponse>(`/live/${PROJECT_ID}/orders`);

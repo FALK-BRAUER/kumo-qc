@@ -52,6 +52,9 @@ function parseLogs(lines: string[]): Signal[] {
   return signals;
 }
 
+// Ensure Node.js runtime for crypto module compatibility
+export const runtime = 'nodejs';
+
 export async function GET(request: NextRequest) {
   const backtestId = new URL(request.url).searchParams.get('backtestId');
   if (!backtestId) {

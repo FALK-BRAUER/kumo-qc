@@ -16,6 +16,9 @@ interface QCLiveReadResponse {
   [key: string]: unknown;
 }
 
+// Ensure Node.js runtime for crypto module compatibility
+export const runtime = 'nodejs';
+
 export async function GET() {
   try {
     const data = await qcFetch<QCLiveReadResponse>(`/live/${PROJECT_ID}/read`);

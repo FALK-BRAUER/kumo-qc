@@ -28,6 +28,9 @@ function resolveSymbol(raw: QCHoldingRaw['symbol']): string {
   return raw.value ?? '';
 }
 
+// Ensure Node.js runtime for crypto module compatibility
+export const runtime = 'nodejs';
+
 export async function GET() {
   try {
     const data = await qcFetch<QCPortfolioResponse>(`/live/${PROJECT_ID}/portfolio/holdings`);
