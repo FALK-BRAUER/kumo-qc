@@ -57,6 +57,14 @@ def list_backtests(user_id, api_token, project_id):
         return []
     return response.get("backtests", [])
 
+def fetch_backtest_stats(user_id, api_token, project_id, backtest_id):
+    """Fetch detailed stats from individual backtest read."""
+    response = qc_post("/backtests/read", {"projectId": project_id, "backtestId": backtest_id}, user_id, api_token)
+    if not response.get("success"):
+        print(f"Error fetching stats for backtest {backtest_id}: {response.get('errors', ['unknown'])}")
+        return None
+    return response.get("backtest", {})
+
 def fetch_file(user_id, api_token, project_id, filename="main.py"):
     """Fetch algorithm code file."""
     response = qc_post("/files/read", {"projectId": project_id, "name": filename}, user_id, api_token)
@@ -65,34 +73,28 @@ def fetch_file(user_id, api_token, project_id, filename="main.py"):
         return None
     return response.get("files", [])[0].get("content", "")
 
-def extract_backtest_stats(backtest):
+def extract_backtest_stats(user_id, api_token, backtest):
     """Extract key metrics from backtest object."""
-    # QC API stats are directly in backtest object, not nested
-    sharpe_val = backtest.get("sharpeRatio")
-    if sharpe_val is None:
-        sharpe_val = 0
-    
-    cagr_val = backtest.get("compoundingAnnualReturn")
-    if cagr_val is None:
-        cagr_val = 0
-    
-    drawdown_val = backtest.get("drawdown")
-    if drawdown_val is None:
-        drawdown_val = 0
-    
-    trades_val = backtest.get("trades")
-    if trades_val is None:
-        trades_val = 0
-    
-    win_rate_val = backtest.get("winRate")
-    if win_rate_val is None:
-        win_rate_val = 0
-    
-    net_profit_val = backtest.get("netProfit")
-    if net_profit_val is None:
-        net_profit_val = 0
-    
-    sparkline = backtest.get("sparkline", "")
+    # First try stats from individual read
+    detailed = fetch_backtest_stats(user_id, api_token, backtest.get("projectId"), backtest.get("backtestId"))
+    if detailed:
+        stats = detailed.get("statistics", {})
+        sharpe_val = stats.get("Sharpe Ratio", 0)
+        cagr_val = stats.get("Compounding Annual Return", 0)
+        drawdown_val = stats.get("Drawdown", 0)
+        trades_val = stats.get("Total Orders", 0)
+        win_rate_val = stats.get("Win Rate", 0)
+        net_profit_val = stats.get("Net Profit", 0)
+        sparkline = detailed.get("sparkline", "")
+    else:
+        # Fallback to list stats (might be zero)
+        sharpe_val = backtest.get("sharpeRatio", 0)
+        cagr_val = backtest.get("compoundingAnnualReturn", 0)
+        drawdown_val = backtest.get("drawdown", 0)
+        trades_val = backtest.get("trades", 0)
+        win_rate_val = backtest.get("winRate", 0)
+        net_profit_val = backtest.get("netProfit", 0)
+        sparkline = backtest.get("sparkline", "")
     
     return {
         "name": backtest.get("name", ""),
@@ -129,7 +131,7 @@ def write_index_file(all_stats):
         folder_name = create_folder_name(idx + 1, stats["name"])
         status = "✅ Downloaded" if stats.get("algorithm_downloaded", False) else "⏳ To process"
         lines.append(
-            f"| {idx + 1:02d} | {stats['name']} | {stats['projectId']} | {stats['sharpe']} | {stats['cagr']}% | {stats['maxDrawdown']}% | {stats['totalTrades']} | {stats['winRate']}% | {status} |"
+            f"| {idx + 1:02d} | {stats['name']} | {stats['projectId']} | {stats['sharpe']} | {stats['cagr']} | {stats['maxDrawdown']} | {stats['totalTrades']} | {stats['winRate']} | {status} |"
         )
     
     lines.append("")
@@ -149,11 +151,11 @@ def write_strategy_readme(stats):
     lines.append("| Metric | Value |")
     lines.append("|---|---|")
     lines.append(f"| Sharpe | {stats['sharpe']} |")
-    lines.append(f"| CAGR | {stats['cagr']}% |")
-    lines.append(f"| Max Drawdown | {stats['maxDrawdown']}% |")
+    lines.append(f"| CAGR | {stats['cagr']} |")
+    lines.append(f"| Max Drawdown | {stats['maxDrawdown']} |")
     lines.append(f"| Total Trades | {stats['totalTrades']} |")
-    lines.append(f"| Win Rate | {stats['winRate']}% |")
-    lines.append(f"| Net Profit | ${stats['netProfit']} |")
+    lines.append(f"| Win Rate | {stats['winRate']} |")
+    lines.append(f"| Net Profit | {stats['netProfit']} |")
     lines.append("")
     lines.append("## Conditions")
     lines.append("*To be filled after analysis*")
@@ -183,7 +185,7 @@ def main():
         
         backtests = list_backtests(user_id, api_token, project_id)
         for bt in backtests:
-            stats = extract_backtest_stats(bt)
+            stats = extract_backtest_stats(user_id, api_token, bt)
             stats["projectName"] = project_name
             all_backtests.append(stats)
     
