@@ -40,3 +40,4 @@ data/
 # UI secrets and temp files
 ui/.env.local
 ui/temp-find-project.js
+zz_handoffs/
