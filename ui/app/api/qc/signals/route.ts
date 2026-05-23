@@ -64,8 +64,7 @@ export async function GET(request: NextRequest) {
     const signals = parseLogs(rawLogs);
     return NextResponse.json(signals);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error('[qc/signals]', message);
+    console.error('[qc/signals]', err instanceof Error ? err.message : String(err));
     // Graceful empty array on any error
     return NextResponse.json([]);
   }
