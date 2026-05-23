@@ -127,65 +127,10 @@ def score_symbol(algorithm: Any, symbol: Any) -> dict[str, Any] | None:
 
 
 def score_symbol_native(algorithm: Any, symbol: Any, ind: Any) -> dict[str, Any] | None:
-    """Native-indicator BCT scorer for performance_bct.
+    """Delegates to score_symbol (History-based).
 
-    Uses pre-registered QC IchimokuKinkoHyo + SMA200 from the ind dict.
-    ADX still fetches 100 daily bars — QC native ADX uses period 14, George uses period 9.
+    Standalone IchimokuKinkoHyo exposes tenkan/kijun but not senkou_span_a/b
+    in LEAN Python. score_symbol fetches 700 daily bars and computes all
+    indicators from scratch — correct and simpler.
     """
-    from QuantConnect import Resolution  # noqa: PLC0415
-
-    d_ichi  = ind["d_ichi"]
-    w_ichi  = ind["w_ichi"]
-    w_close = ind["w_close"]
-    sma200  = ind["sma200"]
-
-    if not (d_ichi.is_ready and w_ichi.is_ready and sma200.is_ready):
-        return None
-    if not w_close.is_ready or w_close.count < 27:
-        return None
-
-    w_price        = float(w_close[0])
-    w_tenkan_now   = float(w_ichi.tenkan.current.value)
-    w_kijun_now    = float(w_ichi.kijun.current.value)
-    w_cloud_a_now  = float(w_ichi.senkou_span_a.current.value)
-    w_cloud_b_now  = float(w_ichi.senkou_span_b.current.value)
-    w_price_26_ago = float(w_close[26])
-
-    d_price       = float(algorithm.securities[symbol].price)
-    d_tenkan_now  = float(d_ichi.tenkan.current.value)
-    d_cloud_a_now = float(d_ichi.senkou_span_a.current.value)
-    d_cloud_b_now = float(d_ichi.senkou_span_b.current.value)
-    ma200         = float(sma200.current.value)
-
-    # Custom Wilder period-9 ADX (QC native uses period 14)
-    daily = _fetch_ohlcv(algorithm, symbol, 100, Resolution.DAILY)
-    if len(daily) < 30:
-        return None
-    adx, plus_di, minus_di = _adx_wilder(daily, period=9)
-    adx_now      = adx.iloc[-1]
-    plus_di_now  = plus_di.iloc[-1]
-    minus_di_now = minus_di.iloc[-1]
-    adx_rising   = bool(adx.iloc[-1] > adx.iloc[-4])
-
-    critical = [w_cloud_a_now, w_cloud_b_now, w_tenkan_now, w_kijun_now, w_price_26_ago,
-                d_cloud_a_now, d_cloud_b_now, d_tenkan_now, ma200, adx_now, plus_di_now, minus_di_now]
-    if any(pd.isna(v) for v in critical):
-        return None
-
-    conditions: list[bool] = [
-        bool(w_price > max(w_cloud_a_now, w_cloud_b_now)),
-        bool(w_tenkan_now > w_kijun_now),
-        bool(w_price > w_price_26_ago),
-        bool(w_cloud_a_now > w_cloud_b_now),
-        bool(d_price > max(d_cloud_a_now, d_cloud_b_now)),
-        bool(d_price > d_tenkan_now),
-        bool(adx_rising and plus_di_now > minus_di_now and adx_now >= 20),
-        bool(d_price > ma200),
-    ]
-    score = sum(conditions)
-    if score == 8:   rating = "+++"
-    elif score >= 6: rating = "++"
-    elif score >= 4: rating = "+"
-    elif score >= 2: rating = "="
-    else:            rating = "--"
-    return {"score": score, "rating": rating, "conditions": conditions}
+    return score_symbol(algorithm, symbol)
