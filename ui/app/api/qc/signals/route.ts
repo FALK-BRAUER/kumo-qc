@@ -1,71 +1,69 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { qcFetch } from '@/lib/qc-server-client';
+import { qcPost } from '@/lib/qc-server-client';
 import type { Signal } from '@/lib/qc-client';
 
-const PROJECT_ID = process.env.QC_PROJECT_ID ?? '32033824';
+const PROJECT_ID = parseInt(process.env.QC_PROJECT_ID ?? '32033824', 10);
+const PAGE_SIZE = 200;
 
-interface QCLogsResponse {
+// Actual log format: SIGNAL|2025-01-01|AAPL|++|7/8|T,T,T,T,T,T,F,T
+const SIGNAL_RE = /SIGNAL\|(\d{4}-\d{2}-\d{2})\|([A-Z0-9.]+)\|([\+\-=]+)\|(\d+)\/8/;
+
+interface LogPage {
   success: boolean;
-  logs?: string | string[];
-  [key: string]: unknown;
+  logs: string[];
+  length: number;
 }
 
-// Parse SIGNAL|{date}|{symbol}|score={n}/8 lines
-// Also capture ENTRY|{date}|{symbol} lines as score=8 entries
-const SIGNAL_RE = /SIGNAL\|(\d{4}-\d{2}-\d{2})\|([A-Z]+)\|score=(\d+)\/8/;
-const ENTRY_RE = /ENTRY\|(\d{4}-\d{2}-\d{2})\|([A-Z]+)/;
+async function fetchAllLogs(backtestId: string): Promise<string[]> {
+  const first = await qcPost<LogPage>('/backtests/read/log', {
+    projectId: PROJECT_ID,
+    backtestId,
+    start: 0,
+    end: PAGE_SIZE,
+    query: '',
+  });
 
-function scoreToRating(score: number): string {
-  if (score >= 7) return '+++';
-  if (score >= 5) return '++';
-  if (score >= 3) return '+';
-  if (score >= 1) return '=';
-  return '--';
-}
+  const total = first.length;
+  const all: string[] = [...(first.logs ?? [])];
 
-function parseLogs(rawLogs: string | string[]): Signal[] {
-  const lines = Array.isArray(rawLogs)
-    ? rawLogs
-    : rawLogs.split('\n');
-
-  const signals: Signal[] = [];
-
-  for (const line of lines) {
-    const sigMatch = SIGNAL_RE.exec(line);
-    if (sigMatch) {
-      const [, date, symbol, scoreStr] = sigMatch;
-      const score = parseInt(scoreStr, 10);
-      signals.push({ date, symbol, score, rating: scoreToRating(score) });
-      continue;
-    }
-    const entryMatch = ENTRY_RE.exec(line);
-    if (entryMatch) {
-      const [, date, symbol] = entryMatch;
-      signals.push({ date, symbol, score: 8, rating: '+++' });
-    }
+  for (let start = PAGE_SIZE; start < total; start += PAGE_SIZE) {
+    const page = await qcPost<LogPage>('/backtests/read/log', {
+      projectId: PROJECT_ID,
+      backtestId,
+      start,
+      end: Math.min(start + PAGE_SIZE, total),
+      query: '',
+    });
+    all.push(...(page.logs ?? []));
   }
 
-  // Sort descending by date
+  return all;
+}
+
+function parseLogs(lines: string[]): Signal[] {
+  const signals: Signal[] = [];
+  for (const line of lines) {
+    const m = SIGNAL_RE.exec(line);
+    if (!m) continue;
+    const [, date, symbol, rating, scoreStr] = m;
+    signals.push({ date, symbol, score: parseInt(scoreStr, 10), rating });
+  }
   signals.sort((a, b) => b.date.localeCompare(a.date));
   return signals;
 }
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const backtestId = searchParams.get('backtestId');
+  const backtestId = new URL(request.url).searchParams.get('backtestId');
+  if (!backtestId) {
+    return NextResponse.json({ error: 'backtestId required' }, { status: 400 });
+  }
 
   try {
-    const path = backtestId
-      ? `/projects/${PROJECT_ID}/backtests/${backtestId}/logs`
-      : `/projects/${PROJECT_ID}/live/logs`;
-
-    const data = await qcFetch<QCLogsResponse>(path);
-    const rawLogs = data.logs ?? '';
-    const signals = parseLogs(rawLogs);
+    const lines = await fetchAllLogs(backtestId);
+    const signals = parseLogs(lines);
     return NextResponse.json(signals);
   } catch (err) {
     console.error('[qc/signals]', err instanceof Error ? err.message : String(err));
-    // Graceful empty array on any error
     return NextResponse.json([]);
   }
 }

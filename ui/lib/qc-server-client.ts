@@ -33,3 +33,21 @@ export async function qcFetch<T>(path: string): Promise<T> {
   }
   return data as T;
 }
+
+export async function qcPost<T>(path: string, body: Record<string, unknown>): Promise<T> {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: 'POST',
+    headers: { ...buildHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`QC API ${res.status} at ${path}: ${text}`);
+  }
+  const data = await res.json();
+  if (data.success === false) {
+    throw new Error(`QC API error: ${data.errors?.join(', ') || 'unknown'}`);
+  }
+  return data as T;
+}
