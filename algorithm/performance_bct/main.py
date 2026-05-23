@@ -1,107 +1,191 @@
+from __future__ import annotations
 """
-BCT performance backtest — QC project 32034565 (performance_bct).
-Full order simulation for return/drawdown/Sharpe analysis.
-Uses BCT score ≥7 for entry, Kijun stop for exit. Equal weight, max 10 positions.
+BCT performance backtest — parameterized date range.
+
+Replicates live_bct.py trading logic for historical performance measurement:
+≥7/8 BCT signal entry, 10% position sizing, Kijun stop exit, max 10 positions.
+
+Date range set via QC parameters (start_year/month/day, end_year/month/day).
+Defaults: 2025-01-01 to 2025-12-31 (FY2025).
+Use scripts/run_windows.py to launch all 6-window + FY2025 backtests.
+
+Uses QC native IchimokuKinkoHyo: daily registered via self.ichimoku(),
+weekly via TradeBarConsolidator(Calendar.WEEKLY). Custom Wilder period-9
+ADX retained in score_symbol_native() — QC native ADX is period 14.
 """
 
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from datetime import timedelta
 
-from AlgorithmImports import *
-from bct_signal import score_symbol_native, _kijun
+from AlgorithmImports import *  # noqa: F401,F403
+
+from bct_signal import score_symbol_native
+from universe_filter import BCTUniverseFilter
 
 
-class PerformanceBCT(QCAlgorithm):
+class BCTPerformanceAlgorithm(QCAlgorithm):
 
-    def Initialize(self):
-        self.SetStartDate(2025, 1, 1)
-        self.SetEndDate(2026, 5, 22)
-        self.SetCash(100000)
-        self.SetBrokerageModel(BrokerageName.InteractiveBrokersBrokerage)
+    MAX_POSITIONS: int = 10
+    POSITION_PCT: float = 0.10
+    MIN_SCORE: int = 7
 
-        self.Settings.RebalancePortfolioOnInsightChanges = False
-        self.Settings.RebalancePortfolioOnSecurityChanges = False
+    def initialize(self) -> None:
+        self.set_time_zone("America/New_York")
+        sy = int(self.get_parameter("start_year",  "2025"))
+        sm = int(self.get_parameter("start_month", "1"))
+        sd = int(self.get_parameter("start_day",   "1"))
+        ey = int(self.get_parameter("end_year",    "2025"))
+        em = int(self.get_parameter("end_month",   "12"))
+        ed = int(self.get_parameter("end_day",     "31"))
+        self.set_start_date(sy, sm, sd)
+        self.set_end_date(ey, em, ed)
+        self.set_cash(100_000)
+        self.set_benchmark("SPY")
+        self.set_warmup(timedelta(days=750))
 
-        self.AddUniverse(self.CoarseFilter)
+        self.universe_settings.resolution = Resolution.DAILY
 
-        self.Schedule.On(
-            self.DateRules.WeekStart(),
-            self.TimeRules.AfterMarketOpen("SPY", 30),
-            self.Rebalance,
+        self._filter = BCTUniverseFilter()
+        self._active: set = set()
+        self._indicators: dict = {}
+
+        self.add_universe(
+            self._filter.coarse_selection,
+            self._filter.fine_selection,
         )
 
-        self._universe: list[Symbol] = []
-        self._kijun_stops: dict[str, float] = {}
+        self.schedule.on(
+            self.date_rules.every_day(),
+            self.time_rules.at(16, 5),
+            self._rebalance,
+        )
 
-    def CoarseFilter(self, coarse):
-        filtered = [
-            c for c in coarse
-            if c.HasFundamentalData
-            and c.Price > 10
-            and c.DollarVolume > 5_000_000
-        ]
-        filtered.sort(key=lambda c: c.DollarVolume, reverse=True)
-        return [c.Symbol for c in filtered[:200]]
+    def on_securities_changed(self, changes: SecurityChanges) -> None:
+        for s in changes.added_securities:
+            sym = s.symbol
+            self._active.add(sym)
+            if sym not in self._indicators:
+                self._register_indicators(sym)
+        for s in changes.removed_securities:
+            sym = s.symbol
+            self._active.discard(sym)
+            if sym in self._indicators:
+                self.subscription_manager.remove_consolidator(
+                    sym, self._indicators[sym]["consolidator"]
+                )
+                del self._indicators[sym]
 
-    def OnSecuritiesChanged(self, changes):
-        for s in changes.AddedSecurities:
-            self._universe.append(s.Symbol)
-        for s in changes.RemovedSecurities:
-            sym = s.Symbol
-            if sym in self._universe:
-                self._universe.remove(sym)
-            self._kijun_stops.pop(str(sym), None)
+    def _register_indicators(self, sym) -> None:
+        d_ichi = self.ichimoku(sym, 9, 26, 26, 52, 26, 26)
+        sma200 = self.sma(sym, 200)
 
-    def Rebalance(self):
-        date_str = self.Time.strftime("%Y-%m-%d")
-        signals: dict[Symbol, tuple[int, str]] = {}
+        w_ichi = IchimokuKinkoHyo(9, 26, 26, 52, 26, 26)
+        w_close = RollingWindow[float](28)
 
-        for symbol in self._universe:
-            score, rating = score_symbol_native(self, symbol)
-            if score >= 7:
-                signals[symbol] = (score, rating)
-                self.Log(f"SIGNAL|{date_str}|{symbol}|score={score}/8|rating={rating}")
+        consolidator = TradeBarConsolidator(Calendar.WEEKLY)
 
-        # Exit dropped signals
-        for sym, holding in self.Portfolio.items():
-            if holding.Invested and sym not in signals:
-                self.Liquidate(sym)
-                self.Log(f"EXIT|{date_str}|{sym}|reason=signal_lost")
+        def _on_weekly(_, bar: TradeBar) -> None:
+            w_ichi.update(bar)
+            w_close.add(bar.close)
 
-        # Enter / rebalance
-        target_list = sorted(signals.keys(), key=lambda s: signals[s][0], reverse=True)[:10]
-        weight = 1.0 / max(len(target_list), 1)
+        consolidator.data_consolidated += _on_weekly
+        self.subscription_manager.add_consolidator(sym, consolidator)
 
-        for symbol in target_list:
-            self.SetHoldings(symbol, weight)
-            self.Log(f"ENTRY|{date_str}|{symbol}|weight={weight:.3f}")
-            self._update_kijun_stop(symbol)
+        if not self.is_warming_up:
+            self._seed_weekly(sym, w_ichi, w_close)
 
-    def _update_kijun_stop(self, symbol):
-        try:
-            hist = self.History(symbol, 30, self.Resolution.Daily)
-            if hist.empty:
-                return
-            closes = hist.reset_index()["close"]
-            kijun_val = float(_kijun(closes).iloc[-1])
-            self._kijun_stops[str(symbol)] = kijun_val
-        except Exception:
-            pass
+        self._indicators[sym] = {
+            "d_ichi": d_ichi,
+            "w_ichi": w_ichi,
+            "w_close": w_close,
+            "sma200": sma200,
+            "consolidator": consolidator,
+        }
 
-    def OnData(self, data: Slice):
-        date_str = self.Time.strftime("%Y-%m-%d")
-        for sym, holding in self.Portfolio.items():
-            if not holding.Invested:
+    def _seed_weekly(self, sym, w_ichi, w_close) -> None:
+        hist = self.history(sym, 750, Resolution.DAILY)
+        if hist is None or hist.empty:
+            return
+        if isinstance(hist.index, pd.MultiIndex):
+            hist = hist.droplevel(0)
+        hist.columns = [c.lower() for c in hist.columns]
+        if not {"open", "high", "low", "close", "volume"}.issubset(hist.columns):
+            return
+        weekly = hist.resample("W-FRI").agg({
+            "open": "first", "high": "max", "low": "min",
+            "close": "last", "volume": "sum",
+        }).dropna(subset=["close"])
+        for time, row in weekly.iterrows():
+            bar = TradeBar(
+                time, sym,
+                float(row["open"]), float(row["high"]),
+                float(row["low"]), float(row["close"]),
+                int(row["volume"]), timedelta(weeks=1),
+            )
+            w_ichi.update(bar)
+            w_close.add(float(row["close"]))
+
+    def _daily_close_and_kijun(self, symbol) -> tuple[float, float] | None:
+        if symbol not in self._indicators:
+            return None
+        d_ichi = self._indicators[symbol]["d_ichi"]
+        if not d_ichi.is_ready:
+            return None
+        return float(self.securities[symbol].price), d_ichi.kijun.current.value
+
+    def _has_open_orders(self, symbol) -> bool:
+        return bool(self.transactions.get_open_orders(symbol))
+
+    def _rebalance(self) -> None:
+        if self.is_warming_up:
+            return
+        date_str = self.time.strftime("%Y-%m-%d")
+
+        for symbol, holding in list(self.portfolio.items()):
+            if not holding.invested or self._has_open_orders(symbol):
                 continue
-            stop = self._kijun_stops.get(str(sym))
-            if stop is None:
+            vals = self._daily_close_and_kijun(symbol)
+            if vals is None:
                 continue
-            if self.Securities[sym].Price < stop:
-                self.Liquidate(sym)
-                self.Log(f"EXIT|{date_str}|{sym}|reason=kijun_stop")
-                self._kijun_stops.pop(str(sym), None)
+            close, kijun = vals
+            if close < kijun:
+                self.market_on_open_order(symbol, -holding.quantity)
+                self.log(f"STOP|{date_str}|{symbol.value}|close={close:.2f}|kijun={kijun:.2f}")
 
-    def OnEndOfAlgorithm(self):
-        self.Log(f"FINAL|portfolio_value={self.Portfolio.TotalPortfolioValue:.2f}")
-        self.Log(f"FINAL|total_return={(self.Portfolio.TotalPortfolioValue - 100000) / 100000 * 100:.2f}%")
+        exiting = {
+            o.symbol
+            for o in self.transactions.get_open_orders()
+            if o.quantity < 0
+        }
+        open_count = sum(
+            1 for sym, h in self.portfolio.items()
+            if h.invested and sym not in exiting
+        )
+        slots = self.MAX_POSITIONS - open_count
+        if slots <= 0:
+            return
+
+        candidates: list[tuple] = []
+        for symbol in list(self._active):
+            if self.portfolio[symbol].invested:
+                continue
+            ind = self._indicators.get(symbol)
+            if ind is None:
+                continue
+            result = score_symbol_native(self, symbol, ind)
+            if result is None or result["score"] < self.MIN_SCORE:
+                continue
+            candidates.append((symbol, result["score"]))
+
+        candidates.sort(key=lambda x: x[1], reverse=True)
+        for symbol, score in candidates[:slots]:
+            price = self.securities[symbol].price
+            if price <= 0:
+                continue
+            target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
+            quantity = int(target_value / price)
+            if quantity <= 0:
+                continue
+            self.market_on_open_order(symbol, quantity)
+            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
+
+        self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
