@@ -7,6 +7,17 @@
 | 01 | bct-perf-2020-2026 | 0.393 | 14.253% | 40.900% | 1807 | 42% | ✅ Downloaded |
 | 02 | bct-perf-native-ichi-2020-2026 | 0.278 | 9.976% | 33.700% | 1884 | 42% | ✅ Downloaded |
 
+### W1-W6 + FY2025 window results (fixed score_symbol_native, 2026-05-24)
+| Window | Period | NetProfit | Sharpe | Trades | Notes |
+|---|---|---|---|---|---|
+| W1 | 2026-04-07→11 | +31.044% | 0.733 | 28 | ✅ |
+| W2 | 2026-04-14→18 | +12.482% | 0.258 | 29 | ✅ |
+| W3 | 2026-04-22→25 | n/a | n/a | 0 | No trades — MIN_SCORE=7 filtered all (4-day tariff-shock window) |
+| W4 | 2026-04-28→05-02 | +8.973% | 0.153 | 30 | ✅ |
+| W5 | 2026-05-05→09 | +14.899% | 0.337 | 36 | ✅ |
+| W6 | 2026-05-12→16 | +21.846% | 0.485 | 36 | ✅ |
+| FY2025 | 2025-01-01→12-31 | +33.134% | **0.801** | 44 | ✅ Strong — 2× prior bct-perf-2020-2026 Sharpe |
+
 ## Signal audit / parity (project 32033824) — no trades, signal log only
 | # | Name | Backtest ID | Period | Status |
 |---|---|---|---|---|
@@ -22,6 +33,6 @@
 | Period | Recall | Precision | Notes |
 |---|---|---|---|
 | W1 2026-04-07→11 | 98.1% | 12.6% | FPs = universe size delta (6737 vs ~250); C7/ADX 90% = data feed delta |
-| W1-W6 full | ⏳ running | — | — |
+| W1-W6 full | 98.9% | 9.8% | 29 trading days; C7/ADX 94% (data feed delta Yahoo vs QC) |
 
 Status values: `✅ Downloaded` | `✅ Logs fetched` | `⏳ To process` | `❌ Failed`
