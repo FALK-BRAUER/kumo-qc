@@ -1,0 +1,16 @@
+{
+  "name": "bct-parity-v2-2026-05-08-22",
+  "backtestId": "5753bc9e100ee6047d193ed1356f1e27",
+  "projectId": 32033824,
+  "sharpe": "0",
+  "cagr": "0%",
+  "maxDrawdown": "0%",
+  "totalTrades": "0",
+  "winRate": "0%",
+  "netProfit": "0%",
+  "sparkline": "",
+  "completed": true,
+  "created": "2026-05-23 07:00:49",
+  "projectName": "backtest_bct",
+  "algorithm_downloaded": true
+}
