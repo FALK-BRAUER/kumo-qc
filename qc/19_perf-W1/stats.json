@@ -1,0 +1,16 @@
+{
+  "name": "perf-W1",
+  "backtestId": "7dc36e882f10c1f45441c996066124a7",
+  "projectId": 32034565,
+  "sharpe": 0.0,
+  "cagr": 0,
+  "maxDrawdown": 0,
+  "totalTrades": 0.0,
+  "winRate": 0,
+  "netProfit": 0,
+  "sparkline": "",
+  "completed": true,
+  "created": "2026-05-23 17:26:54",
+  "projectName": "performance_bct",
+  "algorithm_downloaded": true
+}

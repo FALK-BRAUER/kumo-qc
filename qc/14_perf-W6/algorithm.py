@@ -44,6 +44,12 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
         self.universe_settings.resolution = Resolution.DAILY
 
+        # exit flags
+        self.ENABLE_CLOUD_BREACH_EXIT = True
+        self.ENABLE_WEEKLY_KIJUN_EXIT = True
+        self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
+        self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
+
         self._filter = BCTUniverseFilter()
         self._active: set = set()
         self._indicators: dict = {}
@@ -146,10 +152,20 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             vals = self._daily_close_and_kijun(symbol)
             if vals is None:
                 continue
-            close, kijun = vals
+            close, kijun, cloud_top = vals
+            
+            w_ichi = self._indicators[symbol]["w_ichi"]
+            w_kijun = w_ichi.kijun.current.value if w_ichi.is_ready else None
+
             if close < kijun:
                 self.market_on_open_order(symbol, -holding.quantity)
                 self.log(f"STOP|{date_str}|{symbol.value}|close={close:.2f}|kijun={kijun:.2f}")
+            elif self.cloud_exit_enabled and close < cloud_top:
+                self.market_on_open_order(symbol, -holding.quantity)
+                self.log(f"CLOUD_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_top={cloud_top:.2f}")
+            elif self.weekly_kijun_exit_enabled and w_kijun is not None and close < w_kijun:
+                self.market_on_open_order(symbol, -holding.quantity)
+                self.log(f"WEEKLY_KIJUN_STOP|{date_str}|{symbol.value}|close={close:.2f}|w_kijun={w_kijun:.2f}")
 
         exiting = {
             o.symbol
@@ -167,6 +183,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         candidates: list[tuple] = []
         for symbol in list(self._active):
             if self.portfolio[symbol].invested:
+                continue
+            # ETF exclusion — ETFs added with add_equity() pass coarse filter but should not be scored
+            if symbol.value.endswith(".ETF"):
                 continue
             ind = self._indicators.get(symbol)
             if ind is None:

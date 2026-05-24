@@ -1,0 +1,16 @@
+{
+  "name": "bct-perf-native-ichi-2020-2026",
+  "backtestId": "1202cdd971c12206146d71e4f951c032",
+  "projectId": 32034565,
+  "sharpe": 0.278,
+  "cagr": 0,
+  "maxDrawdown": 0,
+  "totalTrades": 1884.0,
+  "winRate": 0,
+  "netProfit": 0,
+  "sparkline": "",
+  "completed": true,
+  "created": "2026-05-23 08:10:25",
+  "projectName": "performance_bct",
+  "algorithm_downloaded": true
+}

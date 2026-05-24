@@ -1,0 +1,16 @@
+{
+  "name": "perf-FY2025",
+  "backtestId": "6ce4f92dedb2b2bf426dbbeb0cc1c7ac",
+  "projectId": 32034565,
+  "sharpe": 0.383,
+  "cagr": 0,
+  "maxDrawdown": 0,
+  "totalTrades": 27.0,
+  "winRate": 0,
+  "netProfit": 0,
+  "sparkline": "",
+  "completed": true,
+  "created": "2026-05-23 17:38:48",
+  "projectName": "performance_bct",
+  "algorithm_downloaded": true
+}
