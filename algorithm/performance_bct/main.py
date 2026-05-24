@@ -130,13 +130,23 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             w_ichi.update(bar)
             w_close.add(float(row["close"]))
 
-    def _daily_close_and_kijun(self, symbol) -> tuple[float, float] | None:
+    def _daily_close_and_kijun_and_cloud_top(self, symbol) -> tuple[float, float, float] | None:
         if symbol not in self._indicators:
             return None
         d_ichi = self._indicators[symbol]["d_ichi"]
         if not d_ichi.is_ready:
             return None
-        return float(self.securities[symbol].price), d_ichi.kijun.current.value
+        
+        close = float(self.securities[symbol].price)
+        kijun = d_ichi.kijun.current.value
+        
+        # Access the displaced Senkou Span A/B values directly
+        senkou_a = d_ichi.senkou_a.current.value
+        senkou_b = d_ichi.senkou_b.current.value
+        
+        cloud_top = max(senkou_a, senkou_b)
+        
+        return close, kijun, cloud_top
 
     def _has_open_orders(self, symbol) -> bool:
         return bool(self.transactions.get_open_orders(symbol))
@@ -149,13 +159,16 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         for symbol, holding in list(self.portfolio.items()):
             if not holding.invested or self._has_open_orders(symbol):
                 continue
-            vals = self._daily_close_and_kijun(symbol)
+            vals = self._daily_close_and_kijun_and_cloud_top(symbol)
             if vals is None:
                 continue
-            close, kijun = vals
+            close, kijun, cloud_top = vals
             if close < kijun:
                 self.market_on_open_order(symbol, -holding.quantity)
                 self.log(f"STOP|{date_str}|{symbol.value}|close={close:.2f}|kijun={kijun:.2f}")
+            elif close < cloud_top:
+                self.market_on_open_order(symbol, -holding.quantity)
+                self.log(f"CLOUD_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_top={cloud_top:.2f}")
 
         exiting = {
             o.symbol

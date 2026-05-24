@@ -39,6 +39,7 @@ class LiveBCT(QCAlgorithm):
         self._universe: list[Symbol] = []
         self._signals: dict[str, tuple[int, str]] = {}  # symbol → (score, rating)
         self._kijun_stops: dict[str, float] = {}
+        self._indicators: dict[Symbol, IchimokuKinkoHyo] = {}
 
     def CoarseFilter(self, coarse):
         filtered = [
@@ -53,11 +54,15 @@ class LiveBCT(QCAlgorithm):
     def OnSecuritiesChanged(self, changes):
         for s in changes.AddedSecurities:
             self._universe.append(s.Symbol)
+            if s.Symbol not in self._indicators:
+                self._indicators[s.Symbol] = self.ICHIMOKU(s.Symbol, 9, 26, 26, 52, 26, 26, Resolution.Daily)
         for s in changes.RemovedSecurities:
             sym = s.Symbol
             if sym in self._universe:
                 self._universe.remove(sym)
             self._kijun_stops.pop(str(sym), None)
+            if sym in self._indicators:
+                self.DeregisterIndicator(self._indicators.pop(sym))
 
     def Rebalance(self):
         date_str = self.Time.strftime("%Y-%m-%d")
@@ -107,4 +112,15 @@ class LiveBCT(QCAlgorithm):
             if price < stop:
                 self.Liquidate(sym)
                 self.Log(f"EXIT|{date_str}|{sym}|reason=kijun_stop|stop={stop:.2f}|price={price:.2f}")
+                self._kijun_stops.pop(str(sym), None)
+                continue
+
+            d_ichi = self._indicators.get(sym)
+            if d_ichi is None or not d_ichi.IsReady:
+                continue
+
+            cloud_top = max(d_ichi.SenkouA.Current.Value, d_ichi.SenkouB.Current.Value)
+            if price < cloud_top:
+                self.Liquidate(sym)
+                self.Log(f"EXIT|{date_str}|{sym}|reason=cloud_exit|cloud_top={cloud_top:.2f}|price={price:.2f}")
                 self._kijun_stops.pop(str(sym), None)
