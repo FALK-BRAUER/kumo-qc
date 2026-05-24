@@ -138,7 +138,12 @@ def write_index_file(all_stats):
     
     for idx, stats in enumerate(all_stats):
         folder_name = create_folder_name(idx + 1, stats["name"])
-        status = "✅ Downloaded" if stats.get("algorithm_downloaded", False) else "⏳ To process"
+        if not stats.get("completed", False):
+            status = "⏳ Running"
+        elif stats.get("algorithm_downloaded", False):
+            status = "✅ Downloaded"
+        else:
+            status = "⏳ To process"
         lines.append(
             f"| {idx + 1:02d} | {stats['name']} | {stats['projectId']} | {stats['sharpe']} | {stats['cagr']} | {stats['maxDrawdown']} | {stats['totalTrades']} | {stats['winRate']} | {status} |"
         )
@@ -200,12 +205,11 @@ def main():
     
     print(f"Total backtests found: {len(all_backtests)}")
     
-    # Filter completed backtests only
-    completed_backtests = [bt for bt in all_backtests if bt["completed"]]
-    print(f"Completed backtests: {len(completed_backtests)}")
+    # Include all backtests (including incomplete)
+    print(f"Total backtests: {len(all_backtests)}")
     
     # Sort by Sharpe desc (convert string to float if needed)
-    sorted_backtests = sorted(completed_backtests, key=lambda x: float(x["sharpe"]) if isinstance(x["sharpe"], str) else x["sharpe"], reverse=True)
+    sorted_backtests = sorted(all_backtests, key=lambda x: float(x["sharpe"]) if isinstance(x["sharpe"], str) else x["sharpe"], reverse=True)
     top_backtests = sorted_backtests[:20]  # Top 20
     
     print("Top 20 backtests by Sharpe:")
