@@ -40,8 +40,7 @@ class LiveBCT(QCAlgorithm):
         self._signals: dict[str, tuple[int, str]] = {}  # symbol → (score, rating)
         self._kijun_stops: dict[str, float] = {}
         self._indicators: dict[Symbol, IchimokuKinkoHyo] = {}
-        self._weekly_indicators: dict[Symbol, IchimokuKinkoHyo] = {}  # daily Ichimoku
-        self._weekly_indicators: dict[Symbol, IchimokuKinkoHyo] = {}  # weekly Ichimoku
+        self._weekly_indicators: dict[Symbol, IchimokuKinkoHyo] = {}
 
     def CoarseFilter(self, coarse):
         filtered = [
@@ -55,8 +54,8 @@ class LiveBCT(QCAlgorithm):
 
     def OnSecuritiesChanged(self, changes):
         for s in changes.AddedSecurities:
-            self._universe.append(s.Symbol)
             sym = s.Symbol
+            self._universe.append(sym)
             if sym not in self._indicators:
                 self._indicators[sym] = self.ICHIMOKU(sym, 9, 26, 26, 52, 26, 26, Resolution.Daily)
             if sym not in self._weekly_indicators:
@@ -76,12 +75,7 @@ class LiveBCT(QCAlgorithm):
                 self.DeregisterIndicator(self._indicators.pop(sym))
             if sym in self._weekly_indicators:
                 self._weekly_indicators.pop(sym)
-                # Note: We don't remove the consolidator to avoid complexity. It will be garbage collected.
-            if sym in self._weekly_indicators:
-                w_ichi = self._weekly_indicators.pop(sym)
-                consolidator = self.SubscriptionManager.GetConsolidator(sym, Calendar.WEEKLY)
-                if consolidator:
-                    self.SubscriptionManager.RemoveConsolidator(sym, consolidator)
+                # Note: We don't remove the consolidator to avoid complexity.
 
     def Rebalance(self):
         date_str = self.Time.strftime("%Y-%m-%d")
@@ -124,37 +118,28 @@ class LiveBCT(QCAlgorithm):
         for sym, holding in self.Portfolio.items():
             if not holding.Invested:
                 continue
-            stop = self._kijun_stops.get(str(sym))
-            if stop is None:
-                continue
+            
             price = self.Securities[sym].Price
-            if price < stop:
+            
+            # Daily Kijun Stop
+            stop = self._kijun_stops.get(str(sym))
+            if stop is not None and price < stop:
                 self.Liquidate(sym)
                 self.Log(f"EXIT|{date_str}|{sym}|reason=kijun_stop|stop={stop:.2f}|price={price:.2f}")
                 self._kijun_stops.pop(str(sym), None)
                 continue
 
+            # Daily Cloud Top Exit
             d_ichi = self._indicators.get(sym)
-            if d_ichi is None or not d_ichi.IsReady:
-                continue
-
-            cloud_top = max(d_ichi.SenkouA.Current.Value, d_ichi.SenkouB.Current.Value)
-            if price < cloud_top:
-                self.Liquidate(sym)
-                self.Log(f"EXIT|{date_str}|{sym}|reason=cloud_exit|cloud_top={cloud_top:.2f}|price={price:.2f}")
-                self._kijun_stops.pop(str(sym), None)
-                continue
-
-            w_ichi = self._weekly_indicators.get(sym)
-            if w_ichi is not None and w_ichi.IsReady:
-                w_kijun = w_ichi.Kijun.Current.Value
-                if price < w_kijun:
+            if d_ichi is not None and d_ichi.IsReady:
+                cloud_top = max(d_ichi.SenkouA.Current.Value, d_ichi.SenkouB.Current.Value)
+                if price < cloud_top:
                     self.Liquidate(sym)
-                    self.Log(f"EXIT|{date_str}|{sym}|reason=weekly_kijun_stop|w_kijun={w_kijun:.2f}|price={price:.2f}")
+                    self.Log(f"EXIT|{date_str}|{sym}|reason=cloud_exit|cloud_top={cloud_top:.2f}|price={price:.2f}")
                     self._kijun_stops.pop(str(sym), None)
-                continue
-            
-            # weekly Kijun trail exit
+                    continue
+
+            # Weekly Kijun Trail Exit
             w_ichi = self._weekly_indicators.get(sym)
             if w_ichi is not None and w_ichi.IsReady:
                 w_kijun = w_ichi.Kijun.Current.Value
