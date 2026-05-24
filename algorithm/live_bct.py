@@ -138,6 +138,16 @@ class LiveBCT(QCAlgorithm):
                     self._kijun_stops.pop(str(sym), None)
                     continue
 
+            # Daily Cloud Top Exit
+            d_ichi = self._indicators.get(sym)
+            if d_ichi is not None and d_ichi.IsReady:
+                cloud_top = max(d_ichi.SenkouA.Current.Value, d_ichi.SenkouB.Current.Value)
+                if price < cloud_top:
+                    self.Liquidate(sym)
+                    self.Log(f"EXIT|{date_str}|{sym}|reason=cloud_exit|cloud_top={cloud_top:.2f}|price={price:.2f}")
+                    self._kijun_stops.pop(str(sym), None)
+                    continue
+
             # Weekly Kijun Trail Exit
             w_ichi = self._weekly_indicators.get(sym)
             if w_ichi is not None and w_ichi.IsReady:
