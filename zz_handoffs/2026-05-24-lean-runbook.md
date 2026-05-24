@@ -17,6 +17,8 @@ lean backtest algorithm/performance_bct \
   --parameter end_day 11
 ```
 
+**Syntax confirmed:** `lean backtest` accepts `--parameter <key> <value>` pairs exactly as shown above.
+
 **Expected output:** Backtest completes with a summary containing `Trades`, `Sharpe`, `CAGR`.
 
 **Success criteria:** Trades > 0 (QC‑cloud W1 result: Sharpe 0.733, 28 trades).
