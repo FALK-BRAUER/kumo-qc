@@ -27,6 +27,12 @@ class BCTBacktestAlgorithm(QCAlgorithm):
         self.set_end_date(2026, 5, 22)
         self.set_cash(100_000)
         self.set_benchmark("SPY")
+        
+        # Add ETFs explicitly (Morningstar fundamental data excludes ETFs)
+        # These will be included in the BCT scoring universe
+        etfs = ["QQQ", "SMH", "XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLB", "XLU", "XLRE", "XLC"]
+        for etf_symbol in etfs:
+            self.add_equity(etf_symbol)
 
         self.universe_settings.resolution = Resolution.DAILY
 

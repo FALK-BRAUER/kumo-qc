@@ -14,10 +14,16 @@ class LiveBCT(QCAlgorithm):
         self.SetStartDate(2026, 1, 1)
         self.SetCash(50000)
 
+        # Add ETFs explicitly (Morningstar fundamental data excludes ETFs)
+        # These will be included in the BCT scoring universe
+        etfs = ["QQQ", "SMH", "XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLB", "XLU", "XLRE", "XLC"]
+        for etf_symbol in etfs:
+            self.AddEquity(etf_symbol)
+
         # Gate check — blocks live account without explicit unlock
         self.live_gate = self.GetParameter("live-gate") or "LOCKED"
         if self.LiveMode and self.live_gate != "UNLOCKED":
-            self.Log("GATE: live-gate not UNLOCKED. Trading halted.")
+            self.Log("FIXME: live-gate not UNLOCKED. Trading halted.")
             self.Quit("live-gate LOCKED")
 
         # Universe: coarse filter 6k → ~200 by price + liquidity
