@@ -1,15 +1,15 @@
 # perf-W1
 **Project:** 32034565
-**Run date:** 2026-05-24 02:12:33
-**Backtest ID:** 3f924d49614c0f1da0b906fbe23b9b3f
+**Run date:** 2026-05-24 06:39:18
+**Backtest ID:** 4b2d2472fe8571d9c943347b2166fb60
 
 ## Key Metrics
 | Metric | Value |
 |---|---|
-| Sharpe | 8.427 |
+| Sharpe | 0 |
 | CAGR | 0 |
 | Max Drawdown | 0 |
-| Total Trades | 10.0 |
+| Total Trades | 0 |
 | Win Rate | 0 |
 | Net Profit | 0 |
 

@@ -1,0 +1,4 @@
+/equity/usa/hour/spy.zip
+/equity/usa/daily/qqq.zip
+/alternative/interest-rate/usa/interest-rate.csv
+/equity/usa/daily/spy.zip

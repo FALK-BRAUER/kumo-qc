@@ -42,3 +42,4 @@ data/
 ui/.env.local
 ui/temp-find-project.js
 zz_handoffs/
+lean_backtest.sh

@@ -14,12 +14,6 @@ API_TOKEN = subprocess.check_output(['security', 'find-generic-password', '-s', 
 PROJECT_ID = 32034565
 
 WINDOWS = [
-    ("W1", "2026-04-07", "2026-04-11"),
-    ("W2", "2026-04-14", "2026-04-18"),
-    ("W3", "2026-04-22", "2026-04-25"),
-    ("W4", "2026-04-28", "2026-05-02"),
-    ("W5", "2026-05-05", "2026-05-09"),
-    ("W6", "2026-05-12", "2026-05-16"),
     ("FY2025", "2025-01-01", "2025-12-31"),
 ]
 
@@ -51,11 +45,32 @@ def compile_project():
         state = r.get('state', '')
         if state == 'BuildSuccess':
             print(f"  Compile OK: {compile_id[:16]}...")
+            # Delete any auto-generated backtest
+            delete_auto_backtest()
             return compile_id
         elif state == 'BuildError':
             sys.exit(f"Build error: {r.get('logs', '')}")
         print(f"  Compile: {state}")
     sys.exit("Compile timeout")
+
+
+def delete_auto_backtest():
+    """Delete any auto-generated backtest after compile."""
+    backtests = qc_post('/backtests/read', {'projectId': PROJECT_ID})
+    if not backtests.get('success'):
+        return
+    bt_list = backtests.get('backtests', [])
+    for bt in bt_list:
+        bt_id = bt.get('backtestId')
+        name = bt.get('name')
+        # Delete ALL backtests except completed ones
+        # QC creates default backtest automatically after compile
+        if bt_id:
+            print(f"  Deleting auto-generated backtest {name} ({bt_id[:16]}...)")
+            try:
+                qc_post('/backtests/delete', {'projectId': PROJECT_ID, 'backtestId': bt_id})
+            except Exception as e:
+                print(f"  Delete failed: {e}")
 
 
 def submit_backtest(name, start, end, compile_id):
@@ -68,18 +83,29 @@ def submit_backtest(name, start, end, compile_id):
         'parameters': {
             'start_year': sy, 'start_month': sm, 'start_day': sd,
             'end_year': ey, 'end_month': em, 'end_day': ed,
+            'cloud_exit': 'True',
+            'weekly_kijun_exit': 'True',
+            'warmup_days': 182,
         },
     })
+    if not r.get('success', False):
+        errors = r.get('errors', [])
+        if errors and errors[0].startswith('There are no spare nodes available'):
+            print(f"  {name}: capacity error — cannot start")
+            return None
+        print(f"  {name}: submit failed — {json.dumps(r)[:200]}")
+        return None
     bt_id = r.get('backtestId') or (r.get('backtest', {}) or {}).get('backtestId')
     if not bt_id:
-        print(f"  {name}: submit failed — {json.dumps(r)[:200]}")
+        print(f"  {name}: no backtestId — {json.dumps(r)[:200]}")
         return None
     print(f"  {name}: {bt_id[:16]}... submitted")
     return bt_id
 
 
 def poll_backtest(name, bt_id):
-    for i in range(120):
+    # W4 took 20-40 minutes, so extend timeout to 60 minutes
+    for i in range(240):
         time.sleep(15)
         r = qc_post('/backtests/read', {'projectId': PROJECT_ID, 'backtestId': bt_id})
         bt = r.get('backtest', r)
@@ -89,15 +115,25 @@ def poll_backtest(name, bt_id):
         if completed or error:
             stats = bt.get('statistics', {})
             sharpe = stats.get('Sharpe Ratio', stats.get('SharpeRatio', 'n/a'))
-            # Net profit from statistics or result
             net_profit = stats.get('Net Profit', stats.get('TotalNetProfit', 'n/a'))
             cagr = stats.get('Compounding Annual Return', stats.get('CAR', 'n/a'))
             trades = stats.get('Total Orders', stats.get('TotalTrades', 'n/a'))
             print(f"  {name} DONE: NetProfit={net_profit}  CAGR={cagr}  Sharpe={sharpe}  Trades={trades}  error={error}")
             return {'name': name, 'net_profit': net_profit, 'cagr': cagr, 'sharpe': sharpe, 'trades': trades, 'error': error}
-        if i % 3 == 0:
+        if i % 4 == 0:
             print(f"  {name}: {progress:.0f}%")
-    print(f"  {name}: TIMEOUT")
+        if i >= 180 and progress < 1.0:
+            print(f"  {name}: stuck at {progress:.0f}% after {i*15}s — deleting")
+            try:
+                qc_post('/backtests/delete', {'projectId': PROJECT_ID, 'backtestId': bt_id})
+            except:
+                pass
+            return {'name': name, 'error': 'stuck'}
+    print(f"  {name}: timeout after 60 minutes")
+    try:
+        qc_post('/backtests/delete', {'projectId': PROJECT_ID, 'backtestId': bt_id})
+    except:
+        pass
     return {'name': name, 'error': 'timeout'}
 
 

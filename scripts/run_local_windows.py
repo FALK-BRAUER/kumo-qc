@@ -66,6 +66,7 @@ def run_backtest(name: str, start: str, end: str, output_dir: Path) -> dict:
     cmd = [
         "lean", "backtest", str(ALGO_PATH),
         "--output", str(result_dir),
+        "--lean-config", "lean-api.json",
         "--parameter", "start_year", str(start.split("-")[0]),
         "--parameter", "start_month", str(start.split("-")[1]),
         "--parameter", "start_day", str(start.split("-")[2]),

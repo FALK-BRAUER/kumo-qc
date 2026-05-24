@@ -1,0 +1,3 @@
+2026-05-24T05:26:42.9421625Z TRACE:: Engine.Main(): LEAN ALGORITHMIC TRADING ENGINE v2.5.0.0 Mode: DEBUG (64bit) Host: Falks-Mac-mini
+2026-05-24T05:26:42.9450585Z TRACE:: Engine.Main(): Started 5:26 AM
+2026-05-24T05:26:42.9534548Z TRACE:: JobQueue.NextJob(): Selected /LeanCLI/main.py

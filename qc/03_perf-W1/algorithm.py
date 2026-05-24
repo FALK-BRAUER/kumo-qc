@@ -27,6 +27,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     MAX_POSITIONS: int = 10
     POSITION_PCT: float = 0.10
     MIN_SCORE: int = 7
+    # Exit condition flags — False = reference bct‑perf‑2020‑2026 (daily Kijun only)
+    ENABLE_CLOUD_BREACH_EXIT: bool = False
+    ENABLE_WEEKLY_KIJUN_EXIT: bool = False
 
     def initialize(self) -> None:
         self.set_time_zone("America/New_York")
@@ -41,6 +44,16 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.set_cash(100_000)
         self.set_benchmark("SPY")
         self.set_warmup(timedelta(days=750))
+        
+        # Exit condition parameter overrides
+        self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
+        self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
+        
+        # Add ETFs explicitly (Morningstar fundamental data excludes ETFs)
+        # These will be included in the BCT scoring universe
+        etfs = ["QQQ", "SMH", "XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLB", "XLU", "XLRE", "XLC"]
+        for etf_symbol in etfs:
+            self.add_equity(etf_symbol)
 
         self.universe_settings.resolution = Resolution.DAILY
 
@@ -124,13 +137,23 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             w_ichi.update(bar)
             w_close.add(float(row["close"]))
 
-    def _daily_close_and_kijun(self, symbol) -> tuple[float, float] | None:
+    def _daily_close_and_kijun_and_cloud_top(self, symbol) -> tuple[float, float, float] | None:
         if symbol not in self._indicators:
             return None
         d_ichi = self._indicators[symbol]["d_ichi"]
         if not d_ichi.is_ready:
             return None
-        return float(self.securities[symbol].price), d_ichi.kijun.current.value
+        
+        close = float(self.securities[symbol].price)
+        kijun = d_ichi.kijun.current.value
+        
+        # Access the displaced Senkou Span A/B values directly
+        senkou_a = d_ichi.senkou_a.current.value
+        senkou_b = d_ichi.senkou_b.current.value
+        
+        cloud_top = max(senkou_a, senkou_b)
+        
+        return close, kijun, cloud_top
 
     def _has_open_orders(self, symbol) -> bool:
         return bool(self.transactions.get_open_orders(symbol))
@@ -143,13 +166,23 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         for symbol, holding in list(self.portfolio.items()):
             if not holding.invested or self._has_open_orders(symbol):
                 continue
-            vals = self._daily_close_and_kijun(symbol)
+            vals = self._daily_close_and_kijun_and_cloud_top(symbol)
             if vals is None:
                 continue
-            close, kijun = vals
+            close, kijun, cloud_top = vals
+            
+            w_ichi = self._indicators[symbol]["w_ichi"]
+            w_kijun = w_ichi.kijun.current.value if w_ichi.is_ready else None
+
             if close < kijun:
                 self.market_on_open_order(symbol, -holding.quantity)
                 self.log(f"STOP|{date_str}|{symbol.value}|close={close:.2f}|kijun={kijun:.2f}")
+            elif self.cloud_exit_enabled and close < cloud_top:
+                self.market_on_open_order(symbol, -holding.quantity)
+                self.log(f"CLOUD_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_top={cloud_top:.2f}")
+            elif self.weekly_kijun_exit_enabled and w_kijun is not None and close < w_kijun:
+                self.market_on_open_order(symbol, -holding.quantity)
+                self.log(f"WEEKLY_KIJUN_STOP|{date_str}|{symbol.value}|close={close:.2f}|w_kijun={w_kijun:.2f}")
 
         exiting = {
             o.symbol
@@ -165,7 +198,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             return
 
         candidates: list[tuple] = []
-        for symbol in list(self._active):
+        for symbol in sorted(self._active):
             if self.portfolio[symbol].invested:
                 continue
             ind = self._indicators.get(symbol)
