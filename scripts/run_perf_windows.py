@@ -59,10 +59,16 @@ def compile_project():
 
 
 def submit_backtest(name, start, end, compile_id):
+    sy, sm, sd = start.split("-")
+    ey, em, ed = end.split("-")
     r = qc_post('/backtests/create', {
         'projectId': PROJECT_ID,
         'compileId': compile_id,
         'backtestName': f"perf-{name}",
+        'parameters': {
+            'start_year': sy, 'start_month': sm, 'start_day': sd,
+            'end_year': ey, 'end_month': em, 'end_day': ed,
+        },
     })
     bt_id = r.get('backtestId') or (r.get('backtest', {}) or {}).get('backtestId')
     if not bt_id:
