@@ -30,6 +30,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     # Exit condition flags — False = reference bct‑perf‑2020‑2026 (daily Kijun only)
     ENABLE_CLOUD_BREACH_EXIT: bool = False
     ENABLE_WEEKLY_KIJUN_EXIT: bool = False
+    # Exit condition flags — False = reference bct‑perf‑2020‑2026 (daily Kijun only)
+    ENABLE_CLOUD_BREACH_EXIT: bool = False
+    ENABLE_WEEKLY_KIJUN_EXIT: bool = False
 
     def initialize(self) -> None:
         self.set_time_zone("America/New_York")
@@ -44,6 +47,10 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.set_cash(100_000)
         self.set_benchmark("SPY")
         self.set_warmup(timedelta(days=750))
+        
+        # Exit condition parameter overrides
+        self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
+        self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
         
         # Exit condition parameter overrides
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
