@@ -6,12 +6,12 @@
 ## Key Metrics
 | Metric | Value |
 |---|---|
-| Sharpe | 0 |
-| CAGR | 0% |
-| Max Drawdown | 0% |
-| Total Trades | 0 |
-| Win Rate | 0% |
-| Net Profit | $0 |
+| Sharpe | 0.278 |
+| CAGR | 0 |
+| Max Drawdown | 0 |
+| Total Trades | 1884.0 |
+| Win Rate | 0 |
+| Net Profit | 0 |
 
 ## Conditions
 *To be filled after analysis*

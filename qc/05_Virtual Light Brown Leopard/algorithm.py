@@ -56,7 +56,7 @@ class BCTBacktestAlgorithm(QCAlgorithm):
         date_str = self.time.strftime("%Y-%m-%d")
         day_signals = []
 
-        for symbol in list(self._active):
+        for symbol in sorted(self._active):
             result = score_symbol(self, symbol)
             if result is None or result["score"] < 6:
                 continue

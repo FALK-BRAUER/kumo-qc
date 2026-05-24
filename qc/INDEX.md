@@ -7,6 +7,19 @@
 | 01 | bct-perf-2020-2026 | 0.393 | 14.253% | 40.900% | 1807 | 42% | ✅ Downloaded |
 | 02 | bct-perf-native-ichi-2020-2026 | 0.278 | 9.976% | 33.700% | 1884 | 42% | ✅ Downloaded |
 
+### W1-W6 + FY2025 window results — Additional tests fetched 2026-05-24
+| Name | Sharpe | CAGR | Trades | Status |
+|---|---|---|---|---|
+| perf-W1 | 8.427 | 0% | 10 | ✅ Downloaded |
+| perf-FY2025 | 0.801 | 0% | 44 | ✅ Downloaded |
+| perf-W1 (2nd) | 0.733 | 0% | 28 | ✅ Downloaded |
+| perf-W6 | 0.485 | 0% | 36 | ✅ Downloaded |
+| perf-FY2025 (2nd) | 0.383 | 0% | 27 | ✅ Downloaded |
+| perf-W5 | 0.337 | 0% | 36 | ✅ Downloaded |
+| perf-W2 | 0.258 | 0% | 29 | ✅ Downloaded |
+| perf-W3 | 0.195 | 0% | 33 | ✅ Downloaded |
+| perf-W4 | 0.153 | 0% | 30 | ✅ Downloaded |
+
 ### W1-W6 + FY2025 window results (fixed score_symbol_native, 2026-05-24)
 | Window | Period | NetProfit | Sharpe | Trades | Notes |
 |---|---|---|---|---|---|
