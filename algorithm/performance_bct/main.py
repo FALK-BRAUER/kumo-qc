@@ -171,7 +171,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             return
 
         candidates: list[tuple] = []
-        for symbol in list(self._active):
+        for symbol in sorted(self._active):
             if self.portfolio[symbol].invested:
                 continue
             ind = self._indicators.get(symbol)

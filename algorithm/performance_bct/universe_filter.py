@@ -25,7 +25,7 @@ class BCTUniverseFilter:
     # Coarse thresholds — tune in Phase 4 backtest validation
     MIN_PRICE: float = 10.0
     MIN_DOLLAR_VOLUME: float = 5_000_000  # $5M/day liquidity floor
-    COARSE_MAX: int = 500
+    COARSE_MAX: int = 9999
 
     def coarse_selection(self, coarse: List[CoarseFundamental]) -> List[Symbol]:
         """

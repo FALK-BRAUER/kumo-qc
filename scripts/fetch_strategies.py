@@ -96,16 +96,25 @@ def extract_backtest_stats(user_id, api_token, backtest):
         net_profit_val = backtest.get("netProfit", 0)
         sparkline = backtest.get("sparkline", "")
     
+    # Convert numeric strings to floats if needed
+    def to_number(val):
+        if isinstance(val, str):
+            try:
+                return float(val)
+            except ValueError:
+                return 0
+        return val
+    
     return {
         "name": backtest.get("name", ""),
         "backtestId": backtest.get("backtestId", ""),
         "projectId": backtest.get("projectId", ""),
-        "sharpe": sharpe_val,
-        "cagr": cagr_val,
-        "maxDrawdown": drawdown_val,
-        "totalTrades": trades_val,
-        "winRate": win_rate_val,
-        "netProfit": net_profit_val,
+        "sharpe": to_number(sharpe_val),
+        "cagr": to_number(cagr_val),
+        "maxDrawdown": to_number(drawdown_val),
+        "totalTrades": to_number(trades_val),
+        "winRate": to_number(win_rate_val),
+        "netProfit": to_number(net_profit_val),
         "sparkline": sparkline,
         "completed": backtest.get("completed", False),
         "created": backtest.get("created", "")
@@ -195,8 +204,8 @@ def main():
     completed_backtests = [bt for bt in all_backtests if bt["completed"]]
     print(f"Completed backtests: {len(completed_backtests)}")
     
-    # Sort by Sharpe desc
-    sorted_backtests = sorted(completed_backtests, key=lambda x: x["sharpe"], reverse=True)
+    # Sort by Sharpe desc (convert string to float if needed)
+    sorted_backtests = sorted(completed_backtests, key=lambda x: float(x["sharpe"]) if isinstance(x["sharpe"], str) else x["sharpe"], reverse=True)
     top_backtests = sorted_backtests[:20]  # Top 20
     
     print("Top 20 backtests by Sharpe:")
