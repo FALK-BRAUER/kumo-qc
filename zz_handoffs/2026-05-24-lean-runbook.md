@@ -1,9 +1,9 @@
-# LEAN CLI Runbook for Docker‑Blocked Workers
+# LEAN CLI Runbook for Manual Execution
 *2026‑05‑24*
 
-Falk must execute these commands manually — workers cannot run Docker containers (DNS failure). Issue #9 reproduction & W1‑W6 local runs blocked.
+Workers cannot run Docker commands (DNS failure). Falk must run LEAN backtests manually from `/Users/falk/projects/kumo‑qc`.
 
-## SECTION 1 — First Test Run (W1 window)
+## Section 1 — First Test Run (5‑minute validation)
 
 **Command:**
 
@@ -17,14 +17,18 @@ lean backtest algorithm/performance_bct \
   --parameter end_day 11
 ```
 
-**Expected:** Backtest completes with trades > 0 (similar to QC‑cloud results: Sharpe 0.733, 28 trades).
+**Expected output:** Backtest completes with a summary containing `Trades`, `Sharpe`, `CAGR`.
 
-**If Terms of Service error appears:**  
-Visit https://www.quantconnect.com/data → accept data terms.
+**Success criteria:** Trades > 0 (QC‑cloud W1 result: Sharpe 0.733, 28 trades).
 
-## SECTION 2 — Full Reproduction (Issue #9: bct‑perf‑2020‑2026)
+**If “Must agree to terms” error occurs:**  
+Visit https://www.quantconnect.com/terms/data/?organization=8167a04384265855060312cc22fdbdc6 and accept data terms in browser.
 
-**Command:**
+## Section 2 — Full Reproduction (Issue #9: bct‑perf‑2020‑2026)
+
+**Current code includes cloud‑breach + weekly Kijun exits.** QC‑cloud reference result (Sharpe 0.393, 1807 trades) used **only daily Kijun stop exit**.
+
+**Option A — run current code (cloud‑breach + weekly Kijun exits):**
 
 ```bash
 lean backtest algorithm/performance_bct \
@@ -33,26 +37,39 @@ lean backtest algorithm/performance_bct \
   --parameter start_day 1 \
   --parameter end_year 2026 \
   --parameter end_month 5 \
-  --parameter end_day 1
+  --parameter end_day 22
 ```
 
-**Expected targets (QC‑cloud results):**
-- Sharpe: ~0.393 (±5%)
-- CAGR: ~14.253% (±5%)
-- Max DD: ~40.900% (±5%)
-- Total trades: ~1807 (±5%)
+**Expected:** Different Sharpe (unknown). Accept deviation.
 
-**Note:** Results may differ due to cloud‑breach exit correction (cloud_top → cloud_bottom).
+**Option B — revert to Kijun‑only exit for reproduction:**
 
-## SECTION 3 — W1‑W6 Parallel Windows
+1. Edit algorithm/performance_bct/main.py:
 
-**Via script:**
+   ```python
+   # Remove cloud‑breach exit lines (lines 162–165)
+   # Remove weekly Kijun exit (if present)
+   ```
+
+2. Run same command as above.
+
+**QC‑cloud reference targets (Kijun‑only exit):**
+- Sharpe: 0.393 (±5%)
+- CAGR: 14.253% (±5%)
+- Max DD: 40.900% (±5%)
+- Total trades: 1807 (±5%)
+
+**Tolerance:** ±5% Win Rate, ±5% Max DD per x8kdlg6f.
+
+## Section 3 — W1‑W6 Parallel Windows
+
+**Via script (requires Docker):**
 
 ```bash
 python3 scripts/run_local_windows.py
 ```
 
-**Manual individual windows:**
+**Individual windows:**
 
 **W1** (2026‑04‑07 → 2026‑04‑11):
 ```bash
@@ -120,43 +137,45 @@ lean backtest algorithm/performance_bct \
   --parameter end_day 16
 ```
 
-## SECTION 4 — Troubleshooting
-
-### If Docker not found:
-
-1. Ensure Docker Desktop service is running.
-2. `docker info` should show client v29.3.0, server OK.
-3. If Docker not installed: `brew install docker`
-
-### If data missing:
-
+**FY2025** (2025‑01‑01 → 2025‑12‑31):
 ```bash
-lean data download --dataset "US Equities" --resolution daily \
-  --start 2020-01-01 --end 2026-05-01
+lean backtest algorithm/performance_bct \
+  --parameter start_year 2025 \
+  --parameter start_month 1 \
+  --parameter start_day 1 \
+  --parameter end_year 2025 \
+  --parameter end_month 12 \
+  --parameter end_day 31
 ```
 
-### If ToS required:
+**Expected output table:**  
+| Window | Sharpe | Net Profit | Trades |
+|---|---|---|---|
+| W1 | 0.733 | +31.044% | 28 |
+| W2 | 0.258 | +12.482% | 29 |
+| W3 | — | 0 | 0 |
+| W4 | 0.153 | +8.973% | 30 |
+| W5 | 0.337 | +14.899% | 36 |
+| W6 | 0.485 | +21.846% | 36 |
+| FY2025 | 0.801 | +33.134% | 44 |
 
-Navigate to https://www.quantconnect.com/data → accept data terms in browser.
+## Configuration Notes
 
-### If DNS fails inside container:
+**Working directory:** `/Users/falk/projects/kumo‑qc`
 
-1. Edit `/etc/docker/daemon.json` (or Docker Desktop settings) → add `"dns": ["8.8.8.8"]`
-2. Restart Docker Desktop.
+**lean.json data‑provider:** Must be `ApiDataProvider` for QC cloud data access (default).
 
-### If LEAN CLI fails with “Must agree to terms”:
+**If Docker not installed:** `brew install docker`
 
-Run `lean config` to check API credentials (User ID + API token from macOS keychain).
+**If Docker Desktop not running:** Start Docker Desktop service.
 
-## Verification
+**If data missing:**  
+```bash
+lean data download --dataset "US Equities" --resolution daily \
+  --start 2020‑01‑01 --end 2026‑05‑22
+```
 
-**Cloud‑breach exit corrected:** algorithm/performance_bct/main.py `cloud_top = max(...)` → `cloud_bottom = min(...)`; exit condition `close < cloud_bottom`.
+**If DNS fails inside container:**  
+Edit Docker Desktop settings → add DNS `8.8.8.8` → restart.
 
-**[:200] cap regression:** live_bct/main.py and live_bct.py still have `[:200][:200]` double cap (CoarseFilter returns `[:200][:200]`). This reduces universe size incorrectly — will affect live trading but not performance_bct.
-
-**Exit conditions:** performance_bct uses daily Kijun stop only (no cloud‑breach, no weekly Kijun). Live variants (live_bct, live_bct/main) have cloud‑breach exit but double‑cap regression.
-
-**QC‑cloud results:**  
-- FY2025 Sharpe 0.801 (Kijun‑only exit)  
-- bct‑perf‑2020‑2026 Sharpe 0.393  
-- bct‑perf‑native‑ichi‑2020‑2026 Sharpe 0.278 (native Ichimoku lower performance)
+**API credentials:** QC User ID + API Token stored in macOS keychain. LEAN CLI uses them automatically.
