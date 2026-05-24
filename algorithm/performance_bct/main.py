@@ -163,12 +163,19 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             if vals is None:
                 continue
             close, kijun, cloud_top = vals
+            
+            w_ichi = self._indicators[symbol]["w_ichi"]
+            w_kijun = w_ichi.kijun.current.value if w_ichi.is_ready else None
+
             if close < kijun:
                 self.market_on_open_order(symbol, -holding.quantity)
                 self.log(f"STOP|{date_str}|{symbol.value}|close={close:.2f}|kijun={kijun:.2f}")
             elif close < cloud_top:
                 self.market_on_open_order(symbol, -holding.quantity)
                 self.log(f"CLOUD_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_top={cloud_top:.2f}")
+            elif w_kijun is not None and close < w_kijun:
+                self.market_on_open_order(symbol, -holding.quantity)
+                self.log(f"WEEKLY_KIJUN_STOP|{date_str}|{symbol.value}|close={close:.2f}|w_kijun={w_kijun:.2f}")
 
         exiting = {
             o.symbol

@@ -40,6 +40,8 @@ class LiveBCT(QCAlgorithm):
         self._signals: dict[str, tuple[int, str]] = {}  # symbol → (score, rating)
         self._kijun_stops: dict[str, float] = {}
         self._indicators: dict[Symbol, IchimokuKinkoHyo] = {}
+        self._weekly_indicators: dict[Symbol, IchimokuKinkoHyo] = {}  # daily Ichimoku
+        self._weekly_indicators: dict[Symbol, IchimokuKinkoHyo] = {}  # weekly Ichimoku
 
     def CoarseFilter(self, coarse):
         filtered = [
@@ -54,8 +56,17 @@ class LiveBCT(QCAlgorithm):
     def OnSecuritiesChanged(self, changes):
         for s in changes.AddedSecurities:
             self._universe.append(s.Symbol)
-            if s.Symbol not in self._indicators:
-                self._indicators[s.Symbol] = self.ICHIMOKU(s.Symbol, 9, 26, 26, 52, 26, 26, Resolution.Daily)
+            sym = s.Symbol
+            if sym not in self._indicators:
+                self._indicators[sym] = self.ICHIMOKU(sym, 9, 26, 26, 52, 26, 26, Resolution.Daily)
+            if sym not in self._weekly_indicators:
+                w_ichi = IchimokuKinkoHyo(9, 26, 26, 52, 26, 26)
+                consolidator = TradeBarConsolidator(Calendar.WEEKLY)
+                def _on_weekly(_, bar: TradeBar) -> None:
+                    w_ichi.update(bar)
+                consolidator.data_consolidated += _on_weekly
+                self.SubscriptionManager.AddConsolidator(sym, consolidator)
+                self._weekly_indicators[sym] = w_ichi
         for s in changes.RemovedSecurities:
             sym = s.Symbol
             if sym in self._universe:
@@ -63,6 +74,14 @@ class LiveBCT(QCAlgorithm):
             self._kijun_stops.pop(str(sym), None)
             if sym in self._indicators:
                 self.DeregisterIndicator(self._indicators.pop(sym))
+            if sym in self._weekly_indicators:
+                self._weekly_indicators.pop(sym)
+                # Note: We don't remove the consolidator to avoid complexity. It will be garbage collected.
+            if sym in self._weekly_indicators:
+                w_ichi = self._weekly_indicators.pop(sym)
+                consolidator = self.SubscriptionManager.GetConsolidator(sym, Calendar.WEEKLY)
+                if consolidator:
+                    self.SubscriptionManager.RemoveConsolidator(sym, consolidator)
 
     def Rebalance(self):
         date_str = self.Time.strftime("%Y-%m-%d")
@@ -124,3 +143,22 @@ class LiveBCT(QCAlgorithm):
                 self.Liquidate(sym)
                 self.Log(f"EXIT|{date_str}|{sym}|reason=cloud_exit|cloud_top={cloud_top:.2f}|price={price:.2f}")
                 self._kijun_stops.pop(str(sym), None)
+                continue
+
+            w_ichi = self._weekly_indicators.get(sym)
+            if w_ichi is not None and w_ichi.IsReady:
+                w_kijun = w_ichi.Kijun.Current.Value
+                if price < w_kijun:
+                    self.Liquidate(sym)
+                    self.Log(f"EXIT|{date_str}|{sym}|reason=weekly_kijun_stop|w_kijun={w_kijun:.2f}|price={price:.2f}")
+                    self._kijun_stops.pop(str(sym), None)
+                continue
+            
+            # weekly Kijun trail exit
+            w_ichi = self._weekly_indicators.get(sym)
+            if w_ichi is not None and w_ichi.IsReady:
+                w_kijun = w_ichi.Kijun.Current.Value
+                if price < w_kijun:
+                    self.Liquidate(sym)
+                    self.Log(f"EXIT|{date_str}|{sym}|reason=weekly_kijun_stop|w_kijun={w_kijun:.2f}|price={price:.2f}")
+                    self._kijun_stops.pop(str(sym), None)
