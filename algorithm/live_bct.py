@@ -14,6 +14,11 @@ class LiveBCT(QCAlgorithm):
         self.SetStartDate(2026, 1, 1)
         self.SetCash(50000)
 
+        # Add ETFs explicitly (Morningstar fundamental data excludes ETFs)
+        etfs = ["QQQ", "SMH", "XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLB", "XLU", "XLRE", "XLC"]
+        for etf_symbol in etfs:
+            self.AddEquity(etf_symbol)
+
         # Gate check — blocks live account without explicit unlock
         self.live_gate = self.GetParameter("live-gate") or "LOCKED"
         if self.LiveMode and self.live_gate != "UNLOCKED":
@@ -42,7 +47,7 @@ class LiveBCT(QCAlgorithm):
             and c.DollarVolume > 5_000_000
         ]
         filtered.sort(key=lambda c: c.DollarVolume, reverse=True)
-        return [c.Symbol for c in filtered[:200]]
+        return [c.Symbol for c in filtered]
 
     def OnSecuritiesChanged(self, changes):
         for s in changes.AddedSecurities:
@@ -57,7 +62,7 @@ class LiveBCT(QCAlgorithm):
         date_str = self.Time.strftime("%Y-%m-%d")
         self._signals = {}
 
-        for symbol in self._universe:
+        for symbol in sorted(self._universe):
             score, rating = score_symbol_native(self, symbol)
             if score >= 7:
                 self._signals[symbol] = (score, rating)

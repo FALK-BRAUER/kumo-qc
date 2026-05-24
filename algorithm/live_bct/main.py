@@ -48,7 +48,7 @@ class LiveBCT(QCAlgorithm):
             and c.DollarVolume > 5_000_000
         ]
         filtered.sort(key=lambda c: c.DollarVolume, reverse=True)
-        return [c.Symbol for c in filtered[:200]]
+        return [c.Symbol for c in filtered]
 
     def OnSecuritiesChanged(self, changes):
         for s in changes.AddedSecurities:
@@ -63,7 +63,7 @@ class LiveBCT(QCAlgorithm):
         date_str = self.Time.strftime("%Y-%m-%d")
         self._signals = {}
 
-        for symbol in self._universe:
+        for symbol in sorted(self._universe):
             score, rating = score_symbol_native(self, symbol)
             if score >= 7:
                 self._signals[symbol] = (score, rating)
