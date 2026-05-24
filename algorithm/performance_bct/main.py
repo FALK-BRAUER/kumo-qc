@@ -27,6 +27,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     MAX_POSITIONS: int = 10
     POSITION_PCT: float = 0.10
     MIN_SCORE: int = 7
+    # Exit condition flags — False = reference bct‑perf‑2020‑2026 (daily Kijun only)
+    ENABLE_CLOUD_BREACH_EXIT: bool = False
+    ENABLE_WEEKLY_KIJUN_EXIT: bool = False
 
     def initialize(self) -> None:
         self.set_time_zone("America/New_York")
@@ -41,6 +44,10 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.set_cash(100_000)
         self.set_benchmark("SPY")
         self.set_warmup(timedelta(days=750))
+        
+        # Exit condition parameter overrides
+        self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
+        self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
         
         # Add ETFs explicitly (Morningstar fundamental data excludes ETFs)
         # These will be included in the BCT scoring universe
@@ -170,10 +177,10 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             if close < kijun:
                 self.market_on_open_order(symbol, -holding.quantity)
                 self.log(f"STOP|{date_str}|{symbol.value}|close={close:.2f}|kijun={kijun:.2f}")
-            elif close < cloud_top:
+            elif self.cloud_exit_enabled and close < cloud_top:
                 self.market_on_open_order(symbol, -holding.quantity)
                 self.log(f"CLOUD_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_top={cloud_top:.2f}")
-            elif w_kijun is not None and close < w_kijun:
+            elif self.weekly_kijun_exit_enabled and w_kijun is not None and close < w_kijun:
                 self.market_on_open_order(symbol, -holding.quantity)
                 self.log(f"WEEKLY_KIJUN_STOP|{date_str}|{symbol.value}|close={close:.2f}|w_kijun={w_kijun:.2f}")
 
