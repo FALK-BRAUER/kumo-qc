@@ -41,6 +41,12 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.set_cash(100_000)
         self.set_benchmark("SPY")
         self.set_warmup(timedelta(days=750))
+        
+        # Add ETFs explicitly (Morningstar fundamental data excludes ETFs)
+        # These will be included in the BCT scoring universe
+        etfs = ["QQQ", "SMH", "XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLB", "XLU", "XLRE", "XLC"]
+        for etf_symbol in etfs:
+            self.add_equity(etf_symbol)
 
         self.universe_settings.resolution = Resolution.DAILY
 

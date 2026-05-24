@@ -108,14 +108,14 @@ def score_symbol(algorithm: Any, symbol: Any) -> dict[str, Any] | None:
         return None
 
     conditions: list[bool] = [
-        bool(w_price > max(w_cloud_a_now, w_cloud_b_now)),
-        bool(w_tenkan_now > w_kijun_now),
-        bool(w_price > w_price_26_ago),
-        bool(w_cloud_a_now > w_cloud_b_now),
-        bool(d_price > max(d_cloud_a_now, d_cloud_b_now)),
-        bool(d_price > d_tenkan_now),
-        bool(adx_rising and plus_di_now > minus_di_now and adx_now >= 20),
-        bool(d_price > ma200),
+        bool(w_price > max(w_cloud_a_now, w_cloud_b_now)),                        # 1. weekly above cloud top
+        bool(w_tenkan_now > w_kijun_now),                                          # 2. weekly TK > KJ
+        bool(w_price > w_price_26_ago),                                            # 3. weekly chikou
+        bool(w_cloud_a_now > w_cloud_b_now),                                       # 4. weekly cloud green
+        bool(d_price > max(d_cloud_a_now, d_cloud_b_now)),                        # 5. daily above cloud top
+        bool(d_price > d_tenkan_now),                                              # 6. daily above tenkan
+        bool(adx_rising and plus_di_now > minus_di_now and adx_now >= 20),        # 7. ADX
+        bool(d_price > ma200),                                                     # 8. 200MA
     ]
     score = sum(conditions)
     if score == 8:   rating = "+++"
@@ -129,8 +129,8 @@ def score_symbol(algorithm: Any, symbol: Any) -> dict[str, Any] | None:
 def score_symbol_native(algorithm: Any, symbol: Any, ind: Any) -> dict[str, Any] | None:
     """Delegates to score_symbol (History-based).
 
-    Standalone IchimokuKinkoHyo exposes tenkan/kijun but not senkou_span_a/b
-    in LEAN Python. score_symbol fetches 700 daily bars and computes all
-    indicators from scratch — correct and simpler.
+    The pre-registered native indicators in ind are not used — standalone
+    IchimokuKinkoHyo exposes tenkan/kijun but not senkou_span_a/b in LEAN Python.
+    score_symbol fetches 700 daily bars and computes all indicators from scratch.
     """
     return score_symbol(algorithm, symbol)
