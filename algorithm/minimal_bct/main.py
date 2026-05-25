@@ -8,11 +8,14 @@ without the coarse/fine universe filter.
 
 Universe: 545 tickers (S&P 500 + BCT DEFAULT_TICKERS, merged + deduped).
 Signal: same 8-condition BCT Blue Flag checklist as performance_bct.
-Exits: ATR trailing stop (22-period, 2.5x initial, 3.0x floor) + Kijun trail + 
+Entry Gates: SPY 4-day confirm, 3% from 52w high, Kijun extension check,
+      chikou confirm, min $3 price, $500K volume, VIX tier (50% if >30).
+Exits: ATR trailing stop (22-period, 2.5x initial, 3.0x floor) + Kijun trail +
       optional cloud breach + weekly Kijun.
 Sizing: Fixed-risk $200 per position with ATR-based position sizing.
 Adds: Cloud top break triggers (50% of original, max 1 add).
-Parameters: warmup_days (default 750), cloud_exit (default false), 
+Rotation: score_ratio ≥ 2.0, profit veto at +5%.
+Parameters: warmup_days (default 750), cloud_exit (default false),
       weekly_kijun_exit (default false), atr_period (default 22).
 """
 
@@ -51,6 +54,16 @@ class BCTMinimalAlgorithm(QCAlgorithm):
     ADD_AT_CLOUD_BREAK_PCT: float = 0.50  # 50% of original position
     MAX_ADDS: int = 1
     PYRAMID_PCT: float = 0.50  # 50% of original
+
+    # Entry gates (Item 4: sT10e champion)
+    RESISTANCE_PROXIMITY_PCT: float = 0.03  # 3% from 52-week high
+    KIJUN_EXTENSION_MULT: float = 1.5  # 1.5× kijun above cloud
+    MIN_PRICE: float = 3.0
+    MIN_DOLLAR_VOLUME: float = 500000.0
+    SKIP_IF_EARNINGS_DAYS: int = 5
+    SPY_GATE_CONFIRM_DAYS: int = 4
+    VIX_THRESHOLD: float = 30.0
+    VIX_SIZE_MULTIPLIER: float = 0.50  # 50% size when VIX > 30
 
     # Merged universe: 545 tickers (503 S&P 500 + 95 BCT, deduped)
     UNIVERSE: list[str] = [
@@ -208,6 +221,20 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         self.add_at_cloud_break_pct = float(self.get_parameter("add_at_cloud_break_pct", str(self.ADD_AT_CLOUD_BREAK_PCT)))
         self.max_adds = int(self.get_parameter("max_adds", str(self.MAX_ADDS)))
         self.pyramid_pct = float(self.get_parameter("pyramid_pct", str(self.PYRAMID_PCT)))
+
+        # Entry gates parameters (Item 4: sT10e champion)
+        self.resistance_proximity_pct = float(self.get_parameter("resistance_proximity_pct", str(self.RESISTANCE_PROXIMITY_PCT)))
+        self.kijun_extension_mult = float(self.get_parameter("kijun_extension_mult", str(self.KIJUN_EXTENSION_MULT)))
+        self.min_price = float(self.get_parameter("min_price", str(self.MIN_PRICE)))
+        self.min_dollar_volume = float(self.get_parameter("min_dollar_volume", str(self.MIN_DOLLAR_VOLUME)))
+        self.skip_if_earnings_days = int(self.get_parameter("skip_if_earnings_days", str(self.SKIP_IF_EARNINGS_DAYS)))
+        self.spy_gate_confirm_days = int(self.get_parameter("spy_gate_confirm_days", str(self.SPY_GATE_CONFIRM_DAYS)))
+        self.vix_threshold = float(self.get_parameter("vix_threshold", str(self.VIX_THRESHOLD)))
+        self.vix_size_multiplier = float(self.get_parameter("vix_size_multiplier", str(self.VIX_SIZE_MULTIPLIER)))
+
+        # Track SPY gate state (4-day confirmation)
+        self._spy_above_cloud_days: int = 0
+        self._spy_gate_open: bool = False
 
         self.universe_settings.resolution = Resolution.DAILY
         self._indicators: dict = {}
@@ -413,6 +440,131 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         # Cloud top break = close > cloud_top (strong momentum)
         return close > cloud_top and close > cloud_top * 1.02  # 2% buffer
 
+    def _check_resistance_proximity(self, symbol: Symbol) -> bool:
+        """Check if price is within 3% of 52-week high (resistance proximity block)."""
+        # Get 252-day (52-week) high
+        hist = self.history(symbol, 252, Resolution.DAILY)
+        if hist is None or hist.empty:
+            return True  # Block if data unavailable
+        if isinstance(hist.index, pd.MultiIndex):
+            hist = hist.droplevel(0)
+        if "close" not in [c.lower() for c in hist.columns]:
+            return True
+        hist.columns = [c.lower() for c in hist.columns]
+        high_52w = hist["high"].max() if "high" in hist.columns else hist["close"].max()
+        current_price = float(self.securities[symbol].price)
+        # Block if within 3% of 52-week high
+        return (high_52w - current_price) / high_52w < self.resistance_proximity_pct
+
+    def _check_kijun_extension(self, symbol: Symbol) -> bool:
+        """Check if price is extended above Kijun (kijun_extension_block)."""
+        if symbol not in self._indicators:
+            return True  # Block if no indicators
+        d_ichi = self._indicators[symbol]["d_ichi"]
+        if not d_ichi.is_ready:
+            return True
+        price = float(self.securities[symbol].price)
+        kijun = d_ichi.kijun.current.value
+        cloud_top = max(d_ichi.senkou_a.current.value, d_ichi.senkou_b.current.value)
+        # Block if price > 1.5× kijun above cloud (extended)
+        kijun_above_cloud = kijun > cloud_top
+        if kijun_above_cloud:
+            extension = (price - kijun) / kijun if kijun > 0 else 0
+            return extension > (self.kijun_extension_mult - 1)  # > 0.5 = 50% above
+        return False
+
+    def _check_chikou(self, symbol: Symbol) -> bool:
+        """Check daily chikou > price 26 bars ago."""
+        hist = self.history(symbol, 30, Resolution.DAILY)
+        if hist is None or hist.empty or len(hist) < 27:
+            return False
+        if isinstance(hist.index, pd.MultiIndex):
+            hist = hist.droplevel(0)
+        hist.columns = [c.lower() for c in hist.columns]
+        if "close" not in hist.columns:
+            return False
+        current_price = hist["close"].iloc[-1]
+        price_26_ago = hist["close"].iloc[-27]
+        # Chikou check: current price > price 26 bars ago
+        return current_price > price_26_ago
+
+    def _check_min_price_volume(self, symbol: Symbol) -> bool:
+        """Check minimum price and dollar volume requirements."""
+        price = float(self.securities[symbol].price)
+        if price < self.min_price:
+            return False
+        # Check dollar volume (price × volume)
+        # Get today's volume
+        hist = self.history(symbol, 1, Resolution.DAILY)
+        if hist is not None and not hist.empty:
+            if isinstance(hist.index, pd.MultiIndex):
+                hist = hist.droplevel(0)
+            hist.columns = [c.lower() for c in hist.columns]
+            if "volume" in hist.columns:
+                volume = hist["volume"].iloc[-1]
+                dollar_volume = price * volume
+                if dollar_volume < self.min_dollar_volume:
+                    return False
+        return True
+
+    def _check_earnings(self, symbol: Symbol) -> bool:
+        """Check if earnings within skip window (placeholder - requires fundamental data)."""
+        # In QC Python, fundamental data access is limited
+        # For now, this is a placeholder that always passes
+        # TODO: Implement if fundamental data available
+        return True
+
+    def _update_spy_gate(self):
+        """Update SPY gate: 4 consecutive days above weekly cloud required."""
+        spy_symbol = self.symbol("SPY")
+        if spy_symbol not in self._indicators:
+            return
+        vals = self._daily_close_and_kijun_and_cloud_top(spy_symbol)
+        if vals is None:
+            return
+        close, _, cloud_top = vals
+        # Check if SPY above weekly cloud
+        above_cloud = close > cloud_top
+        if above_cloud:
+            self._spy_above_cloud_days += 1
+        else:
+            self._spy_above_cloud_days = 0
+        # Gate opens after 4 consecutive days
+        self._spy_gate_open = self._spy_above_cloud_days >= self.spy_gate_confirm_days
+
+    def _get_vix_size_multiplier(self) -> float:
+        """Get position size multiplier based on VIX level."""
+        try:
+            vix_symbol = self.symbol("VIX")
+            vix_price = float(self.securities[vix_symbol].price)
+            if vix_price > self.vix_threshold:
+                return self.vix_size_multiplier  # 50% size
+        except:
+            pass
+        return 1.0  # Normal size
+
+    def _check_all_entry_gates(self, symbol: Symbol) -> tuple[bool, str]:
+        """Check all entry gates. Returns (passed, reason_if_failed)."""
+        # SPY gate must be open
+        if not self._spy_gate_open:
+            return False, "SPY_GATE_CLOSED"
+        # Resistance proximity
+        if self._check_resistance_proximity(symbol):
+            return False, "RESISTANCE_PROXIMITY"
+        # Kijun extension
+        if self._check_kijun_extension(symbol):
+            return False, "KIJUN_EXTENSION"
+        # Chikou check
+        if not self._check_chikou(symbol):
+            return False, "CHIKOU_FAIL"
+        # Min price/volume
+        if not self._check_min_price_volume(symbol):
+            return False, "MIN_PRICE_VOLUME"
+        # Earnings skip
+        if not self._check_earnings(symbol):
+            return False, "EARNINGS_SKIP"
+        return True, ""
+
     def _update_and_check_stop(self, symbol: Symbol, holding) -> tuple[bool, str]:
         """Update trailing stop and check if stop triggered. Returns (should_exit, reason)."""
         if symbol not in self._position_meta:
@@ -446,6 +598,9 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         if self.is_warming_up:
             return
         date_str = self.time.strftime("%Y-%m-%d")
+
+        # Update SPY gate state (Item 4: sT10e champion)
+        self._update_spy_gate()
 
         # Process position exits and adds
         for symbol, holding in list(self.portfolio.items()):
@@ -559,8 +714,20 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             if price <= 0:
                 continue
             
+            # Check entry gates (Item 4: sT10e champion)
+            gates_passed, gate_reason = self._check_all_entry_gates(symbol)
+            if not gates_passed:
+                self.log(f"GATE_BLOCK|{date_str}|{symbol.value}|reason={gate_reason}|score={score}")
+                continue
+            
             # Calculate position size using fixed risk (Item 7)
             quantity = self._get_position_size_fixed_risk(symbol, price)
+            if quantity <= 0:
+                continue
+            
+            # Apply VIX size multiplier (Item 4: sT10e champion)
+            vix_multiplier = self._get_vix_size_multiplier()
+            quantity = int(quantity * vix_multiplier)
             if quantity <= 0:
                 continue
             
@@ -582,6 +749,7 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             }
             
             atr_val = self._get_atr(symbol)
-            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|stop={entry_stop:.2f}|mark={price:.2f}|atr={atr_val:.2f}|init_stop={initial_stop:.2f}")
+            vix_tag = f"|vix_mult={vix_multiplier:.2f}" if vix_multiplier < 1.0 else ""
+            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|stop={entry_stop:.2f}|mark={price:.2f}|atr={atr_val:.2f}|init_stop={initial_stop:.2f}{vix_tag}")
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
