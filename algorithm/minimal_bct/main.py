@@ -46,7 +46,6 @@ class BCTMinimalAlgorithm(QCAlgorithm):
     RESISTANCE_PROXIMITY_PCT: float = 0.03  # 3% from 52-week high
     KIJUN_EXTENSION_MULT: float = 1.5  # 1.5× kijun above cloud
     MIN_PRICE: float = 3.0
-    MIN_DOLLAR_VOLUME: float = 500000.0
     SKIP_IF_EARNINGS_DAYS: int = 5
     SPY_GATE_CONFIRM_DAYS: int = 4
     VIX_THRESHOLD: float = 30.0
@@ -200,7 +199,6 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         self.resistance_proximity_pct = float(self.get_parameter("resistance_proximity_pct", str(self.RESISTANCE_PROXIMITY_PCT)))
         self.kijun_extension_mult = float(self.get_parameter("kijun_extension_mult", str(self.KIJUN_EXTENSION_MULT)))
         self.min_price = float(self.get_parameter("min_price", str(self.MIN_PRICE)))
-        self.min_dollar_volume = float(self.get_parameter("min_dollar_volume", str(self.MIN_DOLLAR_VOLUME)))
         self.skip_if_earnings_days = int(self.get_parameter("skip_if_earnings_days", str(self.SKIP_IF_EARNINGS_DAYS)))
         self.spy_gate_confirm_days = int(self.get_parameter("spy_gate_confirm_days", str(self.SPY_GATE_CONFIRM_DAYS)))
         self.vix_threshold = float(self.get_parameter("vix_threshold", str(self.VIX_THRESHOLD)))
@@ -401,24 +399,10 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         # Chikou check: current price > price 26 bars ago
         return current_price > price_26_ago
 
-    def _check_min_price_volume(self, symbol: Symbol) -> bool:
-        """Check minimum price and dollar volume requirements."""
+    def _check_min_price(self, symbol: Symbol) -> bool:
+        """Check minimum price requirement only."""
         price = float(self.securities[symbol].price)
-        if price < self.min_price:
-            return False
-        # Check dollar volume (price × volume)
-        # Get today's volume
-        hist = self.history(symbol, 1, Resolution.DAILY)
-        if hist is not None and not hist.empty:
-            if isinstance(hist.index, pd.MultiIndex):
-                hist = hist.droplevel(0)
-            hist.columns = [c.lower() for c in hist.columns]
-            if "volume" in hist.columns:
-                volume = hist["volume"].iloc[-1]
-                dollar_volume = price * volume
-                if dollar_volume < self.min_dollar_volume:
-                    return False
-        return True
+        return price >= self.min_price
 
     def _check_earnings(self, symbol: Symbol) -> bool:
         """Check if earnings within skip window (placeholder - requires fundamental data)."""
@@ -710,10 +694,13 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         all_scores: dict[Symbol, int] = {}
         for ticker in self.UNIVERSE:
             funnel_total_candidates += 1
-            symbol = self.symbol(ticker)
+            try:
+                symbol = self.symbol(ticker)
+            except Exception:
+                continue
 
-            # Stage 2: pre-filter (price >= min_price, dollar volume >= min_dollar_volume)
-            if not self._check_min_price_volume(symbol):
+            # Stage 2: pre-filter (price >= min_price only)
+            if not self._check_min_price(symbol):
                 continue
             funnel_prefilter_pass += 1
             
