@@ -467,26 +467,26 @@ class BCTMinimalAlgorithm(QCAlgorithm):
 
     def _check_all_entry_gates(self, symbol: Symbol) -> tuple[bool, str]:
         """Check all entry gates. Returns (passed, reason_if_failed)."""
-        # DIAGNOSTIC: all Item 4 gates disabled — isolating gate over-filter
-        return True, ""
-        # # SPY gate must be open
+        # Kijun extension enabled, other gates disabled
+        # SPY gate disabled
         # if not self._spy_gate_open:
         #     return False, "SPY_GATE_CLOSED"
-        # # Resistance proximity
+        # Resistance proximity disabled
         # if self._check_resistance_proximity(symbol):
         #     return False, "RESISTANCE_PROXIMITY"
-        # # Kijun extension
-        # if self._check_kijun_extension(symbol):
-        #     return False, "KIJUN_EXTENSION"
-        # # Chikou check
+        # Kijun extension enabled
+        if self._check_kijun_extension(symbol):
+            return False, "KIJUN_EXTENSION"
+        # Chikou check disabled
         # if not self._check_chikou(symbol):
         #     return False, "CHIKOU_FAIL"
-        # # Min price/volume
+        # Min price/volume disabled
         # if not self._check_min_price_volume(symbol):
         #     return False, "MIN_PRICE_VOLUME"
-        # # Earnings skip
+        # Earnings skip disabled
         # if not self._check_earnings(symbol):
         #     return False, "EARNINGS_SKIP"
+        return True, ""
 
     def _update_and_check_stop(self, symbol: Symbol, holding) -> tuple[bool, str]:
         """Update trailing stop and check if stop triggered. Returns (should_exit, reason)."""
