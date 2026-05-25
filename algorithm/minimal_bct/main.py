@@ -494,14 +494,18 @@ class BCTMinimalAlgorithm(QCAlgorithm):
     def _update_spy_gate(self):
         """Update SPY gate: 4 consecutive days above weekly cloud required."""
         spy_symbol = self.symbol("SPY")
-        if spy_symbol not in self._indicators:
+        ind = self._indicators.get(spy_symbol)
+        if ind is None:
             return
-        vals = self._daily_close_and_kijun_and_cloud_top(spy_symbol)
-        if vals is None:
+        w_ichi = ind.get("w_ichi")
+        if w_ichi is None or not w_ichi.is_ready:
             return
-        close, _, cloud_top = vals
+        senkou_a = float(w_ichi.senkou_span_a.current.value)
+        senkou_b = float(w_ichi.senkou_span_b.current.value)
+        cloud_top = max(senkou_a, senkou_b)
+        spy_close = float(self.securities[spy_symbol].price)
         # Check if SPY above weekly cloud
-        above_cloud = close > cloud_top
+        above_cloud = spy_close > cloud_top
         if above_cloud:
             self._spy_above_cloud_days += 1
         else:
