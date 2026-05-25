@@ -151,7 +151,7 @@ def parse_args() -> argparse.Namespace:
         default="/Users/falk/projects/kumo-qc/data/equity/usa",
         help="LEAN usa data directory base",
     )
-    parser.add_argument("--start-date", default="2024-01-01", help="Export start date YYYY-MM-DD")
+    parser.add_argument("--start-date", default="2022-01-01", help="Export start date YYYY-MM-DD")
     parser.add_argument("--end-date", default="2025-12-31", help="Export end date YYYY-MM-DD")
     parser.add_argument("--ref-start", default="2025-01-01", help="Filter reference start YYYY-MM-DD")
     parser.add_argument("--ref-end", default="2025-12-31", help="Filter reference end YYYY-MM-DD")
