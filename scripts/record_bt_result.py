@@ -77,15 +77,19 @@ def record_result(
     win_rate: float,
     parameters: dict[str, Any] | None = None,
     notes: str = "",
+    commit_sha: str | None = None,
 ) -> dict[str, Any]:
     """Record a backtest result to the SQLite store."""
     
     init_db()
     
+    # Use provided commit_sha or auto-detect from git
+    resolved_commit = commit_sha if commit_sha else get_git_commit_sha()
+    
     record = {
         "bt_id": bt_id,
         "submitted_at": datetime.now(timezone.utc).isoformat(),
-        "commit_sha": get_git_commit_sha(),
+        "commit_sha": resolved_commit,
         "window": window,
         "warmup_days": warmup_days,
         "parameters": json.dumps(parameters) if parameters else "{}",
@@ -192,6 +196,7 @@ def main():
     parser.add_argument("--win-rate", type=float, default=0.0, help="Win rate (0-1)")
     parser.add_argument("--parameters", type=str, default="{}", help="JSON string of additional parameters")
     parser.add_argument("--notes", default="", help="Additional notes")
+    parser.add_argument("--commit", default=None, help="Commit SHA (overrides auto-detected HEAD)")
     parser.add_argument("--check", action="store_true", help="Check for existing result instead of recording")
     parser.add_argument("--list", action="store_true", help="List all results for window")
     
@@ -199,7 +204,8 @@ def main():
     
     if args.list:
         # List mode: show all results for window
-        results = get_all_results(window=args.window)
+        commit_to_list = args.commit if args.commit else None
+        results = get_all_results(window=args.window, commit_sha=commit_to_list)
         if results:
             print(f"Found {len(results)} result(s) for {args.window}:")
             for r in results:
@@ -212,7 +218,8 @@ def main():
     
     elif args.check:
         # Check mode: verify if result exists
-        existing = check_existing_result(args.window)
+        commit_to_check = args.commit if args.commit else get_git_commit_sha()
+        existing = check_existing_result(args.window, commit_sha=commit_to_check)
         if existing:
             print(f"EXISTS: {existing['bt_id']} (Sharpe: {existing['sharpe']:.2f}, Trades: {existing['trades']})")
             sys.exit(0)
@@ -235,6 +242,7 @@ def main():
             win_rate=args.win_rate,
             parameters=params,
             notes=args.notes,
+            commit_sha=args.commit,
         )
         
         print(f"RECORDED: {record['bt_id']} @ {record['commit_sha'][:8]} ({record['window']})")
