@@ -11,7 +11,8 @@ Signal: same 8-condition BCT Blue Flag checklist as performance_bct.
 Entry Gates: SPY 4-day confirm, 3% from 52w high, Kijun extension check,
       chikou confirm, min $3 price, $500K volume, VIX tier (50% if >30).
 Exits: ATR trailing stop (22-period, 2.5x initial, 3.0x floor) + Kijun trail +
-      optional cloud breach + weekly Kijun.
+      ladder trim [20%,40%] + reversal_profit_exit (6% gain, 10% Tenkan ext) +
+      earnings exits (adaptive 9d / hard 3d) + optional cloud breach + weekly Kijun.
 Sizing: Fixed-risk $200 per position with ATR-based position sizing.
 Adds: Cloud top break triggers (50% of original, max 1 add).
 Rotation: score_ratio ≥ 2.0, profit veto at +5%.
@@ -594,6 +595,119 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         
         return False, ""
 
+    # ── Item 5: Ladder trim + reversal profit exit ────────────────────────────
+
+    def _check_ladder_trims(self, symbol: Symbol, holding) -> list[dict]:
+        """Check if any ladder rungs have been hit and return trim actions.
+
+        Mirrors kumo-trader decision_engine.py:231-248.
+        Returns list of trim dicts: {rung_key, qty}. Empty if nothing to trim.
+        """
+        if symbol not in self._position_meta:
+            return []
+        meta = self._position_meta[symbol]
+        entry_price = meta.get("entry_price", 0.0)
+        if entry_price <= 0:
+            return []
+        fired = meta.get("ladder_trims", set())
+        close = float(self.securities[symbol].price)
+        trims = []
+        for rung_pct in self.ladder_rungs_pct:
+            rung_key = f"{int(rung_pct)}pct"
+            if rung_key in fired:
+                continue
+            target = entry_price * (1.0 + rung_pct / 100.0)
+            if close >= target:
+                trim_qty = max(1, int(holding.quantity * self.ladder_trim_fraction))
+                trims.append({"rung_key": rung_key, "qty": trim_qty, "target": target})
+        return trims
+
+    def _check_reversal_profit_exit(self, symbol: Symbol, holding) -> bool:
+        """Return True if reversal-profit exit should fire.
+
+        Conditions (mirrors kumo-trader decision_engine.py:251-272):
+          1. Current gain >= reversal_profit_min_gain_pct (6%)
+          2. Price extended >= reversal_profit_extension_pct (10%) above Tenkan
+          3. Today's candle is a reversal: upper shadow >= 2x body AND
+             close in the bottom 30% of the day's high-low range
+        """
+        if not self.reversal_profit_enabled:
+            return False
+        if symbol not in self._position_meta:
+            return False
+        meta = self._position_meta[symbol]
+        entry_price = meta.get("entry_price", 0.0)
+        if entry_price <= 0:
+            return False
+
+        close = float(self.securities[symbol].price)
+        gain = (close - entry_price) / entry_price
+        if gain < self.reversal_profit_min_gain_pct:
+            return False
+
+        # Check Tenkan extension
+        ind = self._indicators.get(symbol)
+        if ind is None:
+            return False
+        d_ichi = ind.get("d_ichi")
+        if d_ichi is None or not d_ichi.is_ready:
+            return False
+        tenkan = d_ichi.tenkan.current.value
+        if tenkan <= 0:
+            return False
+        extension = (close - tenkan) / tenkan
+        if extension < self.reversal_profit_extension_pct:
+            return False
+
+        # Check reversal candle using last 2 daily bars
+        hist = self.history(symbol, 2, Resolution.DAILY)
+        if hist is None or hist.empty or len(hist) < 1:
+            return False
+        if isinstance(hist.index, pd.MultiIndex):
+            hist = hist.droplevel(0)
+        hist.columns = [c.lower() for c in hist.columns]
+        required = {"open", "high", "low", "close"}
+        if not required.issubset(hist.columns):
+            return False
+        today_bar = hist.iloc[-1]
+        o, h, lo, c = float(today_bar["open"]), float(today_bar["high"]), float(today_bar["low"]), float(today_bar["close"])
+        body = abs(c - o)
+        candle_range = h - lo
+        if candle_range <= 0:
+            return False
+        upper_shadow = h - max(o, c)
+        # Reversal: upper shadow >= 2x body AND close in bottom 30% of range
+        is_reversal = (upper_shadow >= 2.0 * body) and ((c - lo) / candle_range <= 0.30)
+        return is_reversal
+
+    # ── Item 6: Earnings avoidance ────────────────────────────────────────────
+
+    def _days_to_next_earnings(self, symbol: Symbol) -> int | None:
+        """Return days until next earnings report, or None if unknown/unavailable.
+
+        Uses QC Fundamental data: security.fundamentals.earnings_reports.report_date.
+        Returns None for ETFs or symbols without fundamental data.
+        """
+        try:
+            sec = self.securities[symbol]
+            if sec is None:
+                return None
+            fundamentals = sec.fundamentals
+            if fundamentals is None:
+                return None
+            report_date = fundamentals.earnings_reports.report_date
+            # report_date is a Python datetime; guard against default/zero value
+            if report_date is None:
+                return None
+            from datetime import datetime as _dt
+            if isinstance(report_date, _dt):
+                report_date = report_date.date()
+            today = self.time.date()
+            delta = (report_date - today).days
+            return delta if delta >= 0 else None
+        except Exception:
+            return None
+
     def _rebalance(self) -> None:
         if self.is_warming_up:
             return
@@ -607,6 +721,61 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             if not holding.invested or self._has_open_orders(symbol):
                 continue
             
+            # ── Item 6: Earnings exits (run before ATR stop) ──────────────
+            days_out = self._days_to_next_earnings(symbol)
+            if days_out is not None:
+                pnl_pct = self._get_position_pnl_pct(symbol)
+                # Adaptive: profitable positions exit earlier (9 days out)
+                if (self.adaptive_earnings_enabled
+                        and pnl_pct >= self.adaptive_earnings_gain_threshold
+                        and days_out <= self.adaptive_earnings_exit_days):
+                    self.market_on_open_order(symbol, -holding.quantity)
+                    self.log(
+                        f"ADAPTIVE_EARNINGS_EXIT|{date_str}|{symbol.value}"
+                        f"|days_out={days_out}|pnl={pnl_pct:.1%}|gain_thresh={self.adaptive_earnings_gain_threshold:.0%}"
+                    )
+                    if symbol in self._position_meta:
+                        del self._position_meta[symbol]
+                    continue
+                # Hard: always exit 3 days before earnings
+                elif days_out <= self.earnings_exit_days_before:
+                    self.market_on_open_order(symbol, -holding.quantity)
+                    self.log(
+                        f"EARNINGS_EXIT|{date_str}|{symbol.value}"
+                        f"|days_out={days_out}|pnl={pnl_pct:.1%}"
+                    )
+                    if symbol in self._position_meta:
+                        del self._position_meta[symbol]
+                    continue
+
+            # ── Item 5: Reversal profit exit (before ladder — full exit) ──
+            if self._check_reversal_profit_exit(symbol, holding):
+                self.market_on_open_order(symbol, -holding.quantity)
+                pnl_pct = self._get_position_pnl_pct(symbol)
+                self.log(
+                    f"REVERSAL_PROFIT_EXIT|{date_str}|{symbol.value}"
+                    f"|pnl={pnl_pct:.1%}"
+                )
+                if symbol in self._position_meta:
+                    del self._position_meta[symbol]
+                continue
+
+            # ── Item 5: Ladder trims (partial — do not skip to next position) ──
+            trims = self._check_ladder_trims(symbol, holding)
+            for trim in trims:
+                rung_key = trim["rung_key"]
+                trim_qty = trim["qty"]
+                # Do not trim more than we hold
+                trim_qty = min(trim_qty, holding.quantity)
+                if trim_qty > 0:
+                    self.market_on_open_order(symbol, -trim_qty)
+                    self.log(
+                        f"TRIM|{date_str}|{symbol.value}"
+                        f"|rung={rung_key}|qty={trim_qty}|target={trim['target']:.2f}"
+                    )
+                    if symbol in self._position_meta:
+                        self._position_meta[symbol]["ladder_trims"].add(rung_key)
+
             # Update trailing stop and check exit
             should_exit, exit_reason = self._update_and_check_stop(symbol, holding)
             if should_exit:
@@ -714,6 +883,15 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             if price <= 0:
                 continue
             
+            # ── Item 6: Earnings entry gate ────────────────────────────────
+            days_out = self._days_to_next_earnings(symbol)
+            if days_out is not None and days_out <= self.skip_if_earnings_days:
+                self.log(
+                    f"GATE_BLOCK|{date_str}|{symbol.value}"
+                    f"|reason=EARNINGS_WITHIN_{days_out}d|score={score}"
+                )
+                continue
+
             # Check entry gates (Item 4: sT10e champion)
             gates_passed, gate_reason = self._check_all_entry_gates(symbol)
             if not gates_passed:
