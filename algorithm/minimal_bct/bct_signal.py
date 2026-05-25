@@ -114,7 +114,7 @@ def score_symbol(algorithm: Any, symbol: Any) -> dict[str, Any] | None:
         bool(w_cloud_a_now > w_cloud_b_now),                                       # 4. weekly cloud green
         bool(d_price > max(d_cloud_a_now, d_cloud_b_now)),                        # 5. daily above cloud top
         bool(d_price > d_tenkan_now),                                              # 6. daily above tenkan
-        bool(adx_rising and plus_di_now > minus_di_now and adx_now >= 20),        # 7. ADX
+        bool(plus_di_now > minus_di_now and adx_now >= 20),                      # 7. ADX (removed adx_rising)
         bool(d_price > ma200),                                                     # 8. 200MA
     ]
     score = sum(conditions)

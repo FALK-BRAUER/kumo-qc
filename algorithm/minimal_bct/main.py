@@ -31,7 +31,7 @@ class BCTMinimalAlgorithm(QCAlgorithm):
 
     MAX_POSITIONS: int = 10
     POSITION_PCT: float = 0.10
-    MIN_SCORE: int = 7
+    MIN_SCORE: int = 6
 
     # Rotation engine parameters (Item 2: sT10e+R-B-v3)
     SCORE_RATIO_THRESHOLD: float = 2.0
@@ -696,14 +696,26 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             1 for sym, h in self.portfolio.items()
             if h.invested and sym not in exiting
         )
-        slots = self.MAX_POSITIONS - open_count
-        if slots <= 0:
-            return
+        slots = max(0, self.MAX_POSITIONS - open_count)
+
+        # Entry funnel counters (single DEBUG line per rebalance cycle)
+        funnel_total_candidates = 0
+        funnel_prefilter_pass = 0
+        funnel_score_pass = 0
+        funnel_slot_pass = 0
+        funnel_reach_sizing = 0
+        funnel_orders_submitted = 0
 
         # Score all symbols for rotation decisions
         all_scores: dict[Symbol, int] = {}
         for ticker in self.UNIVERSE:
+            funnel_total_candidates += 1
             symbol = self.symbol(ticker)
+
+            # Stage 2: pre-filter (price >= min_price, dollar volume >= min_dollar_volume)
+            if not self._check_min_price_volume(symbol):
+                continue
+            funnel_prefilter_pass += 1
             
             # === PRE-FILTER: skip symbols that cannot reach MIN_SCORE ===
             ind = self._indicators.get(symbol)
@@ -729,6 +741,7 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             if result is None or result["score"] < self.MIN_SCORE:
                 continue
             all_scores[symbol] = result["score"]
+            funnel_score_pass += 1
 
         # Rotation engine: check for positions to rotate out
         if len(all_scores) > 0:
@@ -750,6 +763,7 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             if not self.portfolio[symbol].invested and symbol not in exiting
         ]
         candidates.sort(key=lambda x: x[1], reverse=True)
+        funnel_slot_pass = min(len(candidates), slots)
 
         for symbol, score in candidates[:slots]:
             price = float(self.securities[symbol].price)
@@ -772,6 +786,7 @@ class BCTMinimalAlgorithm(QCAlgorithm):
                 continue
             
             # Calculate position size: flat 10% of portfolio
+            funnel_reach_sizing += 1
             target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
             quantity = int(target_value / price)
             if quantity <= 0:
@@ -779,6 +794,7 @@ class BCTMinimalAlgorithm(QCAlgorithm):
 
             # Entry: market-on-open at current price
             self.market_on_open_order(symbol, quantity)
+            funnel_orders_submitted += 1
 
             # Track position entry metadata
             self._position_meta[symbol] = {
@@ -791,3 +807,12 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|mark={price:.2f}")
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
+        self.debug(
+            f"FUNNEL|{date_str}"
+            f"|total={funnel_total_candidates}"
+            f"|prefilter_pass={funnel_prefilter_pass}"
+            f"|score_gte_{self.MIN_SCORE}={funnel_score_pass}"
+            f"|slot_pass={funnel_slot_pass}"
+            f"|reach_sizing={funnel_reach_sizing}"
+            f"|order_submitted={funnel_orders_submitted}"
+        )
