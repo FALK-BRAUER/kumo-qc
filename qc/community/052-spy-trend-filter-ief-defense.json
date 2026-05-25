@@ -1,0 +1,460 @@
+{
+  "summary": {
+    "rank": 52,
+    "leaderboard_position": 48,
+    "id": 128,
+    "name": "SPY Trend Filter IEF Defense",
+    "author": "Upbias",
+    "author_public_id": "upbias",
+    "organization": "Upbias",
+    "description": "The strategy is a tactical trend filter that seeks equity risk premia when the US equity market is in an uptrend and shifts to a defensive duration asset when the equity trend weakens. It trades US-listed ETFs, holding either SPY (US large-cap equities) or IEF (intermediate US Treasuries) based on a long-horizon moving average regime signal designed to avoid deep equity drawdowns while remaining invested during sustained bull markets.\n\nThe decision signal is the daily close of SPY relative to it",
+    "description_full": "The strategy is a tactical trend filter that seeks equity risk premia when the US equity market is in an uptrend and shifts to a defensive duration asset when the equity trend weakens. It trades US-listed ETFs, holding either SPY (US large-cap equities) or IEF (intermediate US Treasuries) based on a long-horizon moving average regime signal designed to avoid deep equity drawdowns while remaining invested during sustained bull markets.\n\nThe decision signal is the daily close of SPY relative to its 220 trading day simple moving average: if SPY is above the average, the portfolio holds 100 percent SPY; otherwise it holds 100 percent IEF. The portfolio is evaluated and rebalanced once per month at the beginning of the month shortly after the equity market opens, with an initial rebalance as soon as sufficient history is available. Position sizing is binary and fully invested (no leverage, no explicit volatility targeting, no stop losses), so the primary risk control is regime switching away from equities during persistent downtrends. The intended alpha source is time series momentum or trend persistence at multi-month horizons.",
+    "tags": [
+      "Trend Following",
+      "Tactical Allocation",
+      "Equity",
+      "Daily"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 2.06,
+    "sharpe_1y": 1.4168,
+    "return_3m": 8.9725,
+    "return_oos_1y": 27.7347,
+    "sharpe_oos_1y": 1.4168,
+    "cagr_5y": 8.86,
+    "drawdown_5y": 30.7,
+    "psr_5y": 14.208,
+    "watchers": 0,
+    "clones": 0,
+    "clone_project_id": 27516127,
+    "backtest_id": "6f3c321628bc2628591565e42eb3d3dc",
+    "discussion_id": 20012,
+    "published_ts": 1514990379,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 128,
+    "backtestId": "6f3c321628bc2628591565e42eb3d3dc",
+    "name": "SPY Trend Filter IEF Defense",
+    "author": {
+      "name": "Upbias",
+      "organizationName": "Upbias",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/6b6800284c94a8e1522845934.png",
+      "bio": "Upbias.com provides busy non-investment professionals with insights, strategies, and ready-made investment models they can use to invest like a pro.\n\nFor more information, visit https://www.upbias.com.\n\n***** DISCLAIMER: Anything we publish at QuantConnect, including the strategy code, is provided for educational and informational purposes only and does not constitute an offer to sell, a solicitation to buy, or a recommendation or endorsement for any security or strategy, nor does it constitute an investment advice. First consult your own financial adviser before using the information presented here in any way whatsoever.\n",
+      "publicId": "upbias",
+      "facebook": "https://www.facebook.com/Upbias-838693246312438",
+      "twitter": "https://twitter.com/upbias",
+      "linkedin": "https://www.linkedin.com/in/ricpr",
+      "web": "https://www.upbias.com",
+      "topAuthor": false
+    },
+    "description": "The strategy is a tactical trend filter that seeks equity risk premia when the US equity market is in an uptrend and shifts to a defensive duration asset when the equity trend weakens. It trades US-listed ETFs, holding either SPY (US large-cap equities) or IEF (intermediate US Treasuries) based on a long-horizon moving average regime signal designed to avoid deep equity drawdowns while remaining invested during sustained bull markets.\n\nThe decision signal is the daily close of SPY relative to its 220 trading day simple moving average: if SPY is above the average, the portfolio holds 100 percent SPY; otherwise it holds 100 percent IEF. The portfolio is evaluated and rebalanced once per month at the beginning of the month shortly after the equity market opens, with an initial rebalance as soon as sufficient history is available. Position sizing is binary and fully invested (no leverage, no explicit volatility targeting, no stop losses), so the primary risk control is regime switching away from equities during persistent downtrends. The intended alpha source is time series momentum or trend persistence at multi-month horizons.",
+    "cloneProjectId": 27516127,
+    "tags": [
+      "Trend Following",
+      "Tactical Allocation",
+      "Equity",
+      "Daily"
+    ],
+    "watchers": 0,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Jan 03, 2018",
+        "changes": [
+          "Initial deployment for strategy &quot;SPY Trend Filter IEF Defense&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Upbias",
+    "organizationName": "Upbias",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771943460,
+          -1.0628
+        ],
+        [
+          1772029860,
+          0.2679
+        ],
+        [
+          1772116260,
+          0.4647
+        ],
+        [
+          1772202660,
+          -0.8225
+        ],
+        [
+          1772254800,
+          -0.4503
+        ],
+        [
+          1772341200,
+          -0.4503
+        ],
+        [
+          1772467020,
+          -0.7225
+        ],
+        [
+          1772548260,
+          -1.8694
+        ],
+        [
+          1772634660,
+          -0.9166
+        ],
+        [
+          1772721060,
+          -0.9644
+        ],
+        [
+          1772807460,
+          -2.3573
+        ],
+        [
+          1772859600,
+          -2.421
+        ],
+        [
+          1772946000,
+          -2.421
+        ],
+        [
+          1773063060,
+          -3.1334
+        ],
+        [
+          1773149460,
+          -1.5522
+        ],
+        [
+          1773235860,
+          -1.5884
+        ],
+        [
+          1773322260,
+          -2.6744
+        ],
+        [
+          1773408660,
+          -2.757
+        ],
+        [
+          1773460800,
+          -3.8821
+        ],
+        [
+          1773547200,
+          -3.8821
+        ],
+        [
+          1773667860,
+          -3.0205
+        ],
+        [
+          1773754260,
+          -2.3819
+        ],
+        [
+          1773840660,
+          -3.0538
+        ],
+        [
+          1773927060,
+          -4.816
+        ],
+        [
+          1774018620,
+          -5.1011
+        ],
+        [
+          1774065600,
+          -5.6122
+        ],
+        [
+          1774152000,
+          -5.6122
+        ],
+        [
+          1774272660,
+          -4.3149
+        ],
+        [
+          1774359060,
+          -5.1839
+        ],
+        [
+          1774445460,
+          -4.002
+        ],
+        [
+          1774531860,
+          -5.1723
+        ],
+        [
+          1774618260,
+          -6.5821
+        ],
+        [
+          1774670400,
+          -7.7146
+        ],
+        [
+          1774756800,
+          -7.7146
+        ],
+        [
+          1774877460,
+          -6.9161
+        ],
+        [
+          1774963860,
+          -6.919
+        ],
+        [
+          1775055420,
+          -4.4478
+        ],
+        [
+          1775136660,
+          -5.8605
+        ],
+        [
+          1775188800,
+          -4.5581
+        ],
+        [
+          1775275200,
+          -4.5581
+        ],
+        [
+          1775361600,
+          -4.5581
+        ],
+        [
+          1775482260,
+          -4.426
+        ],
+        [
+          1775568660,
+          -4.4449
+        ],
+        [
+          1775655060,
+          -1.5911
+        ],
+        [
+          1775741460,
+          -1.8299
+        ],
+        [
+          1775827860,
+          -0.8237
+        ],
+        [
+          1775880000,
+          -1.1272
+        ],
+        [
+          1775966400,
+          -1.1272
+        ],
+        [
+          1776087060,
+          -1.3929
+        ],
+        [
+          1776173460,
+          0.1142
+        ],
+        [
+          1776259860,
+          1.1901
+        ],
+        [
+          1776346260,
+          1.9771
+        ],
+        [
+          1776432660,
+          2.7582
+        ],
+        [
+          1776484800,
+          3.3274
+        ],
+        [
+          1776571200,
+          3.3274
+        ],
+        [
+          1776691860,
+          3.1677
+        ],
+        [
+          1776778260,
+          3.2417
+        ],
+        [
+          1776864660,
+          3.1386
+        ],
+        [
+          1776951060,
+          3.2548
+        ],
+        [
+          1777037460,
+          3.355
+        ],
+        [
+          1777089600,
+          3.8791
+        ],
+        [
+          1777176000,
+          3.8791
+        ],
+        [
+          1777296660,
+          3.7601
+        ],
+        [
+          1777383060,
+          3.4457
+        ],
+        [
+          1777469460,
+          3.384
+        ],
+        [
+          1777555860,
+          3.8385
+        ],
+        [
+          1777647420,
+          5.2004
+        ],
+        [
+          1777694400,
+          4.8534
+        ],
+        [
+          1777780800,
+          4.8534
+        ],
+        [
+          1777901460,
+          4.7184
+        ],
+        [
+          1777987860,
+          5.0218
+        ],
+        [
+          1778074260,
+          5.9293
+        ],
+        [
+          1778160660,
+          6.9224
+        ],
+        [
+          1778247060,
+          6.9209
+        ],
+        [
+          1778299200,
+          7.3173
+        ],
+        [
+          1778385600,
+          7.3173
+        ],
+        [
+          1778506260,
+          7.223
+        ],
+        [
+          1778592660,
+          7.1707
+        ],
+        [
+          1778679060,
+          7.3565
+        ],
+        [
+          1778765460,
+          8.2654
+        ],
+        [
+          1778851860,
+          7.8095
+        ],
+        [
+          1778904000,
+          7.5424
+        ],
+        [
+          1778990400,
+          7.5424
+        ],
+        [
+          1779111060,
+          7.6164
+        ],
+        [
+          1779197460,
+          6.8963
+        ],
+        [
+          1779283860,
+          7.0168
+        ],
+        [
+          1779370260,
+          7.387
+        ],
+        [
+          1779480000,
+          8.4818
+        ]
+      ],
+      "5y psr": 14.208,
+      "5y cagr": 8.86,
+      "1y sharpe": 1.4168,
+      "3m return": 8.9725,
+      "5y drawdown": 30.7,
+      "oos 1y return": 27.7347,
+      "oos 1y sharpe": 1.4168,
+      "oos 3m return": 8.9725,
+      "oos 3m sharpe": 2.056
+    },
+    "rank": 0,
+    "clones": 0,
+    "comments": 0,
+    "leaderboard": 48,
+    "score": 2.06,
+    "discussionId": 20012,
+    "hot": false,
+    "owner": false,
+    "followers": [],
+    "followersCount": 0,
+    "published": 1514990379
+  }
+}

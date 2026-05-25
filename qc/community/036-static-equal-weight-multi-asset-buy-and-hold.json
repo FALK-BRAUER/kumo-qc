@@ -1,0 +1,466 @@
+{
+  "summary": {
+    "rank": 36,
+    "leaderboard_position": 38,
+    "id": 158,
+    "name": "Static Equal-Weight Multi-Asset Buy-and-Hold",
+    "author": "Alexandre Catarino",
+    "author_public_id": "alexandre_catarino",
+    "organization": "QuantConnect",
+    "description": "The strategy is a static multi asset allocation that targets diversified beta exposure by holding an equal weighted mix of US large cap equities, US investment grade bonds, and a single mega cap equity (SPY, BND, and AAPL). The intended opportunity is broad market risk premia and diversification benefits rather than tactical timing; alpha, to the extent any exists, is implicitly from the chosen sleeve mix and any long run relative performance differences between the three exposures.\n\nTrading dec",
+    "description_full": "The strategy is a static multi asset allocation that targets diversified beta exposure by holding an equal weighted mix of US large cap equities, US investment grade bonds, and a single mega cap equity (SPY, BND, and AAPL). The intended opportunity is broad market risk premia and diversification benefits rather than tactical timing; alpha, to the extent any exists, is implicitly from the chosen sleeve mix and any long run relative performance differences between the three exposures.\n\nTrading decisions are evaluated on minute data but the portfolio is only established once at inception: when the portfolio is not invested, it enters long positions and allocates approximately one third of capital to each instrument, then makes no further trades. There are no explicit exits, rebalancing rules, leverage, hedges, stop losses, drawdown controls, or volatility based position sizing; risk is managed solely through initial equal weight diversification and full investment of capital.",
+    "tags": [
+      "Buy And Hold",
+      "Equity",
+      "Fixed Income",
+      "Intraday"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 2.58,
+    "sharpe_1y": 1.6914,
+    "return_3m": 10.1172,
+    "return_oos_1y": null,
+    "sharpe_oos_1y": null,
+    "cagr_5y": 12.362,
+    "drawdown_5y": 22.7,
+    "psr_5y": 19.071,
+    "watchers": 1,
+    "clones": 0,
+    "clone_project_id": 27562197,
+    "backtest_id": "2e57455c9242506f96dcb6cd290c9fb5",
+    "discussion_id": 20049,
+    "published_ts": 1769121901,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 158,
+    "backtestId": "2e57455c9242506f96dcb6cd290c9fb5",
+    "name": "Static Equal-Weight Multi-Asset Buy-and-Hold",
+    "author": {
+      "name": "Alexandre Catarino",
+      "organizationName": "QuantConnect",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/e76004d3a79bb421536616863.jpeg",
+      "bio": "I got my degree in Meteorology from the Physics Department of the Faculty of Science of the University of Lisbon in 2006 and spent the following years working on Climate and Meteorology models. After 13 years of Meteorology, I decided to use my knowledge of physics, math, and programming in the stock markets.\nIn 2015, I found QuantConnect, started to contribute to Lean and became part of the team in 2016. At the moment, I continue to contribute to Lean, focusing on Python integration and implementing features at QCAlgorithm level to make quants&#039; life easier. On top of that, I belong to QC Support Team. ",
+      "publicId": "alexandre_catarino",
+      "facebook": "https://www.facebook.com/alexandre.catarino",
+      "twitter": "https://twitter.com/AlexCatx",
+      "linkedin": "https://www.linkedin.com/in/alexandrecatarino/",
+      "web": null,
+      "topAuthor": false
+    },
+    "description": "The strategy is a static multi asset allocation that targets diversified beta exposure by holding an equal weighted mix of US large cap equities, US investment grade bonds, and a single mega cap equity (SPY, BND, and AAPL). The intended opportunity is broad market risk premia and diversification benefits rather than tactical timing; alpha, to the extent any exists, is implicitly from the chosen sleeve mix and any long run relative performance differences between the three exposures.\n\nTrading decisions are evaluated on minute data but the portfolio is only established once at inception: when the portfolio is not invested, it enters long positions and allocates approximately one third of capital to each instrument, then makes no further trades. There are no explicit exits, rebalancing rules, leverage, hedges, stop losses, drawdown controls, or volatility based position sizing; risk is managed solely through initial equal weight diversification and full investment of capital.",
+    "cloneProjectId": 27562197,
+    "tags": [
+      "Buy And Hold",
+      "Equity",
+      "Fixed Income",
+      "Intraday"
+    ],
+    "watchers": 1,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Jan 22, 2026",
+        "changes": [
+          "Initial deployment for strategy &quot;Static Equal-Weight Multi-Asset Buy-and-Hold&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Alexandre Catarino",
+    "organizationName": "QuantConnect",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771943460,
+          0.2606
+        ],
+        [
+          1772029860,
+          1.1065
+        ],
+        [
+          1772116260,
+          1.6109
+        ],
+        [
+          1772202660,
+          0.4309
+        ],
+        [
+          1772254800,
+          -0.3698
+        ],
+        [
+          1772341200,
+          -0.3698
+        ],
+        [
+          1772467020,
+          -0.7926
+        ],
+        [
+          1772548260,
+          -1.1178
+        ],
+        [
+          1772634660,
+          -0.5109
+        ],
+        [
+          1772721060,
+          -1.3578
+        ],
+        [
+          1772807460,
+          -2.5213
+        ],
+        [
+          1772859600,
+          -2.3558
+        ],
+        [
+          1772946000,
+          -2.3558
+        ],
+        [
+          1773063060,
+          -2.7015
+        ],
+        [
+          1773149460,
+          -1.8426
+        ],
+        [
+          1773235860,
+          -1.4796
+        ],
+        [
+          1773322260,
+          -2.4958
+        ],
+        [
+          1773408660,
+          -2.9678
+        ],
+        [
+          1773460800,
+          -4.2584
+        ],
+        [
+          1773547200,
+          -4.2584
+        ],
+        [
+          1773667860,
+          -3.7616
+        ],
+        [
+          1773754260,
+          -3.2137
+        ],
+        [
+          1773840660,
+          -3.5656
+        ],
+        [
+          1773927060,
+          -4.8867
+        ],
+        [
+          1774018620,
+          -5.0193
+        ],
+        [
+          1774065600,
+          -5.3238
+        ],
+        [
+          1774152000,
+          -5.3238
+        ],
+        [
+          1774272660,
+          -4.0796
+        ],
+        [
+          1774359060,
+          -4.8136
+        ],
+        [
+          1774445460,
+          -3.6264
+        ],
+        [
+          1774531860,
+          -4.5444
+        ],
+        [
+          1774618260,
+          -4.7353
+        ],
+        [
+          1774670400,
+          -5.955
+        ],
+        [
+          1774756800,
+          -5.955
+        ],
+        [
+          1774877460,
+          -5.4542
+        ],
+        [
+          1774963860,
+          -5.5119
+        ],
+        [
+          1775055420,
+          -3.7298
+        ],
+        [
+          1775136660,
+          -4.4484
+        ],
+        [
+          1775188800,
+          -3.4778
+        ],
+        [
+          1775275200,
+          -3.4778
+        ],
+        [
+          1775361600,
+          -3.4778
+        ],
+        [
+          1775482260,
+          -3.345
+        ],
+        [
+          1775568660,
+          -3.6544
+        ],
+        [
+          1775655060,
+          -2.016
+        ],
+        [
+          1775741460,
+          -2.0206
+        ],
+        [
+          1775827860,
+          -1.5028
+        ],
+        [
+          1775880000,
+          -1.5012
+        ],
+        [
+          1775966400,
+          -1.5012
+        ],
+        [
+          1776087060,
+          -1.6885
+        ],
+        [
+          1776173460,
+          -1.1145
+        ],
+        [
+          1776259860,
+          -0.804
+        ],
+        [
+          1776346260,
+          0.5882
+        ],
+        [
+          1776432660,
+          1.05
+        ],
+        [
+          1776484800,
+          1.7824
+        ],
+        [
+          1776571200,
+          1.7824
+        ],
+        [
+          1776691860,
+          1.8246
+        ],
+        [
+          1776778260,
+          2.0536
+        ],
+        [
+          1776864660,
+          1.3114
+        ],
+        [
+          1776951060,
+          2.3678
+        ],
+        [
+          1777037460,
+          1.9624
+        ],
+        [
+          1777089600,
+          2.0581
+        ],
+        [
+          1777176000,
+          2.0581
+        ],
+        [
+          1777296660,
+          1.2599
+        ],
+        [
+          1777383060,
+          1.7538
+        ],
+        [
+          1777469460,
+          1.2672
+        ],
+        [
+          1777555860,
+          1.8179
+        ],
+        [
+          1777647420,
+          4.4823
+        ],
+        [
+          1777694400,
+          3.8098
+        ],
+        [
+          1777780800,
+          3.8098
+        ],
+        [
+          1777901460,
+          3.669
+        ],
+        [
+          1777987860,
+          3.3262
+        ],
+        [
+          1778074260,
+          4.4939
+        ],
+        [
+          1778160660,
+          6.0307
+        ],
+        [
+          1778247060,
+          6.3571
+        ],
+        [
+          1778299200,
+          6.8813
+        ],
+        [
+          1778385600,
+          6.8813
+        ],
+        [
+          1778511420,
+          6.9222
+        ],
+        [
+          1778592660,
+          6.8074
+        ],
+        [
+          1778679060,
+          6.9677
+        ],
+        [
+          1778765460,
+          8.2467
+        ],
+        [
+          1778851860,
+          7.4907
+        ],
+        [
+          1778904000,
+          7.9059
+        ],
+        [
+          1778990400,
+          7.9059
+        ],
+        [
+          1779111060,
+          7.7439
+        ],
+        [
+          1779197460,
+          7.2165
+        ],
+        [
+          1779283860,
+          7.4223
+        ],
+        [
+          1779370260,
+          8.0243
+        ],
+        [
+          1779480000,
+          9.71
+        ]
+      ],
+      "5y psr": 19.071,
+      "5y cagr": 12.362,
+      "1y sharpe": 1.6914,
+      "3m return": 10.1172,
+      "5y drawdown": 22.7,
+      "oos 1y return": null,
+      "oos 1y sharpe": null,
+      "oos 3m return": 10.1172,
+      "oos 3m sharpe": 2.5845
+    },
+    "rank": 0,
+    "clones": 0,
+    "comments": 0,
+    "leaderboard": 38,
+    "score": 2.58,
+    "discussionId": 20049,
+    "hot": false,
+    "owner": false,
+    "followers": [
+      {
+        "name": "PauPadilla Greendry",
+        "publicId": "paupadilla-greendry",
+        "profileImage": "c8936829a65c8ed1600374814.jpg"
+      }
+    ],
+    "followersCount": 1,
+    "published": 1769121901
+  }
+}

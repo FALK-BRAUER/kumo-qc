@@ -1,0 +1,466 @@
+{
+  "summary": {
+    "rank": 21,
+    "leaderboard_position": 25,
+    "id": 202,
+    "name": "RSI Overbought Continuation Above SMA",
+    "author": "Evan Kirtz",
+    "author_public_id": "evan-kirtz",
+    "organization": "Richard Kirtz",
+    "description": "The strategy is a single name momentum filter on a small basket of US large cap growth equities (DOCU, AMD, NFLX, TSLA, GOOG), seeking to capture short term continuation in strong uptrends while avoiding trades against the prevailing trend. It uses daily closes to compute a very fast 3 day RSI as the trigger signal and a 21 day simple moving average as a trend regime filter; the intended edge is that persistent overbought momentum, when confirmed by price trading above its intermediate trend, ca",
+    "description_full": "The strategy is a single name momentum filter on a small basket of US large cap growth equities (DOCU, AMD, NFLX, TSLA, GOOG), seeking to capture short term continuation in strong uptrends while avoiding trades against the prevailing trend. It uses daily closes to compute a very fast 3 day RSI as the trigger signal and a 21 day simple moving average as a trend regime filter; the intended edge is that persistent overbought momentum, when confirmed by price trading above its intermediate trend, can continue, whereas persistent oversold momentum below trend often precedes further weakness.\n\nThe system evaluates signals once per day and trades each stock independently with equal risk budgeting, allocating 20 percent notional to any name that qualifies. It enters long when RSI remains in an overbought regime (above 70 on consecutive days) and the stock is above its 21 day SMA. It exits fully when RSI remains in an oversold regime (below 30 on consecutive days) and price is below the 21 day SMA. Risk controls are limited to equal weighting and full liquidation on the exit condition; there are no explicit stops, leverage constraints beyond notional weights, or portfolio level risk limits.",
+    "tags": [
+      "Momentum",
+      "Equity",
+      "Technical",
+      "Swing"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 4.23,
+    "sharpe_1y": 1.0918,
+    "return_3m": 23.6103,
+    "return_oos_1y": null,
+    "sharpe_oos_1y": null,
+    "cagr_5y": 14.04,
+    "drawdown_5y": 43.7,
+    "psr_5y": 13.906,
+    "watchers": 1,
+    "clones": 0,
+    "clone_project_id": 27765291,
+    "backtest_id": "3f0770f8edc81c94fb5b5c1178cbc9e2",
+    "discussion_id": 20099,
+    "published_ts": 1769530422,
+    "hot": false,
+    "top_author": true
+  },
+  "raw": {
+    "id": 202,
+    "backtestId": "3f0770f8edc81c94fb5b5c1178cbc9e2",
+    "name": "RSI Overbought Continuation Above SMA",
+    "author": {
+      "name": "Evan Kirtz",
+      "organizationName": "Richard Kirtz",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/default.jpg",
+      "bio": "Messing with Quant ",
+      "publicId": "evan-kirtz",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": null,
+      "web": null,
+      "topAuthor": true
+    },
+    "description": "The strategy is a single name momentum filter on a small basket of US large cap growth equities (DOCU, AMD, NFLX, TSLA, GOOG), seeking to capture short term continuation in strong uptrends while avoiding trades against the prevailing trend. It uses daily closes to compute a very fast 3 day RSI as the trigger signal and a 21 day simple moving average as a trend regime filter; the intended edge is that persistent overbought momentum, when confirmed by price trading above its intermediate trend, can continue, whereas persistent oversold momentum below trend often precedes further weakness.\n\nThe system evaluates signals once per day and trades each stock independently with equal risk budgeting, allocating 20 percent notional to any name that qualifies. It enters long when RSI remains in an overbought regime (above 70 on consecutive days) and the stock is above its 21 day SMA. It exits fully when RSI remains in an oversold regime (below 30 on consecutive days) and price is below the 21 day SMA. Risk controls are limited to equal weighting and full liquidation on the exit condition; there are no explicit stops, leverage constraints beyond notional weights, or portfolio level risk limits.",
+    "cloneProjectId": 27765291,
+    "tags": [
+      "Momentum",
+      "Equity",
+      "Technical",
+      "Swing"
+    ],
+    "watchers": 1,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Jan 27, 2026",
+        "changes": [
+          "Initial deployment for strategy &quot;RSI Overbought Continuation Above SMA&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Evan Kirtz",
+    "organizationName": "Richard Kirtz",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771945200,
+          -0.5629
+        ],
+        [
+          1772031600,
+          -0.1146
+        ],
+        [
+          1772118000,
+          0.262
+        ],
+        [
+          1772204400,
+          -0.1521
+        ],
+        [
+          1772254800,
+          0.002
+        ],
+        [
+          1772341200,
+          0.002
+        ],
+        [
+          1772463600,
+          0.002
+        ],
+        [
+          1772550000,
+          0.2402
+        ],
+        [
+          1772636400,
+          -0.1275
+        ],
+        [
+          1772722800,
+          0.654
+        ],
+        [
+          1772809200,
+          1.6125
+        ],
+        [
+          1772859600,
+          1.3591
+        ],
+        [
+          1772946000,
+          1.3591
+        ],
+        [
+          1773068400,
+          1.3591
+        ],
+        [
+          1773151200,
+          1.2859
+        ],
+        [
+          1773237600,
+          0.9657
+        ],
+        [
+          1773324000,
+          0.6133
+        ],
+        [
+          1773410400,
+          -0.7726
+        ],
+        [
+          1773460800,
+          -0.4731
+        ],
+        [
+          1773547200,
+          -0.4731
+        ],
+        [
+          1773669600,
+          -0.4731
+        ],
+        [
+          1773756000,
+          -0.3923
+        ],
+        [
+          1773842400,
+          -0.109
+        ],
+        [
+          1773928800,
+          0.246
+        ],
+        [
+          1774015200,
+          -1.5271
+        ],
+        [
+          1774065600,
+          -2.3093
+        ],
+        [
+          1774152000,
+          -2.3093
+        ],
+        [
+          1774274400,
+          -2.3093
+        ],
+        [
+          1774360800,
+          -1.3668
+        ],
+        [
+          1774447200,
+          -2.4878
+        ],
+        [
+          1774533600,
+          -2.4281
+        ],
+        [
+          1774620000,
+          -3.3103
+        ],
+        [
+          1774670400,
+          -4.094
+        ],
+        [
+          1774756800,
+          -4.094
+        ],
+        [
+          1774879200,
+          -4.094
+        ],
+        [
+          1774965600,
+          -3.9589
+        ],
+        [
+          1775052000,
+          -3.2423
+        ],
+        [
+          1775138400,
+          -2.3195
+        ],
+        [
+          1775188800,
+          -0.9022
+        ],
+        [
+          1775275200,
+          -0.9022
+        ],
+        [
+          1775361600,
+          -0.9022
+        ],
+        [
+          1775484000,
+          -0.9022
+        ],
+        [
+          1775570400,
+          -0.7469
+        ],
+        [
+          1775656800,
+          -0.6797
+        ],
+        [
+          1775743200,
+          0.3611
+        ],
+        [
+          1775829600,
+          1.3694
+        ],
+        [
+          1775880000,
+          2.0827
+        ],
+        [
+          1775966400,
+          2.0827
+        ],
+        [
+          1776088800,
+          2.0827
+        ],
+        [
+          1776175200,
+          2.5035
+        ],
+        [
+          1776261600,
+          4.6238
+        ],
+        [
+          1776348000,
+          5.4435
+        ],
+        [
+          1776434400,
+          6.8486
+        ],
+        [
+          1776484800,
+          5.7926
+        ],
+        [
+          1776571200,
+          5.7926
+        ],
+        [
+          1776693600,
+          5.7926
+        ],
+        [
+          1776780000,
+          4.2816
+        ],
+        [
+          1776866400,
+          4.2796
+        ],
+        [
+          1776952800,
+          6.3063
+        ],
+        [
+          1777039200,
+          4.6409
+        ],
+        [
+          1777089600,
+          9.3595
+        ],
+        [
+          1777176000,
+          9.3595
+        ],
+        [
+          1777298400,
+          9.3595
+        ],
+        [
+          1777384800,
+          8.4902
+        ],
+        [
+          1777471200,
+          7.3241
+        ],
+        [
+          1777557600,
+          8.8646
+        ],
+        [
+          1777644000,
+          12.7701
+        ],
+        [
+          1777694400,
+          14.7433
+        ],
+        [
+          1777780800,
+          14.7433
+        ],
+        [
+          1777903200,
+          14.7433
+        ],
+        [
+          1777989600,
+          13.1318
+        ],
+        [
+          1778076000,
+          14.4526
+        ],
+        [
+          1778162400,
+          20.7099
+        ],
+        [
+          1778248800,
+          21.0042
+        ],
+        [
+          1778299200,
+          26.0092
+        ],
+        [
+          1778385600,
+          26.0092
+        ],
+        [
+          1778508000,
+          26.0092
+        ],
+        [
+          1778594400,
+          25.483
+        ],
+        [
+          1778680800,
+          23.6046
+        ],
+        [
+          1778767200,
+          24.7312
+        ],
+        [
+          1778853600,
+          24.8722
+        ],
+        [
+          1778904000,
+          21.2258
+        ],
+        [
+          1778990400,
+          21.2258
+        ],
+        [
+          1779112800,
+          21.2258
+        ],
+        [
+          1779199200,
+          20.2802
+        ],
+        [
+          1779285600,
+          18.0301
+        ],
+        [
+          1779372000,
+          21.8484
+        ],
+        [
+          1779480000,
+          23.6128
+        ]
+      ],
+      "5y psr": 13.906,
+      "5y cagr": 14.04,
+      "1y sharpe": 1.0918,
+      "3m return": 23.6103,
+      "5y drawdown": 43.7,
+      "oos 1y return": null,
+      "oos 1y sharpe": null,
+      "oos 3m return": 23.6103,
+      "oos 3m sharpe": 4.2279
+    },
+    "rank": 0,
+    "clones": 0,
+    "comments": 0,
+    "leaderboard": 25,
+    "score": 4.23,
+    "discussionId": 20099,
+    "hot": false,
+    "owner": false,
+    "followers": [
+      {
+        "name": "PauPadilla Greendry",
+        "publicId": "paupadilla-greendry",
+        "profileImage": "c8936829a65c8ed1600374814.jpg"
+      }
+    ],
+    "followersCount": 1,
+    "published": 1769530422
+  }
+}

@@ -1,0 +1,471 @@
+{
+  "summary": {
+    "rank": 98,
+    "leaderboard_position": 89,
+    "id": 250,
+    "name": "Hurst-Persistence Moving-Average Equity Trend Strategy",
+    "author": "Ahmet Kasti",
+    "author_public_id": "ahmet-kasti_1",
+    "organization": "Ahmet Kasti&#039;s Organization",
+    "description": "The strategy is an equity trend-following model that seeks to capture persistent price trends by combining a persistence metric (Hurst exponent) with a directional trend filter (moving average). It targets market conditions where returns exhibit serial dependence and sustained momentum, favoring liquid names where trends are more likely to be exploitable after costs. The investable universe is refreshed monthly from US equities using fundamental data, filtering out low-priced stocks and selectin",
+    "description_full": "The strategy is an equity trend-following model that seeks to capture persistent price trends by combining a persistence metric (Hurst exponent) with a directional trend filter (moving average). It targets market conditions where returns exhibit serial dependence and sustained momentum, favoring liquid names where trends are more likely to be exploitable after costs. The investable universe is refreshed monthly from US equities using fundamental data, filtering out low-priced stocks and selecting the top 200 by dollar trading volume to maintain liquidity and capacity.\n\nSignals are evaluated on daily bars but portfolio decisions occur monthly (at the start of each month). A stock is eligible if its price is above its medium-term exponential moving average (trend up) and its Hurst exponent over a medium lookback exceeds a fixed threshold indicating persistence. From eligible names, the portfolio selects up to five stocks with the highest persistence scores and allocates equal weights across them, targeting full notional exposure. If no names qualify, the strategy holds existing positions (no forced de-risk), implying risk is primarily controlled via concentrated position count, liquidity constraints, and systematic monthly rebalancing. The intended alpha source is behavioral and microstructural trend persistence as proxied by the Hurst exponent, conditioned on positive trend direction.",
+    "tags": [
+      "Trend Following",
+      "Equity",
+      "Technical",
+      "Swing"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 0.68,
+    "sharpe_1y": 1.5945,
+    "return_3m": 4.428,
+    "return_oos_1y": null,
+    "sharpe_oos_1y": null,
+    "cagr_5y": 32.347,
+    "drawdown_5y": 22.1,
+    "psr_5y": 43.787,
+    "watchers": 6,
+    "clones": 0,
+    "clone_project_id": 27918807,
+    "backtest_id": "cda4f6e9ece585d2097dd3819d10f88f",
+    "discussion_id": 20162,
+    "published_ts": 1770329927,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 250,
+    "backtestId": "cda4f6e9ece585d2097dd3819d10f88f",
+    "name": "Hurst-Persistence Moving-Average Equity Trend Strategy",
+    "author": {
+      "name": "Ahmet Kasti",
+      "organizationName": "Ahmet Kasti&#039;s Organization",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/8eb3697aa6c44451766503260.jpg",
+      "bio": null,
+      "publicId": "ahmet-kasti_1",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": null,
+      "web": null,
+      "topAuthor": false
+    },
+    "description": "The strategy is an equity trend-following model that seeks to capture persistent price trends by combining a persistence metric (Hurst exponent) with a directional trend filter (moving average). It targets market conditions where returns exhibit serial dependence and sustained momentum, favoring liquid names where trends are more likely to be exploitable after costs. The investable universe is refreshed monthly from US equities using fundamental data, filtering out low-priced stocks and selecting the top 200 by dollar trading volume to maintain liquidity and capacity.\n\nSignals are evaluated on daily bars but portfolio decisions occur monthly (at the start of each month). A stock is eligible if its price is above its medium-term exponential moving average (trend up) and its Hurst exponent over a medium lookback exceeds a fixed threshold indicating persistence. From eligible names, the portfolio selects up to five stocks with the highest persistence scores and allocates equal weights across them, targeting full notional exposure. If no names qualify, the strategy holds existing positions (no forced de-risk), implying risk is primarily controlled via concentrated position count, liquidity constraints, and systematic monthly rebalancing. The intended alpha source is behavioral and microstructural trend persistence as proxied by the Hurst exponent, conditioned on positive trend direction.",
+    "cloneProjectId": 27918807,
+    "tags": [
+      "Trend Following",
+      "Equity",
+      "Technical",
+      "Swing"
+    ],
+    "watchers": 6,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Feb 05, 2026",
+        "changes": [
+          "Initial deployment for strategy &quot;Hurst-Persistence Moving-Average Equity Trend Strategy&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Ahmet Kasti",
+    "organizationName": "Ahmet Kasti&#039;s Organization",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771948800,
+          0.5779
+        ],
+        [
+          1772035200,
+          0.1301
+        ],
+        [
+          1772118000,
+          -1.327
+        ],
+        [
+          1772208000,
+          -0.2135
+        ],
+        [
+          1772254800,
+          -1.4086
+        ],
+        [
+          1772341200,
+          -1.4086
+        ],
+        [
+          1772467200,
+          -1.4086
+        ],
+        [
+          1772553600,
+          -2.2368
+        ],
+        [
+          1772640000,
+          -1.9834
+        ],
+        [
+          1772726400,
+          -2.1353
+        ],
+        [
+          1772812800,
+          -2.1993
+        ],
+        [
+          1772859600,
+          -2.0169
+        ],
+        [
+          1772946000,
+          -2.0169
+        ],
+        [
+          1773068400,
+          -2.0169
+        ],
+        [
+          1773154800,
+          -3.0202
+        ],
+        [
+          1773241200,
+          -3.5063
+        ],
+        [
+          1773327600,
+          -3.6047
+        ],
+        [
+          1773414000,
+          -2.7339
+        ],
+        [
+          1773460800,
+          -2.275
+        ],
+        [
+          1773547200,
+          -2.275
+        ],
+        [
+          1773673200,
+          -2.275
+        ],
+        [
+          1773759600,
+          -2.2266
+        ],
+        [
+          1773842400,
+          -2.1843
+        ],
+        [
+          1773928800,
+          -2.9925
+        ],
+        [
+          1774018800,
+          -2.9406
+        ],
+        [
+          1774065600,
+          -3.5961
+        ],
+        [
+          1774152000,
+          -3.5961
+        ],
+        [
+          1774278000,
+          -3.5961
+        ],
+        [
+          1774360800,
+          -3.0738
+        ],
+        [
+          1774450800,
+          -2.7227
+        ],
+        [
+          1774537200,
+          -2.7353
+        ],
+        [
+          1774623600,
+          -2.2455
+        ],
+        [
+          1774670400,
+          -2.2667
+        ],
+        [
+          1774756800,
+          -2.2667
+        ],
+        [
+          1774882800,
+          -2.2667
+        ],
+        [
+          1774969200,
+          -3.0925
+        ],
+        [
+          1775055600,
+          -3.0149
+        ],
+        [
+          1775142000,
+          -4.3036
+        ],
+        [
+          1775188800,
+          -1.5553
+        ],
+        [
+          1775275200,
+          -1.5553
+        ],
+        [
+          1775361600,
+          -1.5553
+        ],
+        [
+          1775487600,
+          -1.5553
+        ],
+        [
+          1775570400,
+          -1.0392
+        ],
+        [
+          1775656800,
+          -1.8978
+        ],
+        [
+          1775746800,
+          -4.3141
+        ],
+        [
+          1775833200,
+          -3.1136
+        ],
+        [
+          1775880000,
+          -3.4986
+        ],
+        [
+          1775966400,
+          -3.4986
+        ],
+        [
+          1776088800,
+          -3.4986
+        ],
+        [
+          1776175200,
+          -2.9135
+        ],
+        [
+          1776265200,
+          -4.6362
+        ],
+        [
+          1776348000,
+          -5.6299
+        ],
+        [
+          1776438000,
+          -3.4883
+        ],
+        [
+          1776484800,
+          -5.7534
+        ],
+        [
+          1776571200,
+          -5.7534
+        ],
+        [
+          1776697200,
+          -5.7534
+        ],
+        [
+          1776783600,
+          -4.7834
+        ],
+        [
+          1776866400,
+          -3.6627
+        ],
+        [
+          1776952800,
+          -3.5722
+        ],
+        [
+          1777042800,
+          -1.5161
+        ],
+        [
+          1777089600,
+          -2.5059
+        ],
+        [
+          1777176000,
+          -2.5059
+        ],
+        [
+          1777302000,
+          -2.5059
+        ],
+        [
+          1777388400,
+          -2.1339
+        ],
+        [
+          1777474800,
+          -0.2302
+        ],
+        [
+          1777557600,
+          2.0023
+        ],
+        [
+          1777647600,
+          2.5514
+        ],
+        [
+          1777694400,
+          2.3489
+        ],
+        [
+          1777780800,
+          2.3489
+        ],
+        [
+          1777906800,
+          2.3489
+        ],
+        [
+          1777993200,
+          2.0667
+        ],
+        [
+          1778076000,
+          3.1797
+        ],
+        [
+          1778166000,
+          3.1252
+        ],
+        [
+          1778252400,
+          0.9743
+        ],
+        [
+          1778299200,
+          1.2526
+        ],
+        [
+          1778385600,
+          1.2526
+        ],
+        [
+          1778511600,
+          1.2526
+        ],
+        [
+          1778598000,
+          1.6239
+        ],
+        [
+          1778680800,
+          0.345
+        ],
+        [
+          1778767200,
+          1.9851
+        ],
+        [
+          1778857200,
+          2.8468
+        ],
+        [
+          1778904000,
+          1.8725
+        ],
+        [
+          1778990400,
+          1.8725
+        ],
+        [
+          1779116400,
+          1.8725
+        ],
+        [
+          1779202800,
+          1.4587
+        ],
+        [
+          1779289200,
+          2.1641
+        ],
+        [
+          1779375600,
+          2.3752
+        ],
+        [
+          1779480000,
+          2.957
+        ]
+      ],
+      "5y psr": 43.787,
+      "5y cagr": 32.347,
+      "1y sharpe": 1.5945,
+      "3m return": 4.428,
+      "5y drawdown": 22.1,
+      "oos 1y return": null,
+      "oos 1y sharpe": null,
+      "oos 3m return": 4.428,
+      "oos 3m sharpe": 0.6753
+    },
+    "rank": 0,
+    "clones": 0,
+    "comments": 0,
+    "leaderboard": 89,
+    "score": 0.68,
+    "discussionId": 20162,
+    "hot": false,
+    "owner": false,
+    "followers": [
+      {
+        "name": "PauPadilla Greendry",
+        "publicId": "paupadilla-greendry",
+        "profileImage": "c8936829a65c8ed1600374814.jpg"
+      },
+      {
+        "name": "Cai Hongli",
+        "publicId": "cai-hongli",
+        "profileImage": "40bd161534025d41776905028.jpg"
+      }
+    ],
+    "followersCount": 6,
+    "published": 1770329927
+  }
+}

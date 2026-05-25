@@ -1,0 +1,460 @@
+{
+  "summary": {
+    "rank": 19,
+    "leaderboard_position": 19,
+    "id": 428,
+    "name": "Monthly Large-Cap Momentum-Volatility LongShort",
+    "author": "Emilio Freire",
+    "author_public_id": "emilio_freire",
+    "organization": "Simplify",
+    "description": "The strategy is a monthly cross sectional equity long short factor portfolio that seeks to capture persistence in medium term trend and a complementary exposure to volatility. Each month it builds a liquid large cap US stock universe by selecting stocks with fundamental data, price above 5 dollars, then ranking by dollar volume and market cap to retain the top 100 names. For each name it computes a 12 month rate of change momentum measure and a trailing volatility estimate based on the standard ",
+    "description_full": "The strategy is a monthly cross sectional equity long short factor portfolio that seeks to capture persistence in medium term trend and a complementary exposure to volatility. Each month it builds a liquid large cap US stock universe by selecting stocks with fundamental data, price above 5 dollars, then ranking by dollar volume and market cap to retain the top 100 names. For each name it computes a 12 month rate of change momentum measure and a trailing volatility estimate based on the standard deviation of daily returns over the same lookback, then z scores both signals within the universe and sums them into a composite score.\n\nAt the start of each month it goes long the 20 highest composite score stocks and short the 20 lowest, holding positions through month end. Portfolio construction uses equal weights across all active long and short names, producing approximately market neutral gross exposure with balanced long and short counts, and it refreshes entirely on the monthly rebalance schedule. Decisions are driven by daily price history for signal formation with monthly trade timing; risk control is primarily via liquidity screening, diversification through equal weighting, and limiting positions to a fixed number per side.",
+    "tags": [
+      "Long Short",
+      "Momentum",
+      "Equity",
+      "Systematic"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 4.83,
+    "sharpe_1y": 1.7057,
+    "return_3m": 21.5928,
+    "return_oos_1y": 42.2868,
+    "sharpe_oos_1y": 1.7057,
+    "cagr_5y": 8.734,
+    "drawdown_5y": 20.3,
+    "psr_5y": 13.942,
+    "watchers": 1,
+    "clones": 0,
+    "clone_project_id": 29585945,
+    "backtest_id": "a310097f210b783b1151a369227ff47c",
+    "discussion_id": 20480,
+    "published_ts": 1605600000,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 428,
+    "backtestId": "a310097f210b783b1151a369227ff47c",
+    "name": "Monthly Large-Cap Momentum-Volatility LongShort",
+    "author": {
+      "name": "Emilio Freire",
+      "organizationName": "Simplify",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/f76c4ff7a1ba0a41575653738.jpg",
+      "bio": null,
+      "publicId": "emilio_freire",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": "https://www.linkedin.com/in/emilio-freire-bauzano-38749329/",
+      "web": null,
+      "topAuthor": false
+    },
+    "description": "The strategy is a monthly cross sectional equity long short factor portfolio that seeks to capture persistence in medium term trend and a complementary exposure to volatility. Each month it builds a liquid large cap US stock universe by selecting stocks with fundamental data, price above 5 dollars, then ranking by dollar volume and market cap to retain the top 100 names. For each name it computes a 12 month rate of change momentum measure and a trailing volatility estimate based on the standard deviation of daily returns over the same lookback, then z scores both signals within the universe and sums them into a composite score.\n\nAt the start of each month it goes long the 20 highest composite score stocks and short the 20 lowest, holding positions through month end. Portfolio construction uses equal weights across all active long and short names, producing approximately market neutral gross exposure with balanced long and short counts, and it refreshes entirely on the monthly rebalance schedule. Decisions are driven by daily price history for signal formation with monthly trade timing; risk control is primarily via liquidity screening, diversification through equal weighting, and limiting positions to a fixed number per side.",
+    "cloneProjectId": 29585945,
+    "tags": [
+      "Long Short",
+      "Momentum",
+      "Equity",
+      "Systematic"
+    ],
+    "watchers": 1,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Nov 17, 2020",
+        "changes": [
+          "Initial deployment for strategy &quot;Monthly Large-Cap Momentum-Volatility LongShort&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Emilio Freire",
+    "organizationName": "Simplify",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771948800,
+          0.1523
+        ],
+        [
+          1772035200,
+          1.6262
+        ],
+        [
+          1772118000,
+          0.0157
+        ],
+        [
+          1772208000,
+          -0.1034
+        ],
+        [
+          1772254800,
+          -0.6202
+        ],
+        [
+          1772341200,
+          -0.6202
+        ],
+        [
+          1772467200,
+          -0.2889
+        ],
+        [
+          1772553600,
+          -1.7545
+        ],
+        [
+          1772640000,
+          -0.0772
+        ],
+        [
+          1772726400,
+          0.6676
+        ],
+        [
+          1772812800,
+          0.0717
+        ],
+        [
+          1772859600,
+          -1.2476
+        ],
+        [
+          1772946000,
+          -1.2476
+        ],
+        [
+          1773068400,
+          -0.8115
+        ],
+        [
+          1773154800,
+          1.3072
+        ],
+        [
+          1773241200,
+          1.8082
+        ],
+        [
+          1773327600,
+          0.249
+        ],
+        [
+          1773414000,
+          0.0752
+        ],
+        [
+          1773460800,
+          0.1185
+        ],
+        [
+          1773547200,
+          0.1185
+        ],
+        [
+          1773673200,
+          0.9012
+        ],
+        [
+          1773759600,
+          0.7573
+        ],
+        [
+          1773842400,
+          1.7953
+        ],
+        [
+          1773932400,
+          1.2099
+        ],
+        [
+          1774018800,
+          0.7085
+        ],
+        [
+          1774065600,
+          0.4126
+        ],
+        [
+          1774152000,
+          0.4126
+        ],
+        [
+          1774278000,
+          1.9982
+        ],
+        [
+          1774360800,
+          1.2454
+        ],
+        [
+          1774450800,
+          2.7088
+        ],
+        [
+          1774533600,
+          0.4368
+        ],
+        [
+          1774623600,
+          -0.654
+        ],
+        [
+          1774670400,
+          -0.6368
+        ],
+        [
+          1774756800,
+          -0.6368
+        ],
+        [
+          1774882800,
+          -1.8787
+        ],
+        [
+          1774969200,
+          -1.2206
+        ],
+        [
+          1775055600,
+          1.604
+        ],
+        [
+          1775142000,
+          1.3963
+        ],
+        [
+          1775188800,
+          1.3482
+        ],
+        [
+          1775275200,
+          1.3482
+        ],
+        [
+          1775361600,
+          1.3482
+        ],
+        [
+          1775487600,
+          1.2771
+        ],
+        [
+          1775570400,
+          1.2885
+        ],
+        [
+          1775656800,
+          4.7391
+        ],
+        [
+          1775746800,
+          4.6676
+        ],
+        [
+          1775833200,
+          5.9668
+        ],
+        [
+          1775880000,
+          5.9803
+        ],
+        [
+          1775966400,
+          5.9803
+        ],
+        [
+          1776088800,
+          6.589
+        ],
+        [
+          1776175200,
+          7.6143
+        ],
+        [
+          1776265200,
+          8.4106
+        ],
+        [
+          1776348000,
+          8.3816
+        ],
+        [
+          1776434400,
+          9.5309
+        ],
+        [
+          1776484800,
+          9.6761
+        ],
+        [
+          1776571200,
+          9.6761
+        ],
+        [
+          1776697200,
+          9.1871
+        ],
+        [
+          1776783600,
+          10.2648
+        ],
+        [
+          1776870000,
+          11.7646
+        ],
+        [
+          1776952800,
+          11.576
+        ],
+        [
+          1777042800,
+          13.1309
+        ],
+        [
+          1777089600,
+          13.5027
+        ],
+        [
+          1777176000,
+          13.5027
+        ],
+        [
+          1777298400,
+          12.9523
+        ],
+        [
+          1777384800,
+          11.5705
+        ],
+        [
+          1777471200,
+          11.3235
+        ],
+        [
+          1777561200,
+          11.763
+        ],
+        [
+          1777647600,
+          12.4101
+        ],
+        [
+          1777694400,
+          13.554
+        ],
+        [
+          1777780800,
+          13.554
+        ],
+        [
+          1777906800,
+          14.5212
+        ],
+        [
+          1777993200,
+          16.5472
+        ],
+        [
+          1778076000,
+          17.5279
+        ],
+        [
+          1778162400,
+          17.9564
+        ],
+        [
+          1778252400,
+          19.9317
+        ],
+        [
+          1778299200,
+          21.1364
+        ],
+        [
+          1778385600,
+          21.1364
+        ],
+        [
+          1778511600,
+          22.4349
+        ],
+        [
+          1778598000,
+          20.2558
+        ],
+        [
+          1778684400,
+          21.6625
+        ],
+        [
+          1778770800,
+          21.5075
+        ],
+        [
+          1778857200,
+          19.7527
+        ],
+        [
+          1778904000,
+          20.1119
+        ],
+        [
+          1778990400,
+          20.1119
+        ],
+        [
+          1779116400,
+          17.3438
+        ],
+        [
+          1779202800,
+          15.2583
+        ],
+        [
+          1779285600,
+          17.7581
+        ],
+        [
+          1779375600,
+          19.5456
+        ],
+        [
+          1779480000,
+          20.8387
+        ]
+      ],
+      "5y psr": 13.942,
+      "5y cagr": 8.734,
+      "1y sharpe": 1.7057,
+      "3m return": 21.5928,
+      "5y drawdown": 20.3,
+      "oos 1y return": 42.2868,
+      "oos 1y sharpe": 1.7057,
+      "oos 3m return": 21.5928,
+      "oos 3m sharpe": 4.8338
+    },
+    "rank": 999999,
+    "clones": 0,
+    "comments": 0,
+    "leaderboard": 19,
+    "score": 4.83,
+    "discussionId": 20480,
+    "hot": false,
+    "owner": false,
+    "followers": [],
+    "followersCount": 1,
+    "published": 1605600000
+  }
+}

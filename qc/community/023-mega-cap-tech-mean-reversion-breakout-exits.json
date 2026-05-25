@@ -1,0 +1,485 @@
+{
+  "summary": {
+    "rank": 23,
+    "leaderboard_position": 18,
+    "id": 307,
+    "name": "Mega-Cap Tech Mean Reversion Breakout Exits",
+    "author": "Tijmen Kodden",
+    "author_public_id": "tijmen-kodden",
+    "organization": "Tijmen Kodden",
+    "description": "The strategy is a concentrated, sector specific mean reversion and breakout exit system applied to large cap US Technology equities. Each day it forms an investable universe of the five largest Technology sector stocks by market capitalization using fundamental data, then runs a daily rebalance decision process using end of day prices. The core signal is to initiate long exposure when a stock trades below its 100 day exponential moving average, treating the deviation as a temporary dislocation e",
+    "description_full": "The strategy is a concentrated, sector specific mean reversion and breakout exit system applied to large cap US Technology equities. Each day it forms an investable universe of the five largest Technology sector stocks by market capitalization using fundamental data, then runs a daily rebalance decision process using end of day prices. The core signal is to initiate long exposure when a stock trades below its 100 day exponential moving average, treating the deviation as a temporary dislocation expected to revert, while using a 252 trading day rolling maximum as a profit taking and risk release trigger.\n\nPositions are entered only when not already invested and the price is below the 100 day EMA, sized equally across the current universe so total exposure is distributed at 20 percent per name when all are held. Positions are exited immediately when price reaches or exceeds the prior 1 year high, effectively monetizing strength and preventing prolonged momentum chasing. Universe changes trigger liquidation of removed names, keeping holdings aligned to current mega cap Tech leadership. The intended edge comes from buying relative weakness in structurally strong, liquid franchises and exiting into new highs, with implicit concentration and sector risk managed through equal weighting and rule based exits.",
+    "tags": [
+      "Mean Reversion",
+      "Equity",
+      "Fundamental",
+      "Swing"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 3.91,
+    "sharpe_1y": 1.2048,
+    "return_3m": 23.0572,
+    "return_oos_1y": 45.3042,
+    "sharpe_oos_1y": 1.2048,
+    "cagr_5y": 34.677,
+    "drawdown_5y": 38.4,
+    "psr_5y": 41.578,
+    "watchers": 10,
+    "clones": 0,
+    "clone_project_id": 28355535,
+    "backtest_id": "29c62dca09c1be24bc512552936c5518",
+    "discussion_id": 20242,
+    "published_ts": 1606629600,
+    "hot": false,
+    "top_author": true
+  },
+  "raw": {
+    "id": 307,
+    "backtestId": "29c62dca09c1be24bc512552936c5518",
+    "name": "Mega-Cap Tech Mean Reversion Breakout Exits",
+    "author": {
+      "name": "Tijmen Kodden",
+      "organizationName": "Tijmen Kodden",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/fb9421e732fe1471603370941.png",
+      "bio": null,
+      "publicId": "tijmen-kodden",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": null,
+      "web": null,
+      "topAuthor": true
+    },
+    "description": "The strategy is a concentrated, sector specific mean reversion and breakout exit system applied to large cap US Technology equities. Each day it forms an investable universe of the five largest Technology sector stocks by market capitalization using fundamental data, then runs a daily rebalance decision process using end of day prices. The core signal is to initiate long exposure when a stock trades below its 100 day exponential moving average, treating the deviation as a temporary dislocation expected to revert, while using a 252 trading day rolling maximum as a profit taking and risk release trigger.\n\nPositions are entered only when not already invested and the price is below the 100 day EMA, sized equally across the current universe so total exposure is distributed at 20 percent per name when all are held. Positions are exited immediately when price reaches or exceeds the prior 1 year high, effectively monetizing strength and preventing prolonged momentum chasing. Universe changes trigger liquidation of removed names, keeping holdings aligned to current mega cap Tech leadership. The intended edge comes from buying relative weakness in structurally strong, liquid franchises and exiting into new highs, with implicit concentration and sector risk managed through equal weighting and rule based exits.",
+    "cloneProjectId": 28355535,
+    "tags": [
+      "Mean Reversion",
+      "Equity",
+      "Fundamental",
+      "Swing"
+    ],
+    "watchers": 10,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Nov 29, 2020",
+        "changes": [
+          "Initial deployment for strategy &quot;Mega-Cap Tech Mean Reversion Breakout Exits&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Tijmen Kodden",
+    "organizationName": "Tijmen Kodden",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771948800,
+          -0.8365
+        ],
+        [
+          1772035200,
+          -0.2273
+        ],
+        [
+          1772121600,
+          1.4415
+        ],
+        [
+          1772208000,
+          -0.8696
+        ],
+        [
+          1772254800,
+          -3.345
+        ],
+        [
+          1772341200,
+          -3.345
+        ],
+        [
+          1772463600,
+          -3.345
+        ],
+        [
+          1772553600,
+          -2.8292
+        ],
+        [
+          1772640000,
+          -3.5867
+        ],
+        [
+          1772726400,
+          -2.8758
+        ],
+        [
+          1772812800,
+          -1.2379
+        ],
+        [
+          1772859600,
+          -2.4174
+        ],
+        [
+          1772946000,
+          -2.4174
+        ],
+        [
+          1773064800,
+          -2.4174
+        ],
+        [
+          1773154800,
+          -0.0127
+        ],
+        [
+          1773241200,
+          -0.1125
+        ],
+        [
+          1773327600,
+          -0.0853
+        ],
+        [
+          1773414000,
+          -1.4787
+        ],
+        [
+          1773460800,
+          -3.8705
+        ],
+        [
+          1773547200,
+          -3.8705
+        ],
+        [
+          1773669600,
+          -3.8705
+        ],
+        [
+          1773759600,
+          -2.8983
+        ],
+        [
+          1773846000,
+          -3.3559
+        ],
+        [
+          1773932400,
+          -4.6238
+        ],
+        [
+          1774018800,
+          -4.583
+        ],
+        [
+          1774065600,
+          -6.5622
+        ],
+        [
+          1774152000,
+          -6.5622
+        ],
+        [
+          1774278000,
+          -6.5622
+        ],
+        [
+          1774364400,
+          -4.5736
+        ],
+        [
+          1774450800,
+          -5.3377
+        ],
+        [
+          1774537200,
+          -4.8227
+        ],
+        [
+          1774623600,
+          -6.8652
+        ],
+        [
+          1774670400,
+          -8.7918
+        ],
+        [
+          1774756800,
+          -8.7918
+        ],
+        [
+          1774882800,
+          -8.7918
+        ],
+        [
+          1774969200,
+          -9.9532
+        ],
+        [
+          1775055600,
+          -5.3728
+        ],
+        [
+          1775142000,
+          -4.5691
+        ],
+        [
+          1775188800,
+          -3.9839
+        ],
+        [
+          1775275200,
+          -3.9839
+        ],
+        [
+          1775361600,
+          -3.9839
+        ],
+        [
+          1775484000,
+          -3.9839
+        ],
+        [
+          1775574000,
+          -3.877
+        ],
+        [
+          1775660400,
+          -2.447
+        ],
+        [
+          1775746800,
+          0.3269
+        ],
+        [
+          1775833200,
+          0.4006
+        ],
+        [
+          1775880000,
+          2.7282
+        ],
+        [
+          1775966400,
+          2.7282
+        ],
+        [
+          1776088800,
+          2.7282
+        ],
+        [
+          1776178800,
+          6.2088
+        ],
+        [
+          1776265200,
+          8.3755
+        ],
+        [
+          1776351600,
+          12.2513
+        ],
+        [
+          1776438000,
+          13.4985
+        ],
+        [
+          1776484800,
+          14.8995
+        ],
+        [
+          1776571200,
+          14.8995
+        ],
+        [
+          1776693600,
+          14.8995
+        ],
+        [
+          1776783600,
+          14.613
+        ],
+        [
+          1776870000,
+          14.7458
+        ],
+        [
+          1776956400,
+          18.7907
+        ],
+        [
+          1777042800,
+          16.2647
+        ],
+        [
+          1777089600,
+          17.3248
+        ],
+        [
+          1777176000,
+          17.3248
+        ],
+        [
+          1777298400,
+          17.3248
+        ],
+        [
+          1777388400,
+          17.6047
+        ],
+        [
+          1777474800,
+          14.6638
+        ],
+        [
+          1777561200,
+          14.3264
+        ],
+        [
+          1777647600,
+          13.7106
+        ],
+        [
+          1777694400,
+          15.3952
+        ],
+        [
+          1777780800,
+          15.3952
+        ],
+        [
+          1777903200,
+          15.3952
+        ],
+        [
+          1777993200,
+          14.6348
+        ],
+        [
+          1778079600,
+          16.0025
+        ],
+        [
+          1778166000,
+          17.5208
+        ],
+        [
+          1778252400,
+          16.7887
+        ],
+        [
+          1778299200,
+          19.37
+        ],
+        [
+          1778385600,
+          19.37
+        ],
+        [
+          1778511600,
+          19.37
+        ],
+        [
+          1778598000,
+          19.6421
+        ],
+        [
+          1778684400,
+          18.8622
+        ],
+        [
+          1778770800,
+          19.4491
+        ],
+        [
+          1778857200,
+          23.1937
+        ],
+        [
+          1778904000,
+          20.8163
+        ],
+        [
+          1778990400,
+          20.8163
+        ],
+        [
+          1779112800,
+          20.8163
+        ],
+        [
+          1779202800,
+          19.8387
+        ],
+        [
+          1779289200,
+          18.5202
+        ],
+        [
+          1779375600,
+          19.9176
+        ],
+        [
+          1779462000,
+          19.2506
+        ],
+        [
+          1779508800,
+          18.941
+        ]
+      ],
+      "5y psr": 41.578,
+      "5y cagr": 34.677,
+      "1y sharpe": 1.2048,
+      "3m return": 23.0572,
+      "5y drawdown": 38.4,
+      "oos 1y return": 45.3042,
+      "oos 1y sharpe": 1.2048,
+      "oos 3m return": 23.0572,
+      "oos 3m sharpe": 3.911
+    },
+    "rank": 999999,
+    "clones": 0,
+    "comments": 0,
+    "leaderboard": 18,
+    "score": 3.91,
+    "discussionId": 20242,
+    "hot": false,
+    "owner": false,
+    "followers": [
+      {
+        "name": "Frank Schikarski",
+        "publicId": "frank_schikarski",
+        "profileImage": "07413c8f3462cd31635150497.png"
+      },
+      {
+        "name": "Y Mike",
+        "publicId": "y-mike",
+        "profileImage": "07229781b759f3c1745169414.png"
+      },
+      {
+        "name": "Group3",
+        "publicId": "group3",
+        "profileImage": "85b72703bb0dd111772870943.png"
+      },
+      {
+        "name": "sam s",
+        "publicId": "sam-s_9",
+        "profileImage": "03c94a6c56ee8331777704633.png"
+      }
+    ],
+    "followersCount": 10,
+    "published": 1606629600
+  }
+}

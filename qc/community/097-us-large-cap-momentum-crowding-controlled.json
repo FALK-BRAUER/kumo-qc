@@ -1,0 +1,497 @@
+{
+  "summary": {
+    "rank": 97,
+    "leaderboard_position": 50,
+    "id": 285,
+    "name": "US Large-Cap Momentum Crowding-Controlled",
+    "author": "Rowan Whiteside",
+    "author_public_id": "rowan-whiteside",
+    "organization": "Zephyr Analytics",
+    "description": "The strategy is a long only, sector neutral large cap U.S. equity momentum portfolio that attempts to capture persistent relative strength while de risking during broad market deterioration. The investable universe is rebuilt from fundamentals at daily frequency and consists of liquid U.S. listed stocks with price above 5 and market cap above 5 billion, selecting the largest names within each Morningstar sector to maintain diversification and reduce sector bets; a small explicit blacklist is exc",
+    "description_full": "The strategy is a long only, sector neutral large cap U.S. equity momentum portfolio that attempts to capture persistent relative strength while de risking during broad market deterioration. The investable universe is rebuilt from fundamentals at daily frequency and consists of liquid U.S. listed stocks with price above 5 and market cap above 5 billion, selecting the largest names within each Morningstar sector to maintain diversification and reduce sector bets; a small explicit blacklist is excluded. Positions are evaluated on daily total return data, but trading decisions are made and implemented once per month at month end. At each rebalance the strategy first measures cross sectional breadth stress by mapping each stock to a volatility normalized price band versus its 189 day EMA; if roughly 45 percent or more of the universe sits in the lowest bands it triggers a full risk off liquidation, and risk is only re enabled after a large improvement in breadth or very low stress, at which point band ceilings are reset. In risk on mode it ranks candidates by average momentum across multiple lookbacks (about 1 to 12 months), requires price above the 189 day EMA, and filters out highly directional or over heated trends via an ADX threshold. ",
+    "tags": [
+      "Momentum",
+      "Equity",
+      "Systematic",
+      "Swing"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "2.0.0",
+    "score": 0.68,
+    "sharpe_1y": 3.1681,
+    "return_3m": 6.9696,
+    "return_oos_1y": null,
+    "sharpe_oos_1y": null,
+    "cagr_5y": 71.03,
+    "drawdown_5y": 42.6,
+    "psr_5y": 75.92,
+    "watchers": 16,
+    "clones": 0,
+    "clone_project_id": 28282178,
+    "backtest_id": "86d0a98e4519fe49564ba4102c3e27db",
+    "discussion_id": 20217,
+    "published_ts": 1771378481,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 285,
+    "backtestId": "86d0a98e4519fe49564ba4102c3e27db",
+    "name": "US Large-Cap Momentum Crowding-Controlled",
+    "author": {
+      "name": "Rowan Whiteside",
+      "organizationName": "Zephyr Analytics",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/f5923172989d1011768710731.jpg",
+      "bio": null,
+      "publicId": "rowan-whiteside",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": "https://www.linkedin.com/in/rowan-sky-whiteside",
+      "web": null,
+      "topAuthor": false
+    },
+    "description": "The strategy is a long only, sector neutral large cap U.S. equity momentum portfolio that attempts to capture persistent relative strength while de risking during broad market deterioration. The investable universe is rebuilt from fundamentals at daily frequency and consists of liquid U.S. listed stocks with price above 5 and market cap above 5 billion, selecting the largest names within each Morningstar sector to maintain diversification and reduce sector bets; a small explicit blacklist is excluded. Positions are evaluated on daily total return data, but trading decisions are made and implemented once per month at month end. At each rebalance the strategy first measures cross sectional breadth stress by mapping each stock to a volatility normalized price band versus its 189 day EMA; if roughly 45 percent or more of the universe sits in the lowest bands it triggers a full risk off liquidation, and risk is only re enabled after a large improvement in breadth or very low stress, at which point band ceilings are reset. In risk on mode it ranks candidates by average momentum across multiple lookbacks (about 1 to 12 months), requires price above the 189 day EMA, and filters out highly directional or over heated trends via an ADX threshold. ",
+    "cloneProjectId": 28282178,
+    "tags": [
+      "Momentum",
+      "Equity",
+      "Systematic",
+      "Swing"
+    ],
+    "watchers": 16,
+    "watching": false,
+    "version": "2.0.0",
+    "versionHistory": [
+      {
+        "version": "2.0.0",
+        "date": "Feb 18, 2026",
+        "changes": [
+          "Initial deployment for strategy &quot;Sector-Neutral Momentum with Breadth Risk-Off&quot;."
+        ]
+      },
+      {
+        "version": "1.0.0",
+        "date": "Feb 16, 2026",
+        "changes": [
+          "Initial deployment for strategy &quot;US Large-Cap Momentum Crowding-Controlled&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Rowan Whiteside",
+    "organizationName": "Zephyr Analytics",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771948800,
+          0.5899
+        ],
+        [
+          1772035200,
+          1.388
+        ],
+        [
+          1772121600,
+          0.5205
+        ],
+        [
+          1772208000,
+          0.1735
+        ],
+        [
+          1772254800,
+          2.3815
+        ],
+        [
+          1772341200,
+          2.3815
+        ],
+        [
+          1772467200,
+          2.3815
+        ],
+        [
+          1772553600,
+          4.4062
+        ],
+        [
+          1772640000,
+          3.0651
+        ],
+        [
+          1772726400,
+          1.3083
+        ],
+        [
+          1772812800,
+          -0.071
+        ],
+        [
+          1772859600,
+          -2.283
+        ],
+        [
+          1772946000,
+          -2.283
+        ],
+        [
+          1773068400,
+          -2.283
+        ],
+        [
+          1773154800,
+          -0.9334
+        ],
+        [
+          1773241200,
+          -1.5707
+        ],
+        [
+          1773327600,
+          0.2126
+        ],
+        [
+          1773414000,
+          -2.5074
+        ],
+        [
+          1773460800,
+          -2.7201
+        ],
+        [
+          1773547200,
+          -2.7201
+        ],
+        [
+          1773673200,
+          -2.7201
+        ],
+        [
+          1773759600,
+          0.6833
+        ],
+        [
+          1773846000,
+          -0.0409
+        ],
+        [
+          1773932400,
+          -2.6278
+        ],
+        [
+          1774018800,
+          -1.515
+        ],
+        [
+          1774065600,
+          -1.5428
+        ],
+        [
+          1774152000,
+          -1.5428
+        ],
+        [
+          1774278000,
+          -1.5428
+        ],
+        [
+          1774364400,
+          -1.7388
+        ],
+        [
+          1774450800,
+          -1.3246
+        ],
+        [
+          1774537200,
+          2.3655
+        ],
+        [
+          1774623600,
+          -1.4308
+        ],
+        [
+          1774670400,
+          0.3257
+        ],
+        [
+          1774756800,
+          0.3257
+        ],
+        [
+          1774882800,
+          0.3257
+        ],
+        [
+          1774969200,
+          -1.0134
+        ],
+        [
+          1775055600,
+          3.2448
+        ],
+        [
+          1775142000,
+          6.3504
+        ],
+        [
+          1775188800,
+          13.4591
+        ],
+        [
+          1775275200,
+          13.4591
+        ],
+        [
+          1775361600,
+          13.4591
+        ],
+        [
+          1775487600,
+          13.4591
+        ],
+        [
+          1775574000,
+          11.9371
+        ],
+        [
+          1775660400,
+          10.0191
+        ],
+        [
+          1775746800,
+          8.3036
+        ],
+        [
+          1775833200,
+          5.9017
+        ],
+        [
+          1775880000,
+          13.3799
+        ],
+        [
+          1775966400,
+          13.3799
+        ],
+        [
+          1776092400,
+          13.3799
+        ],
+        [
+          1776178800,
+          10.7054
+        ],
+        [
+          1776265200,
+          15.0339
+        ],
+        [
+          1776351600,
+          15.8434
+        ],
+        [
+          1776438000,
+          16.8199
+        ],
+        [
+          1776484800,
+          17.4446
+        ],
+        [
+          1776571200,
+          17.4446
+        ],
+        [
+          1776697200,
+          17.4446
+        ],
+        [
+          1776783600,
+          19.1162
+        ],
+        [
+          1776870000,
+          9.2185
+        ],
+        [
+          1776956400,
+          7.8988
+        ],
+        [
+          1777042800,
+          7.1598
+        ],
+        [
+          1777089600,
+          3.6231
+        ],
+        [
+          1777176000,
+          3.6231
+        ],
+        [
+          1777302000,
+          3.6231
+        ],
+        [
+          1777388400,
+          7.2566
+        ],
+        [
+          1777474800,
+          9.0778
+        ],
+        [
+          1777561200,
+          5.629
+        ],
+        [
+          1777647600,
+          8.5846
+        ],
+        [
+          1777694400,
+          8.6198
+        ],
+        [
+          1777780800,
+          8.6198
+        ],
+        [
+          1777906800,
+          8.6198
+        ],
+        [
+          1777993200,
+          6.1216
+        ],
+        [
+          1778079600,
+          3.4826
+        ],
+        [
+          1778166000,
+          10.8805
+        ],
+        [
+          1778252400,
+          8.1272
+        ],
+        [
+          1778299200,
+          12.112
+        ],
+        [
+          1778385600,
+          12.112
+        ],
+        [
+          1778511600,
+          12.112
+        ],
+        [
+          1778598000,
+          13.8625
+        ],
+        [
+          1778684400,
+          14.0736
+        ],
+        [
+          1778770800,
+          17.4602
+        ],
+        [
+          1778857200,
+          19.114
+        ],
+        [
+          1778904000,
+          20.9788
+        ],
+        [
+          1778990400,
+          20.9788
+        ],
+        [
+          1779116400,
+          20.9788
+        ],
+        [
+          1779202800,
+          20.2927
+        ],
+        [
+          1779289200,
+          20.3543
+        ],
+        [
+          1779375600,
+          24.9988
+        ],
+        [
+          1779462000,
+          13.2467
+        ],
+        [
+          1779508800,
+          9.517
+        ]
+      ],
+      "5y psr": 75.92,
+      "5y cagr": 71.03,
+      "1y sharpe": 3.1681,
+      "3m return": 6.9696,
+      "5y drawdown": 42.6,
+      "oos 1y return": null,
+      "oos 1y sharpe": null,
+      "oos 3m return": 6.9696,
+      "oos 3m sharpe": 0.6846
+    },
+    "rank": 999999,
+    "clones": 0,
+    "comments": 0,
+    "leaderboard": 50,
+    "score": 0.68,
+    "discussionId": 20217,
+    "hot": false,
+    "owner": false,
+    "followers": [
+      {
+        "name": "Frank Schikarski",
+        "publicId": "frank_schikarski",
+        "profileImage": "07413c8f3462cd31635150497.png"
+      },
+      {
+        "name": "Maximilian Wimmer",
+        "publicId": "maximilian-wimmer_1",
+        "profileImage": "1ccf9c8bd0befc41688391655.jpg"
+      },
+      {
+        "name": "McCartney Taylor",
+        "publicId": "mccartney-taylor",
+        "profileImage": "c261747dd3552561740716495.jpg"
+      },
+      {
+        "name": "Trader Ostburg",
+        "publicId": "trader-ostburg",
+        "profileImage": "5f70a39c30853661743949853.png"
+      },
+      {
+        "name": "Xujin Zhang",
+        "publicId": "xujin-zhang",
+        "profileImage": "0999d41872474c31762687563.png"
+      }
+    ],
+    "followersCount": 16,
+    "published": 1771378481
+  }
+}

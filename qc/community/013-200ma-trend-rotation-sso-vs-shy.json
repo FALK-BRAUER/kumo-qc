@@ -1,0 +1,460 @@
+{
+  "summary": {
+    "rank": 13,
+    "leaderboard_position": 15,
+    "id": 227,
+    "name": "200MA Trend Rotation SSO vs SHY",
+    "author": "Shile Wen",
+    "author_public_id": "shile_wen_1",
+    "organization": "Shile Wen",
+    "description": "The strategy is a simple trend following risk on or risk off rotation between a leveraged US equity ETF and a short duration US Treasury ETF, seeking to capture persistent equity uptrends while de risking during drawdowns. The core signal is the level of the leveraged equity ETF price relative to its long term moving average: when the equity ETF closes above its 200 period simple moving average, the model expresses a bullish one day view on the equity ETF and a neutral view on the Treasury ETF; ",
+    "description_full": "The strategy is a simple trend following risk on or risk off rotation between a leveraged US equity ETF and a short duration US Treasury ETF, seeking to capture persistent equity uptrends while de risking during drawdowns. The core signal is the level of the leveraged equity ETF price relative to its long term moving average: when the equity ETF closes above its 200 period simple moving average, the model expresses a bullish one day view on the equity ETF and a neutral view on the Treasury ETF; when it is below, it flips to a bullish one day view on the Treasury ETF and neutral on the equity ETF. This targets the market regime effect where equity returns are stronger in sustained uptrends and defensive assets tend to dominate when the trend breaks.\n\nThe investable universe is fixed to SSO (2x S and P 500 exposure) and SHY (1 to 3 year US Treasury exposure). Signals are evaluated at most once per trading day using hourly data (with a 200 hour moving average proxy for the long term trend) and trades are executed immediately. Portfolio construction is equal weight across active bullish insights, resulting in a fully allocated single asset position that rotates between the two ETFs. Risk control is primarily regime based allocation switching; no explicit volatility targeting, stop loss, leverage cap beyond the instrument, or drawdown control is applied.",
+    "tags": [
+      "Trend Following",
+      "Equity",
+      "Tactical Allocation",
+      "Systematic"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 5.48,
+    "sharpe_1y": 0.5578,
+    "return_3m": 20.6675,
+    "return_oos_1y": 18.7492,
+    "sharpe_oos_1y": 0.5578,
+    "cagr_5y": 13.058,
+    "drawdown_5y": 36,
+    "psr_5y": 12.561,
+    "watchers": 0,
+    "clones": 0,
+    "clone_project_id": 27846505,
+    "backtest_id": "774a05030f4c60d172047e8cd0b93a8b",
+    "discussion_id": 20128,
+    "published_ts": 1597104000,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 227,
+    "backtestId": "774a05030f4c60d172047e8cd0b93a8b",
+    "name": "200MA Trend Rotation SSO vs SHY",
+    "author": {
+      "name": "Shile Wen",
+      "organizationName": "Shile Wen",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/c0233241dcdf68e1591904624.jpg",
+      "bio": "I am a Computer Science student at the University of Washington. I am currently an intern at QuantConnect. ",
+      "publicId": "shile_wen_1",
+      "facebook": "https://www.facebook.com/shile.wen.37",
+      "twitter": null,
+      "linkedin": "https://www.linkedin.com/in/shile-w-77a5a3136/",
+      "web": null,
+      "topAuthor": false
+    },
+    "description": "The strategy is a simple trend following risk on or risk off rotation between a leveraged US equity ETF and a short duration US Treasury ETF, seeking to capture persistent equity uptrends while de risking during drawdowns. The core signal is the level of the leveraged equity ETF price relative to its long term moving average: when the equity ETF closes above its 200 period simple moving average, the model expresses a bullish one day view on the equity ETF and a neutral view on the Treasury ETF; when it is below, it flips to a bullish one day view on the Treasury ETF and neutral on the equity ETF. This targets the market regime effect where equity returns are stronger in sustained uptrends and defensive assets tend to dominate when the trend breaks.\n\nThe investable universe is fixed to SSO (2x S and P 500 exposure) and SHY (1 to 3 year US Treasury exposure). Signals are evaluated at most once per trading day using hourly data (with a 200 hour moving average proxy for the long term trend) and trades are executed immediately. Portfolio construction is equal weight across active bullish insights, resulting in a fully allocated single asset position that rotates between the two ETFs. Risk control is primarily regime based allocation switching; no explicit volatility targeting, stop loss, leverage cap beyond the instrument, or drawdown control is applied.",
+    "cloneProjectId": 27846505,
+    "tags": [
+      "Trend Following",
+      "Equity",
+      "Tactical Allocation",
+      "Systematic"
+    ],
+    "watchers": 0,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Aug 11, 2020",
+        "changes": [
+          "Initial deployment for strategy &quot;200MA Trend Rotation SSO vs SHY&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Shile Wen",
+    "organizationName": "Shile Wen",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771945200,
+          0.0361
+        ],
+        [
+          1772031600,
+          -0.0145
+        ],
+        [
+          1772118000,
+          -0.2177
+        ],
+        [
+          1772204400,
+          -2.5004
+        ],
+        [
+          1772254800,
+          -2.477
+        ],
+        [
+          1772341200,
+          -2.477
+        ],
+        [
+          1772467200,
+          -2.626
+        ],
+        [
+          1772550000,
+          -2.7198
+        ],
+        [
+          1772636400,
+          -2.6787
+        ],
+        [
+          1772722800,
+          -2.7843
+        ],
+        [
+          1772809200,
+          -2.7374
+        ],
+        [
+          1772859600,
+          -2.7432
+        ],
+        [
+          1772946000,
+          -2.7432
+        ],
+        [
+          1773064800,
+          -2.7784
+        ],
+        [
+          1773151200,
+          -2.7022
+        ],
+        [
+          1773237600,
+          -2.8077
+        ],
+        [
+          1773324000,
+          -2.8781
+        ],
+        [
+          1773410400,
+          -2.9016
+        ],
+        [
+          1773460800,
+          -2.9543
+        ],
+        [
+          1773547200,
+          -2.9543
+        ],
+        [
+          1773669600,
+          -2.8488
+        ],
+        [
+          1773756000,
+          -2.8195
+        ],
+        [
+          1773842400,
+          -2.9016
+        ],
+        [
+          1773928800,
+          -3.0892
+        ],
+        [
+          1774015200,
+          -3.2182
+        ],
+        [
+          1774065600,
+          -3.2358
+        ],
+        [
+          1774152000,
+          -3.2358
+        ],
+        [
+          1774274400,
+          -3.1361
+        ],
+        [
+          1774360800,
+          -3.1947
+        ],
+        [
+          1774450800,
+          -3.1127
+        ],
+        [
+          1774533600,
+          -3.1889
+        ],
+        [
+          1774620000,
+          -3.2416
+        ],
+        [
+          1774670400,
+          -3.142
+        ],
+        [
+          1774756800,
+          -3.142
+        ],
+        [
+          1774879200,
+          -3.0188
+        ],
+        [
+          1774965600,
+          -2.9133
+        ],
+        [
+          1775055600,
+          -2.9169
+        ],
+        [
+          1775138400,
+          -2.8992
+        ],
+        [
+          1775188800,
+          -2.8875
+        ],
+        [
+          1775275200,
+          -2.8875
+        ],
+        [
+          1775361600,
+          -2.8875
+        ],
+        [
+          1775484000,
+          -2.9816
+        ],
+        [
+          1775570400,
+          -2.9639
+        ],
+        [
+          1775656800,
+          -2.7962
+        ],
+        [
+          1775743200,
+          -2.6396
+        ],
+        [
+          1775829600,
+          -1.0914
+        ],
+        [
+          1775880000,
+          -1.5089
+        ],
+        [
+          1775966400,
+          -1.5089
+        ],
+        [
+          1776088800,
+          -1.4393
+        ],
+        [
+          1776175200,
+          1.4309
+        ],
+        [
+          1776261600,
+          3.2053
+        ],
+        [
+          1776348000,
+          4.336
+        ],
+        [
+          1776434400,
+          6.8932
+        ],
+        [
+          1776484800,
+          7.4325
+        ],
+        [
+          1776571200,
+          7.4325
+        ],
+        [
+          1776693600,
+          7.2759
+        ],
+        [
+          1776780000,
+          7.6064
+        ],
+        [
+          1776866400,
+          7.1715
+        ],
+        [
+          1776952800,
+          7.4151
+        ],
+        [
+          1777039200,
+          7.2759
+        ],
+        [
+          1777089600,
+          8.4588
+        ],
+        [
+          1777176000,
+          8.4588
+        ],
+        [
+          1777298400,
+          8.5197
+        ],
+        [
+          1777384800,
+          7.7369
+        ],
+        [
+          1777471200,
+          7.4847
+        ],
+        [
+          1777557600,
+          7.6064
+        ],
+        [
+          1777647600,
+          11.1204
+        ],
+        [
+          1777694400,
+          10.3723
+        ],
+        [
+          1777780800,
+          10.3723
+        ],
+        [
+          1777903200,
+          10.4071
+        ],
+        [
+          1777989600,
+          10.9116
+        ],
+        [
+          1778076000,
+          13.1035
+        ],
+        [
+          1778162400,
+          14.3734
+        ],
+        [
+          1778248800,
+          15.1736
+        ],
+        [
+          1778299200,
+          15.4345
+        ],
+        [
+          1778385600,
+          15.4345
+        ],
+        [
+          1778508000,
+          15.765
+        ],
+        [
+          1778594400,
+          14.5995
+        ],
+        [
+          1778680800,
+          15.2257
+        ],
+        [
+          1778767200,
+          17.5568
+        ],
+        [
+          1778853600,
+          15.8172
+        ],
+        [
+          1778904000,
+          15.7998
+        ],
+        [
+          1778990400,
+          15.7998
+        ],
+        [
+          1779112800,
+          16.2173
+        ],
+        [
+          1779199200,
+          14.6604
+        ],
+        [
+          1779285600,
+          14.7735
+        ],
+        [
+          1779372000,
+          15.9216
+        ],
+        [
+          1779480000,
+          17.6785
+        ]
+      ],
+      "5y psr": 12.561,
+      "5y cagr": 13.058,
+      "1y sharpe": 0.5578,
+      "3m return": 20.6675,
+      "5y drawdown": 36,
+      "oos 1y return": 18.7492,
+      "oos 1y sharpe": 0.5578,
+      "oos 3m return": 20.6675,
+      "oos 3m sharpe": 5.4828
+    },
+    "rank": 0,
+    "clones": 0,
+    "comments": 0,
+    "leaderboard": 15,
+    "score": 5.48,
+    "discussionId": 20128,
+    "hot": false,
+    "owner": false,
+    "followers": [],
+    "followersCount": 0,
+    "published": 1597104000
+  }
+}

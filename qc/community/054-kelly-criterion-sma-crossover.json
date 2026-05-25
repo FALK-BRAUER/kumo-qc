@@ -1,0 +1,483 @@
+{
+  "summary": {
+    "rank": 54,
+    "leaderboard_position": 137,
+    "id": 78,
+    "name": "Kelly Criterion SMA Crossover",
+    "author": "Derek Melchin",
+    "author_public_id": "derek-melchin",
+    "organization": "QuantConnect",
+    "description": "The strategy is a trend following tactical allocation that takes directional exposure to a single risky equity when short term price momentum turns positive, and otherwise parks capital in a short duration Treasury ETF. The core signal is a simple moving average crossover on IBM using hourly data, where a very fast average (approximately 1 hour) crossing above a slower average (approximately 6 hours) triggers a long regime, and crossing back below exits the regime. The intended opportunity is to",
+    "description_full": "The strategy is a trend following tactical allocation that takes directional exposure to a single risky equity when short term price momentum turns positive, and otherwise parks capital in a short duration Treasury ETF. The core signal is a simple moving average crossover on IBM using hourly data, where a very fast average (approximately 1 hour) crossing above a slower average (approximately 6 hours) triggers a long regime, and crossing back below exits the regime. The intended opportunity is to capture short horizon intraday trend persistence in the equity while avoiding equity beta during non trending or declining periods by rotating into the cash like proxy (SHY).\n\nPosition sizing is adaptive and levered using a Kelly style fraction estimated from the most recent 40 completed trades of the strategy itself, scaling exposure by a risk factor and capping gross IBM exposure at 575 percent. When the equity signal is on, the strategy targets the Kelly sized IBM weight; if that target is below 100 percent, the remainder is allocated to SHY, and if it is above 100 percent the portfolio becomes net levered. When the signal is off, the strategy holds 100 percent SHY. Trading begins only after a one year warmup and once 40 trade outcomes are available, so sizing is based on realized win rate and average win loss, which is the primary alpha and risk budgeting mechanism.",
+    "tags": [
+      "Momentum",
+      "Equity",
+      "Technical",
+      "Position Sizing"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.1",
+    "score": 2.05,
+    "sharpe_1y": 1.1633,
+    "return_3m": 17.3532,
+    "return_oos_1y": null,
+    "sharpe_oos_1y": null,
+    "cagr_5y": 8.174,
+    "drawdown_5y": 29,
+    "psr_5y": 5.299,
+    "watchers": 5,
+    "clones": 9,
+    "clone_project_id": 27584840,
+    "backtest_id": "c906dd03dce0f660024a645a2e54303d",
+    "discussion_id": 19932,
+    "published_ts": 1768931497,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 78,
+    "backtestId": "c906dd03dce0f660024a645a2e54303d",
+    "name": "Kelly Criterion SMA Crossover",
+    "author": {
+      "name": "Derek Melchin",
+      "organizationName": "QuantConnect",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/d06c9930192dcf31587397285.jpg",
+      "bio": "Quantitative Developer at QuantConnect. Studied Computer Science and Finance at the University of Lethbridge. Competitor in the 2020-1 Rotman International Trading Competitions. \nSee my latest posts at derekmelchin.com.",
+      "publicId": "derek-melchin",
+      "facebook": null,
+      "twitter": "https://twitter.com/DerekMelchin",
+      "linkedin": "https://www.linkedin.com/in/derek-melchin-b22753137/",
+      "web": "http://www.derekmelchin.com",
+      "topAuthor": false
+    },
+    "description": "The strategy is a trend following tactical allocation that takes directional exposure to a single risky equity when short term price momentum turns positive, and otherwise parks capital in a short duration Treasury ETF. The core signal is a simple moving average crossover on IBM using hourly data, where a very fast average (approximately 1 hour) crossing above a slower average (approximately 6 hours) triggers a long regime, and crossing back below exits the regime. The intended opportunity is to capture short horizon intraday trend persistence in the equity while avoiding equity beta during non trending or declining periods by rotating into the cash like proxy (SHY).\n\nPosition sizing is adaptive and levered using a Kelly style fraction estimated from the most recent 40 completed trades of the strategy itself, scaling exposure by a risk factor and capping gross IBM exposure at 575 percent. When the equity signal is on, the strategy targets the Kelly sized IBM weight; if that target is below 100 percent, the remainder is allocated to SHY, and if it is above 100 percent the portfolio becomes net levered. When the signal is off, the strategy holds 100 percent SHY. Trading begins only after a one year warmup and once 40 trade outcomes are available, so sizing is based on realized win rate and average win loss, which is the primary alpha and risk budgeting mechanism.",
+    "cloneProjectId": 27584840,
+    "tags": [
+      "Momentum",
+      "Equity",
+      "Technical",
+      "Position Sizing"
+    ],
+    "watchers": 5,
+    "watching": false,
+    "version": "1.0.1",
+    "versionHistory": [
+      {
+        "version": "1.0.1",
+        "date": "Jan 20, 2026",
+        "changes": [
+          "Path of strategy &quot;Hourly IBM trend-following with Kelly leverage&quot;."
+        ]
+      },
+      {
+        "version": "1.0.0",
+        "date": "Dec 01, 2024",
+        "changes": [
+          "Initial release"
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Derek Melchin",
+    "organizationName": "QuantConnect",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771945200,
+          0.036
+        ],
+        [
+          1772031600,
+          0.0047
+        ],
+        [
+          1772118000,
+          2.5906
+        ],
+        [
+          1772204400,
+          -0.1129
+        ],
+        [
+          1772254800,
+          -1.0414
+        ],
+        [
+          1772341200,
+          -1.0414
+        ],
+        [
+          1772467200,
+          -1.8732
+        ],
+        [
+          1772550000,
+          -2.4164
+        ],
+        [
+          1772636400,
+          1.5108
+        ],
+        [
+          1772722800,
+          5.241
+        ],
+        [
+          1772809200,
+          6.2247
+        ],
+        [
+          1772859600,
+          6.9491
+        ],
+        [
+          1772946000,
+          6.9491
+        ],
+        [
+          1773064800,
+          5.0249
+        ],
+        [
+          1773151200,
+          5.1072
+        ],
+        [
+          1773237600,
+          4.1385
+        ],
+        [
+          1773324000,
+          4.0709
+        ],
+        [
+          1773410400,
+          3.6665
+        ],
+        [
+          1773460800,
+          3.1562
+        ],
+        [
+          1773547200,
+          3.1562
+        ],
+        [
+          1773669600,
+          3.9995
+        ],
+        [
+          1773756000,
+          5.7861
+        ],
+        [
+          1773842400,
+          7.2839
+        ],
+        [
+          1773928800,
+          5.4675
+        ],
+        [
+          1774015200,
+          4.5686
+        ],
+        [
+          1774065600,
+          4.5496
+        ],
+        [
+          1774152000,
+          4.5496
+        ],
+        [
+          1774274400,
+          4.6484
+        ],
+        [
+          1774360800,
+          2.5629
+        ],
+        [
+          1774447200,
+          3.485
+        ],
+        [
+          1774533600,
+          2.0598
+        ],
+        [
+          1774620000,
+          0.8548
+        ],
+        [
+          1774670400,
+          0.9587
+        ],
+        [
+          1774756800,
+          0.9587
+        ],
+        [
+          1774879200,
+          1.3228
+        ],
+        [
+          1774965600,
+          1.2136
+        ],
+        [
+          1775055600,
+          1.9821
+        ],
+        [
+          1775138400,
+          1.5531
+        ],
+        [
+          1775188800,
+          3.04
+        ],
+        [
+          1775275200,
+          3.04
+        ],
+        [
+          1775361600,
+          3.04
+        ],
+        [
+          1775484000,
+          2.478
+        ],
+        [
+          1775570400,
+          0.7251
+        ],
+        [
+          1775656800,
+          -0.7701
+        ],
+        [
+          1775743200,
+          -1.5339
+        ],
+        [
+          1775829600,
+          -3.6007
+        ],
+        [
+          1775880000,
+          -3.6299
+        ],
+        [
+          1775966400,
+          -3.6299
+        ],
+        [
+          1776088800,
+          -3.603
+        ],
+        [
+          1776175200,
+          -1.6008
+        ],
+        [
+          1776261600,
+          -0.9329
+        ],
+        [
+          1776348000,
+          0.7138
+        ],
+        [
+          1776434400,
+          2.9961
+        ],
+        [
+          1776484800,
+          2.5091
+        ],
+        [
+          1776571200,
+          2.5091
+        ],
+        [
+          1776693600,
+          3.6154
+        ],
+        [
+          1776780000,
+          2.4483
+        ],
+        [
+          1776866400,
+          1.8886
+        ],
+        [
+          1776952800,
+          -0.2284
+        ],
+        [
+          1777039200,
+          -2.2911
+        ],
+        [
+          1777089600,
+          -0.7608
+        ],
+        [
+          1777176000,
+          -0.7608
+        ],
+        [
+          1777298400,
+          -2.2053
+        ],
+        [
+          1777384800,
+          -2.185
+        ],
+        [
+          1777471200,
+          -2.0866
+        ],
+        [
+          1777557600,
+          -2.0748
+        ],
+        [
+          1777647600,
+          -0.151
+        ],
+        [
+          1777694400,
+          -0.1571
+        ],
+        [
+          1777780800,
+          -0.1571
+        ],
+        [
+          1777903200,
+          -0.2297
+        ],
+        [
+          1777989600,
+          -1.1558
+        ],
+        [
+          1778076000,
+          -2.3315
+        ],
+        [
+          1778162400,
+          -2.2749
+        ],
+        [
+          1778252400,
+          -2.4866
+        ],
+        [
+          1778299200,
+          -1.6102
+        ],
+        [
+          1778385600,
+          -1.6102
+        ],
+        [
+          1778508000,
+          -2.5311
+        ],
+        [
+          1778594400,
+          -2.6788
+        ],
+        [
+          1778680800,
+          -2.6551
+        ],
+        [
+          1778767200,
+          -1.4875
+        ],
+        [
+          1778853600,
+          -0.373
+        ],
+        [
+          1778904000,
+          -0.3243
+        ],
+        [
+          1778990400,
+          -0.3243
+        ],
+        [
+          1779112800,
+          -0.6121
+        ],
+        [
+          1779199200,
+          0.3236
+        ],
+        [
+          1779285600,
+          -1.4146
+        ],
+        [
+          1779372000,
+          7.0251
+        ],
+        [
+          1779480000,
+          16.131
+        ]
+      ],
+      "5y psr": 5.299,
+      "5y cagr": 8.174,
+      "1y sharpe": 1.1633,
+      "3m return": 17.3532,
+      "5y drawdown": 29,
+      "oos 1y return": null,
+      "oos 1y sharpe": null,
+      "oos 3m return": 17.3532,
+      "oos 3m sharpe": 2.0538
+    },
+    "rank": 0.09,
+    "clones": 9,
+    "comments": 0,
+    "leaderboard": 137,
+    "score": 2.05,
+    "discussionId": 19932,
+    "hot": false,
+    "owner": false,
+    "followers": [
+      {
+        "name": "PauPadilla Greendry",
+        "publicId": "paupadilla-greendry",
+        "profileImage": "c8936829a65c8ed1600374814.jpg"
+      },
+      {
+        "name": "Xujin Zhang",
+        "publicId": "xujin-zhang",
+        "profileImage": "0999d41872474c31762687563.png"
+      },
+      {
+        "name": "Kal EL",
+        "publicId": "kal-el",
+        "profileImage": "4b5a245c8aef5f81768745280.png"
+      }
+    ],
+    "followersCount": 5,
+    "published": 1768931497
+  }
+}

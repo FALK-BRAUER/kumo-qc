@@ -1,0 +1,460 @@
+{
+  "summary": {
+    "rank": 56,
+    "leaderboard_position": 51,
+    "id": 272,
+    "name": "Market-Neutral SPY vs Oil  Gas RV",
+    "author": "Alexandre Catarino",
+    "author_public_id": "alexandre_catarino",
+    "organization": "QuantConnect",
+    "description": "The strategy implements a systematic relative value hedge against SPY by isolating the Oil and Gas sector embedded in the S and P 500. Each month it takes positions in the largest SPY constituents, then filters those holdings to retain only Oil and Gas names using fundamental industry classification. The portfolio is then constructed to be approximately market neutral by taking a short position in SPY and offsetting it with long positions in the selected Oil and Gas constituents in proportion to",
+    "description_full": "The strategy implements a systematic relative value hedge against SPY by isolating the Oil and Gas sector embedded in the S and P 500. Each month it takes positions in the largest SPY constituents, then filters those holdings to retain only Oil and Gas names using fundamental industry classification. The portfolio is then constructed to be approximately market neutral by taking a short position in SPY and offsetting it with long positions in the selected Oil and Gas constituents in proportion to their SPY index weights, seeking to capture sector specific excess returns and factor premia in Energy while minimizing broad equity beta.\n\nRebalancing occurs on the first trading day of each month using ETF constituent weights and fundamental data; trades are executed on available quote bar data. Position sizing is deterministic and weight based, with the SPY short sized to offset the aggregate notional of the long basket, creating a net long Energy versus short market spread. Exits are implicit via the monthly rebalance, when constituents and weights are refreshed and the portfolio is reset to the new target exposures. Risk is primarily residual sector and idiosyncratic stock risk within Oil and Gas, with reduced exposure to overall market direction via the SPY hedge.",
+    "tags": [
+      "Equity",
+      "Fundamental",
+      "Sector Rotation",
+      "Long Short"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 1.97,
+    "sharpe_1y": 1.3376,
+    "return_3m": 8.846,
+    "return_oos_1y": 26.7032,
+    "sharpe_oos_1y": 1.3376,
+    "cagr_5y": 13.293,
+    "drawdown_5y": 26.8,
+    "psr_5y": 19.947,
+    "watchers": 0,
+    "clones": 0,
+    "clone_project_id": 28102197,
+    "backtest_id": "1c2abbd67fb2ebacce34426c001077fa",
+    "discussion_id": 20193,
+    "published_ts": 1636070400,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 272,
+    "backtestId": "1c2abbd67fb2ebacce34426c001077fa",
+    "name": "Market-Neutral SPY vs Oil  Gas RV",
+    "author": {
+      "name": "Alexandre Catarino",
+      "organizationName": "QuantConnect",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/e76004d3a79bb421536616863.jpeg",
+      "bio": "I got my degree in Meteorology from the Physics Department of the Faculty of Science of the University of Lisbon in 2006 and spent the following years working on Climate and Meteorology models. After 13 years of Meteorology, I decided to use my knowledge of physics, math, and programming in the stock markets.\nIn 2015, I found QuantConnect, started to contribute to Lean and became part of the team in 2016. At the moment, I continue to contribute to Lean, focusing on Python integration and implementing features at QCAlgorithm level to make quants&#039; life easier. On top of that, I belong to QC Support Team. ",
+      "publicId": "alexandre_catarino",
+      "facebook": "https://www.facebook.com/alexandre.catarino",
+      "twitter": "https://twitter.com/AlexCatx",
+      "linkedin": "https://www.linkedin.com/in/alexandrecatarino/",
+      "web": null,
+      "topAuthor": false
+    },
+    "description": "The strategy implements a systematic relative value hedge against SPY by isolating the Oil and Gas sector embedded in the S and P 500. Each month it takes positions in the largest SPY constituents, then filters those holdings to retain only Oil and Gas names using fundamental industry classification. The portfolio is then constructed to be approximately market neutral by taking a short position in SPY and offsetting it with long positions in the selected Oil and Gas constituents in proportion to their SPY index weights, seeking to capture sector specific excess returns and factor premia in Energy while minimizing broad equity beta.\n\nRebalancing occurs on the first trading day of each month using ETF constituent weights and fundamental data; trades are executed on available quote bar data. Position sizing is deterministic and weight based, with the SPY short sized to offset the aggregate notional of the long basket, creating a net long Energy versus short market spread. Exits are implicit via the monthly rebalance, when constituents and weights are refreshed and the portfolio is reset to the new target exposures. Risk is primarily residual sector and idiosyncratic stock risk within Oil and Gas, with reduced exposure to overall market direction via the SPY hedge.",
+    "cloneProjectId": 28102197,
+    "tags": [
+      "Equity",
+      "Fundamental",
+      "Sector Rotation",
+      "Long Short"
+    ],
+    "watchers": 0,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Nov 05, 2021",
+        "changes": [
+          "Initial deployment for strategy &quot;Market-Neutral SPY vs Oil  Gas RV&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Alexandre Catarino",
+    "organizationName": "QuantConnect",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771943460,
+          -0.116
+        ],
+        [
+          1772029860,
+          1.2227
+        ],
+        [
+          1772116260,
+          1.47
+        ],
+        [
+          1772202660,
+          0.1066
+        ],
+        [
+          1772254800,
+          0.4653
+        ],
+        [
+          1772341200,
+          0.4653
+        ],
+        [
+          1772467020,
+          0.1467
+        ],
+        [
+          1772548260,
+          -1.0369
+        ],
+        [
+          1772639820,
+          0.3766
+        ],
+        [
+          1772726220,
+          -0.2193
+        ],
+        [
+          1772807460,
+          -1.5001
+        ],
+        [
+          1772859600,
+          -1.5451
+        ],
+        [
+          1772946000,
+          -1.5451
+        ],
+        [
+          1773063060,
+          -2.2643
+        ],
+        [
+          1773154620,
+          -0.2786
+        ],
+        [
+          1773241020,
+          -0.7614
+        ],
+        [
+          1773322260,
+          -1.8217
+        ],
+        [
+          1773413820,
+          -2.6281
+        ],
+        [
+          1773460800,
+          -3.0867
+        ],
+        [
+          1773547200,
+          -3.0867
+        ],
+        [
+          1773667860,
+          -2.2055
+        ],
+        [
+          1773754260,
+          -1.5898
+        ],
+        [
+          1773840660,
+          -2.2936
+        ],
+        [
+          1773927060,
+          -4.0713
+        ],
+        [
+          1774018620,
+          -4.4078
+        ],
+        [
+          1774065600,
+          -4.8971
+        ],
+        [
+          1774152000,
+          -4.8971
+        ],
+        [
+          1774272660,
+          -3.5416
+        ],
+        [
+          1774359060,
+          -4.5067
+        ],
+        [
+          1774445460,
+          -3.3404
+        ],
+        [
+          1774531860,
+          -4.5303
+        ],
+        [
+          1774618260,
+          -5.9721
+        ],
+        [
+          1774670400,
+          -7.1728
+        ],
+        [
+          1774756800,
+          -7.1728
+        ],
+        [
+          1774877460,
+          -6.3978
+        ],
+        [
+          1774963860,
+          -6.3665
+        ],
+        [
+          1775055420,
+          -3.7344
+        ],
+        [
+          1775136660,
+          -5.2038
+        ],
+        [
+          1775188800,
+          -3.8498
+        ],
+        [
+          1775275200,
+          -3.8498
+        ],
+        [
+          1775361600,
+          -3.8498
+        ],
+        [
+          1775482260,
+          -3.7122
+        ],
+        [
+          1775568660,
+          -3.7696
+        ],
+        [
+          1775655060,
+          -0.7425
+        ],
+        [
+          1775741460,
+          -1.0441
+        ],
+        [
+          1775827860,
+          0.0083
+        ],
+        [
+          1775880000,
+          -0.2746
+        ],
+        [
+          1775966400,
+          -0.2746
+        ],
+        [
+          1776087060,
+          -0.5687
+        ],
+        [
+          1776173460,
+          1.0007
+        ],
+        [
+          1776259860,
+          2.1047
+        ],
+        [
+          1776351420,
+          2.736
+        ],
+        [
+          1776432660,
+          3.7517
+        ],
+        [
+          1776484800,
+          4.2944
+        ],
+        [
+          1776571200,
+          4.2944
+        ],
+        [
+          1776691860,
+          4.1297
+        ],
+        [
+          1776778260,
+          4.191
+        ],
+        [
+          1776869820,
+          4.1886
+        ],
+        [
+          1776951060,
+          4.1473
+        ],
+        [
+          1777037460,
+          4.2609
+        ],
+        [
+          1777089600,
+          4.8013
+        ],
+        [
+          1777176000,
+          4.8013
+        ],
+        [
+          1777296660,
+          4.6605
+        ],
+        [
+          1777383060,
+          4.3255
+        ],
+        [
+          1777469460,
+          4.2339
+        ],
+        [
+          1777561020,
+          4.7136
+        ],
+        [
+          1777647420,
+          6.0638
+        ],
+        [
+          1777694400,
+          5.725
+        ],
+        [
+          1777780800,
+          5.725
+        ],
+        [
+          1777906620,
+          5.8643
+        ],
+        [
+          1777993020,
+          6.0636
+        ],
+        [
+          1778079420,
+          7.4453
+        ],
+        [
+          1778165820,
+          8.1073
+        ],
+        [
+          1778252220,
+          8.2774
+        ],
+        [
+          1778299200,
+          8.3412
+        ],
+        [
+          1778385600,
+          8.3412
+        ],
+        [
+          1778511420,
+          8.5808
+        ],
+        [
+          1778592660,
+          8.1159
+        ],
+        [
+          1778679060,
+          8.3038
+        ],
+        [
+          1778770620,
+          9.6782
+        ],
+        [
+          1778857020,
+          8.7734
+        ],
+        [
+          1778904000,
+          8.3945
+        ],
+        [
+          1778990400,
+          8.3945
+        ],
+        [
+          1779116220,
+          8.2127
+        ],
+        [
+          1779202620,
+          7.3721
+        ],
+        [
+          1779289020,
+          8.3517
+        ],
+        [
+          1779375420,
+          8.3189
+        ],
+        [
+          1779480000,
+          9.3525
+        ]
+      ],
+      "5y psr": 19.947,
+      "5y cagr": 13.293,
+      "1y sharpe": 1.3376,
+      "3m return": 8.846,
+      "5y drawdown": 26.8,
+      "oos 1y return": 26.7032,
+      "oos 1y sharpe": 1.3376,
+      "oos 3m return": 8.846,
+      "oos 3m sharpe": 1.9738
+    },
+    "rank": 999999,
+    "clones": 0,
+    "comments": 0,
+    "leaderboard": 51,
+    "score": 1.97,
+    "discussionId": 20193,
+    "hot": false,
+    "owner": false,
+    "followers": [],
+    "followersCount": 0,
+    "published": 1636070400
+  }
+}

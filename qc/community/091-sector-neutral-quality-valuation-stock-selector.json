@@ -1,0 +1,460 @@
+{
+  "summary": {
+    "rank": 91,
+    "leaderboard_position": 107,
+    "id": 255,
+    "name": "Sector-Neutral Quality-Valuation Stock Selector",
+    "author": "Louis",
+    "author_public_id": "louis_2",
+    "organization": "TradeOptionsWithMe",
+    "description": "The strategy is a sector neutral, long only U.S. equity selection model that targets cross sectional mispricing in quality and valuation within sectors. Each quarter it builds a liquid universe and, for each targeted sector, scores stocks on a composite of profitability and valuation metrics: higher return on equity, higher net margin, and higher price to earnings. The intended edge is that within a sector, profitable firms with strong margins that the market is still willing to pay up for (high",
+    "description_full": "The strategy is a sector neutral, long only U.S. equity selection model that targets cross sectional mispricing in quality and valuation within sectors. Each quarter it builds a liquid universe and, for each targeted sector, scores stocks on a composite of profitability and valuation metrics: higher return on equity, higher net margin, and higher price to earnings. The intended edge is that within a sector, profitable firms with strong margins that the market is still willing to pay up for (high P/E) may reflect persistent quality and growth premia, while sector bucketing reduces unintended industry bets.\n\nThe investable universe is refreshed at the start of each calendar quarter using daily fundamental data: stocks priced above 5 dollars, with fundamental coverage, in the top 500 by dollar volume, IPO date older than 5 years, and positive ROE, net margin, and P/E. Only five sectors are eligible (Financial Services, Real Estate, Healthcare, Utilities, Technology). At each quarterly rebalance the model goes long the top 20 percent of names within each sector (minimum one) and holds them through quarter end; trades are executed immediately. Portfolio weights are equal across selected positions, with no explicit risk controls, leverage limits, stop losses, or drawdown management beyond equal weighting.",
+    "tags": [
+      "Fundamental",
+      "Equity",
+      "Factor Investing",
+      "Quarterly"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 0.81,
+    "sharpe_1y": 1.0335,
+    "return_3m": 4.2985,
+    "return_oos_1y": 23.1955,
+    "sharpe_oos_1y": 1.0335,
+    "cagr_5y": 12.681,
+    "drawdown_5y": 30.2,
+    "psr_5y": 15.267,
+    "watchers": 2,
+    "clones": 0,
+    "clone_project_id": 28011208,
+    "backtest_id": "f4430e1c1c5c0af9bbbef99f86cd23a6",
+    "discussion_id": 20167,
+    "published_ts": 1636070400,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 255,
+    "backtestId": "f4430e1c1c5c0af9bbbef99f86cd23a6",
+    "name": "Sector-Neutral Quality-Valuation Stock Selector",
+    "author": {
+      "name": "Louis",
+      "organizationName": "TradeOptionsWithMe",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/79261d14653794b1603115207.jpg",
+      "bio": "I am Louis and I have a passion for options, trading, and computer science. Algorithmic trading is a great way to combine these things. \n",
+      "publicId": "louis_2",
+      "facebook": "https://www.facebook.com/Tradeoptionswithme",
+      "twitter": "https://twitter.com/Louis_Options",
+      "linkedin": null,
+      "web": null,
+      "topAuthor": false
+    },
+    "description": "The strategy is a sector neutral, long only U.S. equity selection model that targets cross sectional mispricing in quality and valuation within sectors. Each quarter it builds a liquid universe and, for each targeted sector, scores stocks on a composite of profitability and valuation metrics: higher return on equity, higher net margin, and higher price to earnings. The intended edge is that within a sector, profitable firms with strong margins that the market is still willing to pay up for (high P/E) may reflect persistent quality and growth premia, while sector bucketing reduces unintended industry bets.\n\nThe investable universe is refreshed at the start of each calendar quarter using daily fundamental data: stocks priced above 5 dollars, with fundamental coverage, in the top 500 by dollar volume, IPO date older than 5 years, and positive ROE, net margin, and P/E. Only five sectors are eligible (Financial Services, Real Estate, Healthcare, Utilities, Technology). At each quarterly rebalance the model goes long the top 20 percent of names within each sector (minimum one) and holds them through quarter end; trades are executed immediately. Portfolio weights are equal across selected positions, with no explicit risk controls, leverage limits, stop losses, or drawdown management beyond equal weighting.",
+    "cloneProjectId": 28011208,
+    "tags": [
+      "Fundamental",
+      "Equity",
+      "Factor Investing",
+      "Quarterly"
+    ],
+    "watchers": 2,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Nov 05, 2021",
+        "changes": [
+          "Initial deployment for strategy &quot;Sector-Neutral Quality-Valuation Stock Selector&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Louis",
+    "organizationName": "TradeOptionsWithMe",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771948800,
+          -1.4788
+        ],
+        [
+          1772035200,
+          -0.8066
+        ],
+        [
+          1772121600,
+          0.4071
+        ],
+        [
+          1772208000,
+          0.6269
+        ],
+        [
+          1772254800,
+          0.2835
+        ],
+        [
+          1772341200,
+          0.2835
+        ],
+        [
+          1772467200,
+          0.2835
+        ],
+        [
+          1772553600,
+          0.6752
+        ],
+        [
+          1772640000,
+          0.0388
+        ],
+        [
+          1772726400,
+          0.6141
+        ],
+        [
+          1772812800,
+          -0.2611
+        ],
+        [
+          1772859600,
+          -1.3322
+        ],
+        [
+          1772946000,
+          -1.3322
+        ],
+        [
+          1773068400,
+          -1.3322
+        ],
+        [
+          1773154800,
+          -0.8548
+        ],
+        [
+          1773241200,
+          -1.4859
+        ],
+        [
+          1773324000,
+          -2.0532
+        ],
+        [
+          1773414000,
+          -3.7211
+        ],
+        [
+          1773460800,
+          -3.7534
+        ],
+        [
+          1773547200,
+          -3.7534
+        ],
+        [
+          1773673200,
+          -3.7534
+        ],
+        [
+          1773759600,
+          -2.881
+        ],
+        [
+          1773846000,
+          -2.3801
+        ],
+        [
+          1773932400,
+          -3.7492
+        ],
+        [
+          1774018800,
+          -3.8477
+        ],
+        [
+          1774065600,
+          -4.9457
+        ],
+        [
+          1774152000,
+          -4.9457
+        ],
+        [
+          1774278000,
+          -4.9457
+        ],
+        [
+          1774360800,
+          -4.3864
+        ],
+        [
+          1774450800,
+          -4.889
+        ],
+        [
+          1774533600,
+          -4.0875
+        ],
+        [
+          1774623600,
+          -4.9225
+        ],
+        [
+          1774670400,
+          -6.5941
+        ],
+        [
+          1774756800,
+          -6.5941
+        ],
+        [
+          1774882800,
+          -6.5941
+        ],
+        [
+          1774969200,
+          -5.7155
+        ],
+        [
+          1775055600,
+          -3.7764
+        ],
+        [
+          1775142000,
+          -3.8829
+        ],
+        [
+          1775188800,
+          -3.3569
+        ],
+        [
+          1775275200,
+          -3.3569
+        ],
+        [
+          1775361600,
+          -3.3569
+        ],
+        [
+          1775487600,
+          -3.3569
+        ],
+        [
+          1775574000,
+          -3.0965
+        ],
+        [
+          1775656800,
+          -3.5003
+        ],
+        [
+          1775746800,
+          -1.8557
+        ],
+        [
+          1775833200,
+          -2.0773
+        ],
+        [
+          1775880000,
+          -3.5943
+        ],
+        [
+          1775966400,
+          -3.5943
+        ],
+        [
+          1776088800,
+          -3.5943
+        ],
+        [
+          1776178800,
+          -1.658
+        ],
+        [
+          1776265200,
+          -1.006
+        ],
+        [
+          1776348000,
+          0.0548
+        ],
+        [
+          1776434400,
+          0.36
+        ],
+        [
+          1776484800,
+          1.2181
+        ],
+        [
+          1776571200,
+          1.2181
+        ],
+        [
+          1776697200,
+          1.2181
+        ],
+        [
+          1776783600,
+          1.4353
+        ],
+        [
+          1776866400,
+          1.0706
+        ],
+        [
+          1776956400,
+          1.3606
+        ],
+        [
+          1777039200,
+          0.4488
+        ],
+        [
+          1777089600,
+          0.3808
+        ],
+        [
+          1777176000,
+          0.3808
+        ],
+        [
+          1777302000,
+          0.3808
+        ],
+        [
+          1777384800,
+          0.4197
+        ],
+        [
+          1777474800,
+          0.2109
+        ],
+        [
+          1777561200,
+          0.585
+        ],
+        [
+          1777647600,
+          0.6929
+        ],
+        [
+          1777694400,
+          0.9822
+        ],
+        [
+          1777780800,
+          0.9822
+        ],
+        [
+          1777906800,
+          0.9822
+        ],
+        [
+          1777993200,
+          0.9616
+        ],
+        [
+          1778076000,
+          1.037
+        ],
+        [
+          1778162400,
+          1.7034
+        ],
+        [
+          1778252400,
+          1.7073
+        ],
+        [
+          1778299200,
+          2.037
+        ],
+        [
+          1778385600,
+          2.037
+        ],
+        [
+          1778511600,
+          2.037
+        ],
+        [
+          1778598000,
+          1.5503
+        ],
+        [
+          1778684400,
+          1.5966
+        ],
+        [
+          1778770800,
+          1.0839
+        ],
+        [
+          1778857200,
+          1.5285
+        ],
+        [
+          1778904000,
+          1.292
+        ],
+        [
+          1778990400,
+          1.292
+        ],
+        [
+          1779116400,
+          1.292
+        ],
+        [
+          1779202800,
+          2.3054
+        ],
+        [
+          1779289200,
+          2.0727
+        ],
+        [
+          1779375600,
+          2.9934
+        ],
+        [
+          1779480000,
+          4.5942
+        ]
+      ],
+      "5y psr": 15.267,
+      "5y cagr": 12.681,
+      "1y sharpe": 1.0335,
+      "3m return": 4.2985,
+      "5y drawdown": 30.2,
+      "oos 1y return": 23.1955,
+      "oos 1y sharpe": 1.0335,
+      "oos 3m return": 4.2985,
+      "oos 3m sharpe": 0.8061
+    },
+    "rank": 0,
+    "clones": 0,
+    "comments": 0,
+    "leaderboard": 107,
+    "score": 0.81,
+    "discussionId": 20167,
+    "hot": false,
+    "owner": false,
+    "followers": [],
+    "followersCount": 2,
+    "published": 1636070400
+  }
+}

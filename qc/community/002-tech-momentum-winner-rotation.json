@@ -1,0 +1,476 @@
+{
+  "summary": {
+    "rank": 2,
+    "leaderboard_position": 2,
+    "id": 245,
+    "name": "Tech Momentum Winner Rotation",
+    "author": "McCartney Taylor",
+    "author_public_id": "mccartney-taylor",
+    "organization": "McCartney Taylor",
+    "description": "This is a flawed strategy that illustrates how if you use you knowledge of what stocks have done well, you will fool yourself into thinking you have discovered alpha. Be sure to test this out of sample after 2020\nFlaws - high volatility, excessive drawdown, and accidental future leak via user.\n\nThe strategy is a cross sectional momentum rotation within a concentrated universe of large cap and leveraged technology oriented equities (AMD, TSLA, AMZN, AAPL) plus a 3x leveraged S and P 500 proxy (SP",
+    "description_full": "This is a flawed strategy that illustrates how if you use you knowledge of what stocks have done well, you will fool yourself into thinking you have discovered alpha. Be sure to test this out of sample after 2020\nFlaws - high volatility, excessive drawdown, and accidental future leak via user.\n\nThe strategy is a cross sectional momentum rotation within a concentrated universe of large cap and leveraged technology oriented equities (AMD, TSLA, AMZN, AAPL) plus a 3x leveraged S and P 500 proxy (SPXL). It seeks to capture medium term trend persistence by ranking the universe on a composite momentum score defined as the weighted sum of total returns over approximately 1 month, 3 months, and 6 months (default equal weights). The core thesis is that the strongest recent performer across the set is more likely to continue outperforming over the next rebalance interval, so the portfolio holds only the single top ranked instrument at any time.\n\nDecisions are made on daily close data, but trading is scheduled on a fixed rebalance calendar, default weekly on Mondays shortly after the market opens. At each rebalance the strategy computes trailing returns for each horizon, selects the highest composite score, liquidates any existing holding, and reallocates 100 percent of portfolio capital into the winner.",
+    "tags": [
+      "Momentum",
+      "Equity",
+      "Rotation",
+      "Swing"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 25.6,
+    "sharpe_1y": 1.5401,
+    "return_3m": 136.4178,
+    "return_oos_1y": null,
+    "sharpe_oos_1y": null,
+    "cagr_5y": 9.232,
+    "drawdown_5y": 76.4,
+    "psr_5y": 4.132,
+    "watchers": 7,
+    "clones": 0,
+    "clone_project_id": 27930673,
+    "backtest_id": "a1e8b0bb42ebe6a8e15d6b3394282c75",
+    "discussion_id": 20149,
+    "published_ts": 1770137838,
+    "hot": false,
+    "top_author": true
+  },
+  "raw": {
+    "id": 245,
+    "backtestId": "a1e8b0bb42ebe6a8e15d6b3394282c75",
+    "name": "Tech Momentum Winner Rotation",
+    "author": {
+      "name": "McCartney Taylor",
+      "organizationName": "McCartney Taylor",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/c261747dd3552561740716495.jpg",
+      "bio": "Holds two degrees in Engineering, Electrical and Petroleum. Founder of Blackbeard Data Analytics, LLC. Proponent of using Machine Learning and Prado&#039;s Triple Barrier Method for strategy construction.",
+      "publicId": "mccartney-taylor",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": null,
+      "web": null,
+      "topAuthor": true
+    },
+    "description": "This is a flawed strategy that illustrates how if you use you knowledge of what stocks have done well, you will fool yourself into thinking you have discovered alpha. Be sure to test this out of sample after 2020\nFlaws - high volatility, excessive drawdown, and accidental future leak via user.\n\nThe strategy is a cross sectional momentum rotation within a concentrated universe of large cap and leveraged technology oriented equities (AMD, TSLA, AMZN, AAPL) plus a 3x leveraged S and P 500 proxy (SPXL). It seeks to capture medium term trend persistence by ranking the universe on a composite momentum score defined as the weighted sum of total returns over approximately 1 month, 3 months, and 6 months (default equal weights). The core thesis is that the strongest recent performer across the set is more likely to continue outperforming over the next rebalance interval, so the portfolio holds only the single top ranked instrument at any time.\n\nDecisions are made on daily close data, but trading is scheduled on a fixed rebalance calendar, default weekly on Mondays shortly after the market opens. At each rebalance the strategy computes trailing returns for each horizon, selects the highest composite score, liquidates any existing holding, and reallocates 100 percent of portfolio capital into the winner.",
+    "cloneProjectId": 27930673,
+    "tags": [
+      "Momentum",
+      "Equity",
+      "Rotation",
+      "Swing"
+    ],
+    "watchers": 7,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Feb 03, 2026",
+        "changes": [
+          "Initial deployment for strategy &quot;Large-Cap Tech Momentum Winner Rotation&quot;. "
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "McCartney Taylor",
+    "organizationName": "McCartney Taylor",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771945200,
+          -3.0444
+        ],
+        [
+          1772031600,
+          -0.9508
+        ],
+        [
+          1772118000,
+          1.4731
+        ],
+        [
+          1772204400,
+          -0.2187
+        ],
+        [
+          1772254800,
+          -1.6561
+        ],
+        [
+          1772341200,
+          -1.6561
+        ],
+        [
+          1772463600,
+          -1.6602
+        ],
+        [
+          1772550000,
+          -1.4597
+        ],
+        [
+          1772636400,
+          -1.8198
+        ],
+        [
+          1772722800,
+          -2.2765
+        ],
+        [
+          1772809200,
+          -3.1044
+        ],
+        [
+          1772859600,
+          -4.155
+        ],
+        [
+          1772946000,
+          -4.155
+        ],
+        [
+          1773064800,
+          -4.1594
+        ],
+        [
+          1773151200,
+          0.9329
+        ],
+        [
+          1773237600,
+          1.2062
+        ],
+        [
+          1773324000,
+          2.0011
+        ],
+        [
+          1773410400,
+          -1.5213
+        ],
+        [
+          1773460800,
+          -3.6824
+        ],
+        [
+          1773547200,
+          -3.6824
+        ],
+        [
+          1773669600,
+          -3.6824
+        ],
+        [
+          1773756000,
+          -2.0976
+        ],
+        [
+          1773842400,
+          -2.2317
+        ],
+        [
+          1773928800,
+          -0.6668
+        ],
+        [
+          1774015200,
+          2.2197
+        ],
+        [
+          1774065600,
+          0.2622
+        ],
+        [
+          1774152000,
+          0.2622
+        ],
+        [
+          1774274400,
+          0.2622
+        ],
+        [
+          1774364400,
+          0.9329
+        ],
+        [
+          1774447200,
+          2.2693
+        ],
+        [
+          1774533600,
+          9.6718
+        ],
+        [
+          1774620000,
+          1.4744
+        ],
+        [
+          1774670400,
+          0.5901
+        ],
+        [
+          1774756800,
+          0.5901
+        ],
+        [
+          1774879200,
+          0.5901
+        ],
+        [
+          1774965600,
+          -2.3659
+        ],
+        [
+          1775052000,
+          1.3055
+        ],
+        [
+          1775138400,
+          4.6739
+        ],
+        [
+          1775188800,
+          8.2956
+        ],
+        [
+          1775275200,
+          8.2956
+        ],
+        [
+          1775361600,
+          8.2956
+        ],
+        [
+          1775484000,
+          8.2956
+        ],
+        [
+          1775570400,
+          9.6271
+        ],
+        [
+          1775656800,
+          10.2977
+        ],
+        [
+          1775743200,
+          15.4099
+        ],
+        [
+          1775829600,
+          17.8045
+        ],
+        [
+          1775880000,
+          21.9777
+        ],
+        [
+          1775966400,
+          21.9777
+        ],
+        [
+          1776088800,
+          21.9777
+        ],
+        [
+          1776175200,
+          22.867
+        ],
+        [
+          1776261600,
+          26.9607
+        ],
+        [
+          1776348000,
+          28.4759
+        ],
+        [
+          1776434400,
+          38.4816
+        ],
+        [
+          1776484800,
+          38.5462
+        ],
+        [
+          1776571200,
+          38.5462
+        ],
+        [
+          1776693600,
+          38.5462
+        ],
+        [
+          1776780000,
+          36.8372
+        ],
+        [
+          1776866400,
+          41.5768
+        ],
+        [
+          1776952800,
+          51.0012
+        ],
+        [
+          1777039200,
+          51.9302
+        ],
+        [
+          1777089600,
+          73.0346
+        ],
+        [
+          1777176000,
+          73.0346
+        ],
+        [
+          1777298400,
+          73.0346
+        ],
+        [
+          1777384800,
+          66.4867
+        ],
+        [
+          1777471200,
+          60.8132
+        ],
+        [
+          1777557600,
+          67.7188
+        ],
+        [
+          1777644000,
+          76.3533
+        ],
+        [
+          1777694400,
+          79.359
+        ],
+        [
+          1777780800,
+          79.359
+        ],
+        [
+          1777903200,
+          79.359
+        ],
+        [
+          1777989600,
+          69.9196
+        ],
+        [
+          1778076000,
+          76.7358
+        ],
+        [
+          1778162400,
+          109.5897
+        ],
+        [
+          1778248800,
+          103.166
+        ],
+        [
+          1778299200,
+          126.3818
+        ],
+        [
+          1778385600,
+          126.3818
+        ],
+        [
+          1778511600,
+          126.3818
+        ],
+        [
+          1778594400,
+          128.1703
+        ],
+        [
+          1778680800,
+          122.9539
+        ],
+        [
+          1778767200,
+          121.5678
+        ],
+        [
+          1778853600,
+          123.6544
+        ],
+        [
+          1778904000,
+          110.9361
+        ],
+        [
+          1778990400,
+          110.9361
+        ],
+        [
+          1779112800,
+          110.9361
+        ],
+        [
+          1779199200,
+          109.391
+        ],
+        [
+          1779285600,
+          105.9432
+        ],
+        [
+          1779372000,
+          122.6011
+        ],
+        [
+          1779480000,
+          132.5025
+        ]
+      ],
+      "5y psr": 4.132,
+      "5y cagr": 9.232,
+      "1y sharpe": 1.5401,
+      "3m return": 136.4178,
+      "5y drawdown": 76.4,
+      "oos 1y return": null,
+      "oos 1y sharpe": null,
+      "oos 3m return": 136.4178,
+      "oos 3m sharpe": 25.5951
+    },
+    "rank": 0,
+    "clones": 0,
+    "comments": 1,
+    "leaderboard": 2,
+    "score": 25.6,
+    "discussionId": 20149,
+    "hot": false,
+    "owner": false,
+    "followers": [
+      {
+        "name": "PauPadilla Greendry",
+        "publicId": "paupadilla-greendry",
+        "profileImage": "c8936829a65c8ed1600374814.jpg"
+      },
+      {
+        "name": "Amy Matteson",
+        "publicId": "amy-matteson",
+        "profileImage": "a29f860ac790af61775122232.png"
+      },
+      {
+        "name": "Ricky Chand",
+        "publicId": "ricky-chand",
+        "profileImage": "8c46eaf37540e2b1778495351.png"
+      }
+    ],
+    "followersCount": 7,
+    "published": 1770137838
+  }
+}

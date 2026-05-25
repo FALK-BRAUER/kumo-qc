@@ -1,0 +1,471 @@
+{
+  "summary": {
+    "rank": 27,
+    "leaderboard_position": 36,
+    "id": 108,
+    "name": "Adaptive Long-Only SPY Factor Tilt",
+    "author": "Derek Melchin",
+    "author_public_id": "derek-melchin",
+    "organization": "QuantConnect",
+    "description": "The strategy is a long only, cross sectional factor tilt applied to large cap US equities, designed to exploit short horizon persistence in factor rewarded returns. The investable universe is the top N constituents of SPY by index weight, refreshed at the start of each month. For each stock the model computes daily factor scores using fundamental market capitalization and a trailing Sortino ratio over a 21 trading day lookback, then standardizes these signals into z scores across the universe to",
+    "description_full": "The strategy is a long only, cross sectional factor tilt applied to large cap US equities, designed to exploit short horizon persistence in factor rewarded returns. The investable universe is the top N constituents of SPY by index weight, refreshed at the start of each month. For each stock the model computes daily factor scores using fundamental market capitalization and a trailing Sortino ratio over a 21 trading day lookback, then standardizes these signals into z scores across the universe to create comparable relative rankings.\n\nAt each monthly rebalance (about 31 minutes after the SPY open), the strategy estimates factor weights via a constrained optimization that chooses nonnegative weights on the standardized factors to maximize the universe level alignment between the factor composite score and the most recent 21 day trailing return. Securities with positive composite scores are held; position weights are proportional to the positive scores and normalized to 100 percent gross long exposure, with all other names excluded. The intended alpha source is adaptive, data driven weighting of factor signals based on their recent ability to explain cross sectional returns, with implicit risk control through long only exposure, monthly turnover, and diversification across the top SPY constituents.",
+    "tags": [
+      "Factor Model",
+      "Equity",
+      "Monthly Rebalance",
+      "Systematic"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 3.25,
+    "sharpe_1y": 1.9242,
+    "return_3m": 19.2739,
+    "return_oos_1y": 55.2514,
+    "sharpe_oos_1y": 1.9242,
+    "cagr_5y": 19.778,
+    "drawdown_5y": 35.7,
+    "psr_5y": 22.513,
+    "watchers": 6,
+    "clones": 12,
+    "clone_project_id": 27424374,
+    "backtest_id": "489a979055554c1afc723448713620d1",
+    "discussion_id": 19944,
+    "published_ts": 1732297106,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 108,
+    "backtestId": "489a979055554c1afc723448713620d1",
+    "name": "Adaptive Long-Only SPY Factor Tilt",
+    "author": {
+      "name": "Derek Melchin",
+      "organizationName": "QuantConnect",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/d06c9930192dcf31587397285.jpg",
+      "bio": "Quantitative Developer at QuantConnect. Studied Computer Science and Finance at the University of Lethbridge. Competitor in the 2020-1 Rotman International Trading Competitions. \nSee my latest posts at derekmelchin.com.",
+      "publicId": "derek-melchin",
+      "facebook": null,
+      "twitter": "https://twitter.com/DerekMelchin",
+      "linkedin": "https://www.linkedin.com/in/derek-melchin-b22753137/",
+      "web": "http://www.derekmelchin.com",
+      "topAuthor": false
+    },
+    "description": "The strategy is a long only, cross sectional factor tilt applied to large cap US equities, designed to exploit short horizon persistence in factor rewarded returns. The investable universe is the top N constituents of SPY by index weight, refreshed at the start of each month. For each stock the model computes daily factor scores using fundamental market capitalization and a trailing Sortino ratio over a 21 trading day lookback, then standardizes these signals into z scores across the universe to create comparable relative rankings.\n\nAt each monthly rebalance (about 31 minutes after the SPY open), the strategy estimates factor weights via a constrained optimization that chooses nonnegative weights on the standardized factors to maximize the universe level alignment between the factor composite score and the most recent 21 day trailing return. Securities with positive composite scores are held; position weights are proportional to the positive scores and normalized to 100 percent gross long exposure, with all other names excluded. The intended alpha source is adaptive, data driven weighting of factor signals based on their recent ability to explain cross sectional returns, with implicit risk control through long only exposure, monthly turnover, and diversification across the top SPY constituents.",
+    "cloneProjectId": 27424374,
+    "tags": [
+      "Factor Model",
+      "Equity",
+      "Monthly Rebalance",
+      "Systematic"
+    ],
+    "watchers": 6,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Nov 22, 2024",
+        "changes": [
+          "Initial release"
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Derek Melchin",
+    "organizationName": "QuantConnect",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771948800,
+          -0.1658
+        ],
+        [
+          1772031600,
+          1.1086
+        ],
+        [
+          1772118000,
+          -0.3355
+        ],
+        [
+          1772204400,
+          -2.1032
+        ],
+        [
+          1772254800,
+          -2.3915
+        ],
+        [
+          1772341200,
+          -2.3915
+        ],
+        [
+          1772467200,
+          -3.0792
+        ],
+        [
+          1772550000,
+          -4.1231
+        ],
+        [
+          1772636400,
+          -3.7184
+        ],
+        [
+          1772722800,
+          -3.9701
+        ],
+        [
+          1772809200,
+          -4.8931
+        ],
+        [
+          1772859600,
+          -4.5381
+        ],
+        [
+          1772946000,
+          -4.5381
+        ],
+        [
+          1773068400,
+          -4.4607
+        ],
+        [
+          1773151200,
+          -3.8347
+        ],
+        [
+          1773241200,
+          -2.8808
+        ],
+        [
+          1773324000,
+          -4.1264
+        ],
+        [
+          1773410400,
+          -3.329
+        ],
+        [
+          1773460800,
+          -4.6257
+        ],
+        [
+          1773547200,
+          -4.6257
+        ],
+        [
+          1773673200,
+          -3.6691
+        ],
+        [
+          1773756000,
+          -3.6716
+        ],
+        [
+          1773842400,
+          -4.2953
+        ],
+        [
+          1773928800,
+          -5.4502
+        ],
+        [
+          1774018800,
+          -6.107
+        ],
+        [
+          1774065600,
+          -6.5269
+        ],
+        [
+          1774152000,
+          -6.5269
+        ],
+        [
+          1774278000,
+          -5.5145
+        ],
+        [
+          1774360800,
+          -5.9988
+        ],
+        [
+          1774447200,
+          -5.7037
+        ],
+        [
+          1774533600,
+          -5.7762
+        ],
+        [
+          1774620000,
+          -6.552
+        ],
+        [
+          1774670400,
+          -7.3665
+        ],
+        [
+          1774756800,
+          -7.3665
+        ],
+        [
+          1774882800,
+          -6.9266
+        ],
+        [
+          1774965600,
+          -6.2012
+        ],
+        [
+          1775055600,
+          -4.9777
+        ],
+        [
+          1775138400,
+          -4.9847
+        ],
+        [
+          1775188800,
+          -4.9111
+        ],
+        [
+          1775275200,
+          -4.9111
+        ],
+        [
+          1775361600,
+          -4.9111
+        ],
+        [
+          1775487600,
+          -4.7084
+        ],
+        [
+          1775570400,
+          -4.1837
+        ],
+        [
+          1775656800,
+          -4.1769
+        ],
+        [
+          1775746800,
+          -3.0769
+        ],
+        [
+          1775829600,
+          -2.8914
+        ],
+        [
+          1775880000,
+          -3.0471
+        ],
+        [
+          1775966400,
+          -3.0471
+        ],
+        [
+          1776088800,
+          -2.9812
+        ],
+        [
+          1776175200,
+          -2.3435
+        ],
+        [
+          1776261600,
+          -1.5247
+        ],
+        [
+          1776348000,
+          -0.8206
+        ],
+        [
+          1776434400,
+          -1.3423
+        ],
+        [
+          1776484800,
+          -0.3989
+        ],
+        [
+          1776571200,
+          -0.3989
+        ],
+        [
+          1776693600,
+          -0.2426
+        ],
+        [
+          1776780000,
+          -0.4951
+        ],
+        [
+          1776866400,
+          -0.0457
+        ],
+        [
+          1776952800,
+          0.7101
+        ],
+        [
+          1777039200,
+          0.386
+        ],
+        [
+          1777089600,
+          1.4501
+        ],
+        [
+          1777176000,
+          1.4501
+        ],
+        [
+          1777298400,
+          2.103
+        ],
+        [
+          1777384800,
+          2.3232
+        ],
+        [
+          1777471200,
+          2.9774
+        ],
+        [
+          1777557600,
+          3.5996
+        ],
+        [
+          1777647600,
+          4.6657
+        ],
+        [
+          1777694400,
+          5.3621
+        ],
+        [
+          1777780800,
+          5.3621
+        ],
+        [
+          1777903200,
+          5.6499
+        ],
+        [
+          1777989600,
+          8.4979
+        ],
+        [
+          1778076000,
+          12.5618
+        ],
+        [
+          1778162400,
+          13.4818
+        ],
+        [
+          1778252400,
+          16.2412
+        ],
+        [
+          1778299200,
+          19.4686
+        ],
+        [
+          1778385600,
+          19.4686
+        ],
+        [
+          1778511600,
+          19.7436
+        ],
+        [
+          1778598000,
+          15.6603
+        ],
+        [
+          1778680800,
+          16.487
+        ],
+        [
+          1778767200,
+          17.2387
+        ],
+        [
+          1778857200,
+          13.3275
+        ],
+        [
+          1778904000,
+          13.2242
+        ],
+        [
+          1778990400,
+          13.2242
+        ],
+        [
+          1779112800,
+          14.5168
+        ],
+        [
+          1779202800,
+          9.4836
+        ],
+        [
+          1779285600,
+          14.507
+        ],
+        [
+          1779375600,
+          14.6582
+        ],
+        [
+          1779480000,
+          16.4215
+        ]
+      ],
+      "5y psr": 22.513,
+      "5y cagr": 19.778,
+      "1y sharpe": 1.9242,
+      "3m return": 19.2739,
+      "5y drawdown": 35.7,
+      "oos 1y return": 55.2514,
+      "oos 1y sharpe": 1.9242,
+      "oos 3m return": 19.2739,
+      "oos 3m sharpe": 3.2462
+    },
+    "rank": 0.32,
+    "clones": 12,
+    "comments": 0,
+    "leaderboard": 36,
+    "score": 3.25,
+    "discussionId": 19944,
+    "hot": false,
+    "owner": false,
+    "followers": [
+      {
+        "name": "Trader Ostburg",
+        "publicId": "trader-ostburg",
+        "profileImage": "5f70a39c30853661743949853.png"
+      },
+      {
+        "name": "Kal EL",
+        "publicId": "kal-el",
+        "profileImage": "4b5a245c8aef5f81768745280.png"
+      }
+    ],
+    "followersCount": 6,
+    "published": 1732297106
+  }
+}

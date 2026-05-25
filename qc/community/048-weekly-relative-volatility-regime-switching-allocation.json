@@ -1,0 +1,460 @@
+{
+  "summary": {
+    "rank": 48,
+    "leaderboard_position": 63,
+    "id": 137,
+    "name": "Weekly Relative-Volatility Regime Switching Allocation",
+    "author": "Taylor Robertson",
+    "author_public_id": "taylor_robertson_1",
+    "organization": "Taylor Robertson",
+    "description": "The strategy is a simple regime switching allocation that seeks to harvest equity upside via leveraged Nasdaq exposure while shifting into a more defensive mix when equity risk is elevated relative to Treasury risk. It compares realized volatility of QQQ versus TLT, where volatility is measured as the 100 day standard deviation of 100 day daily rate of change. When QQQ volatility is lower than TLT volatility (risk on), the portfolio holds 100 percent TQQQ (3x Nasdaq 100). When QQQ volatility is ",
+    "description_full": "The strategy is a simple regime switching allocation that seeks to harvest equity upside via leveraged Nasdaq exposure while shifting into a more defensive mix when equity risk is elevated relative to Treasury risk. It compares realized volatility of QQQ versus TLT, where volatility is measured as the 100 day standard deviation of 100 day daily rate of change. When QQQ volatility is lower than TLT volatility (risk on), the portfolio holds 100 percent TQQQ (3x Nasdaq 100). When QQQ volatility is higher than TLT volatility (risk off), the portfolio holds a diversified defensive allocation: 50 percent TQQQ, 25 percent TMF (leveraged long duration Treasuries), and 25 percent TYD (leveraged intermediate Treasuries).\n\nDecisions are made weekly at the start of the trading week, shortly after the equity market opens, and the portfolio is rebalanced to fixed target weights with no explicit stop loss, drawdown limit, or volatility scaling beyond the regime test. The edge is a cross asset relative volatility filter intended to avoid the worst equity regimes and benefit from the historical diversification and convexity of Treasuries during equity stress, implemented using daily return inputs while trading liquid US ETFs.",
+    "tags": [
+      "Regime Switching",
+      "Asset Allocation",
+      "Leveraged Etfs",
+      "Equity"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 2.1,
+    "sharpe_1y": 1.4374,
+    "return_3m": 17.1137,
+    "return_oos_1y": 51.6833,
+    "sharpe_oos_1y": 1.4374,
+    "cagr_5y": 7.817,
+    "drawdown_5y": 76.6,
+    "psr_5y": 3.565,
+    "watchers": 1,
+    "clones": 0,
+    "clone_project_id": 27568062,
+    "backtest_id": "bafb59e03aee4b05457034673799fcc5",
+    "discussion_id": 20024,
+    "published_ts": 1585410245,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 137,
+    "backtestId": "bafb59e03aee4b05457034673799fcc5",
+    "name": "Weekly Relative-Volatility Regime Switching Allocation",
+    "author": {
+      "name": "Taylor Robertson",
+      "organizationName": "Taylor Robertson",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/b9fb046d90bd5281586958879.jpg",
+      "bio": null,
+      "publicId": "taylor_robertson_1",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": null,
+      "web": null,
+      "topAuthor": false
+    },
+    "description": "The strategy is a simple regime switching allocation that seeks to harvest equity upside via leveraged Nasdaq exposure while shifting into a more defensive mix when equity risk is elevated relative to Treasury risk. It compares realized volatility of QQQ versus TLT, where volatility is measured as the 100 day standard deviation of 100 day daily rate of change. When QQQ volatility is lower than TLT volatility (risk on), the portfolio holds 100 percent TQQQ (3x Nasdaq 100). When QQQ volatility is higher than TLT volatility (risk off), the portfolio holds a diversified defensive allocation: 50 percent TQQQ, 25 percent TMF (leveraged long duration Treasuries), and 25 percent TYD (leveraged intermediate Treasuries).\n\nDecisions are made weekly at the start of the trading week, shortly after the equity market opens, and the portfolio is rebalanced to fixed target weights with no explicit stop loss, drawdown limit, or volatility scaling beyond the regime test. The edge is a cross asset relative volatility filter intended to avoid the worst equity regimes and benefit from the historical diversification and convexity of Treasuries during equity stress, implemented using daily return inputs while trading liquid US ETFs.",
+    "cloneProjectId": 27568062,
+    "tags": [
+      "Regime Switching",
+      "Asset Allocation",
+      "Leveraged Etfs",
+      "Equity"
+    ],
+    "watchers": 1,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Mar 28, 2020",
+        "changes": [
+          "Initial deployment for strategy &quot;Weekly Relative-Volatility Regime Switching Allocation&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Taylor Robertson",
+    "organizationName": "Taylor Robertson",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771945200,
+          0.1409
+        ],
+        [
+          1772031600,
+          2.6926
+        ],
+        [
+          1772118000,
+          2.3056
+        ],
+        [
+          1772204400,
+          1.0585
+        ],
+        [
+          1772254800,
+          1.8915
+        ],
+        [
+          1772341200,
+          1.8915
+        ],
+        [
+          1772467200,
+          0.3003
+        ],
+        [
+          1772550000,
+          -3.0898
+        ],
+        [
+          1772636400,
+          -0.2677
+        ],
+        [
+          1772722800,
+          0.5078
+        ],
+        [
+          1772809200,
+          -3.0259
+        ],
+        [
+          1772859600,
+          -2.8598
+        ],
+        [
+          1772946000,
+          -2.8598
+        ],
+        [
+          1773064800,
+          -4.6558
+        ],
+        [
+          1773151200,
+          -0.6815
+        ],
+        [
+          1773237600,
+          -1.088
+        ],
+        [
+          1773324000,
+          -4.5689
+        ],
+        [
+          1773410400,
+          -4.1398
+        ],
+        [
+          1773460800,
+          -6.7679
+        ],
+        [
+          1773547200,
+          -6.7679
+        ],
+        [
+          1773669600,
+          -3.894
+        ],
+        [
+          1773756000,
+          -3.0177
+        ],
+        [
+          1773842400,
+          -3.8309
+        ],
+        [
+          1773928800,
+          -6.8718
+        ],
+        [
+          1774015200,
+          -9.0554
+        ],
+        [
+          1774065600,
+          -10.7751
+        ],
+        [
+          1774152000,
+          -10.7751
+        ],
+        [
+          1774278000,
+          -7.43
+        ],
+        [
+          1774364400,
+          -10.1221
+        ],
+        [
+          1774450800,
+          -7.8064
+        ],
+        [
+          1774533600,
+          -9.6851
+        ],
+        [
+          1774620000,
+          -14.8035
+        ],
+        [
+          1774670400,
+          -15.5827
+        ],
+        [
+          1774756800,
+          -15.5827
+        ],
+        [
+          1774879200,
+          -14.4958
+        ],
+        [
+          1774965600,
+          -12.7262
+        ],
+        [
+          1775055600,
+          -8.7752
+        ],
+        [
+          1775138400,
+          -11.1062
+        ],
+        [
+          1775188800,
+          -8.8461
+        ],
+        [
+          1775275200,
+          -8.8461
+        ],
+        [
+          1775361600,
+          -8.8461
+        ],
+        [
+          1775484000,
+          -8.1007
+        ],
+        [
+          1775570400,
+          -9.8889
+        ],
+        [
+          1775656800,
+          -3.3281
+        ],
+        [
+          1775743200,
+          -4.3947
+        ],
+        [
+          1775829600,
+          -2.6838
+        ],
+        [
+          1775880000,
+          -2.9873
+        ],
+        [
+          1775966400,
+          -2.9873
+        ],
+        [
+          1776088800,
+          -2.7396
+        ],
+        [
+          1776175200,
+          -0.2139
+        ],
+        [
+          1776261600,
+          2.273
+        ],
+        [
+          1776348000,
+          3.5188
+        ],
+        [
+          1776434400,
+          6.4423
+        ],
+        [
+          1776484800,
+          7.0686
+        ],
+        [
+          1776571200,
+          7.0686
+        ],
+        [
+          1776693600,
+          6.7529
+        ],
+        [
+          1776780000,
+          6.9428
+        ],
+        [
+          1776866400,
+          7.0763
+        ],
+        [
+          1776952800,
+          7.7048
+        ],
+        [
+          1777039200,
+          8.194
+        ],
+        [
+          1777089600,
+          9.9643
+        ],
+        [
+          1777176000,
+          9.9643
+        ],
+        [
+          1777298400,
+          9.5441
+        ],
+        [
+          1777384800,
+          7.7449
+        ],
+        [
+          1777471200,
+          7.3083
+        ],
+        [
+          1777557600,
+          7.407
+        ],
+        [
+          1777647600,
+          11.3207
+        ],
+        [
+          1777694400,
+          11.0981
+        ],
+        [
+          1777780800,
+          11.0981
+        ],
+        [
+          1777903200,
+          10.9036
+        ],
+        [
+          1777989600,
+          11.8542
+        ],
+        [
+          1778076000,
+          15.3834
+        ],
+        [
+          1778162400,
+          17.7077
+        ],
+        [
+          1778248800,
+          19.6332
+        ],
+        [
+          1778299200,
+          20.8561
+        ],
+        [
+          1778385600,
+          20.8561
+        ],
+        [
+          1778508000,
+          20.3993
+        ],
+        [
+          1778594400,
+          17.9737
+        ],
+        [
+          1778680800,
+          17.9171
+        ],
+        [
+          1778767200,
+          20.7867
+        ],
+        [
+          1778853600,
+          15.9095
+        ],
+        [
+          1778904000,
+          16.2881
+        ],
+        [
+          1778990400,
+          16.2881
+        ],
+        [
+          1779112800,
+          16.6284
+        ],
+        [
+          1779199200,
+          13.5747
+        ],
+        [
+          1779285600,
+          14.6382
+        ],
+        [
+          1779372000,
+          16.2261
+        ],
+        [
+          1779480000,
+          19.3289
+        ]
+      ],
+      "5y psr": 3.565,
+      "5y cagr": 7.817,
+      "1y sharpe": 1.4374,
+      "3m return": 17.1137,
+      "5y drawdown": 76.6,
+      "oos 1y return": 51.6833,
+      "oos 1y sharpe": 1.4374,
+      "oos 3m return": 17.1137,
+      "oos 3m sharpe": 2.1026
+    },
+    "rank": 0,
+    "clones": 0,
+    "comments": 0,
+    "leaderboard": 63,
+    "score": 2.1,
+    "discussionId": 20024,
+    "hot": false,
+    "owner": false,
+    "followers": [],
+    "followersCount": 1,
+    "published": 1585410245
+  }
+}

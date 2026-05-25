@@ -1,0 +1,460 @@
+{
+  "summary": {
+    "rank": 26,
+    "leaderboard_position": 24,
+    "id": 313,
+    "name": "Large-Cap Quality Factor Stock Basket",
+    "author": "Jovad Uribe",
+    "author_public_id": "jovad-uribe",
+    "organization": "Jovad Uribe",
+    "description": "The strategy seeks to harvest an equity quality factor premium by holding a small, concentrated basket of large cap US stocks that score highly on balance sheet strength, profitability, disciplined leverage, and growth at a reasonable price. Each month it rebuilds a universe from US listed NYSE and NASDAQ equities that are mature (IPO older than roughly 2 years), very liquid, high priced, and mega or large cap (market cap at least 50 billion), then ranks the most liquid subset using a checklist ",
+    "description_full": "The strategy seeks to harvest an equity quality factor premium by holding a small, concentrated basket of large cap US stocks that score highly on balance sheet strength, profitability, disciplined leverage, and growth at a reasonable price. Each month it rebuilds a universe from US listed NYSE and NASDAQ equities that are mature (IPO older than roughly 2 years), very liquid, high priced, and mega or large cap (market cap at least 50 billion), then ranks the most liquid subset using a checklist of fundamental thresholds (liquidity ratios, debt and interest coverage, ROA and ROE, sustainable growth, free cash flow strength, and valuation via PEG). The intended edge is that financially robust, cash generative firms with controlled leverage and reasonable growth valuation tend to deliver persistent risk adjusted outperformance versus the broad market.\n\nOnce selected, the portfolio takes equal weight long positions in the top 10 names and maintains a structurally bullish stance with a fixed 30 day holding horizon signal. Decisions are made on a monthly schedule using fundamental data; there is no explicit price momentum filter despite the name, and no explicit stop loss, drawdown control, sector constraints, or dynamic risk scaling beyond equal weighting and the large cap liquidity and quality screens.",
+    "tags": [
+      "Quality",
+      "Fundamental",
+      "Equity",
+      "Swing"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 3.32,
+    "sharpe_1y": 1.2789,
+    "return_3m": 23.3873,
+    "return_oos_1y": 40.817,
+    "sharpe_oos_1y": 1.2789,
+    "cagr_5y": 18.106,
+    "drawdown_5y": 40.8,
+    "psr_5y": 17.315,
+    "watchers": 2,
+    "clones": 0,
+    "clone_project_id": 28359494,
+    "backtest_id": "545fcd40ff6d93d03e4a6fb09627abe2",
+    "discussion_id": 20248,
+    "published_ts": 1595833200,
+    "hot": false,
+    "top_author": true
+  },
+  "raw": {
+    "id": 313,
+    "backtestId": "545fcd40ff6d93d03e4a6fb09627abe2",
+    "name": "Large-Cap Quality Factor Stock Basket",
+    "author": {
+      "name": "Jovad Uribe",
+      "organizationName": "Jovad Uribe",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/ccc1ad8600a32d31595630724.jpg",
+      "bio": "My name is Jovad. I am a Data Science student at UIC. I also have a pet bunny named Bobby.",
+      "publicId": "jovad-uribe",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": "https://www.linkedin.com/in/jovad-uribe-9829b3166/",
+      "web": null,
+      "topAuthor": true
+    },
+    "description": "The strategy seeks to harvest an equity quality factor premium by holding a small, concentrated basket of large cap US stocks that score highly on balance sheet strength, profitability, disciplined leverage, and growth at a reasonable price. Each month it rebuilds a universe from US listed NYSE and NASDAQ equities that are mature (IPO older than roughly 2 years), very liquid, high priced, and mega or large cap (market cap at least 50 billion), then ranks the most liquid subset using a checklist of fundamental thresholds (liquidity ratios, debt and interest coverage, ROA and ROE, sustainable growth, free cash flow strength, and valuation via PEG). The intended edge is that financially robust, cash generative firms with controlled leverage and reasonable growth valuation tend to deliver persistent risk adjusted outperformance versus the broad market.\n\nOnce selected, the portfolio takes equal weight long positions in the top 10 names and maintains a structurally bullish stance with a fixed 30 day holding horizon signal. Decisions are made on a monthly schedule using fundamental data; there is no explicit price momentum filter despite the name, and no explicit stop loss, drawdown control, sector constraints, or dynamic risk scaling beyond equal weighting and the large cap liquidity and quality screens.",
+    "cloneProjectId": 28359494,
+    "tags": [
+      "Quality",
+      "Fundamental",
+      "Equity",
+      "Swing"
+    ],
+    "watchers": 2,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Jul 27, 2020",
+        "changes": [
+          "Initial deployment for strategy &quot;Large-Cap Quality Factor Stock Basket&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Jovad Uribe",
+    "organizationName": "Jovad Uribe",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771943460,
+          -1.7476
+        ],
+        [
+          1772029860,
+          0.4859
+        ],
+        [
+          1772116260,
+          0.1621
+        ],
+        [
+          1772202660,
+          -2.8341
+        ],
+        [
+          1772254800,
+          -1.8707
+        ],
+        [
+          1772341200,
+          -1.8707
+        ],
+        [
+          1772467020,
+          -3.0712
+        ],
+        [
+          1772548260,
+          -4.9587
+        ],
+        [
+          1772639820,
+          -1.9873
+        ],
+        [
+          1772726220,
+          -2.6959
+        ],
+        [
+          1772812620,
+          -4.2939
+        ],
+        [
+          1772859600,
+          -6.0879
+        ],
+        [
+          1772946000,
+          -6.0879
+        ],
+        [
+          1773068220,
+          -5.6504
+        ],
+        [
+          1773149460,
+          -2.3245
+        ],
+        [
+          1773241020,
+          -2.0531
+        ],
+        [
+          1773322260,
+          -3.0334
+        ],
+        [
+          1773408660,
+          -4.298
+        ],
+        [
+          1773460800,
+          -5.3351
+        ],
+        [
+          1773547200,
+          -5.3351
+        ],
+        [
+          1773673020,
+          -3.4469
+        ],
+        [
+          1773754260,
+          -2.3497
+        ],
+        [
+          1773840660,
+          -1.1725
+        ],
+        [
+          1773927060,
+          -4.8585
+        ],
+        [
+          1774013460,
+          -2.9223
+        ],
+        [
+          1774065600,
+          -5.0695
+        ],
+        [
+          1774152000,
+          -5.0695
+        ],
+        [
+          1774277820,
+          -2.6963
+        ],
+        [
+          1774359060,
+          -4.9362
+        ],
+        [
+          1774445460,
+          -5.693
+        ],
+        [
+          1774531860,
+          -7.7353
+        ],
+        [
+          1774618260,
+          -10.4962
+        ],
+        [
+          1774670400,
+          -11.4742
+        ],
+        [
+          1774756800,
+          -11.4742
+        ],
+        [
+          1774882620,
+          -12.9258
+        ],
+        [
+          1774963860,
+          -12.8975
+        ],
+        [
+          1775055420,
+          -6.8043
+        ],
+        [
+          1775136660,
+          -9.5626
+        ],
+        [
+          1775188800,
+          -7.0422
+        ],
+        [
+          1775275200,
+          -7.0422
+        ],
+        [
+          1775361600,
+          -7.0422
+        ],
+        [
+          1775482260,
+          -6.0591
+        ],
+        [
+          1775568660,
+          -5.8045
+        ],
+        [
+          1775655060,
+          0.6206
+        ],
+        [
+          1775741460,
+          0.5216
+        ],
+        [
+          1775827860,
+          2.2084
+        ],
+        [
+          1775880000,
+          2.2539
+        ],
+        [
+          1775966400,
+          2.2539
+        ],
+        [
+          1776087060,
+          2.3457
+        ],
+        [
+          1776173460,
+          5.3564
+        ],
+        [
+          1776259860,
+          7.6729
+        ],
+        [
+          1776346260,
+          9.1435
+        ],
+        [
+          1776432660,
+          10.9286
+        ],
+        [
+          1776484800,
+          11.1869
+        ],
+        [
+          1776571200,
+          11.1869
+        ],
+        [
+          1776691860,
+          11.5353
+        ],
+        [
+          1776778260,
+          10.3157
+        ],
+        [
+          1776864660,
+          12.7114
+        ],
+        [
+          1776951060,
+          12.9999
+        ],
+        [
+          1777037460,
+          15.8889
+        ],
+        [
+          1777089600,
+          16.8878
+        ],
+        [
+          1777176000,
+          16.8878
+        ],
+        [
+          1777296660,
+          16.938
+        ],
+        [
+          1777383060,
+          13.2122
+        ],
+        [
+          1777469460,
+          15.7905
+        ],
+        [
+          1777555860,
+          17.5777
+        ],
+        [
+          1777647420,
+          18.0724
+        ],
+        [
+          1777694400,
+          19.2446
+        ],
+        [
+          1777780800,
+          19.2446
+        ],
+        [
+          1777901460,
+          19.9986
+        ],
+        [
+          1777987860,
+          22.7548
+        ],
+        [
+          1778074260,
+          25.2891
+        ],
+        [
+          1778160660,
+          26.4234
+        ],
+        [
+          1778247060,
+          25.5283
+        ],
+        [
+          1778299200,
+          27.4736
+        ],
+        [
+          1778385600,
+          27.4736
+        ],
+        [
+          1778506260,
+          28.0588
+        ],
+        [
+          1778592660,
+          26.0807
+        ],
+        [
+          1778679060,
+          26.8942
+        ],
+        [
+          1778765460,
+          26.0902
+        ],
+        [
+          1778857020,
+          24.405
+        ],
+        [
+          1778904000,
+          24.3255
+        ],
+        [
+          1778990400,
+          24.3255
+        ],
+        [
+          1779116220,
+          22.0642
+        ],
+        [
+          1779197460,
+          20.6614
+        ],
+        [
+          1779283860,
+          21.3183
+        ],
+        [
+          1779375420,
+          20.6138
+        ],
+        [
+          1779480000,
+          21.0791
+        ]
+      ],
+      "5y psr": 17.315,
+      "5y cagr": 18.106,
+      "1y sharpe": 1.2789,
+      "3m return": 23.3873,
+      "5y drawdown": 40.8,
+      "oos 1y return": 40.817,
+      "oos 1y sharpe": 1.2789,
+      "oos 3m return": 23.3873,
+      "oos 3m sharpe": 3.318
+    },
+    "rank": 999999,
+    "clones": 0,
+    "comments": 0,
+    "leaderboard": 24,
+    "score": 3.32,
+    "discussionId": 20248,
+    "hot": false,
+    "owner": false,
+    "followers": [],
+    "followersCount": 2,
+    "published": 1595833200
+  }
+}

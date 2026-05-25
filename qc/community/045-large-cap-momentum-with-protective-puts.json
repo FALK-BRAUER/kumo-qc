@@ -1,0 +1,478 @@
+{
+  "summary": {
+    "rank": 45,
+    "leaderboard_position": 43,
+    "id": 64,
+    "name": "Large-Cap Momentum with Protective Puts",
+    "author": "AlMoJo",
+    "author_public_id": "almojo_1",
+    "organization": "Ya1",
+    "description": "The strategy seeks to capture global large cap equity momentum while systematically limiting downside via a rolling protective put overlay. Each month it forms a concentrated equity sleeve by screening liquid stocks with fundamental coverage, selecting the 35 largest by market capitalization, then ranking them by 12 month rate of change and retaining the top 5. The intended edge is cross sectional momentum among mega and large cap equities, targeting persistent relative strength in broadly follo",
+    "description_full": "The strategy seeks to capture global large cap equity momentum while systematically limiting downside via a rolling protective put overlay. Each month it forms a concentrated equity sleeve by screening liquid stocks with fundamental coverage, selecting the 35 largest by market capitalization, then ranking them by 12 month rate of change and retaining the top 5. The intended edge is cross sectional momentum among mega and large cap equities, targeting persistent relative strength in broadly followed, liquid names.\n\nPositions are refreshed at the start of each month (approximately 60 minutes after the US equity open) using daily data for signal formation. The portfolio is fully liquidated and rebuilt at each rebalance. For each selected stock, the strategy buys a protective put option with roughly 29 to 36 days to expiry and an option delta closest to negative 0.40, creating a defined risk profile intended to mitigate equity drawdowns while remaining long the underlying equity exposure. Position sizing is implicit and uniform at one protective put structure per selected name; risk control is primarily through the put hedge and frequent monthly reconstitution rather than volatility targeting or explicit gross/net exposure limits.",
+    "tags": [
+      "Momentum",
+      "Equity",
+      "Options",
+      "Swing"
+    ],
+    "asset_classes": [
+      "Option",
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 2.31,
+    "sharpe_1y": -0.4745,
+    "return_3m": 5.3622,
+    "return_oos_1y": null,
+    "sharpe_oos_1y": null,
+    "cagr_5y": 4.898,
+    "drawdown_5y": 7.1,
+    "psr_5y": 33.094,
+    "watchers": 4,
+    "clones": 9,
+    "clone_project_id": 27144697,
+    "backtest_id": "a4d59e45b409814b1ba14022162311f3",
+    "discussion_id": 19942,
+    "published_ts": 1752217692,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 64,
+    "backtestId": "a4d59e45b409814b1ba14022162311f3",
+    "name": "Large-Cap Momentum with Protective Puts",
+    "author": {
+      "name": "AlMoJo",
+      "organizationName": "Ya1",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/default.jpg",
+      "bio": null,
+      "publicId": "almojo_1",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": null,
+      "web": null,
+      "topAuthor": false
+    },
+    "description": "The strategy seeks to capture global large cap equity momentum while systematically limiting downside via a rolling protective put overlay. Each month it forms a concentrated equity sleeve by screening liquid stocks with fundamental coverage, selecting the 35 largest by market capitalization, then ranking them by 12 month rate of change and retaining the top 5. The intended edge is cross sectional momentum among mega and large cap equities, targeting persistent relative strength in broadly followed, liquid names.\n\nPositions are refreshed at the start of each month (approximately 60 minutes after the US equity open) using daily data for signal formation. The portfolio is fully liquidated and rebuilt at each rebalance. For each selected stock, the strategy buys a protective put option with roughly 29 to 36 days to expiry and an option delta closest to negative 0.40, creating a defined risk profile intended to mitigate equity drawdowns while remaining long the underlying equity exposure. Position sizing is implicit and uniform at one protective put structure per selected name; risk control is primarily through the put hedge and frequent monthly reconstitution rather than volatility targeting or explicit gross/net exposure limits.",
+    "cloneProjectId": 27144697,
+    "tags": [
+      "Momentum",
+      "Equity",
+      "Options",
+      "Swing"
+    ],
+    "watchers": 4,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Jul 11, 2025",
+        "changes": [
+          "Initial deployment for strategy &quot;Large-Cap Momentum with Protective Puts&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "AlMoJo",
+    "organizationName": "Ya1",
+    "research": null,
+    "assetClasses": [
+      "Option",
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771932600,
+          -0.1006
+        ],
+        [
+          1772019000,
+          0.0088
+        ],
+        [
+          1772105400,
+          0.0871
+        ],
+        [
+          1772191800,
+          -0.2365
+        ],
+        [
+          1772254800,
+          -0.3789
+        ],
+        [
+          1772341200,
+          -0.3789
+        ],
+        [
+          1772467020,
+          -0.4443
+        ],
+        [
+          1772537400,
+          -0.3268
+        ],
+        [
+          1772639820,
+          -0.5181
+        ],
+        [
+          1772710200,
+          -0.5729
+        ],
+        [
+          1772812620,
+          -0.8263
+        ],
+        [
+          1772859600,
+          -0.9885
+        ],
+        [
+          1772946000,
+          -0.9885
+        ],
+        [
+          1773052200,
+          -0.9885
+        ],
+        [
+          1773138600,
+          -0.8499
+        ],
+        [
+          1773225000,
+          -0.7177
+        ],
+        [
+          1773311400,
+          -0.6743
+        ],
+        [
+          1773397800,
+          -0.8425
+        ],
+        [
+          1773460800,
+          -0.7775
+        ],
+        [
+          1773547200,
+          -0.7775
+        ],
+        [
+          1773657000,
+          -0.7775
+        ],
+        [
+          1773743400,
+          -0.6942
+        ],
+        [
+          1773829800,
+          -0.6069
+        ],
+        [
+          1773916200,
+          -0.6257
+        ],
+        [
+          1774002600,
+          -0.7334
+        ],
+        [
+          1774065600,
+          -0.9017
+        ],
+        [
+          1774152000,
+          -0.9017
+        ],
+        [
+          1774261800,
+          -0.9017
+        ],
+        [
+          1774348200,
+          -0.9972
+        ],
+        [
+          1774434600,
+          -0.9164
+        ],
+        [
+          1774521000,
+          -0.9124
+        ],
+        [
+          1774607400,
+          -1.2309
+        ],
+        [
+          1774670400,
+          -1.2803
+        ],
+        [
+          1774756800,
+          -1.2803
+        ],
+        [
+          1774882620,
+          -1.348
+        ],
+        [
+          1774953000,
+          -1.3847
+        ],
+        [
+          1775055420,
+          -1.2136
+        ],
+        [
+          1775141820,
+          -1.2888
+        ],
+        [
+          1775188800,
+          -1.3491
+        ],
+        [
+          1775275200,
+          -1.3491
+        ],
+        [
+          1775361600,
+          -1.3491
+        ],
+        [
+          1775471400,
+          -1.3491
+        ],
+        [
+          1775557800,
+          -1.2406
+        ],
+        [
+          1775644200,
+          -1.1978
+        ],
+        [
+          1775730600,
+          -0.4693
+        ],
+        [
+          1775817000,
+          -0.1317
+        ],
+        [
+          1775880000,
+          -0.0499
+        ],
+        [
+          1775966400,
+          -0.0499
+        ],
+        [
+          1776076200,
+          -0.0499
+        ],
+        [
+          1776162600,
+          -0.0322
+        ],
+        [
+          1776249000,
+          0.3501
+        ],
+        [
+          1776335400,
+          0.1143
+        ],
+        [
+          1776421800,
+          0.2574
+        ],
+        [
+          1776484800,
+          0.4402
+        ],
+        [
+          1776571200,
+          0.4402
+        ],
+        [
+          1776697020,
+          0.2388
+        ],
+        [
+          1776767400,
+          0.3522
+        ],
+        [
+          1776853800,
+          0.4912
+        ],
+        [
+          1776940200,
+          1.0938
+        ],
+        [
+          1777026600,
+          1.261
+        ],
+        [
+          1777089600,
+          1.8082
+        ],
+        [
+          1777176000,
+          1.8082
+        ],
+        [
+          1777285800,
+          1.8082
+        ],
+        [
+          1777372200,
+          1.793
+        ],
+        [
+          1777458600,
+          1.2568
+        ],
+        [
+          1777545000,
+          1.4389
+        ],
+        [
+          1777647420,
+          2.3561
+        ],
+        [
+          1777694400,
+          2.478
+        ],
+        [
+          1777780800,
+          2.478
+        ],
+        [
+          1777890600,
+          2.478
+        ],
+        [
+          1777977000,
+          2.4688
+        ],
+        [
+          1778063400,
+          3.3573
+        ],
+        [
+          1778149800,
+          4.2544
+        ],
+        [
+          1778252220,
+          4.5216
+        ],
+        [
+          1778299200,
+          5.015
+        ],
+        [
+          1778385600,
+          5.015
+        ],
+        [
+          1778495400,
+          5.015
+        ],
+        [
+          1778581800,
+          5.6593
+        ],
+        [
+          1778668200,
+          5.14
+        ],
+        [
+          1778754600,
+          5.3776
+        ],
+        [
+          1778841000,
+          5.2758
+        ],
+        [
+          1778904000,
+          4.2868
+        ],
+        [
+          1778990400,
+          4.2868
+        ],
+        [
+          1779100200,
+          4.2868
+        ],
+        [
+          1779186600,
+          3.7488
+        ],
+        [
+          1779273000,
+          3.7831
+        ],
+        [
+          1779359400,
+          4.5407
+        ],
+        [
+          1779480000,
+          4.9629
+        ]
+      ],
+      "5y psr": 33.094,
+      "5y cagr": 4.898,
+      "1y sharpe": -0.4745,
+      "3m return": 5.3622,
+      "5y drawdown": 7.1,
+      "oos 1y return": null,
+      "oos 1y sharpe": null,
+      "oos 3m return": 5.3622,
+      "oos 3m sharpe": 2.3052
+    },
+    "rank": -0.04,
+    "clones": 9,
+    "comments": 0,
+    "leaderboard": 43,
+    "score": 2.31,
+    "discussionId": 19942,
+    "hot": false,
+    "owner": false,
+    "followers": [
+      {
+        "name": "Chao Zhang",
+        "publicId": "chao-zhang_2",
+        "profileImage": "9fb2906c36cc9e21758547305.png"
+      },
+      {
+        "name": "Marcus Zheng",
+        "publicId": "marcus-zheng",
+        "profileImage": "53a5c2d28330ad11762053276.png"
+      },
+      {
+        "name": "Şafak Ulusoy",
+        "publicId": "safak-ulusoy",
+        "profileImage": "b4f4f78761bb2011766931170.png"
+      }
+    ],
+    "followersCount": 4,
+    "published": 1752217692
+  }
+}

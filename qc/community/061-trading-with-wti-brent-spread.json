@@ -1,0 +1,464 @@
+{
+  "summary": {
+    "rank": 61,
+    "leaderboard_position": 52,
+    "id": 36,
+    "name": "Trading with WTI BRENT Spread",
+    "author": "Jing Wu",
+    "author_public_id": "jing_wu_1",
+    "organization": "Jing Wu",
+    "description": "This is a dollar-neutral spread strategy in crude oil that trades the WTI Brent differential via two oil price CFDs (WTICOUSD and BCOUSD). The core signal assumes the spread exhibits short-term mean reversion around a slowly varying reference level: when the current spread is above its trailing 20-day average, the strategy positions for spread reversion by shorting WTI and buying Brent. When the spread is below the 20-day average, it buys WTI and shorts Brent. The intended opportunity is a mispr",
+    "description_full": "This is a dollar-neutral spread strategy in crude oil that trades the WTI Brent differential via two oil price CFDs (WTICOUSD and BCOUSD). The core signal assumes the spread exhibits short-term mean reversion around a slowly varying reference level: when the current spread is above its trailing 20-day average, the strategy positions for spread reversion by shorting WTI and buying Brent. When the spread is below the 20-day average, it buys WTI and shorts Brent. The intended opportunity is a mispricing between two crude benchmarks, with the edge coming from reversion of the spread toward its central tendency.",
+    "tags": [
+      "Pairs Trading",
+      "Mean Reversion",
+      "Commodities",
+      "Swing"
+    ],
+    "asset_classes": [
+      "Cfd"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 1.78,
+    "sharpe_1y": 0.4258,
+    "return_3m": 18.749,
+    "return_oos_1y": 14.2328,
+    "sharpe_oos_1y": 0.4258,
+    "cagr_5y": 2.265,
+    "drawdown_5y": 15,
+    "psr_5y": 1.58,
+    "watchers": 0,
+    "clones": 2,
+    "clone_project_id": 26894436,
+    "backtest_id": "90c11d51d144c9c9d50a6f1bf5bb31b8",
+    "discussion_id": 19988,
+    "published_ts": 1522603320,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 36,
+    "backtestId": "90c11d51d144c9c9d50a6f1bf5bb31b8",
+    "name": "Trading with WTI BRENT Spread",
+    "author": {
+      "name": "Jing Wu",
+      "organizationName": "Jing Wu",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/11e766258dae69d1498233757.jpg",
+      "bio": "Quant Developer",
+      "publicId": "jing_wu_1",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": null,
+      "web": null,
+      "topAuthor": false
+    },
+    "description": "This is a dollar-neutral spread strategy in crude oil that trades the WTI Brent differential via two oil price CFDs (WTICOUSD and BCOUSD). The core signal assumes the spread exhibits short-term mean reversion around a slowly varying reference level: when the current spread is above its trailing 20-day average, the strategy positions for spread reversion by shorting WTI and buying Brent. When the spread is below the 20-day average, it buys WTI and shorts Brent. The intended opportunity is a mispricing between two crude benchmarks, with the edge coming from reversion of the spread toward its central tendency.",
+    "cloneProjectId": 26894436,
+    "tags": [
+      "Pairs Trading",
+      "Mean Reversion",
+      "Commodities",
+      "Swing"
+    ],
+    "watchers": 0,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Apr 01, 2018",
+        "changes": [
+          "Initial version.     "
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Jing Wu",
+    "organizationName": "Jing Wu",
+    "research": null,
+    "assetClasses": [
+      "Cfd"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771945200,
+          0.2921
+        ],
+        [
+          1772031600,
+          0.1787
+        ],
+        [
+          1772118000,
+          -0.015
+        ],
+        [
+          1772204400,
+          -0.3196
+        ],
+        [
+          1772254800,
+          -0.3366
+        ],
+        [
+          1772341200,
+          -0.3366
+        ],
+        [
+          1772463600,
+          3.273
+        ],
+        [
+          1772550000,
+          -1.0578
+        ],
+        [
+          1772636400,
+          -0.3107
+        ],
+        [
+          1772722800,
+          -0.4034
+        ],
+        [
+          1772809200,
+          1.007
+        ],
+        [
+          1772859600,
+          -1.4011
+        ],
+        [
+          1773010800,
+          -1.4011
+        ],
+        [
+          1773064800,
+          -1.4011
+        ],
+        [
+          1773151200,
+          7.4325
+        ],
+        [
+          1773237600,
+          7.2873
+        ],
+        [
+          1773324000,
+          10.0614
+        ],
+        [
+          1773410400,
+          9.9559
+        ],
+        [
+          1773460800,
+          9.882
+        ],
+        [
+          1773547200,
+          9.882
+        ],
+        [
+          1773669600,
+          9.7054
+        ],
+        [
+          1773756000,
+          9.4872
+        ],
+        [
+          1773842400,
+          8.9677
+        ],
+        [
+          1773928800,
+          7.7117
+        ],
+        [
+          1774015200,
+          6.3569
+        ],
+        [
+          1774065600,
+          6.6279
+        ],
+        [
+          1774152000,
+          6.6279
+        ],
+        [
+          1774274400,
+          6.847
+        ],
+        [
+          1774360800,
+          7.6882
+        ],
+        [
+          1774447200,
+          7.5409
+        ],
+        [
+          1774533600,
+          7.5518
+        ],
+        [
+          1774620000,
+          7.297
+        ],
+        [
+          1774670400,
+          8.501
+        ],
+        [
+          1774756800,
+          8.501
+        ],
+        [
+          1774879200,
+          9.4148
+        ],
+        [
+          1774965600,
+          10.3004
+        ],
+        [
+          1775052000,
+          10.1993
+        ],
+        [
+          1775138400,
+          10.0787
+        ],
+        [
+          1775188800,
+          7.6833
+        ],
+        [
+          1775275200,
+          7.6833
+        ],
+        [
+          1775361600,
+          7.6833
+        ],
+        [
+          1775484000,
+          6.4711
+        ],
+        [
+          1775570400,
+          6.8115
+        ],
+        [
+          1775656800,
+          13.0344
+        ],
+        [
+          1775743200,
+          17.0261
+        ],
+        [
+          1775829600,
+          15.913
+        ],
+        [
+          1775880000,
+          16.4646
+        ],
+        [
+          1775966400,
+          16.4646
+        ],
+        [
+          1776088800,
+          11.0011
+        ],
+        [
+          1776175200,
+          17.9588
+        ],
+        [
+          1776261600,
+          19.8942
+        ],
+        [
+          1776348000,
+          20.5509
+        ],
+        [
+          1776434400,
+          20.0269
+        ],
+        [
+          1776484800,
+          19.8392
+        ],
+        [
+          1776571200,
+          19.8392
+        ],
+        [
+          1776693600,
+          23.1309
+        ],
+        [
+          1776780000,
+          20.0701
+        ],
+        [
+          1776866400,
+          19.8284
+        ],
+        [
+          1776952800,
+          19.6968
+        ],
+        [
+          1777039200,
+          19.8726
+        ],
+        [
+          1777089600,
+          18.8531
+        ],
+        [
+          1777176000,
+          18.8531
+        ],
+        [
+          1777298400,
+          19.5756
+        ],
+        [
+          1777384800,
+          18.7917
+        ],
+        [
+          1777471200,
+          19.1094
+        ],
+        [
+          1777557600,
+          19.6914
+        ],
+        [
+          1777644000,
+          19.1776
+        ],
+        [
+          1777694400,
+          18.4052
+        ],
+        [
+          1777780800,
+          18.4052
+        ],
+        [
+          1777903200,
+          17.7303
+        ],
+        [
+          1777989600,
+          16.851
+        ],
+        [
+          1778076000,
+          15.8047
+        ],
+        [
+          1778162400,
+          18.6106
+        ],
+        [
+          1778248800,
+          18.3881
+        ],
+        [
+          1778299200,
+          18.828
+        ],
+        [
+          1778385600,
+          18.828
+        ],
+        [
+          1778508000,
+          21.4224
+        ],
+        [
+          1778594400,
+          18.5665
+        ],
+        [
+          1778680800,
+          19.2897
+        ],
+        [
+          1778767200,
+          19.2095
+        ],
+        [
+          1778853600,
+          19.1185
+        ],
+        [
+          1778904000,
+          19.1185
+        ],
+        [
+          1778990400,
+          19.1185
+        ],
+        [
+          1779112800,
+          18.4598
+        ],
+        [
+          1779199200,
+          18.0541
+        ],
+        [
+          1779285600,
+          17.9414
+        ],
+        [
+          1779372000,
+          17.868
+        ],
+        [
+          1779458400,
+          18.3494
+        ],
+        [
+          1779508800,
+          18.3494
+        ]
+      ],
+      "5y psr": 1.58,
+      "5y cagr": 2.265,
+      "1y sharpe": 0.4258,
+      "3m return": 18.749,
+      "5y drawdown": 15,
+      "oos 1y return": 14.2328,
+      "oos 1y sharpe": 0.4258,
+      "oos 3m return": 18.749,
+      "oos 3m sharpe": 1.7831
+    },
+    "rank": 0,
+    "clones": 2,
+    "comments": 0,
+    "leaderboard": 52,
+    "score": 1.78,
+    "discussionId": 19988,
+    "hot": false,
+    "owner": false,
+    "followers": [],
+    "followersCount": 0,
+    "published": 1522603320
+  }
+}

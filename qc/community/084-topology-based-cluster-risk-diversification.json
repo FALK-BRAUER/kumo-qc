@@ -1,0 +1,480 @@
+{
+  "summary": {
+    "rank": 84,
+    "leaderboard_position": 74,
+    "id": 67,
+    "name": "Topology-Based Cluster Risk Diversification",
+    "author": "Louis Szeto",
+    "author_public_id": "louis-szeto_1",
+    "organization": "Louis Szeto Quant",
+    "description": "The strategy seeks equity diversification and risk-adjusted outperformance by exploiting the evolving cross-sectional dependence structure of large-cap US equities. It builds a topology-based relationship graph from daily log returns of the largest SPY constituents (top 200 by index weight) over a rolling historical lookback window, projecting returns into a low-dimensional manifold and clustering securities using correlation distance. The core alpha thesis is that allocating capital across dist",
+    "description_full": "The strategy seeks equity diversification and risk-adjusted outperformance by exploiting the evolving cross-sectional dependence structure of large-cap US equities. It builds a topology-based relationship graph from daily log returns of the largest SPY constituents (top 200 by index weight) over a rolling historical lookback window, projecting returns into a low-dimensional manifold and clustering securities using correlation distance. The core alpha thesis is that allocating capital across distinct, persistent connectivity regimes (clusters) and de-emphasizing noisy, weakly connected names improves diversification versus naive market-cap or equal weighting and adapts to changing correlation structure.\n\nThe investable universe is SPY constituents only, with decisions made on daily data; the topology and clustering are recalibrated periodically (approximately every few months, parameterized). Portfolio construction assigns capital first across clusters and then within clusters using a hierarchical equal-risk style heuristic: each cluster receives similar budget, with progressively smaller allocations to deeper/secondary cluster groupings; securities not belonging to identified clusters (outliers/noise) are effectively excluded. The portfolio is rebalanced each trading day shortly after the open to the latest cluster-derived weights, with full liquidation of prior holdings implied at each rebalance.",
+    "tags": [
+      "Equity",
+      "Stat Arb",
+      "Clustering",
+      "Swing"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 1.04,
+    "sharpe_1y": 1.2797,
+    "return_3m": 5.4092,
+    "return_oos_1y": 24.4396,
+    "sharpe_oos_1y": 1.2797,
+    "cagr_5y": 11.916,
+    "drawdown_5y": 20.9,
+    "psr_5y": 18.08,
+    "watchers": 7,
+    "clones": 13,
+    "clone_project_id": 27146137,
+    "backtest_id": "23c75bb62d1b8f4869c29ee75479a267",
+    "discussion_id": 19984,
+    "published_ts": 1744983101,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 67,
+    "backtestId": "23c75bb62d1b8f4869c29ee75479a267",
+    "name": "Topology-Based Cluster Risk Diversification",
+    "author": {
+      "name": "Louis Szeto",
+      "organizationName": "Louis Szeto Quant",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/9fd3a41ea8dc8e01588347412.jpg",
+      "bio": "Associate of the Society of Actuaries. MSc Actuarial Science; MSc Financial Engineering. Former QC Quant Dev.",
+      "publicId": "louis-szeto_1",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": "https://www.linkedin.com/in/louis-szeto-9a77671b7/",
+      "web": null,
+      "topAuthor": false
+    },
+    "description": "The strategy seeks equity diversification and risk-adjusted outperformance by exploiting the evolving cross-sectional dependence structure of large-cap US equities. It builds a topology-based relationship graph from daily log returns of the largest SPY constituents (top 200 by index weight) over a rolling historical lookback window, projecting returns into a low-dimensional manifold and clustering securities using correlation distance. The core alpha thesis is that allocating capital across distinct, persistent connectivity regimes (clusters) and de-emphasizing noisy, weakly connected names improves diversification versus naive market-cap or equal weighting and adapts to changing correlation structure.\n\nThe investable universe is SPY constituents only, with decisions made on daily data; the topology and clustering are recalibrated periodically (approximately every few months, parameterized). Portfolio construction assigns capital first across clusters and then within clusters using a hierarchical equal-risk style heuristic: each cluster receives similar budget, with progressively smaller allocations to deeper/secondary cluster groupings; securities not belonging to identified clusters (outliers/noise) are effectively excluded. The portfolio is rebalanced each trading day shortly after the open to the latest cluster-derived weights, with full liquidation of prior holdings implied at each rebalance.",
+    "cloneProjectId": 27146137,
+    "tags": [
+      "Equity",
+      "Stat Arb",
+      "Clustering",
+      "Swing"
+    ],
+    "watchers": 7,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Apr 18, 2025",
+        "changes": [
+          "Initial deployment for strategy &quot;Topology-Based Cluster Risk Diversification&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Louis Szeto",
+    "organizationName": "Louis Szeto Quant",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771948620,
+          0.5045
+        ],
+        [
+          1772035020,
+          0.7359
+        ],
+        [
+          1772121420,
+          1.5374
+        ],
+        [
+          1772207820,
+          1.2784
+        ],
+        [
+          1772254800,
+          1.9892
+        ],
+        [
+          1772341200,
+          1.9892
+        ],
+        [
+          1772467020,
+          1.7239
+        ],
+        [
+          1772553420,
+          -0.157
+        ],
+        [
+          1772639820,
+          1.6594
+        ],
+        [
+          1772726220,
+          1.0296
+        ],
+        [
+          1772812620,
+          -0.0143
+        ],
+        [
+          1772859600,
+          0.0509
+        ],
+        [
+          1772946000,
+          0.0509
+        ],
+        [
+          1773068220,
+          -1.023
+        ],
+        [
+          1773154620,
+          0.0607
+        ],
+        [
+          1773241020,
+          -0.4589
+        ],
+        [
+          1773327420,
+          -1.9088
+        ],
+        [
+          1773413820,
+          -2.19
+        ],
+        [
+          1773460800,
+          -2.2163
+        ],
+        [
+          1773547200,
+          -2.2163
+        ],
+        [
+          1773673020,
+          -1.0139
+        ],
+        [
+          1773759420,
+          -0.2688
+        ],
+        [
+          1773845820,
+          -0.6701
+        ],
+        [
+          1773932220,
+          -1.7248
+        ],
+        [
+          1774018620,
+          -1.6217
+        ],
+        [
+          1774065600,
+          -1.9902
+        ],
+        [
+          1774152000,
+          -1.9902
+        ],
+        [
+          1774277820,
+          0.0403
+        ],
+        [
+          1774364220,
+          -0.1353
+        ],
+        [
+          1774450620,
+          0.4028
+        ],
+        [
+          1774537020,
+          -0.713
+        ],
+        [
+          1774623420,
+          -1.4128
+        ],
+        [
+          1774670400,
+          -2.2857
+        ],
+        [
+          1774756800,
+          -2.2857
+        ],
+        [
+          1774882620,
+          -2.5614
+        ],
+        [
+          1774969020,
+          -2.6148
+        ],
+        [
+          1775055420,
+          0.2061
+        ],
+        [
+          1775141820,
+          0.0738
+        ],
+        [
+          1775188800,
+          -0.1325
+        ],
+        [
+          1775275200,
+          -0.1325
+        ],
+        [
+          1775361600,
+          -0.1325
+        ],
+        [
+          1775487420,
+          0.0168
+        ],
+        [
+          1775573820,
+          -0.0728
+        ],
+        [
+          1775660220,
+          2.2438
+        ],
+        [
+          1775746620,
+          3.7266
+        ],
+        [
+          1775833020,
+          3.6257
+        ],
+        [
+          1775880000,
+          3.425
+        ],
+        [
+          1775966400,
+          3.425
+        ],
+        [
+          1776087060,
+          3.4136
+        ],
+        [
+          1776178620,
+          4.4119
+        ],
+        [
+          1776265020,
+          3.6975
+        ],
+        [
+          1776351420,
+          3.9409
+        ],
+        [
+          1776437820,
+          4.7485
+        ],
+        [
+          1776484800,
+          4.7774
+        ],
+        [
+          1776571200,
+          4.7774
+        ],
+        [
+          1776697020,
+          4.8741
+        ],
+        [
+          1776783420,
+          4.5307
+        ],
+        [
+          1776869820,
+          4.2161
+        ],
+        [
+          1776956220,
+          4.8377
+        ],
+        [
+          1777042620,
+          4.2943
+        ],
+        [
+          1777089600,
+          4.2185
+        ],
+        [
+          1777176000,
+          4.2185
+        ],
+        [
+          1777301820,
+          4.1622
+        ],
+        [
+          1777388220,
+          3.0411
+        ],
+        [
+          1777474620,
+          3.8666
+        ],
+        [
+          1777561020,
+          5.2429
+        ],
+        [
+          1777647420,
+          5.3263
+        ],
+        [
+          1777694400,
+          4.9426
+        ],
+        [
+          1777780800,
+          4.9426
+        ],
+        [
+          1777906620,
+          5.2916
+        ],
+        [
+          1777993020,
+          5.5794
+        ],
+        [
+          1778079420,
+          6.873
+        ],
+        [
+          1778165820,
+          5.5071
+        ],
+        [
+          1778252220,
+          5.8101
+        ],
+        [
+          1778299200,
+          5.4094
+        ],
+        [
+          1778385600,
+          5.4094
+        ],
+        [
+          1778511420,
+          6.4559
+        ],
+        [
+          1778597820,
+          5.7032
+        ],
+        [
+          1778684220,
+          6.1858
+        ],
+        [
+          1778770620,
+          6.6607
+        ],
+        [
+          1778857020,
+          5.7938
+        ],
+        [
+          1778904000,
+          5.589
+        ],
+        [
+          1778990400,
+          5.589
+        ],
+        [
+          1779116220,
+          5.5185
+        ],
+        [
+          1779202620,
+          5.0099
+        ],
+        [
+          1779289020,
+          5.9223
+        ],
+        [
+          1779375420,
+          6.0682
+        ],
+        [
+          1779461820,
+          7.2944
+        ],
+        [
+          1779508800,
+          7.506
+        ]
+      ],
+      "5y psr": 18.08,
+      "5y cagr": 11.916,
+      "1y sharpe": 1.2797,
+      "3m return": 5.4092,
+      "5y drawdown": 20.9,
+      "oos 1y return": 24.4396,
+      "oos 1y sharpe": 1.2797,
+      "oos 3m return": 5.4092,
+      "oos 3m sharpe": 1.0407
+    },
+    "rank": 0.32,
+    "clones": 13,
+    "comments": 0,
+    "leaderboard": 74,
+    "score": 1.04,
+    "discussionId": 19984,
+    "hot": false,
+    "owner": false,
+    "followers": [
+      {
+        "name": "Frank Schikarski",
+        "publicId": "frank_schikarski",
+        "profileImage": "07413c8f3462cd31635150497.png"
+      },
+      {
+        "name": "S&ouml;ren Laue",
+        "publicId": "soeren-laue",
+        "profileImage": "058c18a5e79baae1749647678.jpg"
+      },
+      {
+        "name": "Marcus Zheng",
+        "publicId": "marcus-zheng",
+        "profileImage": "53a5c2d28330ad11762053276.png"
+      }
+    ],
+    "followersCount": 7,
+    "published": 1744983101
+  }
+}

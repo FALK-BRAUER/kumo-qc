@@ -1,0 +1,464 @@
+{
+  "summary": {
+    "rank": 37,
+    "leaderboard_position": 40,
+    "id": 127,
+    "name": "SPX MACD Band Trend-Following LongShort",
+    "author": "Islander",
+    "author_public_id": "islander",
+    "organization": "Islander",
+    "description": "The strategy is a directional trend-following system on the SPX 500 index via the SPX500USD CFD, using a daily MACD regime signal to maintain persistent long or short exposure. The core thesis is that sustained equity index trends can be captured by staying fully invested in the direction implied by the MACD line relative to its signal line, while avoiding churn during marginal crossovers through a small band around the trigger.\n\nSignals are evaluated once per trading day using daily prices afte",
+    "description_full": "The strategy is a directional trend-following system on the SPX 500 index via the SPX500USD CFD, using a daily MACD regime signal to maintain persistent long or short exposure. The core thesis is that sustained equity index trends can be captured by staying fully invested in the direction implied by the MACD line relative to its signal line, while avoiding churn during marginal crossovers through a small band around the trigger.\n\nSignals are evaluated once per trading day using daily prices after indicator warm-up. The strategy computes the normalized spread between the MACD (12,26 EMA) and its 9-day signal line, scaled by the fast EMA level, and applies a tolerance threshold to reduce whipsaw. When the MACD falls sufficiently below the signal, the portfolio flips to a 100 percent short allocation; when it rises sufficiently above, it flips to a 100 percent long allocation. There are no explicit stop losses, volatility targeting, or diversification; risk is primarily controlled through infrequent rebalancing (daily at most) and the crossover tolerance, with position sizing fixed at full notional exposure in either direction.",
+    "tags": [
+      "Momentum",
+      "Technical",
+      "Index Cfd",
+      "Swing"
+    ],
+    "asset_classes": [
+      "Cfd"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 2.57,
+    "sharpe_1y": -1.0203,
+    "return_3m": 11.036,
+    "return_oos_1y": -10.0816,
+    "sharpe_oos_1y": -1.0203,
+    "cagr_5y": -6.58,
+    "drawdown_5y": 44.1,
+    "psr_5y": 0.035,
+    "watchers": 0,
+    "clones": 0,
+    "clone_project_id": 27515974,
+    "backtest_id": "7d44cae77835a6c6eb6e09926da0c010",
+    "discussion_id": 20011,
+    "published_ts": 1565710389,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 127,
+    "backtestId": "7d44cae77835a6c6eb6e09926da0c010",
+    "name": "SPX MACD Band Trend-Following LongShort",
+    "author": {
+      "name": "Islander",
+      "organizationName": "Islander",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/57a934f8a88411b1497173674.jpg",
+      "bio": null,
+      "publicId": "islander",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": null,
+      "web": null,
+      "topAuthor": false
+    },
+    "description": "The strategy is a directional trend-following system on the SPX 500 index via the SPX500USD CFD, using a daily MACD regime signal to maintain persistent long or short exposure. The core thesis is that sustained equity index trends can be captured by staying fully invested in the direction implied by the MACD line relative to its signal line, while avoiding churn during marginal crossovers through a small band around the trigger.\n\nSignals are evaluated once per trading day using daily prices after indicator warm-up. The strategy computes the normalized spread between the MACD (12,26 EMA) and its 9-day signal line, scaled by the fast EMA level, and applies a tolerance threshold to reduce whipsaw. When the MACD falls sufficiently below the signal, the portfolio flips to a 100 percent short allocation; when it rises sufficiently above, it flips to a 100 percent long allocation. There are no explicit stop losses, volatility targeting, or diversification; risk is primarily controlled through infrequent rebalancing (daily at most) and the crossover tolerance, with position sizing fixed at full notional exposure in either direction.",
+    "cloneProjectId": 27515974,
+    "tags": [
+      "Momentum",
+      "Technical",
+      "Index Cfd",
+      "Swing"
+    ],
+    "watchers": 0,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Aug 13, 2019",
+        "changes": [
+          "Initial deployment for strategy &quot;SPX MACD Band Trend-Following LongShort&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Islander",
+    "organizationName": "Islander",
+    "research": null,
+    "assetClasses": [
+      "Cfd"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771945200,
+          -0.6882
+        ],
+        [
+          1772031600,
+          0.0014
+        ],
+        [
+          1772118000,
+          0.6506
+        ],
+        [
+          1772204400,
+          -0.1605
+        ],
+        [
+          1772254800,
+          -0.3759
+        ],
+        [
+          1772341200,
+          -0.3759
+        ],
+        [
+          1772463600,
+          -1.2521
+        ],
+        [
+          1772550000,
+          -0.386
+        ],
+        [
+          1772636400,
+          -1.3012
+        ],
+        [
+          1772722800,
+          -0.2154
+        ],
+        [
+          1772809200,
+          -0.866
+        ],
+        [
+          1772859600,
+          -2.2714
+        ],
+        [
+          1773010800,
+          -3.9499
+        ],
+        [
+          1773064800,
+          -3.9499
+        ],
+        [
+          1773151200,
+          -6.0434
+        ],
+        [
+          1773237600,
+          -6.4136
+        ],
+        [
+          1773324000,
+          -5.4391
+        ],
+        [
+          1773410400,
+          -4.7249
+        ],
+        [
+          1773460800,
+          -3.9629
+        ],
+        [
+          1773547200,
+          -3.9629
+        ],
+        [
+          1773669600,
+          -4.2781
+        ],
+        [
+          1773756000,
+          -5.1875
+        ],
+        [
+          1773842400,
+          -5.4001
+        ],
+        [
+          1773928800,
+          -4.0179
+        ],
+        [
+          1774015200,
+          -4.0801
+        ],
+        [
+          1774065600,
+          -2.8338
+        ],
+        [
+          1774152000,
+          -2.8338
+        ],
+        [
+          1774274400,
+          -2.1528
+        ],
+        [
+          1774360800,
+          -3.6969
+        ],
+        [
+          1774447200,
+          -3.7996
+        ],
+        [
+          1774533600,
+          -3.4916
+        ],
+        [
+          1774620000,
+          -2.3755
+        ],
+        [
+          1774670400,
+          -0.1894
+        ],
+        [
+          1774756800,
+          -0.1894
+        ],
+        [
+          1774879200,
+          0.2487
+        ],
+        [
+          1774965600,
+          0.1504
+        ],
+        [
+          1775052000,
+          -2.9827
+        ],
+        [
+          1775138400,
+          -3.3311
+        ],
+        [
+          1775188800,
+          -3.4757
+        ],
+        [
+          1775275200,
+          -3.2921
+        ],
+        [
+          1775361600,
+          -3.2921
+        ],
+        [
+          1775484000,
+          -2.9481
+        ],
+        [
+          1775570400,
+          -2.0945
+        ],
+        [
+          1775656800,
+          0.3025
+        ],
+        [
+          1775743200,
+          0.4133
+        ],
+        [
+          1775829600,
+          1.0483
+        ],
+        [
+          1775880000,
+          1.1473
+        ],
+        [
+          1775966400,
+          1.1473
+        ],
+        [
+          1776088800,
+          -0.0076
+        ],
+        [
+          1776175200,
+          2.1102
+        ],
+        [
+          1776261600,
+          3.3316
+        ],
+        [
+          1776348000,
+          4.2222
+        ],
+        [
+          1776434400,
+          4.4452
+        ],
+        [
+          1776484800,
+          5.64
+        ],
+        [
+          1776571200,
+          5.64
+        ],
+        [
+          1776693600,
+          4.7878
+        ],
+        [
+          1776780000,
+          5.5337
+        ],
+        [
+          1776866400,
+          5.191
+        ],
+        [
+          1776952800,
+          5.6636
+        ],
+        [
+          1777039200,
+          5.5189
+        ],
+        [
+          1777089600,
+          6.1702
+        ],
+        [
+          1777176000,
+          6.1702
+        ],
+        [
+          1777298400,
+          5.9162
+        ],
+        [
+          1777384800,
+          6.5158
+        ],
+        [
+          1777471200,
+          5.9679
+        ],
+        [
+          1777557600,
+          6.1717
+        ],
+        [
+          1777644000,
+          7.0652
+        ],
+        [
+          1777694400,
+          6.9958
+        ],
+        [
+          1777780800,
+          6.9958
+        ],
+        [
+          1777903200,
+          7.1996
+        ],
+        [
+          1777989600,
+          6.7181
+        ],
+        [
+          1778076000,
+          8.0163
+        ],
+        [
+          1778162400,
+          8.9896
+        ],
+        [
+          1778248800,
+          8.7311
+        ],
+        [
+          1778299200,
+          9.5789
+        ],
+        [
+          1778385600,
+          9.5789
+        ],
+        [
+          1778508000,
+          9.3189
+        ],
+        [
+          1778594400,
+          9.8772
+        ],
+        [
+          1778680800,
+          9.4932
+        ],
+        [
+          1778767200,
+          10.5108
+        ],
+        [
+          1778853600,
+          11.1001
+        ],
+        [
+          1778904000,
+          9.635
+        ],
+        [
+          1778990400,
+          9.635
+        ],
+        [
+          1779112800,
+          9.4917
+        ],
+        [
+          1779199200,
+          9.7827
+        ],
+        [
+          1779285600,
+          9.0959
+        ],
+        [
+          1779372000,
+          9.6675
+        ],
+        [
+          1779458400,
+          10.5448
+        ],
+        [
+          1779508800,
+          10.6186
+        ]
+      ],
+      "5y psr": 0.035,
+      "5y cagr": -6.58,
+      "1y sharpe": -1.0203,
+      "3m return": 11.036,
+      "5y drawdown": 44.1,
+      "oos 1y return": -10.0816,
+      "oos 1y sharpe": -1.0203,
+      "oos 3m return": 11.036,
+      "oos 3m sharpe": 2.5746
+    },
+    "rank": 0,
+    "clones": 0,
+    "comments": 0,
+    "leaderboard": 40,
+    "score": 2.57,
+    "discussionId": 20011,
+    "hot": false,
+    "owner": false,
+    "followers": [],
+    "followersCount": 0,
+    "published": 1565710389
+  }
+}

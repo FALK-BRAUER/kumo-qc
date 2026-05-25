@@ -1,0 +1,486 @@
+{
+  "summary": {
+    "rank": 11,
+    "leaderboard_position": 8,
+    "id": 96,
+    "name": "High Conviction Sleeve",
+    "author": "Grant Forman",
+    "author_public_id": "grant_forman",
+    "organization": "Grant Forman",
+    "description": "The High Conviction Sleeve is a selective, rules-based allocation strategy that prioritizes capital deployment only when market conditions demonstrate clear, repeatable edge. Rather than maintaining continuous exposure, the sleeve evaluates relative behavior to identify periods of highest conviction. When those conditions are present, capital is concentrated into a single high-beta growth position; when they are not, the strategy deliberately stands aside in cash. This disciplined, binary approa",
+    "description_full": "The High Conviction Sleeve is a selective, rules-based allocation strategy that prioritizes capital deployment only when market conditions demonstrate clear, repeatable edge. Rather than maintaining continuous exposure, the sleeve evaluates relative behavior to identify periods of highest conviction. When those conditions are present, capital is concentrated into a single high-beta growth position; when they are not, the strategy deliberately stands aside in cash. This disciplined, binary approach emphasizes signal quality over trade frequency, resulting in a high win rate, controlled drawdowns, and strong risk-adjusted performance driven by patience and selectivity rather than constant participation.",
+    "tags": [
+      "Momentum",
+      "Equity",
+      "Rotation",
+      "Swing"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 5.98,
+    "sharpe_1y": 1.9466,
+    "return_3m": 33.8671,
+    "return_oos_1y": null,
+    "sharpe_oos_1y": null,
+    "cagr_5y": 34.826,
+    "drawdown_5y": 26,
+    "psr_5y": 51.99,
+    "watchers": 21,
+    "clones": 114,
+    "clone_project_id": 27316521,
+    "backtest_id": "750aa7116ed9fa793064f772e733714b",
+    "discussion_id": 19925,
+    "published_ts": 1767815502,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 96,
+    "backtestId": "750aa7116ed9fa793064f772e733714b",
+    "name": "High Conviction Sleeve",
+    "author": {
+      "name": "Grant Forman",
+      "organizationName": "Grant Forman",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/c5e138fc6820dfa1766964256.jpg",
+      "bio": "I am a Ph.D. qualified chemist who has worked for a Nobel Prize winner in Chemistry and authored of over 30 peer-reviewed publications (cited more than 1000 times) and patents in the fields of environmental science (including life-cycle analysis and chemistry). \n\nMy approach in developing algorithms mirrors the scientific method I know well, but doesn&#039;t necessarily align with normal coding/development paradigms. ",
+      "publicId": "grant_forman",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": null,
+      "web": null,
+      "topAuthor": false
+    },
+    "description": "The High Conviction Sleeve is a selective, rules-based allocation strategy that prioritizes capital deployment only when market conditions demonstrate clear, repeatable edge. Rather than maintaining continuous exposure, the sleeve evaluates relative behavior to identify periods of highest conviction. When those conditions are present, capital is concentrated into a single high-beta growth position; when they are not, the strategy deliberately stands aside in cash. This disciplined, binary approach emphasizes signal quality over trade frequency, resulting in a high win rate, controlled drawdowns, and strong risk-adjusted performance driven by patience and selectivity rather than constant participation.",
+    "cloneProjectId": 27316521,
+    "tags": [
+      "Momentum",
+      "Equity",
+      "Rotation",
+      "Swing"
+    ],
+    "watchers": 21,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Jan 07, 2026",
+        "changes": [
+          "Initial deployment for strategy &quot;Nasdaq Leveraged Rotation Conditional Risk-On-Off&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Grant Forman",
+    "organizationName": "Grant Forman",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771943460,
+          -1.5445
+        ],
+        [
+          1772029860,
+          1.6201
+        ],
+        [
+          1772116260,
+          2.2298
+        ],
+        [
+          1772202660,
+          -1.4429
+        ],
+        [
+          1772254800,
+          -0.0638
+        ],
+        [
+          1772341200,
+          -0.0638
+        ],
+        [
+          1772467020,
+          -0.63
+        ],
+        [
+          1772548260,
+          -3.0978
+        ],
+        [
+          1772634660,
+          -1.6876
+        ],
+        [
+          1772721060,
+          -1.2603
+        ],
+        [
+          1772807460,
+          -1.2411
+        ],
+        [
+          1772859600,
+          -1.2798
+        ],
+        [
+          1772946000,
+          -1.2798
+        ],
+        [
+          1773063060,
+          -1.2605
+        ],
+        [
+          1773149460,
+          3.9951
+        ],
+        [
+          1773235860,
+          4.2208
+        ],
+        [
+          1773322260,
+          1.7832
+        ],
+        [
+          1773408660,
+          0.8653
+        ],
+        [
+          1773460800,
+          -1.3466
+        ],
+        [
+          1773547200,
+          -1.3466
+        ],
+        [
+          1773667860,
+          0.444
+        ],
+        [
+          1773754260,
+          1.6628
+        ],
+        [
+          1773840660,
+          1.1361
+        ],
+        [
+          1773927060,
+          -3.3329
+        ],
+        [
+          1774018620,
+          -3.0976
+        ],
+        [
+          1774065600,
+          -3.4586
+        ],
+        [
+          1774152000,
+          -3.4586
+        ],
+        [
+          1774272660,
+          -2.5962
+        ],
+        [
+          1774359060,
+          -3.6582
+        ],
+        [
+          1774450620,
+          -3.2636
+        ],
+        [
+          1774531860,
+          -3.2919
+        ],
+        [
+          1774618260,
+          -3.3392
+        ],
+        [
+          1774670400,
+          -3.3203
+        ],
+        [
+          1774756800,
+          -3.3203
+        ],
+        [
+          1774877460,
+          -3.2541
+        ],
+        [
+          1774963860,
+          -3.4796
+        ],
+        [
+          1775055420,
+          3.4292
+        ],
+        [
+          1775136660,
+          -0.3674
+        ],
+        [
+          1775188800,
+          3.2174
+        ],
+        [
+          1775275200,
+          3.2174
+        ],
+        [
+          1775361600,
+          3.2174
+        ],
+        [
+          1775482260,
+          4.1462
+        ],
+        [
+          1775568660,
+          3.8497
+        ],
+        [
+          1775655060,
+          3.9584
+        ],
+        [
+          1775741460,
+          3.9279
+        ],
+        [
+          1775827860,
+          3.9178
+        ],
+        [
+          1775880000,
+          3.9381
+        ],
+        [
+          1775966400,
+          3.9381
+        ],
+        [
+          1776087060,
+          3.9381
+        ],
+        [
+          1776173460,
+          7.872
+        ],
+        [
+          1776259860,
+          10.5522
+        ],
+        [
+          1776346260,
+          13.838
+        ],
+        [
+          1776432660,
+          16.2305
+        ],
+        [
+          1776484800,
+          17.5156
+        ],
+        [
+          1776571200,
+          17.5156
+        ],
+        [
+          1776691860,
+          17.3733
+        ],
+        [
+          1776778260,
+          17.0353
+        ],
+        [
+          1776864660,
+          17.1236
+        ],
+        [
+          1776951060,
+          17.0798
+        ],
+        [
+          1777037460,
+          17.0705
+        ],
+        [
+          1777089600,
+          17.1256
+        ],
+        [
+          1777176000,
+          17.1256
+        ],
+        [
+          1777296660,
+          17.1141
+        ],
+        [
+          1777383060,
+          14.4734
+        ],
+        [
+          1777469460,
+          15.0227
+        ],
+        [
+          1777555860,
+          17.2632
+        ],
+        [
+          1777647420,
+          20.8336
+        ],
+        [
+          1777694400,
+          20.8047
+        ],
+        [
+          1777780800,
+          20.8047
+        ],
+        [
+          1777901460,
+          20.8481
+        ],
+        [
+          1777987860,
+          22.2647
+        ],
+        [
+          1778074260,
+          25.2207
+        ],
+        [
+          1778160660,
+          28.6104
+        ],
+        [
+          1778247060,
+          29.9981
+        ],
+        [
+          1778299200,
+          33.5888
+        ],
+        [
+          1778385600,
+          33.5888
+        ],
+        [
+          1778506260,
+          33.6163
+        ],
+        [
+          1778592660,
+          33.7006
+        ],
+        [
+          1778679060,
+          33.7163
+        ],
+        [
+          1778765460,
+          33.7947
+        ],
+        [
+          1778851860,
+          33.6987
+        ],
+        [
+          1778904000,
+          33.7163
+        ],
+        [
+          1778990400,
+          33.7163
+        ],
+        [
+          1779111060,
+          33.7163
+        ],
+        [
+          1779197460,
+          33.7163
+        ],
+        [
+          1779283860,
+          33.7032
+        ],
+        [
+          1779370260,
+          33.7555
+        ],
+        [
+          1779480000,
+          33.7816
+        ]
+      ],
+      "5y psr": 51.99,
+      "5y cagr": 34.826,
+      "1y sharpe": 1.9466,
+      "3m return": 33.8671,
+      "5y drawdown": 26,
+      "oos 1y return": null,
+      "oos 1y sharpe": null,
+      "oos 3m return": 33.8671,
+      "oos 3m sharpe": 5.9822
+    },
+    "rank": 0,
+    "clones": 114,
+    "comments": 0,
+    "leaderboard": 8,
+    "score": 5.98,
+    "discussionId": 19925,
+    "hot": false,
+    "owner": false,
+    "followers": [
+      {
+        "name": "PauPadilla Greendry",
+        "publicId": "paupadilla-greendry",
+        "profileImage": "c8936829a65c8ed1600374814.jpg"
+      },
+      {
+        "name": "McCartney Taylor",
+        "publicId": "mccartney-taylor",
+        "profileImage": "c261747dd3552561740716495.jpg"
+      },
+      {
+        "name": "Y Mike",
+        "publicId": "y-mike",
+        "profileImage": "07229781b759f3c1745169414.png"
+      },
+      {
+        "name": "Brad Young",
+        "publicId": "brad-young",
+        "profileImage": "96d919b4aeaa2fe1765106183.jpg"
+      },
+      {
+        "name": "Hunor Klekner",
+        "publicId": "hunor-klekner",
+        "profileImage": "6c2eb1314f8ee451767989700.png"
+      }
+    ],
+    "followersCount": 21,
+    "published": 1767815502
+  }
+}

@@ -1,0 +1,460 @@
+{
+  "summary": {
+    "rank": 87,
+    "leaderboard_position": 88,
+    "id": 205,
+    "name": "Monthly Dual-Momentum Rotation with Bond Defense",
+    "author": "Vladimir",
+    "author_public_id": "vladimir_2",
+    "organization": "Vladimir",
+    "description": "The strategy is a monthly dual-momentum rotation model designed to capture intermediate-term trend persistence across global equity regions while defensively shifting to bonds when equity momentum is weak. It computes a 100-trading-day total return momentum signal on daily data for three equity ETFs representing US growth (QQQ), developed ex-US (EFA), and emerging markets (EEM). At each month start shortly after the US open, it ranks these equity proxies by momentum and selects the single strong",
+    "description_full": "The strategy is a monthly dual-momentum rotation model designed to capture intermediate-term trend persistence across global equity regions while defensively shifting to bonds when equity momentum is weak. It computes a 100-trading-day total return momentum signal on daily data for three equity ETFs representing US growth (QQQ), developed ex-US (EFA), and emerging markets (EEM). At each month start shortly after the US open, it ranks these equity proxies by momentum and selects the single strongest as the target risk asset (relative momentum).\n\nA defensive filter is then applied using an absolute momentum hurdle versus short-term Treasury bills (SHV): if the best equity ETF has lower momentum than SHV, the strategy exits equities and allocates instead to aggregate bonds (AGG). The portfolio is fully concentrated in one ETF at a time and rebalanced monthly via full reallocation, targeting 2x notional exposure (leveraged long) with no explicit volatility targeting or drawdown limits. The intended edge is cross-asset and cross-region momentum with a cash-rate proxy filter to avoid sustained equity downtrends, using infrequent (monthly) decisions on daily price data.",
+    "tags": [
+      "Momentum",
+      "Dual Momentum",
+      "Equity Etfs",
+      "Monthly"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 0.95,
+    "sharpe_1y": 0.8998,
+    "return_3m": 9.5344,
+    "return_oos_1y": 38.2856,
+    "sharpe_oos_1y": 0.8998,
+    "cagr_5y": 26.632,
+    "drawdown_5y": 47.7,
+    "psr_5y": 22.339,
+    "watchers": 1,
+    "clones": 0,
+    "clone_project_id": 27766189,
+    "backtest_id": "0820cda1aa1e0dbe8237cca1ba0041f7",
+    "discussion_id": 20102,
+    "published_ts": 1611360000,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 205,
+    "backtestId": "0820cda1aa1e0dbe8237cca1ba0041f7",
+    "name": "Monthly Dual-Momentum Rotation with Bond Defense",
+    "author": {
+      "name": "Vladimir",
+      "organizationName": "Vladimir",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/a32f91a8ff19b2c1607985468.png",
+      "bio": "I  am long term quantitative trader with 20+ years of successful algorithmic trading and strategy development.",
+      "publicId": "vladimir_2",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": null,
+      "web": null,
+      "topAuthor": false
+    },
+    "description": "The strategy is a monthly dual-momentum rotation model designed to capture intermediate-term trend persistence across global equity regions while defensively shifting to bonds when equity momentum is weak. It computes a 100-trading-day total return momentum signal on daily data for three equity ETFs representing US growth (QQQ), developed ex-US (EFA), and emerging markets (EEM). At each month start shortly after the US open, it ranks these equity proxies by momentum and selects the single strongest as the target risk asset (relative momentum).\n\nA defensive filter is then applied using an absolute momentum hurdle versus short-term Treasury bills (SHV): if the best equity ETF has lower momentum than SHV, the strategy exits equities and allocates instead to aggregate bonds (AGG). The portfolio is fully concentrated in one ETF at a time and rebalanced monthly via full reallocation, targeting 2x notional exposure (leveraged long) with no explicit volatility targeting or drawdown limits. The intended edge is cross-asset and cross-region momentum with a cash-rate proxy filter to avoid sustained equity downtrends, using infrequent (monthly) decisions on daily price data.",
+    "cloneProjectId": 27766189,
+    "tags": [
+      "Momentum",
+      "Dual Momentum",
+      "Equity Etfs",
+      "Monthly"
+    ],
+    "watchers": 1,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Jan 23, 2021",
+        "changes": [
+          "Initial deployment for strategy &quot;Monthly Dual-Momentum Rotation with Bond Defense&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Vladimir",
+    "organizationName": "Vladimir",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771943460,
+          -1.6088
+        ],
+        [
+          1772029860,
+          1.6659
+        ],
+        [
+          1772116260,
+          2.3545
+        ],
+        [
+          1772202660,
+          -1.3737
+        ],
+        [
+          1772254800,
+          -0.0269
+        ],
+        [
+          1772341200,
+          -0.0269
+        ],
+        [
+          1772467020,
+          -2.443
+        ],
+        [
+          1772548260,
+          -10.2256
+        ],
+        [
+          1772634660,
+          -6.235
+        ],
+        [
+          1772721060,
+          -8.2208
+        ],
+        [
+          1772807460,
+          -12.8166
+        ],
+        [
+          1772859600,
+          -11.1145
+        ],
+        [
+          1772946000,
+          -11.1145
+        ],
+        [
+          1773063060,
+          -13.4975
+        ],
+        [
+          1773149460,
+          -8.2586
+        ],
+        [
+          1773235860,
+          -10.3485
+        ],
+        [
+          1773322260,
+          -11.6346
+        ],
+        [
+          1773408660,
+          -12.0601
+        ],
+        [
+          1773460800,
+          -14.8592
+        ],
+        [
+          1773547200,
+          -14.8592
+        ],
+        [
+          1773667860,
+          -12.4195
+        ],
+        [
+          1773754260,
+          -10.1877
+        ],
+        [
+          1773840660,
+          -12.1263
+        ],
+        [
+          1773927060,
+          -17.3746
+        ],
+        [
+          1774013460,
+          -15.3604
+        ],
+        [
+          1774065600,
+          -19.9846
+        ],
+        [
+          1774152000,
+          -19.9846
+        ],
+        [
+          1774277820,
+          -14.2729
+        ],
+        [
+          1774359060,
+          -18.2635
+        ],
+        [
+          1774445460,
+          -13.6488
+        ],
+        [
+          1774531860,
+          -16.5046
+        ],
+        [
+          1774618260,
+          -18.6796
+        ],
+        [
+          1774670400,
+          -19.5874
+        ],
+        [
+          1774756800,
+          -19.5874
+        ],
+        [
+          1774877460,
+          -17.8474
+        ],
+        [
+          1774963860,
+          -16.1642
+        ],
+        [
+          1775055420,
+          -10.0776
+        ],
+        [
+          1775136660,
+          -14.1508
+        ],
+        [
+          1775188800,
+          -11.5983
+        ],
+        [
+          1775275200,
+          -11.5983
+        ],
+        [
+          1775361600,
+          -11.5983
+        ],
+        [
+          1775482260,
+          -11.2
+        ],
+        [
+          1775568660,
+          -12.087
+        ],
+        [
+          1775655060,
+          -3.4339
+        ],
+        [
+          1775741460,
+          -5.9864
+        ],
+        [
+          1775827860,
+          -3.4158
+        ],
+        [
+          1775880000,
+          -4.0313
+        ],
+        [
+          1775966400,
+          -4.0313
+        ],
+        [
+          1776087060,
+          -5.7149
+        ],
+        [
+          1776173460,
+          -2.1124
+        ],
+        [
+          1776259860,
+          -1.859
+        ],
+        [
+          1776346260,
+          -1.6236
+        ],
+        [
+          1776432660,
+          0.1142
+        ],
+        [
+          1776484800,
+          -0.1573
+        ],
+        [
+          1776571200,
+          -0.1573
+        ],
+        [
+          1776691860,
+          -1.1892
+        ],
+        [
+          1776778260,
+          -2.3477
+        ],
+        [
+          1776864660,
+          -3.9227
+        ],
+        [
+          1776951060,
+          -4.6468
+        ],
+        [
+          1777037460,
+          -5.5519
+        ],
+        [
+          1777089600,
+          -4.7735
+        ],
+        [
+          1777176000,
+          -4.7735
+        ],
+        [
+          1777296660,
+          -4.5382
+        ],
+        [
+          1777383060,
+          -6.4752
+        ],
+        [
+          1777469460,
+          -7.326
+        ],
+        [
+          1777555860,
+          -5.733
+        ],
+        [
+          1777647420,
+          -2.9448
+        ],
+        [
+          1777694400,
+          -2.8905
+        ],
+        [
+          1777780800,
+          -2.8905
+        ],
+        [
+          1777901460,
+          -2.8391
+        ],
+        [
+          1777987860,
+          -1.7021
+        ],
+        [
+          1778074260,
+          0.709
+        ],
+        [
+          1778160660,
+          3.3915
+        ],
+        [
+          1778247060,
+          4.5399
+        ],
+        [
+          1778299200,
+          7.7023
+        ],
+        [
+          1778385600,
+          7.7023
+        ],
+        [
+          1778506260,
+          7.6937
+        ],
+        [
+          1778592660,
+          6.5025
+        ],
+        [
+          1778679060,
+          7.1624
+        ],
+        [
+          1778765460,
+          8.6536
+        ],
+        [
+          1778851860,
+          7.2452
+        ],
+        [
+          1778904000,
+          7.0453
+        ],
+        [
+          1778990400,
+          7.0453
+        ],
+        [
+          1779111060,
+          7.7623
+        ],
+        [
+          1779197460,
+          4.8684
+        ],
+        [
+          1779283860,
+          6.2111
+        ],
+        [
+          1779370260,
+          6.9567
+        ],
+        [
+          1779480000,
+          9.5049
+        ]
+      ],
+      "5y psr": 22.339,
+      "5y cagr": 26.632,
+      "1y sharpe": 0.8998,
+      "3m return": 9.5344,
+      "5y drawdown": 47.7,
+      "oos 1y return": 38.2856,
+      "oos 1y sharpe": 0.8998,
+      "oos 3m return": 9.5344,
+      "oos 3m sharpe": 0.9528
+    },
+    "rank": 0,
+    "clones": 0,
+    "comments": 0,
+    "leaderboard": 88,
+    "score": 0.95,
+    "discussionId": 20102,
+    "hot": false,
+    "owner": false,
+    "followers": [],
+    "followersCount": 1,
+    "published": 1611360000
+  }
+}

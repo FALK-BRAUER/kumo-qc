@@ -1,0 +1,460 @@
+{
+  "summary": {
+    "rank": 16,
+    "leaderboard_position": 21,
+    "id": 345,
+    "name": "Large-Cap US Momentum Rotation Strategy",
+    "author": "Jing Wu",
+    "author_public_id": "jing_wu_1",
+    "organization": "Jing Wu",
+    "description": "The strategy is a long only U.S. equity momentum rotation that seeks to capture the empirical tendency of recent relative winners to continue outperforming over intermediate horizons. It targets large, liquid stocks to improve capacity and reduce implementation frictions, then ranks candidates by 12 month price momentum (approximately 252 trading days) and concentrates the portfolio in the strongest trends.\n\nThe investable universe is rebuilt monthly using daily fundamental data: stocks must tra",
+    "description_full": "The strategy is a long only U.S. equity momentum rotation that seeks to capture the empirical tendency of recent relative winners to continue outperforming over intermediate horizons. It targets large, liquid stocks to improve capacity and reduce implementation frictions, then ranks candidates by 12 month price momentum (approximately 252 trading days) and concentrates the portfolio in the strongest trends.\n\nThe investable universe is rebuilt monthly using daily fundamental data: stocks must trade above 5 USD, then the screen retains the 100 highest dollar volume names and narrows to the 50 largest by market capitalization. At each month start, the strategy selects the top 5 momentum names from this universe and allocates equal weights (20 percent each), holding them until the next scheduled rebalance. Positions are fully refreshed at rebalance, and any security removed from the universe is liquidated immediately. Decisions are made monthly based on daily data; primary risk controls are liquidity and large cap universe constraints plus equal weight sizing, with no explicit volatility targeting, drawdown control, or short exposure.",
+    "tags": [
+      "Momentum",
+      "Equity",
+      "Systematic",
+      "Swing"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 5.01,
+    "sharpe_1y": 1.5677,
+    "return_3m": 43.8437,
+    "return_oos_1y": 78.553,
+    "sharpe_oos_1y": 1.5677,
+    "cagr_5y": 32.005,
+    "drawdown_5y": 34.1,
+    "psr_5y": 37.391,
+    "watchers": 7,
+    "clones": 0,
+    "clone_project_id": 28536403,
+    "backtest_id": "c9ffc4f1f8d5fb54b5c13d9994be69bc",
+    "discussion_id": 20337,
+    "published_ts": 1530428400,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 345,
+    "backtestId": "c9ffc4f1f8d5fb54b5c13d9994be69bc",
+    "name": "Large-Cap US Momentum Rotation Strategy",
+    "author": {
+      "name": "Jing Wu",
+      "organizationName": "Jing Wu",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/11e766258dae69d1498233757.jpg",
+      "bio": "Quant Developer",
+      "publicId": "jing_wu_1",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": null,
+      "web": null,
+      "topAuthor": false
+    },
+    "description": "The strategy is a long only U.S. equity momentum rotation that seeks to capture the empirical tendency of recent relative winners to continue outperforming over intermediate horizons. It targets large, liquid stocks to improve capacity and reduce implementation frictions, then ranks candidates by 12 month price momentum (approximately 252 trading days) and concentrates the portfolio in the strongest trends.\n\nThe investable universe is rebuilt monthly using daily fundamental data: stocks must trade above 5 USD, then the screen retains the 100 highest dollar volume names and narrows to the 50 largest by market capitalization. At each month start, the strategy selects the top 5 momentum names from this universe and allocates equal weights (20 percent each), holding them until the next scheduled rebalance. Positions are fully refreshed at rebalance, and any security removed from the universe is liquidated immediately. Decisions are made monthly based on daily data; primary risk controls are liquidity and large cap universe constraints plus equal weight sizing, with no explicit volatility targeting, drawdown control, or short exposure.",
+    "cloneProjectId": 28536403,
+    "tags": [
+      "Momentum",
+      "Equity",
+      "Systematic",
+      "Swing"
+    ],
+    "watchers": 7,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Jul 01, 2018",
+        "changes": [
+          "Initial deployment for strategy &quot;Large-Cap US Momentum Rotation Strategy&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Jing Wu",
+    "organizationName": "Jing Wu",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771948800,
+          -1.0233
+        ],
+        [
+          1772031600,
+          2.7791
+        ],
+        [
+          1772118000,
+          3.7118
+        ],
+        [
+          1772208000,
+          1.0192
+        ],
+        [
+          1772254800,
+          0.1317
+        ],
+        [
+          1772341200,
+          0.1317
+        ],
+        [
+          1772467200,
+          0.1317
+        ],
+        [
+          1772553600,
+          -0.2641
+        ],
+        [
+          1772640000,
+          -5.8585
+        ],
+        [
+          1772722800,
+          -3.7339
+        ],
+        [
+          1772812800,
+          -6.5226
+        ],
+        [
+          1772859600,
+          -11.5651
+        ],
+        [
+          1772946000,
+          -11.5651
+        ],
+        [
+          1773068400,
+          -11.5651
+        ],
+        [
+          1773151200,
+          -7.2951
+        ],
+        [
+          1773241200,
+          -5.3795
+        ],
+        [
+          1773327600,
+          -4.0865
+        ],
+        [
+          1773414000,
+          -6.8153
+        ],
+        [
+          1773460800,
+          -6.1476
+        ],
+        [
+          1773547200,
+          -6.1476
+        ],
+        [
+          1773673200,
+          -6.1476
+        ],
+        [
+          1773759600,
+          -3.8574
+        ],
+        [
+          1773842400,
+          -1.5004
+        ],
+        [
+          1773928800,
+          -1.7049
+        ],
+        [
+          1774018800,
+          -1.043
+        ],
+        [
+          1774065600,
+          -3.3779
+        ],
+        [
+          1774152000,
+          -3.3779
+        ],
+        [
+          1774278000,
+          -3.3779
+        ],
+        [
+          1774360800,
+          -2.3182
+        ],
+        [
+          1774447200,
+          -0.605
+        ],
+        [
+          1774533600,
+          -1.575
+        ],
+        [
+          1774620000,
+          -7.9647
+        ],
+        [
+          1774670400,
+          -8.6371
+        ],
+        [
+          1774756800,
+          -8.6371
+        ],
+        [
+          1774882800,
+          -8.6371
+        ],
+        [
+          1774965600,
+          -13.6515
+        ],
+        [
+          1775055600,
+          -8.3264
+        ],
+        [
+          1775142000,
+          -4.1105
+        ],
+        [
+          1775188800,
+          -4.7466
+        ],
+        [
+          1775275200,
+          -4.7466
+        ],
+        [
+          1775361600,
+          -4.7466
+        ],
+        [
+          1775487600,
+          -4.7466
+        ],
+        [
+          1775570400,
+          -3.449
+        ],
+        [
+          1775656800,
+          -2.6622
+        ],
+        [
+          1775746800,
+          4.5549
+        ],
+        [
+          1775833200,
+          8.4028
+        ],
+        [
+          1775880000,
+          9.4745
+        ],
+        [
+          1775966400,
+          9.4745
+        ],
+        [
+          1776088800,
+          9.4745
+        ],
+        [
+          1776175200,
+          10.2952
+        ],
+        [
+          1776265200,
+          13.1018
+        ],
+        [
+          1776348000,
+          11.2717
+        ],
+        [
+          1776434400,
+          10.4091
+        ],
+        [
+          1776484800,
+          12.4514
+        ],
+        [
+          1776571200,
+          12.4514
+        ],
+        [
+          1776697200,
+          12.4514
+        ],
+        [
+          1776780000,
+          11.3354
+        ],
+        [
+          1776866400,
+          10.8992
+        ],
+        [
+          1776952800,
+          17.2511
+        ],
+        [
+          1777042800,
+          16.867
+        ],
+        [
+          1777089600,
+          20.6472
+        ],
+        [
+          1777176000,
+          20.6472
+        ],
+        [
+          1777298400,
+          20.6472
+        ],
+        [
+          1777384800,
+          19.7488
+        ],
+        [
+          1777471200,
+          14.8887
+        ],
+        [
+          1777557600,
+          15.0716
+        ],
+        [
+          1777647600,
+          16.0279
+        ],
+        [
+          1777694400,
+          18.646
+        ],
+        [
+          1777780800,
+          18.646
+        ],
+        [
+          1777903200,
+          18.646
+        ],
+        [
+          1777993200,
+          17.7764
+        ],
+        [
+          1778076000,
+          26.8757
+        ],
+        [
+          1778162400,
+          36.0615
+        ],
+        [
+          1778252400,
+          31.7263
+        ],
+        [
+          1778299200,
+          43.7283
+        ],
+        [
+          1778385600,
+          43.7283
+        ],
+        [
+          1778511600,
+          43.7283
+        ],
+        [
+          1778598000,
+          48.1837
+        ],
+        [
+          1778680800,
+          43.0569
+        ],
+        [
+          1778767200,
+          44.755
+        ],
+        [
+          1778857200,
+          43.5238
+        ],
+        [
+          1778904000,
+          35.677
+        ],
+        [
+          1778990400,
+          35.677
+        ],
+        [
+          1779116400,
+          35.677
+        ],
+        [
+          1779202800,
+          32.1578
+        ],
+        [
+          1779285600,
+          32.609
+        ],
+        [
+          1779375600,
+          40.2857
+        ],
+        [
+          1779480000,
+          44.0331
+        ]
+      ],
+      "5y psr": 37.391,
+      "5y cagr": 32.005,
+      "1y sharpe": 1.5677,
+      "3m return": 43.8437,
+      "5y drawdown": 34.1,
+      "oos 1y return": 78.553,
+      "oos 1y sharpe": 1.5677,
+      "oos 3m return": 43.8437,
+      "oos 3m sharpe": 5.0082
+    },
+    "rank": 999999,
+    "clones": 0,
+    "comments": 0,
+    "leaderboard": 21,
+    "score": 5.01,
+    "discussionId": 20337,
+    "hot": false,
+    "owner": false,
+    "followers": [],
+    "followersCount": 7,
+    "published": 1530428400
+  }
+}

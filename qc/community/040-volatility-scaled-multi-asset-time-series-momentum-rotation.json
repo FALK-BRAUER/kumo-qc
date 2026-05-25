@@ -1,0 +1,466 @@
+{
+  "summary": {
+    "rank": 40,
+    "leaderboard_position": 32,
+    "id": 195,
+    "name": "Volatility-Scaled Multi-Asset Time-Series Momentum Rotation",
+    "author": "Solomon Pak",
+    "author_public_id": "solomon-pak",
+    "organization": "Solomon Pak",
+    "description": "The strategy is a multi asset time series momentum allocator that seeks to harvest medium term trend persistence across diversified asset classes while improving risk adjusted returns through volatility scaling. It trades a fixed universe of highly liquid ETFs spanning US equities, developed ex US equities, emerging markets, gold, long duration US Treasuries, REITs, broad commodities, and the US dollar. Signals are computed daily from total return momentum over three horizons (approximately 3, 6",
+    "description_full": "The strategy is a multi asset time series momentum allocator that seeks to harvest medium term trend persistence across diversified asset classes while improving risk adjusted returns through volatility scaling. It trades a fixed universe of highly liquid ETFs spanning US equities, developed ex US equities, emerging markets, gold, long duration US Treasuries, REITs, broad commodities, and the US dollar. Signals are computed daily from total return momentum over three horizons (approximately 3, 6, and 12 months) combined into an equal weighted composite, then converted into a risk adjusted ranking by dividing momentum by recent realized volatility (approximately 1 month, annualized). Only assets with positive composite momentum are eligible, targeting environments where trends are positive and cross asset dispersion allows rotation into the strongest risk adjusted trends.\n\nPortfolio construction is refreshed monthly at the start of the month. The strategy holds up to eight positions (minimum three); if fewer than three assets exhibit positive momentum it enters a defensive allocation split between long Treasuries and gold (60/40). Otherwise it selects the top ranked eligible assets and assigns weights using inverse volatility (volatility parity) to equalize risk contribution. Gross exposure is dynamically scaled to target a fixed market volatility level using US equity volatility as a proxy, allowing leverage and reducing exposure in higher volatility regimes.\n\n",
+    "tags": [
+      "Momentum",
+      "Trend Following",
+      "Tactical Allocation",
+      "Multi Asset"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 2.41,
+    "sharpe_1y": 2.1545,
+    "return_3m": 7.5272,
+    "return_oos_1y": null,
+    "sharpe_oos_1y": null,
+    "cagr_5y": 7.425,
+    "drawdown_5y": 21.3,
+    "psr_5y": 13.819,
+    "watchers": 1,
+    "clones": 0,
+    "clone_project_id": 27742303,
+    "backtest_id": "0a0b92bec08bab9a7d4ab36fb35307db",
+    "discussion_id": 20092,
+    "published_ts": 1769483996,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 195,
+    "backtestId": "0a0b92bec08bab9a7d4ab36fb35307db",
+    "name": "Volatility-Scaled Multi-Asset Time-Series Momentum Rotation",
+    "author": {
+      "name": "Solomon Pak",
+      "organizationName": "Solomon Pak",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/d35c85c83d231bb1766960740.jpg",
+      "bio": null,
+      "publicId": "solomon-pak",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": null,
+      "web": null,
+      "topAuthor": false
+    },
+    "description": "The strategy is a multi asset time series momentum allocator that seeks to harvest medium term trend persistence across diversified asset classes while improving risk adjusted returns through volatility scaling. It trades a fixed universe of highly liquid ETFs spanning US equities, developed ex US equities, emerging markets, gold, long duration US Treasuries, REITs, broad commodities, and the US dollar. Signals are computed daily from total return momentum over three horizons (approximately 3, 6, and 12 months) combined into an equal weighted composite, then converted into a risk adjusted ranking by dividing momentum by recent realized volatility (approximately 1 month, annualized). Only assets with positive composite momentum are eligible, targeting environments where trends are positive and cross asset dispersion allows rotation into the strongest risk adjusted trends.\n\nPortfolio construction is refreshed monthly at the start of the month. The strategy holds up to eight positions (minimum three); if fewer than three assets exhibit positive momentum it enters a defensive allocation split between long Treasuries and gold (60/40). Otherwise it selects the top ranked eligible assets and assigns weights using inverse volatility (volatility parity) to equalize risk contribution. Gross exposure is dynamically scaled to target a fixed market volatility level using US equity volatility as a proxy, allowing leverage and reducing exposure in higher volatility regimes.\n\n",
+    "cloneProjectId": 27742303,
+    "tags": [
+      "Momentum",
+      "Trend Following",
+      "Tactical Allocation",
+      "Multi Asset"
+    ],
+    "watchers": 1,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Jan 27, 2026",
+        "changes": [
+          "Initial deployment for strategy &quot;Volatility-Scaled Multi-Asset Time-Series Momentum Rotation&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Solomon Pak",
+    "organizationName": "Solomon Pak",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771945200,
+          0.0884
+        ],
+        [
+          1772031600,
+          0.4899
+        ],
+        [
+          1772118000,
+          0.8194
+        ],
+        [
+          1772204400,
+          0.9965
+        ],
+        [
+          1772254800,
+          1.6333
+        ],
+        [
+          1772341200,
+          1.6333
+        ],
+        [
+          1772467200,
+          1.6333
+        ],
+        [
+          1772550000,
+          1.3763
+        ],
+        [
+          1772636400,
+          -0.146
+        ],
+        [
+          1772722800,
+          0.8069
+        ],
+        [
+          1772809200,
+          0.6057
+        ],
+        [
+          1772859600,
+          2.3991
+        ],
+        [
+          1772946000,
+          2.3991
+        ],
+        [
+          1773064800,
+          2.3991
+        ],
+        [
+          1773151200,
+          2.2655
+        ],
+        [
+          1773237600,
+          3.2252
+        ],
+        [
+          1773324000,
+          4.0684
+        ],
+        [
+          1773410400,
+          4.6592
+        ],
+        [
+          1773460800,
+          3.952
+        ],
+        [
+          1773547200,
+          3.952
+        ],
+        [
+          1773669600,
+          3.952
+        ],
+        [
+          1773759600,
+          4.1353
+        ],
+        [
+          1773842400,
+          5.4695
+        ],
+        [
+          1773928800,
+          5.5653
+        ],
+        [
+          1774015200,
+          4.5412
+        ],
+        [
+          1774065600,
+          2.7582
+        ],
+        [
+          1774152000,
+          2.7582
+        ],
+        [
+          1774274400,
+          2.7582
+        ],
+        [
+          1774364400,
+          1.1376
+        ],
+        [
+          1774447200,
+          1.7438
+        ],
+        [
+          1774533600,
+          2.3408
+        ],
+        [
+          1774620000,
+          1.685
+        ],
+        [
+          1774670400,
+          2.7476
+        ],
+        [
+          1774756800,
+          2.7476
+        ],
+        [
+          1774879200,
+          2.7476
+        ],
+        [
+          1774965600,
+          3.3001
+        ],
+        [
+          1775055600,
+          4.1145
+        ],
+        [
+          1775138400,
+          3.9835
+        ],
+        [
+          1775188800,
+          4.2307
+        ],
+        [
+          1775275200,
+          4.2307
+        ],
+        [
+          1775361600,
+          4.2307
+        ],
+        [
+          1775484000,
+          4.2307
+        ],
+        [
+          1775570400,
+          4.4784
+        ],
+        [
+          1775656800,
+          4.4675
+        ],
+        [
+          1775743200,
+          5.1625
+        ],
+        [
+          1775829600,
+          5.2501
+        ],
+        [
+          1775880000,
+          5.2275
+        ],
+        [
+          1775966400,
+          5.2275
+        ],
+        [
+          1776088800,
+          5.2275
+        ],
+        [
+          1776175200,
+          5.6768
+        ],
+        [
+          1776261600,
+          6.0257
+        ],
+        [
+          1776348000,
+          6.027
+        ],
+        [
+          1776434400,
+          6.2463
+        ],
+        [
+          1776484800,
+          6.2932
+        ],
+        [
+          1776571200,
+          6.2932
+        ],
+        [
+          1776693600,
+          6.2932
+        ],
+        [
+          1776780000,
+          6.3869
+        ],
+        [
+          1776866400,
+          6.1525
+        ],
+        [
+          1776952800,
+          6.5568
+        ],
+        [
+          1777039200,
+          6.5413
+        ],
+        [
+          1777089600,
+          6.873
+        ],
+        [
+          1777176000,
+          6.873
+        ],
+        [
+          1777298400,
+          6.873
+        ],
+        [
+          1777384800,
+          6.9069
+        ],
+        [
+          1777471200,
+          6.915
+        ],
+        [
+          1777557600,
+          7.1156
+        ],
+        [
+          1777647600,
+          7.7232
+        ],
+        [
+          1777694400,
+          7.7897
+        ],
+        [
+          1777780800,
+          7.7897
+        ],
+        [
+          1777903200,
+          7.7897
+        ],
+        [
+          1777989600,
+          8.1736
+        ],
+        [
+          1778076000,
+          8.4587
+        ],
+        [
+          1778162400,
+          7.8942
+        ],
+        [
+          1778248800,
+          7.8266
+        ],
+        [
+          1778299200,
+          7.8768
+        ],
+        [
+          1778385600,
+          7.8768
+        ],
+        [
+          1778508000,
+          7.8768
+        ],
+        [
+          1778594400,
+          8.405
+        ],
+        [
+          1778680800,
+          8.9018
+        ],
+        [
+          1778767200,
+          9.0457
+        ],
+        [
+          1778853600,
+          9.2294
+        ],
+        [
+          1778904000,
+          9.2376
+        ],
+        [
+          1778990400,
+          9.2376
+        ],
+        [
+          1779112800,
+          9.2376
+        ],
+        [
+          1779199200,
+          9.2672
+        ],
+        [
+          1779285600,
+          9.5843
+        ],
+        [
+          1779372000,
+          9.2834
+        ],
+        [
+          1779480000,
+          9.2834
+        ]
+      ],
+      "5y psr": 13.819,
+      "5y cagr": 7.425,
+      "1y sharpe": 2.1545,
+      "3m return": 7.5272,
+      "5y drawdown": 21.3,
+      "oos 1y return": null,
+      "oos 1y sharpe": null,
+      "oos 3m return": 7.5272,
+      "oos 3m sharpe": 2.4081
+    },
+    "rank": 0,
+    "clones": 0,
+    "comments": 0,
+    "leaderboard": 32,
+    "score": 2.41,
+    "discussionId": 20092,
+    "hot": false,
+    "owner": false,
+    "followers": [
+      {
+        "name": "PauPadilla Greendry",
+        "publicId": "paupadilla-greendry",
+        "profileImage": "c8936829a65c8ed1600374814.jpg"
+      }
+    ],
+    "followersCount": 1,
+    "published": 1769483996
+  }
+}

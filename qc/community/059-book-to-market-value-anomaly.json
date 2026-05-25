@@ -1,0 +1,486 @@
+{
+  "summary": {
+    "rank": 59,
+    "leaderboard_position": 73,
+    "id": 32,
+    "name": "Book-to-Market Value Anomaly",
+    "author": "Jing Wu",
+    "author_public_id": "jing_wu_1",
+    "organization": "Jing Wu",
+    "description": "The strategy harvests the value premium via a book-to-market signal within large cap US Equities, assuming firms with higher book-to-market (low price to book) are systematically underpriced relative to fundamentals and earn excess returns over long horizons. Each year it screens the US Equity universe using daily fundamental data and selects the largest 20% of stocks by market cap to target liquid, scalable stocks. Within that large cap subset, it selects the top 20% of stocks by their book-to-",
+    "description_full": "The strategy harvests the value premium via a book-to-market signal within large cap US Equities, assuming firms with higher book-to-market (low price to book) are systematically underpriced relative to fundamentals and earn excess returns over long horizons. Each year it screens the US Equity universe using daily fundamental data and selects the largest 20% of stocks by market cap to target liquid, scalable stocks. Within that large cap subset, it selects the top 20% of stocks by their book-to-market values as the final universe. At the start of year, it forms a market-cap weighted portfolio and holds positions until the following year.",
+    "tags": [
+      "Value",
+      "Equity",
+      "Fundamental",
+      "Long Term"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 1.82,
+    "sharpe_1y": 1.7529,
+    "return_3m": 5.4779,
+    "return_oos_1y": 25.3127,
+    "sharpe_oos_1y": 1.7529,
+    "cagr_5y": 11.955,
+    "drawdown_5y": 15.9,
+    "psr_5y": 25.789,
+    "watchers": 33,
+    "clones": 550,
+    "clone_project_id": 26878521,
+    "backtest_id": "b99be30af624d3cc4c22e9bd73f159da",
+    "discussion_id": 19989,
+    "published_ts": 1512148920,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 32,
+    "backtestId": "b99be30af624d3cc4c22e9bd73f159da",
+    "name": "Book-to-Market Value Anomaly",
+    "author": {
+      "name": "Jing Wu",
+      "organizationName": "Jing Wu",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/11e766258dae69d1498233757.jpg",
+      "bio": "Quant Developer",
+      "publicId": "jing_wu_1",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": null,
+      "web": null,
+      "topAuthor": false
+    },
+    "description": "The strategy harvests the value premium via a book-to-market signal within large cap US Equities, assuming firms with higher book-to-market (low price to book) are systematically underpriced relative to fundamentals and earn excess returns over long horizons. Each year it screens the US Equity universe using daily fundamental data and selects the largest 20% of stocks by market cap to target liquid, scalable stocks. Within that large cap subset, it selects the top 20% of stocks by their book-to-market values as the final universe. At the start of year, it forms a market-cap weighted portfolio and holds positions until the following year.",
+    "cloneProjectId": 26878521,
+    "tags": [
+      "Value",
+      "Equity",
+      "Fundamental",
+      "Long Term"
+    ],
+    "watchers": 33,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Dec 01, 2017",
+        "changes": [
+          "Initial version      "
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Jing Wu",
+    "organizationName": "Jing Wu",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771948800,
+          -1.0664
+        ],
+        [
+          1772035200,
+          -0.9396
+        ],
+        [
+          1772118000,
+          -0.5574
+        ],
+        [
+          1772208000,
+          -0.1836
+        ],
+        [
+          1772254800,
+          -0.551
+        ],
+        [
+          1772341200,
+          -0.551
+        ],
+        [
+          1772467200,
+          -0.551
+        ],
+        [
+          1772553600,
+          -0.999
+        ],
+        [
+          1772640000,
+          -1.6498
+        ],
+        [
+          1772726400,
+          -1.1281
+        ],
+        [
+          1772812800,
+          -1.2662
+        ],
+        [
+          1772859600,
+          -2.0958
+        ],
+        [
+          1772946000,
+          -2.0958
+        ],
+        [
+          1773068400,
+          -2.0958
+        ],
+        [
+          1773154800,
+          -2.3839
+        ],
+        [
+          1773241200,
+          -2.5752
+        ],
+        [
+          1773327600,
+          -2.4902
+        ],
+        [
+          1773414000,
+          -3.1519
+        ],
+        [
+          1773460800,
+          -3.3232
+        ],
+        [
+          1773547200,
+          -3.3232
+        ],
+        [
+          1773673200,
+          -3.3232
+        ],
+        [
+          1773759600,
+          -2.9229
+        ],
+        [
+          1773846000,
+          -2.6641
+        ],
+        [
+          1773932400,
+          -3.4157
+        ],
+        [
+          1774018800,
+          -3.3781
+        ],
+        [
+          1774065600,
+          -3.7445
+        ],
+        [
+          1774152000,
+          -3.7445
+        ],
+        [
+          1774274400,
+          -3.7445
+        ],
+        [
+          1774364400,
+          -3.1141
+        ],
+        [
+          1774447200,
+          -2.5744
+        ],
+        [
+          1774537200,
+          -2.1877
+        ],
+        [
+          1774623600,
+          -2.5547
+        ],
+        [
+          1774670400,
+          -3.4609
+        ],
+        [
+          1774756800,
+          -3.4609
+        ],
+        [
+          1774879200,
+          -3.4609
+        ],
+        [
+          1774969200,
+          -3.3785
+        ],
+        [
+          1775055600,
+          -2.1367
+        ],
+        [
+          1775138400,
+          -2.0966
+        ],
+        [
+          1775188800,
+          -1.9073
+        ],
+        [
+          1775275200,
+          -1.9073
+        ],
+        [
+          1775361600,
+          -1.9073
+        ],
+        [
+          1775484000,
+          -1.9073
+        ],
+        [
+          1775574000,
+          -1.6313
+        ],
+        [
+          1775656800,
+          -1.4633
+        ],
+        [
+          1775746800,
+          -0.3753
+        ],
+        [
+          1775833200,
+          -0.0051
+        ],
+        [
+          1775880000,
+          -0.4186
+        ],
+        [
+          1775966400,
+          -0.4186
+        ],
+        [
+          1776092400,
+          -0.4186
+        ],
+        [
+          1776178800,
+          0.2018
+        ],
+        [
+          1776265200,
+          -0.2126
+        ],
+        [
+          1776348000,
+          -0.2456
+        ],
+        [
+          1776438000,
+          0.3592
+        ],
+        [
+          1776484800,
+          0.7198
+        ],
+        [
+          1776571200,
+          0.7198
+        ],
+        [
+          1776693600,
+          0.7198
+        ],
+        [
+          1776783600,
+          0.6917
+        ],
+        [
+          1776870000,
+          0.5484
+        ],
+        [
+          1776956400,
+          0.2916
+        ],
+        [
+          1777042800,
+          0.7936
+        ],
+        [
+          1777089600,
+          0.9644
+        ],
+        [
+          1777176000,
+          0.9644
+        ],
+        [
+          1777302000,
+          0.9644
+        ],
+        [
+          1777384800,
+          1.4219
+        ],
+        [
+          1777474800,
+          1.8652
+        ],
+        [
+          1777561200,
+          2.459
+        ],
+        [
+          1777647600,
+          3.068
+        ],
+        [
+          1777694400,
+          2.9894
+        ],
+        [
+          1777780800,
+          2.9894
+        ],
+        [
+          1777906800,
+          2.9894
+        ],
+        [
+          1777993200,
+          2.3065
+        ],
+        [
+          1778079600,
+          3.3198
+        ],
+        [
+          1778166000,
+          3.6356
+        ],
+        [
+          1778252400,
+          2.864
+        ],
+        [
+          1778299200,
+          3.6078
+        ],
+        [
+          1778385600,
+          3.6078
+        ],
+        [
+          1778511600,
+          3.6078
+        ],
+        [
+          1778598000,
+          3.8579
+        ],
+        [
+          1778684400,
+          3.9262
+        ],
+        [
+          1778770800,
+          3.6083
+        ],
+        [
+          1778857200,
+          3.6297
+        ],
+        [
+          1778904000,
+          2.7664
+        ],
+        [
+          1778990400,
+          2.7664
+        ],
+        [
+          1779116400,
+          2.7664
+        ],
+        [
+          1779202800,
+          3.3651
+        ],
+        [
+          1779289200,
+          3.2926
+        ],
+        [
+          1779375600,
+          4.147
+        ],
+        [
+          1779480000,
+          4.8967
+        ]
+      ],
+      "5y psr": 25.789,
+      "5y cagr": 11.955,
+      "1y sharpe": 1.7529,
+      "3m return": 5.4779,
+      "5y drawdown": 15.9,
+      "oos 1y return": 25.3127,
+      "oos 1y sharpe": 1.7529,
+      "oos 3m return": 5.4779,
+      "oos 3m sharpe": 1.8169
+    },
+    "rank": 0.94,
+    "clones": 550,
+    "comments": 0,
+    "leaderboard": 73,
+    "score": 1.82,
+    "discussionId": 19989,
+    "hot": false,
+    "owner": false,
+    "followers": [
+      {
+        "name": "Erdal Guner",
+        "publicId": "erdal_guner",
+        "profileImage": "6070d3d1215f09a1511628067.jpg"
+      },
+      {
+        "name": "Connor Bortz",
+        "publicId": "connor_bortz",
+        "profileImage": "5fb6248d764ce201533648280.jpg"
+      },
+      {
+        "name": "PauPadilla Greendry",
+        "publicId": "paupadilla-greendry",
+        "profileImage": "c8936829a65c8ed1600374814.jpg"
+      },
+      {
+        "name": "Maximilian Wimmer",
+        "publicId": "maximilian-wimmer_1",
+        "profileImage": "1ccf9c8bd0befc41688391655.jpg"
+      },
+      {
+        "name": "Narloc",
+        "publicId": "narloc",
+        "profileImage": "4c9ff4eff2c992b1607959599.jpg"
+      }
+    ],
+    "followersCount": 33,
+    "published": 1512148920
+  }
+}

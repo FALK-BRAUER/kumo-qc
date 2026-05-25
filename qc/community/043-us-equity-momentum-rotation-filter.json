@@ -1,0 +1,481 @@
+{
+  "summary": {
+    "rank": 43,
+    "leaderboard_position": 64,
+    "id": 393,
+    "name": "US Equity Momentum Rotation Filter",
+    "author": "Lucas ",
+    "author_public_id": "lucas_6",
+    "organization": "Lucas Bjerre Rasmussen",
+    "description": "The strategy is a long only US equity momentum rotation with a market regime filter. Each month it forms a liquid trading universe by selecting the 20 highest dollar volume stocks with prices above 10 USD (fundamental data required). It then computes a 60 trading day rate of change using daily data and, at the start of each month, ranks candidates by positive momentum, keeping only the 10 strongest signals. The core thesis is cross sectional momentum: recent winners with positive intermediate te",
+    "description_full": "The strategy is a long only US equity momentum rotation with a market regime filter. Each month it forms a liquid trading universe by selecting the 20 highest dollar volume stocks with prices above 10 USD (fundamental data required). It then computes a 60 trading day rate of change using daily data and, at the start of each month, ranks candidates by positive momentum, keeping only the 10 strongest signals. The core thesis is cross sectional momentum: recent winners with positive intermediate term returns are expected to continue outperforming over the next month, with the signal magnitude proportional to the observed rate of change.\n\nPositions are entered and rebalanced monthly and held until month end, with equal weight sizing across the selected names and no short exposure. A top down risk overlay uses SPY as a regime indicator: if SPY trades below its 200 day EMA (daily), the portfolio is fully liquidated and new entries are suppressed until the filter clears. Decisions are made on a monthly schedule with daily indicator inputs; intraday resolution is used for execution and universe handling but not for signal formation. The intended edge is momentum persistence in liquid large cap equities, with drawdown control via an equity market trend filter.",
+    "tags": [
+      "Momentum",
+      "Equity",
+      "Fundamental Universe",
+      "Trend Filter"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 2.32,
+    "sharpe_1y": 2.0748,
+    "return_3m": 19.0574,
+    "return_oos_1y": 81.2841,
+    "sharpe_oos_1y": 2.0748,
+    "cagr_5y": 14.429,
+    "drawdown_5y": 40.2,
+    "psr_5y": 10.405,
+    "watchers": 5,
+    "clones": 0,
+    "clone_project_id": 28954658,
+    "backtest_id": "9e6aa98f7aae8d91c0c6c937ec388aeb",
+    "discussion_id": 20431,
+    "published_ts": 1640592000,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 393,
+    "backtestId": "9e6aa98f7aae8d91c0c6c937ec388aeb",
+    "name": "US Equity Momentum Rotation Filter",
+    "author": {
+      "name": "Lucas ",
+      "organizationName": "Lucas Bjerre Rasmussen",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/d16aeff523e8e061635886853.jpg",
+      "bio": "Datascience student from Denmark",
+      "publicId": "lucas_6",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": "https://www.linkedin.com/in/lucas-bjerre-rasmussen-5184461b0/",
+      "web": null,
+      "topAuthor": false
+    },
+    "description": "The strategy is a long only US equity momentum rotation with a market regime filter. Each month it forms a liquid trading universe by selecting the 20 highest dollar volume stocks with prices above 10 USD (fundamental data required). It then computes a 60 trading day rate of change using daily data and, at the start of each month, ranks candidates by positive momentum, keeping only the 10 strongest signals. The core thesis is cross sectional momentum: recent winners with positive intermediate term returns are expected to continue outperforming over the next month, with the signal magnitude proportional to the observed rate of change.\n\nPositions are entered and rebalanced monthly and held until month end, with equal weight sizing across the selected names and no short exposure. A top down risk overlay uses SPY as a regime indicator: if SPY trades below its 200 day EMA (daily), the portfolio is fully liquidated and new entries are suppressed until the filter clears. Decisions are made on a monthly schedule with daily indicator inputs; intraday resolution is used for execution and universe handling but not for signal formation. The intended edge is momentum persistence in liquid large cap equities, with drawdown control via an equity market trend filter.",
+    "cloneProjectId": 28954658,
+    "tags": [
+      "Momentum",
+      "Equity",
+      "Fundamental Universe",
+      "Trend Filter"
+    ],
+    "watchers": 5,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Dec 27, 2021",
+        "changes": [
+          "Initial deployment for strategy &quot;US Equity Momentum Rotation Filter&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Lucas ",
+    "organizationName": "Lucas Bjerre Rasmussen",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771945200,
+          -1.5385
+        ],
+        [
+          1772031600,
+          0.1467
+        ],
+        [
+          1772118000,
+          -2.054
+        ],
+        [
+          1772204400,
+          -2.3406
+        ],
+        [
+          1772254800,
+          -2.056
+        ],
+        [
+          1772341200,
+          -2.056
+        ],
+        [
+          1772467200,
+          -2.8274
+        ],
+        [
+          1772550000,
+          -6.697
+        ],
+        [
+          1772640000,
+          -3.4047
+        ],
+        [
+          1772726400,
+          -4.6494
+        ],
+        [
+          1772809200,
+          -8.4388
+        ],
+        [
+          1772859600,
+          -10.602
+        ],
+        [
+          1772946000,
+          -10.602
+        ],
+        [
+          1773068400,
+          -9.6276
+        ],
+        [
+          1773151200,
+          -4.9588
+        ],
+        [
+          1773241200,
+          -2.7764
+        ],
+        [
+          1773324000,
+          -4.9908
+        ],
+        [
+          1773410400,
+          -4.1579
+        ],
+        [
+          1773460800,
+          -4.5687
+        ],
+        [
+          1773547200,
+          -4.5687
+        ],
+        [
+          1773673200,
+          -0.9495
+        ],
+        [
+          1773756000,
+          -1.368
+        ],
+        [
+          1773842400,
+          1.3418
+        ],
+        [
+          1773928800,
+          -0.9473
+        ],
+        [
+          1774018800,
+          0.6213
+        ],
+        [
+          1774065600,
+          0.6213
+        ],
+        [
+          1774152000,
+          0.6213
+        ],
+        [
+          1774278000,
+          0.6213
+        ],
+        [
+          1774360800,
+          0.6213
+        ],
+        [
+          1774447200,
+          0.6213
+        ],
+        [
+          1774533600,
+          0.6213
+        ],
+        [
+          1774620000,
+          0.6213
+        ],
+        [
+          1774670400,
+          0.6213
+        ],
+        [
+          1774756800,
+          0.6213
+        ],
+        [
+          1774882800,
+          0.6213
+        ],
+        [
+          1774969200,
+          0.6213
+        ],
+        [
+          1775055600,
+          2.0448
+        ],
+        [
+          1775138400,
+          1.8294
+        ],
+        [
+          1775188800,
+          1.8294
+        ],
+        [
+          1775275200,
+          1.8294
+        ],
+        [
+          1775361600,
+          1.8294
+        ],
+        [
+          1775487600,
+          1.8294
+        ],
+        [
+          1775570400,
+          1.8294
+        ],
+        [
+          1775656800,
+          1.8294
+        ],
+        [
+          1775743200,
+          1.8294
+        ],
+        [
+          1775833200,
+          1.8294
+        ],
+        [
+          1775880000,
+          1.8294
+        ],
+        [
+          1775966400,
+          1.8294
+        ],
+        [
+          1776088800,
+          1.8294
+        ],
+        [
+          1776175200,
+          1.8294
+        ],
+        [
+          1776261600,
+          1.8294
+        ],
+        [
+          1776348000,
+          1.8294
+        ],
+        [
+          1776434400,
+          1.8294
+        ],
+        [
+          1776484800,
+          1.8294
+        ],
+        [
+          1776571200,
+          1.8294
+        ],
+        [
+          1776693600,
+          1.8294
+        ],
+        [
+          1776780000,
+          1.8294
+        ],
+        [
+          1776866400,
+          1.8294
+        ],
+        [
+          1776952800,
+          1.8294
+        ],
+        [
+          1777039200,
+          1.8294
+        ],
+        [
+          1777089600,
+          1.8294
+        ],
+        [
+          1777176000,
+          1.8294
+        ],
+        [
+          1777298400,
+          1.8294
+        ],
+        [
+          1777384800,
+          1.8294
+        ],
+        [
+          1777471200,
+          1.8294
+        ],
+        [
+          1777557600,
+          1.8294
+        ],
+        [
+          1777647600,
+          -0.0195
+        ],
+        [
+          1777694400,
+          2.365
+        ],
+        [
+          1777780800,
+          2.365
+        ],
+        [
+          1777903200,
+          4.5616
+        ],
+        [
+          1777989600,
+          8.0574
+        ],
+        [
+          1778076000,
+          10.5056
+        ],
+        [
+          1778162400,
+          8.6057
+        ],
+        [
+          1778248800,
+          12.0747
+        ],
+        [
+          1778299200,
+          14.7976
+        ],
+        [
+          1778385600,
+          14.7976
+        ],
+        [
+          1778511600,
+          20.1768
+        ],
+        [
+          1778594400,
+          16.8644
+        ],
+        [
+          1778680800,
+          15.6608
+        ],
+        [
+          1778767200,
+          16.6166
+        ],
+        [
+          1778857200,
+          11.9972
+        ],
+        [
+          1778904000,
+          12.6028
+        ],
+        [
+          1778990400,
+          12.6028
+        ],
+        [
+          1779112800,
+          8.9602
+        ],
+        [
+          1779199200,
+          5.7088
+        ],
+        [
+          1779285600,
+          10.9392
+        ],
+        [
+          1779375600,
+          15.3984
+        ],
+        [
+          1779480000,
+          16.6095
+        ]
+      ],
+      "5y psr": 10.405,
+      "5y cagr": 14.429,
+      "1y sharpe": 2.0748,
+      "3m return": 19.0574,
+      "5y drawdown": 40.2,
+      "oos 1y return": 81.2841,
+      "oos 1y sharpe": 2.0748,
+      "oos 3m return": 19.0574,
+      "oos 3m sharpe": 2.3207
+    },
+    "rank": 999999,
+    "clones": 0,
+    "comments": 0,
+    "leaderboard": 64,
+    "score": 2.32,
+    "discussionId": 20431,
+    "hot": false,
+    "owner": false,
+    "followers": [
+      {
+        "name": "Frank Schikarski",
+        "publicId": "frank_schikarski",
+        "profileImage": "07413c8f3462cd31635150497.png"
+      },
+      {
+        "name": "Trader Ostburg",
+        "publicId": "trader-ostburg",
+        "profileImage": "5f70a39c30853661743949853.png"
+      },
+      {
+        "name": "codebyte labs",
+        "publicId": "codebyte-labs",
+        "profileImage": "1cb84c88cd873df1774949616.png"
+      },
+      {
+        "name": "Rainer B&ouml;hme",
+        "publicId": "rainer-boehme",
+        "profileImage": "4979643561f07621774981112.jpg"
+      }
+    ],
+    "followersCount": 5,
+    "published": 1640592000
+  }
+}

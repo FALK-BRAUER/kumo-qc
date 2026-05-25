@@ -1,0 +1,490 @@
+{
+  "summary": {
+    "rank": 7,
+    "leaderboard_position": 16,
+    "id": 233,
+    "name": "Low-Vol Cross-Asset Futures Risk Parity",
+    "author": "Derek Melchin",
+    "author_public_id": "derek-melchin",
+    "organization": "QuantConnect",
+    "description": "The strategy is a cross asset futures allocation that seeks to harvest diversification and risk premia by systematically allocating to the least volatile contracts and sizing positions inversely to their recent volatility. Each week it ranks a fixed universe of liquid index, energy, and grain futures (including VIX, US equity index minis, Brent and refined products, natural gas, and major grains) by 30 day realized volatility of daily returns, then selects the five lowest volatility markets as t",
+    "description_full": "The strategy is a cross asset futures allocation that seeks to harvest diversification and risk premia by systematically allocating to the least volatile contracts and sizing positions inversely to their recent volatility. Each week it ranks a fixed universe of liquid index, energy, and grain futures (including VIX, US equity index minis, Brent and refined products, natural gas, and major grains) by 30 day realized volatility of daily returns, then selects the five lowest volatility markets as the investable basket. The intended opportunity is that lower realized volatility contracts tend to exhibit more stable trends and carry-like behavior, while inverse volatility sizing targets more balanced risk contributions and reduces concentration in inherently volatile markets.\n\nRebalancing occurs weekly at 10:00 ET using daily data, after a 31 trading day warmup to ensure volatility estimates are stable. Portfolio weights are proportional to 1 over volatility within the selected set, then scaled so total exposure is approximately 50 percent notional (the remaining is implicitly held as cash), and positions are implemented via the current front mapped continuous contract for each future. Primary risk controls are the volatility based selection and sizing, the fixed cap of five concurrent positions, and the deliberate leverage reduction via the 50 percent gross exposure target. ",
+    "tags": [
+      "Futures",
+      "Inverse Volatility",
+      "Weekly Rebalance",
+      "Systematic"
+    ],
+    "asset_classes": [
+      "Future"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 6.99,
+    "sharpe_1y": 2.5222,
+    "return_3m": 62.1422,
+    "return_oos_1y": 213.101,
+    "sharpe_oos_1y": 2.5222,
+    "cagr_5y": -0.323,
+    "drawdown_5y": 90.1,
+    "psr_5y": 8.783,
+    "watchers": 7,
+    "clones": 0,
+    "clone_project_id": 27907416,
+    "backtest_id": "844f8fc112368e53d9c6b6f85d30dae0",
+    "discussion_id": 20135,
+    "published_ts": 1670284800,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 233,
+    "backtestId": "844f8fc112368e53d9c6b6f85d30dae0",
+    "name": "Low-Vol Cross-Asset Futures Risk Parity",
+    "author": {
+      "name": "Derek Melchin",
+      "organizationName": "QuantConnect",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/d06c9930192dcf31587397285.jpg",
+      "bio": "Quantitative Developer at QuantConnect. Studied Computer Science and Finance at the University of Lethbridge. Competitor in the 2020-1 Rotman International Trading Competitions. \nSee my latest posts at derekmelchin.com.",
+      "publicId": "derek-melchin",
+      "facebook": null,
+      "twitter": "https://twitter.com/DerekMelchin",
+      "linkedin": "https://www.linkedin.com/in/derek-melchin-b22753137/",
+      "web": "http://www.derekmelchin.com",
+      "topAuthor": false
+    },
+    "description": "The strategy is a cross asset futures allocation that seeks to harvest diversification and risk premia by systematically allocating to the least volatile contracts and sizing positions inversely to their recent volatility. Each week it ranks a fixed universe of liquid index, energy, and grain futures (including VIX, US equity index minis, Brent and refined products, natural gas, and major grains) by 30 day realized volatility of daily returns, then selects the five lowest volatility markets as the investable basket. The intended opportunity is that lower realized volatility contracts tend to exhibit more stable trends and carry-like behavior, while inverse volatility sizing targets more balanced risk contributions and reduces concentration in inherently volatile markets.\n\nRebalancing occurs weekly at 10:00 ET using daily data, after a 31 trading day warmup to ensure volatility estimates are stable. Portfolio weights are proportional to 1 over volatility within the selected set, then scaled so total exposure is approximately 50 percent notional (the remaining is implicitly held as cash), and positions are implemented via the current front mapped continuous contract for each future. Primary risk controls are the volatility based selection and sizing, the fixed cap of five concurrent positions, and the deliberate leverage reduction via the 50 percent gross exposure target. ",
+    "cloneProjectId": 27907416,
+    "tags": [
+      "Futures",
+      "Inverse Volatility",
+      "Weekly Rebalance",
+      "Systematic"
+    ],
+    "watchers": 7,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Dec 06, 2022",
+        "changes": [
+          "Initial deployment for strategy &quot;Low-Vol Cross-Asset Futures Risk Parity&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Derek Melchin",
+    "organizationName": "QuantConnect",
+    "research": null,
+    "assetClasses": [
+      "Future"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771942680,
+          -5.7185
+        ],
+        [
+          1772060940,
+          8.5389
+        ],
+        [
+          1772139780,
+          6.1696
+        ],
+        [
+          1772218620,
+          4.8077
+        ],
+        [
+          1772258400,
+          4.2815
+        ],
+        [
+          1772389800,
+          4.2815
+        ],
+        [
+          1772468640,
+          -0.377
+        ],
+        [
+          1772547480,
+          -1.3831
+        ],
+        [
+          1772665740,
+          1.9012
+        ],
+        [
+          1772744580,
+          4.8204
+        ],
+        [
+          1772823420,
+          8.9068
+        ],
+        [
+          1772863200,
+          8.7779
+        ],
+        [
+          1772991000,
+          8.7779
+        ],
+        [
+          1773069840,
+          3.6294
+        ],
+        [
+          1773148680,
+          5.9515
+        ],
+        [
+          1773266940,
+          17.8924
+        ],
+        [
+          1773345780,
+          18.7795
+        ],
+        [
+          1773424620,
+          19.2005
+        ],
+        [
+          1773464400,
+          19.2671
+        ],
+        [
+          1773595800,
+          19.2671
+        ],
+        [
+          1773674640,
+          1.7939
+        ],
+        [
+          1773753480,
+          0.1356
+        ],
+        [
+          1773871740,
+          -3.2055
+        ],
+        [
+          1773950580,
+          0.6748
+        ],
+        [
+          1774029420,
+          -7.245
+        ],
+        [
+          1774069200,
+          -5.3852
+        ],
+        [
+          1774200600,
+          -5.3852
+        ],
+        [
+          1774279440,
+          -7.9385
+        ],
+        [
+          1774358280,
+          -14.719
+        ],
+        [
+          1774476540,
+          -6.3176
+        ],
+        [
+          1774555380,
+          -14.1369
+        ],
+        [
+          1774634220,
+          -24.2945
+        ],
+        [
+          1774674000,
+          -26.3927
+        ],
+        [
+          1774805400,
+          -26.3927
+        ],
+        [
+          1774884240,
+          -23.3124
+        ],
+        [
+          1774963080,
+          -23.8151
+        ],
+        [
+          1775081340,
+          -13.8005
+        ],
+        [
+          1775160180,
+          -11.4733
+        ],
+        [
+          1775199600,
+          -12.406
+        ],
+        [
+          1775275200,
+          -12.5598
+        ],
+        [
+          1775410200,
+          -12.5598
+        ],
+        [
+          1775489040,
+          -13.4076
+        ],
+        [
+          1775567880,
+          -13.4862
+        ],
+        [
+          1775686140,
+          -3.4304
+        ],
+        [
+          1775764980,
+          -1.1436
+        ],
+        [
+          1775843820,
+          -0.8377
+        ],
+        [
+          1775883600,
+          -1.6179
+        ],
+        [
+          1776015000,
+          -1.6179
+        ],
+        [
+          1776093840,
+          -2.7095
+        ],
+        [
+          1776172680,
+          3.6809
+        ],
+        [
+          1776290940,
+          15.7073
+        ],
+        [
+          1776369780,
+          14.968
+        ],
+        [
+          1776448620,
+          24.3807
+        ],
+        [
+          1776488400,
+          23.872
+        ],
+        [
+          1776619860,
+          23.872
+        ],
+        [
+          1776698700,
+          22.1877
+        ],
+        [
+          1776777540,
+          28.9058
+        ],
+        [
+          1776895800,
+          27.0246
+        ],
+        [
+          1776974640,
+          25.5601
+        ],
+        [
+          1777053480,
+          29.8621
+        ],
+        [
+          1777093200,
+          30.3858
+        ],
+        [
+          1777227480,
+          30.3858
+        ],
+        [
+          1777306320,
+          35.7081
+        ],
+        [
+          1777385160,
+          35.6496
+        ],
+        [
+          1777503420,
+          41.6774
+        ],
+        [
+          1777582260,
+          48.4141
+        ],
+        [
+          1777661100,
+          54.5781
+        ],
+        [
+          1777694400,
+          52.9744
+        ],
+        [
+          1777829460,
+          52.9744
+        ],
+        [
+          1777908300,
+          62.9644
+        ],
+        [
+          1777987140,
+          60.9568
+        ],
+        [
+          1778105400,
+          53.0336
+        ],
+        [
+          1778184240,
+          49.2883
+        ],
+        [
+          1778263080,
+          66.857
+        ],
+        [
+          1778302800,
+          65.6602
+        ],
+        [
+          1778434260,
+          65.6602
+        ],
+        [
+          1778513100,
+          74.9822
+        ],
+        [
+          1778591940,
+          75.6416
+        ],
+        [
+          1778710200,
+          89.1412
+        ],
+        [
+          1778789040,
+          69.411
+        ],
+        [
+          1778867880,
+          43.4843
+        ],
+        [
+          1778907600,
+          35.6543
+        ],
+        [
+          1779039000,
+          35.6543
+        ],
+        [
+          1779117840,
+          64.6494
+        ],
+        [
+          1779196680,
+          63.8903
+        ],
+        [
+          1779314940,
+          59.0164
+        ],
+        [
+          1779393780,
+          63.9595
+        ],
+        [
+          1779472620,
+          72.3974
+        ],
+        [
+          1779512400,
+          69.0842
+        ]
+      ],
+      "5y psr": 8.783,
+      "5y cagr": -0.323,
+      "1y sharpe": 2.5222,
+      "3m return": 62.1422,
+      "5y drawdown": 90.1,
+      "oos 1y return": 213.101,
+      "oos 1y sharpe": 2.5222,
+      "oos 3m return": 62.1422,
+      "oos 3m sharpe": 6.9943
+    },
+    "rank": 0,
+    "clones": 0,
+    "comments": 0,
+    "leaderboard": 16,
+    "score": 6.99,
+    "discussionId": 20135,
+    "hot": false,
+    "owner": false,
+    "followers": [
+      {
+        "name": "Joachim Schlumpf",
+        "publicId": "joachim_schlumpf",
+        "profileImage": "4777e34b1e1e73149c8fb20c5fe28712.jpg"
+      },
+      {
+        "name": "Maximilian Wimmer",
+        "publicId": "maximilian-wimmer_1",
+        "profileImage": "1ccf9c8bd0befc41688391655.jpg"
+      },
+      {
+        "name": "Trader Ostburg",
+        "publicId": "trader-ostburg",
+        "profileImage": "5f70a39c30853661743949853.png"
+      },
+      {
+        "name": "Brad Young",
+        "publicId": "brad-young",
+        "profileImage": "96d919b4aeaa2fe1765106183.jpg"
+      },
+      {
+        "name": "Aless Ash",
+        "publicId": "aless-ash",
+        "profileImage": "2fa4b7f4679db6c1777544810.png"
+      }
+    ],
+    "followersCount": 7,
+    "published": 1670284800
+  }
+}

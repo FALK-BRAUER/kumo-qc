@@ -1,0 +1,460 @@
+{
+  "summary": {
+    "rank": 82,
+    "leaderboard_position": 67,
+    "id": 28,
+    "name": "Turn Of The Month In Equity Indexes",
+    "author": "Jing Wu",
+    "author_public_id": "jing_wu_1",
+    "organization": "Jing Wu",
+    "description": "The strategy expresses a turn of month calendar anomaly in US equities by taking short horizon, fully invested long exposure in the SPDR S and P 500 ETF (SPY) around each month end. The thesis is that predictable institutional flows and systematic rebalancing effects can create a recurring positive drift at the transition between months, which the strategy attempts to monetize with brief, repeated exposure rather than continuous market beta.\n\nExecution is rule based on daily data and a monthly s",
+    "description_full": "The strategy expresses a turn of month calendar anomaly in US equities by taking short horizon, fully invested long exposure in the SPDR S and P 500 ETF (SPY) around each month end. The thesis is that predictable institutional flows and systematic rebalancing effects can create a recurring positive drift at the transition between months, which the strategy attempts to monetize with brief, repeated exposure rather than continuous market beta.\n\nExecution is rule based on daily data and a monthly schedule: on the final trading day of each month the strategy enters a 100 percent long SPY position at the next market open, then holds the position for approximately three trading days and exits by fully liquidating. Position sizing is constant (always fully allocated when active) with no leverage, no shorting, no volatility targeting, and no explicit stop loss; risk is controlled primarily through short holding periods and time based exits, leaving the dominant risks as equity market gap risk and concentrated single asset exposure during the holding window.",
+    "tags": [
+      "Turn Of Month",
+      "Equity",
+      "Seasonality",
+      "Swing"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 1.1,
+    "sharpe_1y": -0.8229,
+    "return_3m": 3.1549,
+    "return_oos_1y": 3.3076,
+    "sharpe_oos_1y": -0.8229,
+    "cagr_5y": -0.815,
+    "drawdown_5y": 18.5,
+    "psr_5y": 0.208,
+    "watchers": 0,
+    "clones": 0,
+    "clone_project_id": 26893366,
+    "backtest_id": "ff73a6dd9e5664de6ccf4cae832d5505",
+    "discussion_id": 19922,
+    "published_ts": 1533143255,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 28,
+    "backtestId": "ff73a6dd9e5664de6ccf4cae832d5505",
+    "name": "Turn Of The Month In Equity Indexes",
+    "author": {
+      "name": "Jing Wu",
+      "organizationName": "Jing Wu",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/11e766258dae69d1498233757.jpg",
+      "bio": "Quant Developer",
+      "publicId": "jing_wu_1",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": null,
+      "web": null,
+      "topAuthor": false
+    },
+    "description": "The strategy expresses a turn of month calendar anomaly in US equities by taking short horizon, fully invested long exposure in the SPDR S and P 500 ETF (SPY) around each month end. The thesis is that predictable institutional flows and systematic rebalancing effects can create a recurring positive drift at the transition between months, which the strategy attempts to monetize with brief, repeated exposure rather than continuous market beta.\n\nExecution is rule based on daily data and a monthly schedule: on the final trading day of each month the strategy enters a 100 percent long SPY position at the next market open, then holds the position for approximately three trading days and exits by fully liquidating. Position sizing is constant (always fully allocated when active) with no leverage, no shorting, no volatility targeting, and no explicit stop loss; risk is controlled primarily through short holding periods and time based exits, leaving the dominant risks as equity market gap risk and concentrated single asset exposure during the holding window.",
+    "cloneProjectId": 26893366,
+    "tags": [
+      "Turn Of Month",
+      "Equity",
+      "Seasonality",
+      "Swing"
+    ],
+    "watchers": 0,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Aug 01, 2018",
+        "changes": [
+          "Initial deployment for strategy &quot;Turn Of The Month In Equity Indexes&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Jing Wu",
+    "organizationName": "Jing Wu",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771945200,
+          0
+        ],
+        [
+          1772031600,
+          0
+        ],
+        [
+          1772118000,
+          0
+        ],
+        [
+          1772204400,
+          0
+        ],
+        [
+          1772254800,
+          0.4405
+        ],
+        [
+          1772341200,
+          0.4405
+        ],
+        [
+          1772463600,
+          0.4405
+        ],
+        [
+          1772550000,
+          0.4969
+        ],
+        [
+          1772636400,
+          -0.3783
+        ],
+        [
+          1772722800,
+          -0.1982
+        ],
+        [
+          1772809200,
+          -0.1982
+        ],
+        [
+          1772859600,
+          -0.1982
+        ],
+        [
+          1772946000,
+          -0.1982
+        ],
+        [
+          1773064800,
+          -0.1982
+        ],
+        [
+          1773151200,
+          -0.1982
+        ],
+        [
+          1773237600,
+          -0.1982
+        ],
+        [
+          1773324000,
+          -0.1982
+        ],
+        [
+          1773410400,
+          -0.1982
+        ],
+        [
+          1773460800,
+          -0.1982
+        ],
+        [
+          1773547200,
+          -0.1982
+        ],
+        [
+          1773669600,
+          -0.1982
+        ],
+        [
+          1773756000,
+          -0.1982
+        ],
+        [
+          1773842400,
+          -0.1982
+        ],
+        [
+          1773928800,
+          -0.1982
+        ],
+        [
+          1774018800,
+          -0.1982
+        ],
+        [
+          1774065600,
+          -0.1982
+        ],
+        [
+          1774152000,
+          -0.1982
+        ],
+        [
+          1774274400,
+          -0.1982
+        ],
+        [
+          1774360800,
+          -0.1982
+        ],
+        [
+          1774447200,
+          -0.1982
+        ],
+        [
+          1774533600,
+          -0.1982
+        ],
+        [
+          1774620000,
+          -0.1982
+        ],
+        [
+          1774670400,
+          -0.1982
+        ],
+        [
+          1774756800,
+          -0.1982
+        ],
+        [
+          1774879200,
+          -0.1982
+        ],
+        [
+          1774965600,
+          -0.1982
+        ],
+        [
+          1775052000,
+          1.6041
+        ],
+        [
+          1775138400,
+          2.3757
+        ],
+        [
+          1775188800,
+          2.4686
+        ],
+        [
+          1775275200,
+          2.4686
+        ],
+        [
+          1775361600,
+          2.4686
+        ],
+        [
+          1775484000,
+          2.4686
+        ],
+        [
+          1775570400,
+          2.9568
+        ],
+        [
+          1775656800,
+          2.6001
+        ],
+        [
+          1775743200,
+          2.6001
+        ],
+        [
+          1775829600,
+          2.6001
+        ],
+        [
+          1775880000,
+          2.6001
+        ],
+        [
+          1775966400,
+          2.6001
+        ],
+        [
+          1776088800,
+          2.6001
+        ],
+        [
+          1776175200,
+          2.6001
+        ],
+        [
+          1776261600,
+          2.6001
+        ],
+        [
+          1776348000,
+          2.6001
+        ],
+        [
+          1776434400,
+          2.6001
+        ],
+        [
+          1776484800,
+          2.6001
+        ],
+        [
+          1776571200,
+          2.6001
+        ],
+        [
+          1776693600,
+          2.6001
+        ],
+        [
+          1776780000,
+          2.6001
+        ],
+        [
+          1776866400,
+          2.6001
+        ],
+        [
+          1776952800,
+          2.6001
+        ],
+        [
+          1777039200,
+          2.6001
+        ],
+        [
+          1777089600,
+          2.6001
+        ],
+        [
+          1777176000,
+          2.6001
+        ],
+        [
+          1777298400,
+          2.6001
+        ],
+        [
+          1777384800,
+          2.6001
+        ],
+        [
+          1777471200,
+          2.6001
+        ],
+        [
+          1777557600,
+          2.6001
+        ],
+        [
+          1777644000,
+          3.1673
+        ],
+        [
+          1777694400,
+          3.4533
+        ],
+        [
+          1777780800,
+          3.4533
+        ],
+        [
+          1777903200,
+          3.4533
+        ],
+        [
+          1777989600,
+          3.0738
+        ],
+        [
+          1778076000,
+          3.6093
+        ],
+        [
+          1778162400,
+          3.6093
+        ],
+        [
+          1778248800,
+          3.6093
+        ],
+        [
+          1778299200,
+          3.6093
+        ],
+        [
+          1778385600,
+          3.6093
+        ],
+        [
+          1778508000,
+          3.6093
+        ],
+        [
+          1778594400,
+          3.6093
+        ],
+        [
+          1778680800,
+          3.6093
+        ],
+        [
+          1778767200,
+          3.6093
+        ],
+        [
+          1778853600,
+          3.6093
+        ],
+        [
+          1778904000,
+          3.6093
+        ],
+        [
+          1778990400,
+          3.6093
+        ],
+        [
+          1779112800,
+          3.6093
+        ],
+        [
+          1779199200,
+          3.6093
+        ],
+        [
+          1779285600,
+          3.6093
+        ],
+        [
+          1779372000,
+          3.6093
+        ],
+        [
+          1779480000,
+          3.6093
+        ]
+      ],
+      "5y psr": 0.208,
+      "5y cagr": -0.815,
+      "1y sharpe": -0.8229,
+      "3m return": 3.1549,
+      "5y drawdown": 18.5,
+      "oos 1y return": 3.3076,
+      "oos 1y sharpe": -0.8229,
+      "oos 3m return": 3.1549,
+      "oos 3m sharpe": 1.0994
+    },
+    "rank": -0.3,
+    "clones": 0,
+    "comments": 0,
+    "leaderboard": 67,
+    "score": 1.1,
+    "discussionId": 19922,
+    "hot": false,
+    "owner": false,
+    "followers": [],
+    "followersCount": 0,
+    "published": 1533143255
+  }
+}

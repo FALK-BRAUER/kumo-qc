@@ -1,0 +1,472 @@
+{
+  "summary": {
+    "rank": 22,
+    "leaderboard_position": 20,
+    "id": 228,
+    "name": "Long SPY VIX-Ranked Put Overlay",
+    "author": "Louis",
+    "author_public_id": "louis_2",
+    "organization": "TradeOptionsWithMe",
+    "description": "The strategy maintains a long core position in SPY and opportunistically overlays short dated out of the money put options as crash protection when equity volatility is elevated. The timing signal is a VIX based volatility rank computed daily over a 150 trading day lookback as (current VIX minus lookback low) divided by (lookback high minus lookback low). When this rank exceeds 0.5, the strategy interprets volatility as relatively expensive and increases portfolio convexity by purchasing SPY put",
+    "description_full": "The strategy maintains a long core position in SPY and opportunistically overlays short dated out of the money put options as crash protection when equity volatility is elevated. The timing signal is a VIX based volatility rank computed daily over a 150 trading day lookback as (current VIX minus lookback low) divided by (lookback high minus lookback low). When this rank exceeds 0.5, the strategy interprets volatility as relatively expensive and increases portfolio convexity by purchasing SPY put options, aiming to monetize tail risk during stress regimes while keeping most capital deployed in equities.\n\nPortfolio construction targets 90 percent notional exposure to SPY at all times, and sizes the put overlay to approximately one contract per 90 shares of the existing equity holding (a partial hedge rather than fully covered). The option selected is a put roughly 1 percent out of the money with about 25 days to expiration (accepted window plus or minus 8 days), and positions are exited two days before expiry to avoid late lifecycle risks and liquidity decay. Decisions are made once per day shortly after the market open using SPY prices and daily VIX data; the expected edge is regime conditioned convexity, paying option premium primarily when volatility is already high and downside protection is most valuable.",
+    "tags": [
+      "Options Hedging",
+      "Equity",
+      "Volatility",
+      "Swing"
+    ],
+    "asset_classes": [
+      "Equity",
+      "Base"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 3.99,
+    "sharpe_1y": 1.4505,
+    "return_3m": 11.3708,
+    "return_oos_1y": 25.6066,
+    "sharpe_oos_1y": 1.4505,
+    "cagr_5y": 9.036,
+    "drawdown_5y": 27,
+    "psr_5y": 14.837,
+    "watchers": 1,
+    "clones": 0,
+    "clone_project_id": 27846808,
+    "backtest_id": "d749270d003bfeed9b0657a07aa2e1b4",
+    "discussion_id": 20129,
+    "published_ts": 1602720000,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 228,
+    "backtestId": "d749270d003bfeed9b0657a07aa2e1b4",
+    "name": "Long SPY VIX-Ranked Put Overlay",
+    "author": {
+      "name": "Louis",
+      "organizationName": "TradeOptionsWithMe",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/79261d14653794b1603115207.jpg",
+      "bio": "I am Louis and I have a passion for options, trading, and computer science. Algorithmic trading is a great way to combine these things. \n",
+      "publicId": "louis_2",
+      "facebook": "https://www.facebook.com/Tradeoptionswithme",
+      "twitter": "https://twitter.com/Louis_Options",
+      "linkedin": null,
+      "web": null,
+      "topAuthor": false
+    },
+    "description": "The strategy maintains a long core position in SPY and opportunistically overlays short dated out of the money put options as crash protection when equity volatility is elevated. The timing signal is a VIX based volatility rank computed daily over a 150 trading day lookback as (current VIX minus lookback low) divided by (lookback high minus lookback low). When this rank exceeds 0.5, the strategy interprets volatility as relatively expensive and increases portfolio convexity by purchasing SPY put options, aiming to monetize tail risk during stress regimes while keeping most capital deployed in equities.\n\nPortfolio construction targets 90 percent notional exposure to SPY at all times, and sizes the put overlay to approximately one contract per 90 shares of the existing equity holding (a partial hedge rather than fully covered). The option selected is a put roughly 1 percent out of the money with about 25 days to expiration (accepted window plus or minus 8 days), and positions are exited two days before expiry to avoid late lifecycle risks and liquidity decay. Decisions are made once per day shortly after the market open using SPY prices and daily VIX data; the expected edge is regime conditioned convexity, paying option premium primarily when volatility is already high and downside protection is most valuable.",
+    "cloneProjectId": 27846808,
+    "tags": [
+      "Options Hedging",
+      "Equity",
+      "Volatility",
+      "Swing"
+    ],
+    "watchers": 1,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Oct 15, 2020",
+        "changes": [
+          "Initial deployment for strategy &quot;Long SPY VIX-Ranked Put Overlay&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Louis",
+    "organizationName": "TradeOptionsWithMe",
+    "research": null,
+    "assetClasses": [
+      "Equity",
+      "Base"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771948620,
+          -0.5386
+        ],
+        [
+          1772035020,
+          -0.1189
+        ],
+        [
+          1772121420,
+          -0.4701
+        ],
+        [
+          1772207820,
+          -0.7748
+        ],
+        [
+          1772254800,
+          -0.7194
+        ],
+        [
+          1772341200,
+          -0.7194
+        ],
+        [
+          1772451000,
+          -0.7194
+        ],
+        [
+          1772553420,
+          -1.9099
+        ],
+        [
+          1772639820,
+          -1.1704
+        ],
+        [
+          1772726220,
+          -1.4511
+        ],
+        [
+          1772812620,
+          -1.7811
+        ],
+        [
+          1772859600,
+          -1.7586
+        ],
+        [
+          1772946000,
+          -1.7586
+        ],
+        [
+          1773052200,
+          -1.7586
+        ],
+        [
+          1773154620,
+          -1.6794
+        ],
+        [
+          1773241020,
+          -1.9224
+        ],
+        [
+          1773327420,
+          -2.4171
+        ],
+        [
+          1773413820,
+          -2.6206
+        ],
+        [
+          1773460800,
+          -2.7701
+        ],
+        [
+          1773547200,
+          -2.7701
+        ],
+        [
+          1773657000,
+          -2.7701
+        ],
+        [
+          1773759420,
+          -2.7243
+        ],
+        [
+          1773845820,
+          -3.1005
+        ],
+        [
+          1773932220,
+          -3.3791
+        ],
+        [
+          1774018620,
+          -3.4215
+        ],
+        [
+          1774065600,
+          -3.4133
+        ],
+        [
+          1774152000,
+          -3.4133
+        ],
+        [
+          1774261800,
+          -3.4133
+        ],
+        [
+          1774364220,
+          -3.513
+        ],
+        [
+          1774450620,
+          -3.5602
+        ],
+        [
+          1774537020,
+          -3.5915
+        ],
+        [
+          1774623420,
+          -3.4101
+        ],
+        [
+          1774670400,
+          -3.3732
+        ],
+        [
+          1774756800,
+          -3.3732
+        ],
+        [
+          1774866600,
+          -3.3732
+        ],
+        [
+          1774969020,
+          -3.7032
+        ],
+        [
+          1775055420,
+          -2.1182
+        ],
+        [
+          1775141820,
+          -2.1707
+        ],
+        [
+          1775188800,
+          -2.2197
+        ],
+        [
+          1775275200,
+          -2.2197
+        ],
+        [
+          1775361600,
+          -2.2197
+        ],
+        [
+          1775471400,
+          -2.2197
+        ],
+        [
+          1775573820,
+          -2.4847
+        ],
+        [
+          1775660220,
+          -0.4379
+        ],
+        [
+          1775746620,
+          -0.0527
+        ],
+        [
+          1775833020,
+          0.7823
+        ],
+        [
+          1775880000,
+          0.4968
+        ],
+        [
+          1775966400,
+          0.4968
+        ],
+        [
+          1776076200,
+          0.4968
+        ],
+        [
+          1776178620,
+          2.2846
+        ],
+        [
+          1776265020,
+          3.094
+        ],
+        [
+          1776351420,
+          3.5542
+        ],
+        [
+          1776437820,
+          5.1992
+        ],
+        [
+          1776484800,
+          5.1045
+        ],
+        [
+          1776571200,
+          5.1045
+        ],
+        [
+          1776681000,
+          5.1045
+        ],
+        [
+          1776783420,
+          4.8967
+        ],
+        [
+          1776869820,
+          5.0491
+        ],
+        [
+          1776956220,
+          5.3495
+        ],
+        [
+          1777042620,
+          5.3002
+        ],
+        [
+          1777089600,
+          5.6868
+        ],
+        [
+          1777176000,
+          5.6868
+        ],
+        [
+          1777296660,
+          5.5605
+        ],
+        [
+          1777388220,
+          5.0861
+        ],
+        [
+          1777474620,
+          5.3002
+        ],
+        [
+          1777561020,
+          5.6805
+        ],
+        [
+          1777647420,
+          7.0885
+        ],
+        [
+          1777694400,
+          6.7204
+        ],
+        [
+          1777780800,
+          6.7204
+        ],
+        [
+          1777901460,
+          6.5771
+        ],
+        [
+          1777993020,
+          7.0916
+        ],
+        [
+          1778079420,
+          8.4625
+        ],
+        [
+          1778165820,
+          9.0802
+        ],
+        [
+          1778252220,
+          9.2773
+        ],
+        [
+          1778299200,
+          9.3343
+        ],
+        [
+          1778385600,
+          9.3343
+        ],
+        [
+          1778506260,
+          9.2342
+        ],
+        [
+          1778597820,
+          8.7552
+        ],
+        [
+          1778684220,
+          9.513
+        ],
+        [
+          1778770620,
+          10.83
+        ],
+        [
+          1778857020,
+          9.9489
+        ],
+        [
+          1778904000,
+          9.5731
+        ],
+        [
+          1778990400,
+          9.5731
+        ],
+        [
+          1779111060,
+          9.6516
+        ],
+        [
+          1779202620,
+          8.5534
+        ],
+        [
+          1779289020,
+          9.5792
+        ],
+        [
+          1779375420,
+          9.4991
+        ],
+        [
+          1779461820,
+          10.696
+        ],
+        [
+          1779508800,
+          10.5697
+        ]
+      ],
+      "5y psr": 14.837,
+      "5y cagr": 9.036,
+      "1y sharpe": 1.4505,
+      "3m return": 11.3708,
+      "5y drawdown": 27,
+      "oos 1y return": 25.6066,
+      "oos 1y sharpe": 1.4505,
+      "oos 3m return": 11.3708,
+      "oos 3m sharpe": 3.989
+    },
+    "rank": 0,
+    "clones": 0,
+    "comments": 0,
+    "leaderboard": 20,
+    "score": 3.99,
+    "discussionId": 20129,
+    "hot": false,
+    "owner": false,
+    "followers": [
+      {
+        "name": "Marcus Zheng",
+        "publicId": "marcus-zheng",
+        "profileImage": "53a5c2d28330ad11762053276.png"
+      }
+    ],
+    "followersCount": 1,
+    "published": 1602720000
+  }
+}

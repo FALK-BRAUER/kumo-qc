@@ -1,0 +1,474 @@
+{
+  "summary": {
+    "rank": 88,
+    "leaderboard_position": 69,
+    "id": 69,
+    "name": "Hierarchical Risk Parity Crypto Diversification Alpha",
+    "author": "Derek Melchin",
+    "author_public_id": "derek-melchin",
+    "organization": "QuantConnect",
+    "description": "The strategy targets diversification-driven alpha in liquid crypto by constructing a monthly rebalanced, risk-balanced portfolio of the most actively traded USD-quoted non-stablecoin assets on Coinbase. Each month it forms a universe of the top 10 coins by trailing USD trading volume, then estimates a covariance and correlation structure from daily close-to-close returns over a trailing lookback window (default approximately 12 months). It converts correlations into a distance metric and perform",
+    "description_full": "The strategy targets diversification-driven alpha in liquid crypto by constructing a monthly rebalanced, risk-balanced portfolio of the most actively traded USD-quoted non-stablecoin assets on Coinbase. Each month it forms a universe of the top 10 coins by trailing USD trading volume, then estimates a covariance and correlation structure from daily close-to-close returns over a trailing lookback window (default approximately 12 months). It converts correlations into a distance metric and performs hierarchical clustering, with the premise that correlated coins represent shared risk factors and that allocating risk across decorrelated clusters can improve drawdown control versus naive market-cap or equal-weight baskets.\n\nPortfolio construction uses Hierarchical Risk Parity: assets are ordered by the clustering tree, then weights are assigned via recursive bisection so that higher-variance clusters receive less capital and lower-variance clusters receive more, using inverse-variance estimates within clusters to compute cluster risk. Positions are implemented as long-only target weights across the selected coins, rebalanced at month start; aggregate exposure is scaled to 90 percent of capital (leaving an implicit cash buffer), with no explicit stop-loss, leverage, or momentum/timing overlay. Decisions are made on daily data but only acted on monthly, and the edge is improved risk allocation from clustering-based diversification rather than return forecasting.",
+    "tags": [
+      "Crypto",
+      "Risk Parity",
+      "Portfolio Allocation",
+      "Systematic"
+    ],
+    "asset_classes": [
+      "Crypto"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 0.89,
+    "sharpe_1y": -0.4877,
+    "return_3m": 5.9258,
+    "return_oos_1y": -28.7118,
+    "sharpe_oos_1y": -0.4877,
+    "cagr_5y": -4.852,
+    "drawdown_5y": 76,
+    "psr_5y": 1.738,
+    "watchers": 1,
+    "clones": 2,
+    "clone_project_id": 27102960,
+    "backtest_id": "6fc0f71d33a661c14117a24780427636",
+    "discussion_id": 19971,
+    "published_ts": 1741382825,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 69,
+    "backtestId": "6fc0f71d33a661c14117a24780427636",
+    "name": "Hierarchical Risk Parity Crypto Diversification Alpha",
+    "author": {
+      "name": "Derek Melchin",
+      "organizationName": "QuantConnect",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/d06c9930192dcf31587397285.jpg",
+      "bio": "Quantitative Developer at QuantConnect. Studied Computer Science and Finance at the University of Lethbridge. Competitor in the 2020-1 Rotman International Trading Competitions. \nSee my latest posts at derekmelchin.com.",
+      "publicId": "derek-melchin",
+      "facebook": null,
+      "twitter": "https://twitter.com/DerekMelchin",
+      "linkedin": "https://www.linkedin.com/in/derek-melchin-b22753137/",
+      "web": "http://www.derekmelchin.com",
+      "topAuthor": false
+    },
+    "description": "The strategy targets diversification-driven alpha in liquid crypto by constructing a monthly rebalanced, risk-balanced portfolio of the most actively traded USD-quoted non-stablecoin assets on Coinbase. Each month it forms a universe of the top 10 coins by trailing USD trading volume, then estimates a covariance and correlation structure from daily close-to-close returns over a trailing lookback window (default approximately 12 months). It converts correlations into a distance metric and performs hierarchical clustering, with the premise that correlated coins represent shared risk factors and that allocating risk across decorrelated clusters can improve drawdown control versus naive market-cap or equal-weight baskets.\n\nPortfolio construction uses Hierarchical Risk Parity: assets are ordered by the clustering tree, then weights are assigned via recursive bisection so that higher-variance clusters receive less capital and lower-variance clusters receive more, using inverse-variance estimates within clusters to compute cluster risk. Positions are implemented as long-only target weights across the selected coins, rebalanced at month start; aggregate exposure is scaled to 90 percent of capital (leaving an implicit cash buffer), with no explicit stop-loss, leverage, or momentum/timing overlay. Decisions are made on daily data but only acted on monthly, and the edge is improved risk allocation from clustering-based diversification rather than return forecasting.",
+    "cloneProjectId": 27102960,
+    "tags": [
+      "Crypto",
+      "Risk Parity",
+      "Portfolio Allocation",
+      "Systematic"
+    ],
+    "watchers": 1,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Mar 07, 2025",
+        "changes": [
+          "Initial deployment for strategy &quot;Hierarchical Risk Parity Crypto Diversification Alpha&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Derek Melchin",
+    "organizationName": "QuantConnect",
+    "research": null,
+    "assetClasses": [
+      "Crypto"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771945200,
+          -5.5949
+        ],
+        [
+          1772031600,
+          -6.1817
+        ],
+        [
+          1772118000,
+          -0.8655
+        ],
+        [
+          1772204400,
+          -2.5079
+        ],
+        [
+          1772236800,
+          -5.5089
+        ],
+        [
+          1772323200,
+          -4.7764
+        ],
+        [
+          1772463600,
+          -6.6315
+        ],
+        [
+          1772550000,
+          -4.2116
+        ],
+        [
+          1772636400,
+          -4.9501
+        ],
+        [
+          1772722800,
+          -0.1495
+        ],
+        [
+          1772809200,
+          -2.0684
+        ],
+        [
+          1772841600,
+          -5.1628
+        ],
+        [
+          1772928000,
+          -5.77
+        ],
+        [
+          1773064800,
+          -7.2122
+        ],
+        [
+          1773151200,
+          -5.0437
+        ],
+        [
+          1773237600,
+          -3.7898
+        ],
+        [
+          1773324000,
+          -3.0375
+        ],
+        [
+          1773410400,
+          -2.7306
+        ],
+        [
+          1773446400,
+          -1.8212
+        ],
+        [
+          1773532800,
+          -1.4174
+        ],
+        [
+          1773669600,
+          0.5506
+        ],
+        [
+          1773756000,
+          4.1085
+        ],
+        [
+          1773842400,
+          2.5338
+        ],
+        [
+          1773928800,
+          -1.016
+        ],
+        [
+          1774015200,
+          -2.2622
+        ],
+        [
+          1774051200,
+          -0.9041
+        ],
+        [
+          1774137600,
+          -3.2291
+        ],
+        [
+          1774274400,
+          -4.2226
+        ],
+        [
+          1774360800,
+          -0.7641
+        ],
+        [
+          1774447200,
+          -0.7503
+        ],
+        [
+          1774533600,
+          -0.3242
+        ],
+        [
+          1774620000,
+          -3.7208
+        ],
+        [
+          1774656000,
+          -5.2788
+        ],
+        [
+          1774742400,
+          -5.0602
+        ],
+        [
+          1774879200,
+          -6.7584
+        ],
+        [
+          1774965600,
+          -5.8286
+        ],
+        [
+          1775052000,
+          -4.472
+        ],
+        [
+          1775138400,
+          -3.4961
+        ],
+        [
+          1775174400,
+          -5.3885
+        ],
+        [
+          1775260800,
+          -5.5812
+        ],
+        [
+          1775347200,
+          -5.4783
+        ],
+        [
+          1775484000,
+          -5.9405
+        ],
+        [
+          1775570400,
+          -5.3212
+        ],
+        [
+          1775656800,
+          -1.6292
+        ],
+        [
+          1775743200,
+          -3.4318
+        ],
+        [
+          1775829600,
+          -2.578
+        ],
+        [
+          1775865600,
+          -2.7873
+        ],
+        [
+          1775952000,
+          -2.7531
+        ],
+        [
+          1776088800,
+          -4.6496
+        ],
+        [
+          1776175200,
+          -2.4451
+        ],
+        [
+          1776261600,
+          -1.81
+        ],
+        [
+          1776348000,
+          -1.7824
+        ],
+        [
+          1776434400,
+          -1.6707
+        ],
+        [
+          1776470400,
+          -0.8234
+        ],
+        [
+          1776556800,
+          -2.1311
+        ],
+        [
+          1776693600,
+          -3.3339
+        ],
+        [
+          1776780000,
+          -1.8536
+        ],
+        [
+          1776866400,
+          -2.6517
+        ],
+        [
+          1776952800,
+          -2.4069
+        ],
+        [
+          1777039200,
+          -2.5097
+        ],
+        [
+          1777075200,
+          -2.4309
+        ],
+        [
+          1777161600,
+          -2.5632
+        ],
+        [
+          1777298400,
+          -2.5558
+        ],
+        [
+          1777384800,
+          -2.8484
+        ],
+        [
+          1777471200,
+          -4.237
+        ],
+        [
+          1777557600,
+          -4.895
+        ],
+        [
+          1777644000,
+          -3.9267
+        ],
+        [
+          1777680000,
+          -1.4586
+        ],
+        [
+          1777766400,
+          -0.5364
+        ],
+        [
+          1777903200,
+          -0.1481
+        ],
+        [
+          1777989600,
+          0.5067
+        ],
+        [
+          1778076000,
+          4.0819
+        ],
+        [
+          1778162400,
+          5.5727
+        ],
+        [
+          1778248800,
+          4.1766
+        ],
+        [
+          1778284800,
+          6.5725
+        ],
+        [
+          1778371200,
+          6.1345
+        ],
+        [
+          1778508000,
+          8.6504
+        ],
+        [
+          1778594400,
+          7.1873
+        ],
+        [
+          1778680800,
+          5.5561
+        ],
+        [
+          1778767200,
+          3.2248
+        ],
+        [
+          1778853600,
+          5.9569
+        ],
+        [
+          1778889600,
+          2.6353
+        ],
+        [
+          1778976000,
+          0.6822
+        ],
+        [
+          1779112800,
+          -0.23
+        ],
+        [
+          1779199200,
+          -0.314
+        ],
+        [
+          1779285600,
+          -0.758
+        ],
+        [
+          1779372000,
+          1.9827
+        ],
+        [
+          1779458400,
+          2.5442
+        ],
+        [
+          1779494400,
+          -1.6042
+        ],
+        [
+          1779580800,
+          0.8664
+        ]
+      ],
+      "5y psr": 1.738,
+      "5y cagr": -4.852,
+      "1y sharpe": -0.4877,
+      "3m return": 5.9258,
+      "5y drawdown": 76,
+      "oos 1y return": -28.7118,
+      "oos 1y sharpe": -0.4877,
+      "oos 3m return": 5.9258,
+      "oos 3m sharpe": 0.8869
+    },
+    "rank": -0.13,
+    "clones": 2,
+    "comments": 0,
+    "leaderboard": 69,
+    "score": 0.89,
+    "discussionId": 19971,
+    "hot": false,
+    "owner": false,
+    "followers": [
+      {
+        "name": "Helmut Messerer",
+        "publicId": "helmut-messerer",
+        "profileImage": "66625cd3cc1f9131764713611.png"
+      }
+    ],
+    "followersCount": 1,
+    "published": 1741382825
+  }
+}

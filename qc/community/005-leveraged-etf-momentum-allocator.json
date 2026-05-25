@@ -1,0 +1,486 @@
+{
+  "summary": {
+    "rank": 5,
+    "leaderboard_position": 5,
+    "id": 60,
+    "name": "Leveraged ETF Momentum Allocator",
+    "author": "Martin Mathew",
+    "author_public_id": "martin-mathew",
+    "organization": "Martin Mathew",
+    "description": "Leveraged ETF Momentum Allocator",
+    "description_full": "Leveraged ETF Momentum Allocator",
+    "tags": [
+      "Sector Rotation",
+      "Trend Following",
+      "Technical",
+      "Equity"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 8.67,
+    "sharpe_1y": 2.0737,
+    "return_3m": 67.5052,
+    "return_oos_1y": null,
+    "sharpe_oos_1y": null,
+    "cagr_5y": 113.206,
+    "drawdown_5y": 47.5,
+    "psr_5y": 74.623,
+    "watchers": 137,
+    "clones": 909,
+    "clone_project_id": 27128571,
+    "backtest_id": "fb965984ca3651ec52855ebeb368f5ce",
+    "discussion_id": 19919,
+    "published_ts": 1767145258,
+    "hot": true,
+    "top_author": true
+  },
+  "raw": {
+    "id": 60,
+    "backtestId": "fb965984ca3651ec52855ebeb368f5ce",
+    "name": "Leveraged ETF Momentum Allocator",
+    "author": {
+      "name": "Martin Mathew",
+      "organizationName": "Martin Mathew",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/default.jpg",
+      "bio": null,
+      "publicId": "martin-mathew",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": null,
+      "web": null,
+      "topAuthor": true
+    },
+    "description": "Leveraged ETF Momentum Allocator",
+    "cloneProjectId": 27128571,
+    "tags": [
+      "Sector Rotation",
+      "Trend Following",
+      "Technical",
+      "Equity"
+    ],
+    "watchers": 137,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Dec 31, 2025",
+        "changes": [
+          "Initial deployment for strategy &quot;Daily Regime-Switching ETF Momentum Allocator&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Martin Mathew",
+    "organizationName": "Martin Mathew",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771945200,
+          -3.6271
+        ],
+        [
+          1772031600,
+          -0.558
+        ],
+        [
+          1772118000,
+          3.6072
+        ],
+        [
+          1772204400,
+          -0.0199
+        ],
+        [
+          1772254800,
+          -1.0762
+        ],
+        [
+          1772341200,
+          -1.0762
+        ],
+        [
+          1772467200,
+          -1.0762
+        ],
+        [
+          1772550000,
+          -0.7174
+        ],
+        [
+          1772636400,
+          -3.9061
+        ],
+        [
+          1772722800,
+          0.3986
+        ],
+        [
+          1772809200,
+          -0.5182
+        ],
+        [
+          1772859600,
+          -5.0221
+        ],
+        [
+          1772946000,
+          -5.0221
+        ],
+        [
+          1773064800,
+          -5.0221
+        ],
+        [
+          1773151200,
+          -1.3353
+        ],
+        [
+          1773237600,
+          -1.3153
+        ],
+        [
+          1773324000,
+          -1.415
+        ],
+        [
+          1773410400,
+          -6.4371
+        ],
+        [
+          1773460800,
+          -8.2307
+        ],
+        [
+          1773547200,
+          -8.2307
+        ],
+        [
+          1773669600,
+          -8.2307
+        ],
+        [
+          1773756000,
+          -5.1816
+        ],
+        [
+          1773842400,
+          -3.7865
+        ],
+        [
+          1773928800,
+          -7.8919
+        ],
+        [
+          1774018800,
+          -8.709
+        ],
+        [
+          1774065600,
+          -13.9105
+        ],
+        [
+          1774152000,
+          -13.9105
+        ],
+        [
+          1774278000,
+          -13.9105
+        ],
+        [
+          1774364400,
+          -10.951
+        ],
+        [
+          1774450800,
+          -12.6318
+        ],
+        [
+          1774533600,
+          -11.6737
+        ],
+        [
+          1774620000,
+          -3.4424
+        ],
+        [
+          1774670400,
+          2.2668
+        ],
+        [
+          1774756800,
+          2.2668
+        ],
+        [
+          1774879200,
+          2.2668
+        ],
+        [
+          1774965600,
+          -9.6047
+        ],
+        [
+          1775055600,
+          2.2009
+        ],
+        [
+          1775138400,
+          3.5903
+        ],
+        [
+          1775188800,
+          9.936
+        ],
+        [
+          1775275200,
+          9.936
+        ],
+        [
+          1775361600,
+          9.936
+        ],
+        [
+          1775484000,
+          9.936
+        ],
+        [
+          1775570400,
+          9.8026
+        ],
+        [
+          1775656800,
+          9.9288
+        ],
+        [
+          1775743200,
+          10.0269
+        ],
+        [
+          1775829600,
+          12.1944
+        ],
+        [
+          1775880000,
+          12.6745
+        ],
+        [
+          1775966400,
+          12.6745
+        ],
+        [
+          1776088800,
+          12.6745
+        ],
+        [
+          1776175200,
+          16.081
+        ],
+        [
+          1776261600,
+          22.3683
+        ],
+        [
+          1776348000,
+          27.4895
+        ],
+        [
+          1776434400,
+          29.2728
+        ],
+        [
+          1776484800,
+          34.2111
+        ],
+        [
+          1776571200,
+          34.2111
+        ],
+        [
+          1776693600,
+          34.2111
+        ],
+        [
+          1776780000,
+          33.7264
+        ],
+        [
+          1776866400,
+          33.4633
+        ],
+        [
+          1776952800,
+          36.4434
+        ],
+        [
+          1777039200,
+          34.1788
+        ],
+        [
+          1777089600,
+          41.7287
+        ],
+        [
+          1777176000,
+          41.7287
+        ],
+        [
+          1777298400,
+          41.7287
+        ],
+        [
+          1777384800,
+          41.9096
+        ],
+        [
+          1777471200,
+          37.6147
+        ],
+        [
+          1777557600,
+          40.1464
+        ],
+        [
+          1777647600,
+          43.944
+        ],
+        [
+          1777694400,
+          47.9224
+        ],
+        [
+          1777780800,
+          47.9224
+        ],
+        [
+          1777903200,
+          47.9224
+        ],
+        [
+          1777989600,
+          47.0408
+        ],
+        [
+          1778076000,
+          52.6467
+        ],
+        [
+          1778162400,
+          62.0954
+        ],
+        [
+          1778248800,
+          61.8744
+        ],
+        [
+          1778299200,
+          63.0466
+        ],
+        [
+          1778385600,
+          63.0466
+        ],
+        [
+          1778508000,
+          63.0466
+        ],
+        [
+          1778594400,
+          67.0113
+        ],
+        [
+          1778680800,
+          61.4247
+        ],
+        [
+          1778767200,
+          64.3284
+        ],
+        [
+          1778853600,
+          64.4895
+        ],
+        [
+          1778904000,
+          58.1227
+        ],
+        [
+          1778990400,
+          58.1227
+        ],
+        [
+          1779112800,
+          58.1227
+        ],
+        [
+          1779199200,
+          54.21
+        ],
+        [
+          1779285600,
+          55.338
+        ],
+        [
+          1779372000,
+          62.8767
+        ],
+        [
+          1779480000,
+          65.7025
+        ]
+      ],
+      "5y psr": 74.623,
+      "5y cagr": 113.206,
+      "1y sharpe": 2.0737,
+      "3m return": 67.5052,
+      "5y drawdown": 47.5,
+      "oos 1y return": null,
+      "oos 1y sharpe": null,
+      "oos 3m return": 67.5052,
+      "oos 3m sharpe": 8.6716
+    },
+    "rank": 0.01,
+    "clones": 909,
+    "comments": 0,
+    "leaderboard": 5,
+    "score": 8.67,
+    "discussionId": 19919,
+    "hot": true,
+    "owner": false,
+    "followers": [
+      {
+        "name": "Ken Hogue",
+        "publicId": "ken_hogue",
+        "profileImage": "174a822d034bd8b1468376613.jpg"
+      },
+      {
+        "name": "Sander Deschout",
+        "publicId": "sander_deschout",
+        "profileImage": "777b9193684ed8a1488588677.jpg"
+      },
+      {
+        "name": "Erdal Guner",
+        "publicId": "erdal_guner",
+        "profileImage": "6070d3d1215f09a1511628067.jpg"
+      },
+      {
+        "name": "Brian Sykes",
+        "publicId": "brian_sykes",
+        "profileImage": "40c2701bdd809581577801953.jpg"
+      },
+      {
+        "name": "Chris Hernandez",
+        "publicId": "chris_hernandez",
+        "profileImage": "1857f3c3b9c90911521223498.jpg"
+      }
+    ],
+    "followersCount": 137,
+    "published": 1767145258
+  }
+}

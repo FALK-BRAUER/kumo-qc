@@ -1,0 +1,460 @@
+{
+  "summary": {
+    "rank": 18,
+    "leaderboard_position": 13,
+    "id": 164,
+    "name": "SNPS-CDNS Bollinger Mean-Reversion Pairs Trade",
+    "author": "Ro Garc&iacute;a G",
+    "author_public_id": "ro-garcia-g",
+    "organization": "Ro Garc&iacute;a G",
+    "description": "The strategy is a market neutral pairs trade on the relative mispricing between two highly related US equities, Synopsys (SNPS) and Cadence Design Systems (CDNS). It constructs a spread equal to SNPS minus CDNS and applies Bollinger Bands to this spread to identify short term deviations from its recent mean. The intended edge is mean reversion in the relative value relationship: when the spread widens to the upper band, the strategy sells SNPS and buys CDNS; when the spread contracts to the lowe",
+    "description_full": "The strategy is a market neutral pairs trade on the relative mispricing between two highly related US equities, Synopsys (SNPS) and Cadence Design Systems (CDNS). It constructs a spread equal to SNPS minus CDNS and applies Bollinger Bands to this spread to identify short term deviations from its recent mean. The intended edge is mean reversion in the relative value relationship: when the spread widens to the upper band, the strategy sells SNPS and buys CDNS; when the spread contracts to the lower band, it buys SNPS and sells CDNS, seeking convergence back toward the rolling average.\n\nSignals are evaluated on hourly data using a very short lookback (5 periods) and tight band width (0.1 standard deviations), making it a high sensitivity, short horizon relative value system. Positions are entered only when the spread breaches the relevant band and the portfolio is not already positioned in that direction; on entry the portfolio is rebalanced to fixed dollar neutral weights of approximately -50 percent and +50 percent across the pair (about 100 percent gross, 0 percent net). There is no explicit take profit, stop loss, or time based exit; positions persist until an opposite band breach triggers a full reversal.",
+    "tags": [
+      "Pairs Trading",
+      "Mean Reversion",
+      "Equity",
+      "Intraday"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 4.87,
+    "sharpe_1y": -0.0573,
+    "return_3m": 16.074,
+    "return_oos_1y": 4.2059,
+    "sharpe_oos_1y": -0.0573,
+    "cagr_5y": 12.023,
+    "drawdown_5y": 20.9,
+    "psr_5y": 30.536,
+    "watchers": 1,
+    "clones": 0,
+    "clone_project_id": 27651234,
+    "backtest_id": "ff0d61d8a79cbefc1328cba0b97bb6bb",
+    "discussion_id": 20055,
+    "published_ts": 1656374400,
+    "hot": false,
+    "top_author": true
+  },
+  "raw": {
+    "id": 164,
+    "backtestId": "ff0d61d8a79cbefc1328cba0b97bb6bb",
+    "name": "SNPS-CDNS Bollinger Mean-Reversion Pairs Trade",
+    "author": {
+      "name": "Ro Garc&iacute;a G",
+      "organizationName": "Ro Garc&iacute;a G",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/f84a4a3fc303a941611636846.jpg",
+      "bio": "Algorithmic Trader passionate about Non-Linear Forecasting, Artificial Intelligence and Chaotic Systems\n\nIG: ROGARCIAGO",
+      "publicId": "ro-garcia-g",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": "https://www.linkedin.com/in/rodrigo-garc%C3%ADa-gorostizaga-631905215/",
+      "web": null,
+      "topAuthor": true
+    },
+    "description": "The strategy is a market neutral pairs trade on the relative mispricing between two highly related US equities, Synopsys (SNPS) and Cadence Design Systems (CDNS). It constructs a spread equal to SNPS minus CDNS and applies Bollinger Bands to this spread to identify short term deviations from its recent mean. The intended edge is mean reversion in the relative value relationship: when the spread widens to the upper band, the strategy sells SNPS and buys CDNS; when the spread contracts to the lower band, it buys SNPS and sells CDNS, seeking convergence back toward the rolling average.\n\nSignals are evaluated on hourly data using a very short lookback (5 periods) and tight band width (0.1 standard deviations), making it a high sensitivity, short horizon relative value system. Positions are entered only when the spread breaches the relevant band and the portfolio is not already positioned in that direction; on entry the portfolio is rebalanced to fixed dollar neutral weights of approximately -50 percent and +50 percent across the pair (about 100 percent gross, 0 percent net). There is no explicit take profit, stop loss, or time based exit; positions persist until an opposite band breach triggers a full reversal.",
+    "cloneProjectId": 27651234,
+    "tags": [
+      "Pairs Trading",
+      "Mean Reversion",
+      "Equity",
+      "Intraday"
+    ],
+    "watchers": 1,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Jun 28, 2022",
+        "changes": [
+          "Initial deployment for strategy &quot;SNPS-CDNS Bollinger Mean-Reversion Pairs Trade&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Ro Garc&iacute;a G",
+    "organizationName": "Ro Garc&iacute;a G",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771945200,
+          -0.2204
+        ],
+        [
+          1772031600,
+          -0.1065
+        ],
+        [
+          1772118000,
+          -0.9187
+        ],
+        [
+          1772204400,
+          -0.1921
+        ],
+        [
+          1772254800,
+          -1.8092
+        ],
+        [
+          1772341200,
+          -1.8092
+        ],
+        [
+          1772463600,
+          -1.8169
+        ],
+        [
+          1772550000,
+          -1.193
+        ],
+        [
+          1772636400,
+          -1.2054
+        ],
+        [
+          1772722800,
+          0.5537
+        ],
+        [
+          1772809200,
+          -0.242
+        ],
+        [
+          1772859600,
+          0.4175
+        ],
+        [
+          1772946000,
+          0.4175
+        ],
+        [
+          1773064800,
+          -0.1091
+        ],
+        [
+          1773151200,
+          1.0382
+        ],
+        [
+          1773237600,
+          1.5048
+        ],
+        [
+          1773324000,
+          1.9091
+        ],
+        [
+          1773410400,
+          1.4503
+        ],
+        [
+          1773460800,
+          1.303
+        ],
+        [
+          1773547200,
+          1.303
+        ],
+        [
+          1773669600,
+          1.9827
+        ],
+        [
+          1773756000,
+          2.4246
+        ],
+        [
+          1773842400,
+          1.8405
+        ],
+        [
+          1773928800,
+          3.0797
+        ],
+        [
+          1774015200,
+          2.1464
+        ],
+        [
+          1774065600,
+          2.1915
+        ],
+        [
+          1774152000,
+          2.1915
+        ],
+        [
+          1774274400,
+          2.4073
+        ],
+        [
+          1774360800,
+          3.9469
+        ],
+        [
+          1774447200,
+          3.1606
+        ],
+        [
+          1774533600,
+          2.0762
+        ],
+        [
+          1774620000,
+          0.7002
+        ],
+        [
+          1774670400,
+          0.7252
+        ],
+        [
+          1774756800,
+          0.7252
+        ],
+        [
+          1774879200,
+          1.1245
+        ],
+        [
+          1774965600,
+          1.6118
+        ],
+        [
+          1775052000,
+          1.5437
+        ],
+        [
+          1775138400,
+          1.5498
+        ],
+        [
+          1775188800,
+          1.7284
+        ],
+        [
+          1775275200,
+          1.7284
+        ],
+        [
+          1775361600,
+          1.7284
+        ],
+        [
+          1775484000,
+          1.678
+        ],
+        [
+          1775570400,
+          2.2868
+        ],
+        [
+          1775656800,
+          2.8794
+        ],
+        [
+          1775743200,
+          2.812
+        ],
+        [
+          1775829600,
+          2.8076
+        ],
+        [
+          1775880000,
+          2.5384
+        ],
+        [
+          1775966400,
+          2.5384
+        ],
+        [
+          1776088800,
+          3.5742
+        ],
+        [
+          1776175200,
+          5.4259
+        ],
+        [
+          1776261600,
+          5.734
+        ],
+        [
+          1776348000,
+          5.7631
+        ],
+        [
+          1776434400,
+          6.0358
+        ],
+        [
+          1776484800,
+          5.1576
+        ],
+        [
+          1776571200,
+          5.1576
+        ],
+        [
+          1776693600,
+          5.315
+        ],
+        [
+          1776780000,
+          5.8392
+        ],
+        [
+          1776866400,
+          8.5616
+        ],
+        [
+          1776952800,
+          9.4425
+        ],
+        [
+          1777039200,
+          9.7664
+        ],
+        [
+          1777089600,
+          9.2472
+        ],
+        [
+          1777176000,
+          9.2472
+        ],
+        [
+          1777298400,
+          10.2542
+        ],
+        [
+          1777384800,
+          11.0922
+        ],
+        [
+          1777471200,
+          13.1997
+        ],
+        [
+          1777557600,
+          12.265
+        ],
+        [
+          1777644000,
+          12.2382
+        ],
+        [
+          1777694400,
+          12.6059
+        ],
+        [
+          1777780800,
+          12.6059
+        ],
+        [
+          1777903200,
+          12.1297
+        ],
+        [
+          1777989600,
+          11.0738
+        ],
+        [
+          1778076000,
+          11.0575
+        ],
+        [
+          1778162400,
+          11.1812
+        ],
+        [
+          1778248800,
+          11.0359
+        ],
+        [
+          1778299200,
+          10.8077
+        ],
+        [
+          1778385600,
+          10.8077
+        ],
+        [
+          1778508000,
+          10.7228
+        ],
+        [
+          1778594400,
+          10.2875
+        ],
+        [
+          1778680800,
+          11.0206
+        ],
+        [
+          1778767200,
+          10.7851
+        ],
+        [
+          1778853600,
+          12.2982
+        ],
+        [
+          1778904000,
+          11.2145
+        ],
+        [
+          1778990400,
+          11.2145
+        ],
+        [
+          1779112800,
+          12.1699
+        ],
+        [
+          1779199200,
+          13.248
+        ],
+        [
+          1779285600,
+          14.6583
+        ],
+        [
+          1779372000,
+          14.1651
+        ],
+        [
+          1779480000,
+          13.974
+        ]
+      ],
+      "5y psr": 30.536,
+      "5y cagr": 12.023,
+      "1y sharpe": -0.0573,
+      "3m return": 16.074,
+      "5y drawdown": 20.9,
+      "oos 1y return": 4.2059,
+      "oos 1y sharpe": -0.0573,
+      "oos 3m return": 16.074,
+      "oos 3m sharpe": 4.8659
+    },
+    "rank": 0,
+    "clones": 0,
+    "comments": 0,
+    "leaderboard": 13,
+    "score": 4.87,
+    "discussionId": 20055,
+    "hot": false,
+    "owner": false,
+    "followers": [],
+    "followersCount": 1,
+    "published": 1656374400
+  }
+}

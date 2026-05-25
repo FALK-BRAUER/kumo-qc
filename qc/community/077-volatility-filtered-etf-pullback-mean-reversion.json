@@ -1,0 +1,460 @@
+{
+  "summary": {
+    "rank": 77,
+    "leaderboard_position": 102,
+    "id": 178,
+    "name": "Volatility-Filtered ETF Pullback Mean Reversion",
+    "author": "Pardhu Nani",
+    "author_public_id": "pardhu-nani",
+    "organization": "Pardhu Nani",
+    "description": "The strategy is a short term mean reversion or pullback entry system applied to large liquid US equity ETFs (QQQ, IWM, SPY). The thesis is that after a brief downward move within an otherwise stable volatility regime, these index ETFs often revert upward over the next several sessions; the model seeks to buy temporary weakness rather than chase trend. Signals are computed from daily close data with a one year warmup, using fast and slow simple moving averages plus a volatility filter based on an",
+    "description_full": "The strategy is a short term mean reversion or pullback entry system applied to large liquid US equity ETFs (QQQ, IWM, SPY). The thesis is that after a brief downward move within an otherwise stable volatility regime, these index ETFs often revert upward over the next several sessions; the model seeks to buy temporary weakness rather than chase trend. Signals are computed from daily close data with a one year warmup, using fast and slow simple moving averages plus a volatility filter based on annualized 20 day standard deviation of 1 day returns.\n\nEach day the strategy checks each ETF independently and enters a long position when price is below its fast moving average and annualized volatility is between 10 percent and 45 percent, avoiding both very low and very high volatility regimes. Positions are sized equally across the three ETFs, with no leverage beyond full investment. Exits are rule based: a profit take triggers when the intraday high reaches the entry price plus 3.5 times 10 day ATR, while a defensive exit triggers when price falls below the slow moving average and the slow average is above the fast, consistent with a deeper drawdown and unfavorable trend alignment. The intended edge is capturing short term rebounds in liquid beta instruments while controlling regime risk via the volatility band and ATR based profit objective.",
+    "tags": [
+      "Mean Reversion",
+      "Equity",
+      "Technical",
+      "Swing"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 1.2,
+    "sharpe_1y": 0.9785,
+    "return_3m": 5.043,
+    "return_oos_1y": 20.1397,
+    "sharpe_oos_1y": 0.9785,
+    "cagr_5y": 4.206,
+    "drawdown_5y": 27.2,
+    "psr_5y": 3.623,
+    "watchers": 0,
+    "clones": 0,
+    "clone_project_id": 27653405,
+    "backtest_id": "23be5ab9cea1a1b850f9175a1bbfe209",
+    "discussion_id": 20070,
+    "published_ts": 1686096000,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 178,
+    "backtestId": "23be5ab9cea1a1b850f9175a1bbfe209",
+    "name": "Volatility-Filtered ETF Pullback Mean Reversion",
+    "author": {
+      "name": "Pardhu Nani",
+      "organizationName": "Pardhu Nani",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/ed57e8c0e53426c1649342193.png",
+      "bio": null,
+      "publicId": "pardhu-nani",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": null,
+      "web": null,
+      "topAuthor": false
+    },
+    "description": "The strategy is a short term mean reversion or pullback entry system applied to large liquid US equity ETFs (QQQ, IWM, SPY). The thesis is that after a brief downward move within an otherwise stable volatility regime, these index ETFs often revert upward over the next several sessions; the model seeks to buy temporary weakness rather than chase trend. Signals are computed from daily close data with a one year warmup, using fast and slow simple moving averages plus a volatility filter based on annualized 20 day standard deviation of 1 day returns.\n\nEach day the strategy checks each ETF independently and enters a long position when price is below its fast moving average and annualized volatility is between 10 percent and 45 percent, avoiding both very low and very high volatility regimes. Positions are sized equally across the three ETFs, with no leverage beyond full investment. Exits are rule based: a profit take triggers when the intraday high reaches the entry price plus 3.5 times 10 day ATR, while a defensive exit triggers when price falls below the slow moving average and the slow average is above the fast, consistent with a deeper drawdown and unfavorable trend alignment. The intended edge is capturing short term rebounds in liquid beta instruments while controlling regime risk via the volatility band and ATR based profit objective.",
+    "cloneProjectId": 27653405,
+    "tags": [
+      "Mean Reversion",
+      "Equity",
+      "Technical",
+      "Swing"
+    ],
+    "watchers": 0,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Jun 07, 2023",
+        "changes": [
+          "Initial deployment for strategy &quot;Volatility-Filtered ETF Pullback Mean Reversion&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Pardhu Nani",
+    "organizationName": "Pardhu Nani",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771945200,
+          -0.5292
+        ],
+        [
+          1772031600,
+          0.4026
+        ],
+        [
+          1772118000,
+          1.0157
+        ],
+        [
+          1772204400,
+          1.0105
+        ],
+        [
+          1772254800,
+          0.262
+        ],
+        [
+          1772341200,
+          0.262
+        ],
+        [
+          1772463600,
+          0.262
+        ],
+        [
+          1772550000,
+          1.0861
+        ],
+        [
+          1772636400,
+          -0.4532
+        ],
+        [
+          1772722800,
+          0.3043
+        ],
+        [
+          1772809200,
+          -0.5185
+        ],
+        [
+          1772859600,
+          -1.3257
+        ],
+        [
+          1772946000,
+          -1.3257
+        ],
+        [
+          1773064800,
+          -1.3257
+        ],
+        [
+          1773151200,
+          -0.5278
+        ],
+        [
+          1773237600,
+          -0.5639
+        ],
+        [
+          1773324000,
+          -0.6077
+        ],
+        [
+          1773410400,
+          -1.3065
+        ],
+        [
+          1773460800,
+          -2.0803
+        ],
+        [
+          1773547200,
+          -2.0803
+        ],
+        [
+          1773669600,
+          -2.0803
+        ],
+        [
+          1773759600,
+          -1.1357
+        ],
+        [
+          1773842400,
+          -0.9334
+        ],
+        [
+          1773928800,
+          -1.1399
+        ],
+        [
+          1774018800,
+          -0.1888
+        ],
+        [
+          1774065600,
+          -0.4562
+        ],
+        [
+          1774152000,
+          -0.4562
+        ],
+        [
+          1774278000,
+          -0.4562
+        ],
+        [
+          1774360800,
+          -0.6845
+        ],
+        [
+          1774447200,
+          -1.3449
+        ],
+        [
+          1774533600,
+          -1.5158
+        ],
+        [
+          1774620000,
+          -2.0481
+        ],
+        [
+          1774670400,
+          -3.3207
+        ],
+        [
+          1774756800,
+          -3.3207
+        ],
+        [
+          1774879200,
+          -3.3207
+        ],
+        [
+          1774965600,
+          -2.4765
+        ],
+        [
+          1775052000,
+          -0.4954
+        ],
+        [
+          1775138400,
+          0.2231
+        ],
+        [
+          1775188800,
+          0.2231
+        ],
+        [
+          1775275200,
+          0.2231
+        ],
+        [
+          1775361600,
+          0.2231
+        ],
+        [
+          1775484000,
+          0.2231
+        ],
+        [
+          1775570400,
+          0.2231
+        ],
+        [
+          1775656800,
+          0.2231
+        ],
+        [
+          1775743200,
+          0.2231
+        ],
+        [
+          1775829600,
+          0.2231
+        ],
+        [
+          1775880000,
+          0.2231
+        ],
+        [
+          1775966400,
+          0.2231
+        ],
+        [
+          1776088800,
+          0.2231
+        ],
+        [
+          1776175200,
+          0.2231
+        ],
+        [
+          1776261600,
+          0.2231
+        ],
+        [
+          1776348000,
+          0.2231
+        ],
+        [
+          1776434400,
+          0.2231
+        ],
+        [
+          1776484800,
+          0.2231
+        ],
+        [
+          1776571200,
+          0.2231
+        ],
+        [
+          1776693600,
+          0.2231
+        ],
+        [
+          1776780000,
+          0.2231
+        ],
+        [
+          1776866400,
+          0.2231
+        ],
+        [
+          1776952800,
+          0.571
+        ],
+        [
+          1777039200,
+          0.2496
+        ],
+        [
+          1777089600,
+          1.1535
+        ],
+        [
+          1777176000,
+          1.1535
+        ],
+        [
+          1777298400,
+          1.1535
+        ],
+        [
+          1777384800,
+          1.2298
+        ],
+        [
+          1777471200,
+          0.7198
+        ],
+        [
+          1777557600,
+          0.692
+        ],
+        [
+          1777644000,
+          2.0661
+        ],
+        [
+          1777694400,
+          2.6518
+        ],
+        [
+          1777780800,
+          2.6518
+        ],
+        [
+          1777903200,
+          2.6518
+        ],
+        [
+          1777989600,
+          2.2901
+        ],
+        [
+          1778076000,
+          3.5861
+        ],
+        [
+          1778162400,
+          4.8823
+        ],
+        [
+          1778248800,
+          4.3885
+        ],
+        [
+          1778299200,
+          4.622
+        ],
+        [
+          1778385600,
+          4.622
+        ],
+        [
+          1778508000,
+          4.622
+        ],
+        [
+          1778594400,
+          4.7638
+        ],
+        [
+          1778680800,
+          4.4264
+        ],
+        [
+          1778767200,
+          4.4386
+        ],
+        [
+          1778853600,
+          4.6562
+        ],
+        [
+          1778904000,
+          3.8188
+        ],
+        [
+          1778990400,
+          3.8188
+        ],
+        [
+          1779112800,
+          3.8188
+        ],
+        [
+          1779199200,
+          3.3067
+        ],
+        [
+          1779285600,
+          2.5027
+        ],
+        [
+          1779372000,
+          4.2582
+        ],
+        [
+          1779480000,
+          5.3182
+        ]
+      ],
+      "5y psr": 3.623,
+      "5y cagr": 4.206,
+      "1y sharpe": 0.9785,
+      "3m return": 5.043,
+      "5y drawdown": 27.2,
+      "oos 1y return": 20.1397,
+      "oos 1y sharpe": 0.9785,
+      "oos 3m return": 5.043,
+      "oos 3m sharpe": 1.2043
+    },
+    "rank": 0,
+    "clones": 0,
+    "comments": 0,
+    "leaderboard": 102,
+    "score": 1.2,
+    "discussionId": 20070,
+    "hot": false,
+    "owner": false,
+    "followers": [],
+    "followersCount": 0,
+    "published": 1686096000
+  }
+}

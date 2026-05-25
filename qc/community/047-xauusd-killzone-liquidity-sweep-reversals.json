@@ -1,0 +1,489 @@
+{
+  "summary": {
+    "rank": 47,
+    "leaderboard_position": 44,
+    "id": 229,
+    "name": "XAUUSD Killzone Liquidity Sweep Reversals",
+    "author": "SILSBS",
+    "author_public_id": "silsbs",
+    "organization": "SILSBS",
+    "description": "The strategy trades XAUUSD (CFD) intraday to capture liquidity sweep and reversal behavior around major session windows, conditioning direction on higher timeframe trend. A 15 minute trend filter defines directional bias using a fast vs slow EMA crossover; only trades aligned with the prevailing bias are permitted. Within defined London and New York killzones (02:00 to 05:00 and 07:30 to 10:30 New York time), the strategy continuously marks a nearby liquidity level based on the most recent micro",
+    "description_full": "The strategy trades XAUUSD (CFD) intraday to capture liquidity sweep and reversal behavior around major session windows, conditioning direction on higher timeframe trend. A 15 minute trend filter defines directional bias using a fast vs slow EMA crossover; only trades aligned with the prevailing bias are permitted. Within defined London and New York killzones (02:00 to 05:00 and 07:30 to 10:30 New York time), the strategy continuously marks a nearby liquidity level based on the most recent micro range: in buy bias it tracks the recent local bid low, and in sell bias it tracks the recent local bid high.\n\nExecution is on 1 minute bars and requires a two step pattern: first, price must sweep beyond the identified liquidity level and then close back through it (stop run and reclaim). Second, a confirmation candle must continue in the reversal direction by closing beyond the sweep candle extreme, at which point the strategy enters at market. Risk is defined by a stop at the sweep extreme and a fixed 2.0 reward to risk take profit. Position size is fixed via a lot based mapping, and trading is capped at one completed entry per day for the instrument with daily state reset.",
+    "tags": [
+      "Forex",
+      "Intraday",
+      "Momentum",
+      "Technical"
+    ],
+    "asset_classes": [
+      "Cfd"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 2.22,
+    "sharpe_1y": 1.1172,
+    "return_3m": 8.5684,
+    "return_oos_1y": null,
+    "sharpe_oos_1y": null,
+    "cagr_5y": 12.137,
+    "drawdown_5y": 14.9,
+    "psr_5y": 38.335,
+    "watchers": 7,
+    "clones": 0,
+    "clone_project_id": 27866560,
+    "backtest_id": "9c98bf6596ad4bd9737aa91a9e15d5ed",
+    "discussion_id": 20131,
+    "published_ts": 1769879120,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 229,
+    "backtestId": "9c98bf6596ad4bd9737aa91a9e15d5ed",
+    "name": "XAUUSD Killzone Liquidity Sweep Reversals",
+    "author": {
+      "name": "SILSBS",
+      "organizationName": "SILSBS",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/011a3b56be5867d1769193546.jpg",
+      "bio": null,
+      "publicId": "silsbs",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": null,
+      "web": null,
+      "topAuthor": false
+    },
+    "description": "The strategy trades XAUUSD (CFD) intraday to capture liquidity sweep and reversal behavior around major session windows, conditioning direction on higher timeframe trend. A 15 minute trend filter defines directional bias using a fast vs slow EMA crossover; only trades aligned with the prevailing bias are permitted. Within defined London and New York killzones (02:00 to 05:00 and 07:30 to 10:30 New York time), the strategy continuously marks a nearby liquidity level based on the most recent micro range: in buy bias it tracks the recent local bid low, and in sell bias it tracks the recent local bid high.\n\nExecution is on 1 minute bars and requires a two step pattern: first, price must sweep beyond the identified liquidity level and then close back through it (stop run and reclaim). Second, a confirmation candle must continue in the reversal direction by closing beyond the sweep candle extreme, at which point the strategy enters at market. Risk is defined by a stop at the sweep extreme and a fixed 2.0 reward to risk take profit. Position size is fixed via a lot based mapping, and trading is capped at one completed entry per day for the instrument with daily state reset.",
+    "cloneProjectId": 27866560,
+    "tags": [
+      "Forex",
+      "Intraday",
+      "Momentum",
+      "Technical"
+    ],
+    "watchers": 7,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Jan 31, 2026",
+        "changes": [
+          "Initial deployment for strategy &quot;XAUUSD Killzone Liquidity Sweep Reversals&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "SILSBS",
+    "organizationName": "SILSBS",
+    "research": null,
+    "assetClasses": [
+      "Cfd"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771958940,
+          0.6034
+        ],
+        [
+          1772037780,
+          1.0841
+        ],
+        [
+          1772116620,
+          1.3643
+        ],
+        [
+          1772195460,
+          0.4498
+        ],
+        [
+          1772236800,
+          0.5171
+        ],
+        [
+          1772406060,
+          0.5171
+        ],
+        [
+          1772484900,
+          0.9826
+        ],
+        [
+          1772563740,
+          -0.4679
+        ],
+        [
+          1772642580,
+          0.4931
+        ],
+        [
+          1772721420,
+          0.009
+        ],
+        [
+          1772800260,
+          -0.6481
+        ],
+        [
+          1772841600,
+          -1.2717
+        ],
+        [
+          1773007260,
+          -1.2717
+        ],
+        [
+          1773086100,
+          -0.9513
+        ],
+        [
+          1773164940,
+          -0.1523
+        ],
+        [
+          1773243780,
+          -0.4592
+        ],
+        [
+          1773322620,
+          -1.2368
+        ],
+        [
+          1773401460,
+          -1.9403
+        ],
+        [
+          1773446400,
+          -2.1903
+        ],
+        [
+          1773612060,
+          -2.1903
+        ],
+        [
+          1773690900,
+          -2.0956
+        ],
+        [
+          1773769740,
+          -2.0805
+        ],
+        [
+          1773848580,
+          -2.7162
+        ],
+        [
+          1773927420,
+          -3.8453
+        ],
+        [
+          1774006260,
+          -3.8453
+        ],
+        [
+          1774051200,
+          -3.8453
+        ],
+        [
+          1774216860,
+          -3.8453
+        ],
+        [
+          1774295700,
+          -1.9991
+        ],
+        [
+          1774374540,
+          -2.2717
+        ],
+        [
+          1774453380,
+          -1.3738
+        ],
+        [
+          1774532220,
+          -3.0974
+        ],
+        [
+          1774611060,
+          -3.207
+        ],
+        [
+          1774656000,
+          -2.4577
+        ],
+        [
+          1774821660,
+          -2.4577
+        ],
+        [
+          1774900500,
+          -2.2979
+        ],
+        [
+          1774979340,
+          -0.2897
+        ],
+        [
+          1775058180,
+          1.1194
+        ],
+        [
+          1775137020,
+          -0.7187
+        ],
+        [
+          1775215860,
+          0.3642
+        ],
+        [
+          1775260800,
+          0.3642
+        ],
+        [
+          1775426460,
+          0.3642
+        ],
+        [
+          1775505300,
+          0.7452
+        ],
+        [
+          1775584140,
+          0.5403
+        ],
+        [
+          1775662980,
+          2.758
+        ],
+        [
+          1775741820,
+          2.9384
+        ],
+        [
+          1775820660,
+          3.5788
+        ],
+        [
+          1775865600,
+          3.5294
+        ],
+        [
+          1776031260,
+          3.5294
+        ],
+        [
+          1776110100,
+          3.3706
+        ],
+        [
+          1776188940,
+          4.6604
+        ],
+        [
+          1776267780,
+          5.0411
+        ],
+        [
+          1776346620,
+          5.5449
+        ],
+        [
+          1776425460,
+          5.7829
+        ],
+        [
+          1776470400,
+          6.7167
+        ],
+        [
+          1776636060,
+          6.7167
+        ],
+        [
+          1776714900,
+          6.4532
+        ],
+        [
+          1776793740,
+          5.9131
+        ],
+        [
+          1776872580,
+          6.4103
+        ],
+        [
+          1776951420,
+          6.3321
+        ],
+        [
+          1777030260,
+          6.2039
+        ],
+        [
+          1777075200,
+          6.7502
+        ],
+        [
+          1777240860,
+          6.7502
+        ],
+        [
+          1777319700,
+          6.8533
+        ],
+        [
+          1777398540,
+          6.0606
+        ],
+        [
+          1777477380,
+          6.1381
+        ],
+        [
+          1777556220,
+          6.7168
+        ],
+        [
+          1777635060,
+          7.196
+        ],
+        [
+          1777680000,
+          7.2066
+        ],
+        [
+          1777845660,
+          7.2066
+        ],
+        [
+          1777924500,
+          6.7619
+        ],
+        [
+          1778003340,
+          7.504
+        ],
+        [
+          1778082180,
+          8.7654
+        ],
+        [
+          1778161020,
+          9.1991
+        ],
+        [
+          1778239860,
+          9.073
+        ],
+        [
+          1778284800,
+          9.3377
+        ],
+        [
+          1778450460,
+          9.3377
+        ],
+        [
+          1778529300,
+          9.5325
+        ],
+        [
+          1778608140,
+          8.67
+        ],
+        [
+          1778686980,
+          9.4847
+        ],
+        [
+          1778765820,
+          10.119
+        ],
+        [
+          1778844660,
+          9.5165
+        ],
+        [
+          1778889600,
+          9.0174
+        ],
+        [
+          1779055260,
+          9.0174
+        ],
+        [
+          1779134100,
+          8.6374
+        ],
+        [
+          1779212940,
+          8.8153
+        ],
+        [
+          1779291780,
+          8.4749
+        ],
+        [
+          1779370620,
+          8.3352
+        ],
+        [
+          1779449460,
+          9.0292
+        ],
+        [
+          1779494400,
+          9.1298
+        ],
+        [
+          1779660060,
+          9.1298
+        ]
+      ],
+      "5y psr": 38.335,
+      "5y cagr": 12.137,
+      "1y sharpe": 1.1172,
+      "3m return": 8.5684,
+      "5y drawdown": 14.9,
+      "oos 1y return": null,
+      "oos 1y sharpe": null,
+      "oos 3m return": 8.5684,
+      "oos 3m sharpe": 2.2158
+    },
+    "rank": 0,
+    "clones": 0,
+    "comments": 0,
+    "leaderboard": 44,
+    "score": 2.22,
+    "discussionId": 20131,
+    "hot": false,
+    "owner": false,
+    "followers": [
+      {
+        "name": "PauPadilla Greendry",
+        "publicId": "paupadilla-greendry",
+        "profileImage": "c8936829a65c8ed1600374814.jpg"
+      },
+      {
+        "name": "kk tec",
+        "publicId": "kk-tec",
+        "profileImage": "3550bb26f308bc81621662137.png"
+      },
+      {
+        "name": "Steven Saberson",
+        "publicId": "steven-saberson",
+        "profileImage": "4935d18ddcc05931746772587.jpg"
+      },
+      {
+        "name": "Aman Dhall",
+        "publicId": "aman-dhall",
+        "profileImage": "0f3a1f9daccaa0f1769282685.png"
+      }
+    ],
+    "followersCount": 7,
+    "published": 1769879120
+  }
+}

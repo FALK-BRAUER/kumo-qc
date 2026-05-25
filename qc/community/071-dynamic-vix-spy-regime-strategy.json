@@ -1,0 +1,492 @@
+{
+  "summary": {
+    "rank": 71,
+    "leaderboard_position": 75,
+    "id": 50,
+    "name": "Dynamic VIX-SPY Regime Strategy",
+    "author": "Ahmet Kasti",
+    "author_public_id": "ahmet-kasti_1",
+    "organization": "Ahmet Kasti&#039;s Organization",
+    "description": "The strategy is a volatility regime switching allocator that seeks to harvest the equity risk premium by buying SPY into volatility spikes and de risking when volatility is abnormally low or rising. It uses daily closes of the VIX index and SPY to detect stress, mean reversion, and trend conditions, and overlays a supervised machine learning classifier to estimate the probability that SPY will gain more than 2 percent over the next 21 trading days. The intended edge is behavioral and risk premia",
+    "description_full": "The strategy is a volatility regime switching allocator that seeks to harvest the equity risk premium by buying SPY into volatility spikes and de risking when volatility is abnormally low or rising. It uses daily closes of the VIX index and SPY to detect stress, mean reversion, and trend conditions, and overlays a supervised machine learning classifier to estimate the probability that SPY will gain more than 2 percent over the next 21 trading days. The intended edge is behavioral and risk premia based: oversold equities during high implied volatility tend to mean revert, while low volatility and extended equity rallies tend to precede weaker forward returns and higher drawdown risk; the ML overlay attempts to improve timing by conditioning on a feature set combining VIX level and z score, VIX percentile and relative-to-moving-average measures, and SPY momentum, trend, and realized volatility\n\n",
+    "tags": [
+      "Machine Learning",
+      "Volatility",
+      "Equity",
+      "Tactical Allocation"
+    ],
+    "asset_classes": [
+      "Equity",
+      "Base"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 1.36,
+    "sharpe_1y": 2.1157,
+    "return_3m": 11.9385,
+    "return_oos_1y": null,
+    "sharpe_oos_1y": null,
+    "cagr_5y": 40.345,
+    "drawdown_5y": 41.1,
+    "psr_5y": 45.914,
+    "watchers": 119,
+    "clones": 1232,
+    "clone_project_id": 26970546,
+    "backtest_id": "6f86c071062671af4b5cb1584b5fc3a3",
+    "discussion_id": 19959,
+    "published_ts": 1766496490,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 50,
+    "backtestId": "6f86c071062671af4b5cb1584b5fc3a3",
+    "name": "Dynamic VIX-SPY Regime Strategy",
+    "author": {
+      "name": "Ahmet Kasti",
+      "organizationName": "Ahmet Kasti&#039;s Organization",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/8eb3697aa6c44451766503260.jpg",
+      "bio": null,
+      "publicId": "ahmet-kasti_1",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": null,
+      "web": null,
+      "topAuthor": false
+    },
+    "description": "The strategy is a volatility regime switching allocator that seeks to harvest the equity risk premium by buying SPY into volatility spikes and de risking when volatility is abnormally low or rising. It uses daily closes of the VIX index and SPY to detect stress, mean reversion, and trend conditions, and overlays a supervised machine learning classifier to estimate the probability that SPY will gain more than 2 percent over the next 21 trading days. The intended edge is behavioral and risk premia based: oversold equities during high implied volatility tend to mean revert, while low volatility and extended equity rallies tend to precede weaker forward returns and higher drawdown risk; the ML overlay attempts to improve timing by conditioning on a feature set combining VIX level and z score, VIX percentile and relative-to-moving-average measures, and SPY momentum, trend, and realized volatility\n\n",
+    "cloneProjectId": 26970546,
+    "tags": [
+      "Machine Learning",
+      "Volatility",
+      "Equity",
+      "Tactical Allocation"
+    ],
+    "watchers": 119,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Dec 23, 2025",
+        "changes": [
+          "Initial deployment for strategy &quot;Smooth Green .Giraffe&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Ahmet Kasti",
+    "organizationName": "Ahmet Kasti&#039;s Organization",
+    "research": null,
+    "assetClasses": [
+      "Equity",
+      "Base"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771948800,
+          2.1392
+        ],
+        [
+          1772035200,
+          3.2154
+        ],
+        [
+          1772121600,
+          1.6913
+        ],
+        [
+          1772208000,
+          2.9557
+        ],
+        [
+          1772254800,
+          4.111
+        ],
+        [
+          1772341200,
+          4.111
+        ],
+        [
+          1772467200,
+          2.1072
+        ],
+        [
+          1772553600,
+          -3.1893
+        ],
+        [
+          1772640000,
+          -0.8294
+        ],
+        [
+          1772726400,
+          -4.7883
+        ],
+        [
+          1772812800,
+          -8.8228
+        ],
+        [
+          1772859600,
+          -10.4477
+        ],
+        [
+          1772946000,
+          -10.4477
+        ],
+        [
+          1773068400,
+          -9.3086
+        ],
+        [
+          1773154800,
+          -6.3684
+        ],
+        [
+          1773241200,
+          -6.7644
+        ],
+        [
+          1773327600,
+          -8.3057
+        ],
+        [
+          1773414000,
+          -10.7045
+        ],
+        [
+          1773460800,
+          -10.7137
+        ],
+        [
+          1773547200,
+          -10.7137
+        ],
+        [
+          1773673200,
+          -8.2978
+        ],
+        [
+          1773759600,
+          -7.4271
+        ],
+        [
+          1773846000,
+          -9.5473
+        ],
+        [
+          1773932400,
+          -12.9571
+        ],
+        [
+          1774018800,
+          -13.2137
+        ],
+        [
+          1774065600,
+          -14.0024
+        ],
+        [
+          1774152000,
+          -14.0024
+        ],
+        [
+          1774274400,
+          -11.4903
+        ],
+        [
+          1774364400,
+          -11.8017
+        ],
+        [
+          1774450800,
+          -11.1461
+        ],
+        [
+          1774537200,
+          -12.8904
+        ],
+        [
+          1774623600,
+          -13.9628
+        ],
+        [
+          1774670400,
+          -15.152
+        ],
+        [
+          1774756800,
+          -15.152
+        ],
+        [
+          1774882800,
+          -16.2782
+        ],
+        [
+          1774969200,
+          -15.8073
+        ],
+        [
+          1775055600,
+          -10.755
+        ],
+        [
+          1775142000,
+          -9.2088
+        ],
+        [
+          1775188800,
+          -9.4074
+        ],
+        [
+          1775275200,
+          -9.4074
+        ],
+        [
+          1775361600,
+          -9.4074
+        ],
+        [
+          1775484000,
+          -9.2233
+        ],
+        [
+          1775574000,
+          -8.888
+        ],
+        [
+          1775660400,
+          -7.6782
+        ],
+        [
+          1775746800,
+          -7.2457
+        ],
+        [
+          1775833200,
+          -6.074
+        ],
+        [
+          1775880000,
+          -6.2641
+        ],
+        [
+          1775966400,
+          -6.2641
+        ],
+        [
+          1776088800,
+          -6.3372
+        ],
+        [
+          1776178800,
+          -6.6745
+        ],
+        [
+          1776265200,
+          -6.9925
+        ],
+        [
+          1776351600,
+          -5.091
+        ],
+        [
+          1776438000,
+          -6.2741
+        ],
+        [
+          1776484800,
+          -4.257
+        ],
+        [
+          1776571200,
+          -4.257
+        ],
+        [
+          1776697200,
+          -4.1897
+        ],
+        [
+          1776783600,
+          -5.2525
+        ],
+        [
+          1776870000,
+          -3.645
+        ],
+        [
+          1776956400,
+          -1.5234
+        ],
+        [
+          1777042800,
+          -1.5965
+        ],
+        [
+          1777089600,
+          -0.7409
+        ],
+        [
+          1777176000,
+          -0.7409
+        ],
+        [
+          1777298400,
+          -0.5068
+        ],
+        [
+          1777388400,
+          -2.2377
+        ],
+        [
+          1777474800,
+          -2.1273
+        ],
+        [
+          1777561200,
+          0.9435
+        ],
+        [
+          1777647600,
+          1.7767
+        ],
+        [
+          1777694400,
+          2.1346
+        ],
+        [
+          1777780800,
+          2.1346
+        ],
+        [
+          1777903200,
+          3.0001
+        ],
+        [
+          1777993200,
+          5.8207
+        ],
+        [
+          1778079600,
+          8.2239
+        ],
+        [
+          1778166000,
+          6.3832
+        ],
+        [
+          1778252400,
+          7.6886
+        ],
+        [
+          1778299200,
+          7.3623
+        ],
+        [
+          1778385600,
+          7.3623
+        ],
+        [
+          1778511600,
+          8.955
+        ],
+        [
+          1778598000,
+          8.5058
+        ],
+        [
+          1778684400,
+          10.3708
+        ],
+        [
+          1778770800,
+          11.4549
+        ],
+        [
+          1778857200,
+          10.8314
+        ],
+        [
+          1778904000,
+          10.2948
+        ],
+        [
+          1778990400,
+          10.2948
+        ],
+        [
+          1779116400,
+          9.2927
+        ],
+        [
+          1779202800,
+          6.8408
+        ],
+        [
+          1779289200,
+          12.894
+        ],
+        [
+          1779375600,
+          15.351
+        ],
+        [
+          1779462000,
+          16.0014
+        ],
+        [
+          1779508800,
+          16.5403
+        ]
+      ],
+      "5y psr": 45.914,
+      "5y cagr": 40.345,
+      "1y sharpe": 2.1157,
+      "3m return": 11.9385,
+      "5y drawdown": 41.1,
+      "oos 1y return": null,
+      "oos 1y sharpe": null,
+      "oos 3m return": 11.9385,
+      "oos 3m sharpe": 1.3584
+    },
+    "rank": 0.03,
+    "clones": 1232,
+    "comments": 1,
+    "leaderboard": 75,
+    "score": 1.36,
+    "discussionId": 19959,
+    "hot": false,
+    "owner": false,
+    "followers": [
+      {
+        "name": "Marc Daoust",
+        "publicId": "marc_daoust",
+        "profileImage": "5c3e83abfa1cd6e1630875612.jpg"
+      },
+      {
+        "name": "andreab",
+        "publicId": "andreab",
+        "profileImage": "10f500e3fe2b6d0263bed889fb073379.jpg"
+      },
+      {
+        "name": "Julian &ldquo;Jul Ez&rdquo; Weber",
+        "publicId": "1485167891",
+        "profileImage": "c1a1a3c8f5bbeb71485167892.jpg"
+      },
+      {
+        "name": "Erdal Guner",
+        "publicId": "erdal_guner",
+        "profileImage": "6070d3d1215f09a1511628067.jpg"
+      },
+      {
+        "name": "Frank Schikarski",
+        "publicId": "frank_schikarski",
+        "profileImage": "07413c8f3462cd31635150497.png"
+      }
+    ],
+    "followersCount": 119,
+    "published": 1766496490
+  }
+}

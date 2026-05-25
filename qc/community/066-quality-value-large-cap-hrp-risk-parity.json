@@ -1,0 +1,480 @@
+{
+  "summary": {
+    "rank": 66,
+    "leaderboard_position": 42,
+    "id": 283,
+    "name": "Quality-Value Large-Cap HRP Risk Parity",
+    "author": "Daniel Paxton",
+    "author_public_id": "daniel-paxton_1",
+    "organization": "Michigan Algorithmic Traders",
+    "description": "The strategy is a long only U.S. equities allocation that seeks to harvest diversified equity risk premia by combining a quality and valuation biased stock selection with hierarchical risk parity (HRP) portfolio construction. It targets large, liquid companies with moderate valuation (price to earnings between 5 and 20) and high operating profitability (gross margin greater than 70 percent), while also requiring meaningful leverage (debt to equity above 0.5). From this filtered set it holds up t",
+    "description_full": "The strategy is a long only U.S. equities allocation that seeks to harvest diversified equity risk premia by combining a quality and valuation biased stock selection with hierarchical risk parity (HRP) portfolio construction. It targets large, liquid companies with moderate valuation (price to earnings between 5 and 20) and high operating profitability (gross margin greater than 70 percent), while also requiring meaningful leverage (debt to equity above 0.5). From this filtered set it holds up to the 50 largest by market capitalization, aiming to concentrate on scalable, institutionally tradable names while expressing a stable fundamental tilt.\n\nPortfolio weights are set using 300 trading days of daily close returns and an HRP procedure: stocks are clustered by correlation structure, then capital is recursively allocated to balance risk across clusters based on their estimated variances, reducing concentration in highly correlated groups and improving robustness versus standard mean variance optimization. The portfolio rebalances on a fixed 28 day schedule using the latest available daily data; positions removed from the eligible history set are liquidated at rebalance. Risk control is primarily through diversification and inverse variance risk splitting within clusters; there are no explicit volatility targets, leverage caps beyond full investment, stop losses, or sector constraints.",
+    "tags": [
+      "Hierarchical Risk Parity",
+      "Portfolio Allocation",
+      "Equity",
+      "Fundamental"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 1.58,
+    "sharpe_1y": 0.9816,
+    "return_3m": 10.6837,
+    "return_oos_1y": null,
+    "sharpe_oos_1y": null,
+    "cagr_5y": 3.575,
+    "drawdown_5y": 33.5,
+    "psr_5y": 2.181,
+    "watchers": 3,
+    "clones": 0,
+    "clone_project_id": 28192049,
+    "backtest_id": "4fcbbf426dc16a741e534c4790fcf279",
+    "discussion_id": 20209,
+    "published_ts": 1771039110,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 283,
+    "backtestId": "4fcbbf426dc16a741e534c4790fcf279",
+    "name": "Quality-Value Large-Cap HRP Risk Parity",
+    "author": {
+      "name": "Daniel Paxton",
+      "organizationName": "Michigan Algorithmic Traders",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/f00e943d4731de91771296464.png",
+      "bio": "“You have power over your mind — not outside events. Realize this, and you will find strength.”\n— Marcus Aurelius, Meditations",
+      "publicId": "daniel-paxton_1",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": null,
+      "web": null,
+      "topAuthor": false
+    },
+    "description": "The strategy is a long only U.S. equities allocation that seeks to harvest diversified equity risk premia by combining a quality and valuation biased stock selection with hierarchical risk parity (HRP) portfolio construction. It targets large, liquid companies with moderate valuation (price to earnings between 5 and 20) and high operating profitability (gross margin greater than 70 percent), while also requiring meaningful leverage (debt to equity above 0.5). From this filtered set it holds up to the 50 largest by market capitalization, aiming to concentrate on scalable, institutionally tradable names while expressing a stable fundamental tilt.\n\nPortfolio weights are set using 300 trading days of daily close returns and an HRP procedure: stocks are clustered by correlation structure, then capital is recursively allocated to balance risk across clusters based on their estimated variances, reducing concentration in highly correlated groups and improving robustness versus standard mean variance optimization. The portfolio rebalances on a fixed 28 day schedule using the latest available daily data; positions removed from the eligible history set are liquidated at rebalance. Risk control is primarily through diversification and inverse variance risk splitting within clusters; there are no explicit volatility targets, leverage caps beyond full investment, stop losses, or sector constraints.",
+    "cloneProjectId": 28192049,
+    "tags": [
+      "Hierarchical Risk Parity",
+      "Portfolio Allocation",
+      "Equity",
+      "Fundamental"
+    ],
+    "watchers": 3,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Feb 14, 2026",
+        "changes": [
+          "Initial deployment for strategy &quot;Quality-Value Large-Cap HRP Risk Parity&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Daniel Paxton",
+    "organizationName": "Michigan Algorithmic Traders",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771948800,
+          -2.7616
+        ],
+        [
+          1772035200,
+          -2.8245
+        ],
+        [
+          1772121600,
+          -0.4377
+        ],
+        [
+          1772208000,
+          -0.4939
+        ],
+        [
+          1772254800,
+          -0.5566
+        ],
+        [
+          1772341200,
+          -0.5566
+        ],
+        [
+          1772467200,
+          -0.5566
+        ],
+        [
+          1772553600,
+          -0.2829
+        ],
+        [
+          1772640000,
+          -3.3342
+        ],
+        [
+          1772726400,
+          -0.6688
+        ],
+        [
+          1772812800,
+          -1.3396
+        ],
+        [
+          1772859600,
+          -3.6923
+        ],
+        [
+          1772946000,
+          -3.6923
+        ],
+        [
+          1773068400,
+          -3.6923
+        ],
+        [
+          1773154800,
+          -2.0266
+        ],
+        [
+          1773241200,
+          -2.1256
+        ],
+        [
+          1773327600,
+          -2.5429
+        ],
+        [
+          1773414000,
+          -4.7924
+        ],
+        [
+          1773460800,
+          -4.6668
+        ],
+        [
+          1773547200,
+          -4.6668
+        ],
+        [
+          1773673200,
+          -4.6668
+        ],
+        [
+          1773759600,
+          -3.0672
+        ],
+        [
+          1773846000,
+          -1.3419
+        ],
+        [
+          1773932400,
+          -3.4142
+        ],
+        [
+          1774018800,
+          -4.0291
+        ],
+        [
+          1774065600,
+          -6.7752
+        ],
+        [
+          1774152000,
+          -6.7752
+        ],
+        [
+          1774278000,
+          -6.7752
+        ],
+        [
+          1774364400,
+          -5.2043
+        ],
+        [
+          1774450800,
+          -5.6124
+        ],
+        [
+          1774537200,
+          -4.9977
+        ],
+        [
+          1774623600,
+          -8.8148
+        ],
+        [
+          1774670400,
+          -9.8274
+        ],
+        [
+          1774756800,
+          -9.8274
+        ],
+        [
+          1774882800,
+          -9.8342
+        ],
+        [
+          1774969200,
+          -10.8163
+        ],
+        [
+          1775055600,
+          -7.9116
+        ],
+        [
+          1775142000,
+          -6.5917
+        ],
+        [
+          1775188800,
+          -6.7632
+        ],
+        [
+          1775275200,
+          -6.7632
+        ],
+        [
+          1775361600,
+          -6.7632
+        ],
+        [
+          1775487600,
+          -6.7632
+        ],
+        [
+          1775574000,
+          -5.6121
+        ],
+        [
+          1775660400,
+          -5.4912
+        ],
+        [
+          1775746800,
+          -2.5518
+        ],
+        [
+          1775833200,
+          -2.5793
+        ],
+        [
+          1775880000,
+          -2.9215
+        ],
+        [
+          1775966400,
+          -2.9215
+        ],
+        [
+          1776088800,
+          -2.9215
+        ],
+        [
+          1776178800,
+          -1.4561
+        ],
+        [
+          1776265200,
+          0.5099
+        ],
+        [
+          1776351600,
+          1.1797
+        ],
+        [
+          1776438000,
+          0.8782
+        ],
+        [
+          1776484800,
+          2.3651
+        ],
+        [
+          1776571200,
+          2.3651
+        ],
+        [
+          1776697200,
+          2.3651
+        ],
+        [
+          1776783600,
+          2.2612
+        ],
+        [
+          1776870000,
+          0.7606
+        ],
+        [
+          1776956400,
+          1.2879
+        ],
+        [
+          1777042800,
+          0.6397
+        ],
+        [
+          1777089600,
+          1.7774
+        ],
+        [
+          1777176000,
+          1.7774
+        ],
+        [
+          1777298400,
+          1.7774
+        ],
+        [
+          1777388400,
+          1.5453
+        ],
+        [
+          1777474800,
+          -0.1713
+        ],
+        [
+          1777561200,
+          0.3524
+        ],
+        [
+          1777647600,
+          3.725
+        ],
+        [
+          1777694400,
+          4.3294
+        ],
+        [
+          1777780800,
+          4.3294
+        ],
+        [
+          1777903200,
+          4.3294
+        ],
+        [
+          1777993200,
+          3.9835
+        ],
+        [
+          1778079600,
+          5.215
+        ],
+        [
+          1778166000,
+          8.1317
+        ],
+        [
+          1778252400,
+          7.1937
+        ],
+        [
+          1778299200,
+          9.4053
+        ],
+        [
+          1778385600,
+          9.4053
+        ],
+        [
+          1778511600,
+          9.4053
+        ],
+        [
+          1778598000,
+          9.2205
+        ],
+        [
+          1778684400,
+          7.8081
+        ],
+        [
+          1778770800,
+          9.8357
+        ],
+        [
+          1778857200,
+          10.2399
+        ],
+        [
+          1778904000,
+          8.2837
+        ],
+        [
+          1778990400,
+          8.2837
+        ],
+        [
+          1779116400,
+          8.2837
+        ],
+        [
+          1779202800,
+          7.5102
+        ],
+        [
+          1779289200,
+          6.5214
+        ],
+        [
+          1779375600,
+          8.1846
+        ],
+        [
+          1779462000,
+          8.9551
+        ],
+        [
+          1779508800,
+          10.0676
+        ]
+      ],
+      "5y psr": 2.181,
+      "5y cagr": 3.575,
+      "1y sharpe": 0.9816,
+      "3m return": 10.6837,
+      "5y drawdown": 33.5,
+      "oos 1y return": null,
+      "oos 1y sharpe": null,
+      "oos 3m return": 10.6837,
+      "oos 3m sharpe": 1.5819
+    },
+    "rank": 999999,
+    "clones": 0,
+    "comments": 0,
+    "leaderboard": 42,
+    "score": 1.58,
+    "discussionId": 20209,
+    "hot": false,
+    "owner": false,
+    "followers": [
+      {
+        "name": "Philip Bianchi",
+        "publicId": "philip_bianchi",
+        "profileImage": "693209d5afb65691570530963.png"
+      },
+      {
+        "name": "PauPadilla Greendry",
+        "publicId": "paupadilla-greendry",
+        "profileImage": "c8936829a65c8ed1600374814.jpg"
+      },
+      {
+        "name": "Narloc",
+        "publicId": "narloc",
+        "profileImage": "4c9ff4eff2c992b1607959599.jpg"
+      }
+    ],
+    "followersCount": 3,
+    "published": 1771039110
+  }
+}

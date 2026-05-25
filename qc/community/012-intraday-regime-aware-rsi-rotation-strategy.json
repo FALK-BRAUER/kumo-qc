@@ -1,0 +1,486 @@
+{
+  "summary": {
+    "rank": 12,
+    "leaderboard_position": 11,
+    "id": 304,
+    "name": "Intraday Regime-Aware RSI Rotation Strategy",
+    "author": "Valery T",
+    "author_public_id": "valery_t",
+    "organization": "Valery T",
+    "description": "The strategy is an intraday, rules based regime and momentum allocator across US equity beta, leveraged equity and sector ETFs, a volatility hedge, and a cash proxy. It seeks to capture short term continuation and mean reversion in risk on assets while defensively rotating to cash when trend or overbought signals deteriorate. The investable universe includes broad equity (SPY), tech (XLK), commodities (DBC), duration (TLT), cash (BIL), leveraged long ETFs (TQQQ, TECL, UPRO, SPXL, SOXL) and inver",
+    "description_full": "The strategy is an intraday, rules based regime and momentum allocator across US equity beta, leveraged equity and sector ETFs, a volatility hedge, and a cash proxy. It seeks to capture short term continuation and mean reversion in risk on assets while defensively rotating to cash when trend or overbought signals deteriorate. The investable universe includes broad equity (SPY), tech (XLK), commodities (DBC), duration (TLT), cash (BIL), leveraged long ETFs (TQQQ, TECL, UPRO, SPXL, SOXL) and inverse or convexity hedges (SQQQ, UVXY), with an additional tactical switch that can replace part of cash with SOXL when NVDA exhibits elevated short term volatility.\n\nSignals are computed from minute data but decisions are made once per day near the close (15:40). The strategy blends multiple fixed cash versus risk allocations, aggregates their implied picks, then holds the two instruments with the strongest 14 day RSI to concentrate exposure. Risk is controlled by a structural cash bias, a volatility and peak to trough drawdown based exposure scaler (including a hard stop that moves to 100 percent cash), and a cap on total risky exposure via a maximum leverage limit; the residual is allocated to BIL. The intended edge is regime aware rotation among leveraged beta and hedges using RSI and trend filters.",
+    "tags": [
+      "Tactical Allocation",
+      "Equity Etf",
+      "Technical",
+      "Risk Parity"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 5.62,
+    "sharpe_1y": 2.8828,
+    "return_3m": 16.2162,
+    "return_oos_1y": null,
+    "sharpe_oos_1y": null,
+    "cagr_5y": 17.775,
+    "drawdown_5y": 10.8,
+    "psr_5y": 92.802,
+    "watchers": 6,
+    "clones": 0,
+    "clone_project_id": 28328061,
+    "backtest_id": "e81304657069a47fdcc170aa5e313c35",
+    "discussion_id": 20240,
+    "published_ts": 1771517160,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 304,
+    "backtestId": "e81304657069a47fdcc170aa5e313c35",
+    "name": "Intraday Regime-Aware RSI Rotation Strategy",
+    "author": {
+      "name": "Valery T",
+      "organizationName": "Valery T",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/default.jpg",
+      "bio": null,
+      "publicId": "valery_t",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": null,
+      "web": null,
+      "topAuthor": false
+    },
+    "description": "The strategy is an intraday, rules based regime and momentum allocator across US equity beta, leveraged equity and sector ETFs, a volatility hedge, and a cash proxy. It seeks to capture short term continuation and mean reversion in risk on assets while defensively rotating to cash when trend or overbought signals deteriorate. The investable universe includes broad equity (SPY), tech (XLK), commodities (DBC), duration (TLT), cash (BIL), leveraged long ETFs (TQQQ, TECL, UPRO, SPXL, SOXL) and inverse or convexity hedges (SQQQ, UVXY), with an additional tactical switch that can replace part of cash with SOXL when NVDA exhibits elevated short term volatility.\n\nSignals are computed from minute data but decisions are made once per day near the close (15:40). The strategy blends multiple fixed cash versus risk allocations, aggregates their implied picks, then holds the two instruments with the strongest 14 day RSI to concentrate exposure. Risk is controlled by a structural cash bias, a volatility and peak to trough drawdown based exposure scaler (including a hard stop that moves to 100 percent cash), and a cap on total risky exposure via a maximum leverage limit; the residual is allocated to BIL. The intended edge is regime aware rotation among leveraged beta and hedges using RSI and trend filters.",
+    "cloneProjectId": 28328061,
+    "tags": [
+      "Tactical Allocation",
+      "Equity Etf",
+      "Technical",
+      "Risk Parity"
+    ],
+    "watchers": 6,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Feb 19, 2026",
+        "changes": [
+          "Initial deployment for strategy &quot;Intraday Regime-Aware RSI Rotation Strategy&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Valery T",
+    "organizationName": "Valery T",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771943460,
+          -0.1339
+        ],
+        [
+          1772029860,
+          -0.1285
+        ],
+        [
+          1772116260,
+          -0.1122
+        ],
+        [
+          1772202660,
+          -0.3906
+        ],
+        [
+          1772254800,
+          -0.2722
+        ],
+        [
+          1772341200,
+          -0.2722
+        ],
+        [
+          1772467020,
+          -0.4873
+        ],
+        [
+          1772548260,
+          -1.0383
+        ],
+        [
+          1772634660,
+          -0.8597
+        ],
+        [
+          1772721060,
+          -0.865
+        ],
+        [
+          1772807460,
+          -1.5161
+        ],
+        [
+          1772859600,
+          -1.8142
+        ],
+        [
+          1772946000,
+          -1.8142
+        ],
+        [
+          1773063060,
+          -2.0832
+        ],
+        [
+          1773149460,
+          -0.9495
+        ],
+        [
+          1773241020,
+          -0.5953
+        ],
+        [
+          1773322260,
+          -1.046
+        ],
+        [
+          1773408660,
+          -1.1042
+        ],
+        [
+          1773460800,
+          -1.2915
+        ],
+        [
+          1773547200,
+          -1.2915
+        ],
+        [
+          1773667860,
+          -0.7757
+        ],
+        [
+          1773754260,
+          -0.7584
+        ],
+        [
+          1773840660,
+          -0.6544
+        ],
+        [
+          1773927060,
+          -1.4088
+        ],
+        [
+          1774018620,
+          -1.1044
+        ],
+        [
+          1774065600,
+          -0.9504
+        ],
+        [
+          1774152000,
+          -0.9504
+        ],
+        [
+          1774277820,
+          0.394
+        ],
+        [
+          1774364220,
+          -0.0457
+        ],
+        [
+          1774450620,
+          0.1443
+        ],
+        [
+          1774531860,
+          0.0432
+        ],
+        [
+          1774618260,
+          -0.3408
+        ],
+        [
+          1774670400,
+          -0.2912
+        ],
+        [
+          1774756800,
+          -0.2912
+        ],
+        [
+          1774877460,
+          0.0462
+        ],
+        [
+          1774963860,
+          -0.9211
+        ],
+        [
+          1775055420,
+          1.1871
+        ],
+        [
+          1775136660,
+          0.7775
+        ],
+        [
+          1775188800,
+          1.2375
+        ],
+        [
+          1775275200,
+          1.2375
+        ],
+        [
+          1775361600,
+          1.2375
+        ],
+        [
+          1775482260,
+          1.4757
+        ],
+        [
+          1775568660,
+          1.4484
+        ],
+        [
+          1775655060,
+          2.3025
+        ],
+        [
+          1775741460,
+          2.7728
+        ],
+        [
+          1775827860,
+          3.7777
+        ],
+        [
+          1775880000,
+          3.91
+        ],
+        [
+          1775966400,
+          3.91
+        ],
+        [
+          1776087060,
+          3.8562
+        ],
+        [
+          1776173460,
+          5.0202
+        ],
+        [
+          1776259860,
+          5.5146
+        ],
+        [
+          1776346260,
+          5.8893
+        ],
+        [
+          1776432660,
+          6.9533
+        ],
+        [
+          1776484800,
+          7.3885
+        ],
+        [
+          1776571200,
+          7.3885
+        ],
+        [
+          1776691860,
+          7.6336
+        ],
+        [
+          1776778260,
+          8.0156
+        ],
+        [
+          1776864660,
+          8.604
+        ],
+        [
+          1776951060,
+          9.0563
+        ],
+        [
+          1777037460,
+          10.8025
+        ],
+        [
+          1777089600,
+          11.2434
+        ],
+        [
+          1777176000,
+          11.2434
+        ],
+        [
+          1777296660,
+          11.0935
+        ],
+        [
+          1777383060,
+          9.6328
+        ],
+        [
+          1777469460,
+          9.8403
+        ],
+        [
+          1777555860,
+          10.4497
+        ],
+        [
+          1777647420,
+          10.7937
+        ],
+        [
+          1777694400,
+          10.9415
+        ],
+        [
+          1777780800,
+          10.9415
+        ],
+        [
+          1777901460,
+          11.0687
+        ],
+        [
+          1777987860,
+          11.4541
+        ],
+        [
+          1778074260,
+          12.7452
+        ],
+        [
+          1778160660,
+          12.8177
+        ],
+        [
+          1778247060,
+          13.0309
+        ],
+        [
+          1778299200,
+          14.0307
+        ],
+        [
+          1778385600,
+          14.0307
+        ],
+        [
+          1778506260,
+          14.3926
+        ],
+        [
+          1778592660,
+          14.2388
+        ],
+        [
+          1778679060,
+          14.5625
+        ],
+        [
+          1778765460,
+          15.0354
+        ],
+        [
+          1778851860,
+          15.1826
+        ],
+        [
+          1778904000,
+          14.5967
+        ],
+        [
+          1778990400,
+          14.5967
+        ],
+        [
+          1779111060,
+          15.1477
+        ],
+        [
+          1779197460,
+          13.1411
+        ],
+        [
+          1779283860,
+          14.2561
+        ],
+        [
+          1779370260,
+          14.5628
+        ],
+        [
+          1779480000,
+          15.8999
+        ]
+      ],
+      "5y psr": 92.802,
+      "5y cagr": 17.775,
+      "1y sharpe": 2.8828,
+      "3m return": 16.2162,
+      "5y drawdown": 10.8,
+      "oos 1y return": null,
+      "oos 1y sharpe": null,
+      "oos 3m return": 16.2162,
+      "oos 3m sharpe": 5.624
+    },
+    "rank": 999999,
+    "clones": 0,
+    "comments": 0,
+    "leaderboard": 11,
+    "score": 5.62,
+    "discussionId": 20240,
+    "hot": false,
+    "owner": false,
+    "followers": [
+      {
+        "name": "Maximilian Wimmer",
+        "publicId": "maximilian-wimmer_1",
+        "profileImage": "1ccf9c8bd0befc41688391655.jpg"
+      },
+      {
+        "name": "Narloc",
+        "publicId": "narloc",
+        "profileImage": "4c9ff4eff2c992b1607959599.jpg"
+      },
+      {
+        "name": "Trader Ostburg",
+        "publicId": "trader-ostburg",
+        "profileImage": "5f70a39c30853661743949853.png"
+      },
+      {
+        "name": "李白",
+        "publicId": "1771669482",
+        "profileImage": "7cad1653979b4d11771669484.png"
+      },
+      {
+        "name": "Eliah Kilian",
+        "publicId": "eliah-kilian",
+        "profileImage": "a5bb493dcae8bbf1776882442.png"
+      }
+    ],
+    "followersCount": 6,
+    "published": 1771517160
+  }
+}

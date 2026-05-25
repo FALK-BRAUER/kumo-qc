@@ -1,0 +1,464 @@
+{
+  "summary": {
+    "rank": 70,
+    "leaderboard_position": 62,
+    "id": 344,
+    "name": "Adjusted Trend on Futures",
+    "author": "Derek Melchin",
+    "author_public_id": "derek-melchin",
+    "organization": "QuantConnect",
+    "description": "The strategy is a multi speed time series momentum program on liquid futures, designed to harvest persistent trend premia while targeting a stable portfolio level of risk. It trades a fixed universe of two contracts (S and P 500 E mini equity index futures and 10 year US Treasury Note futures) using daily data. Signals are generated from a family of exponentially weighted moving average crossover filters (fast spans as powers of two up to a configurable count, with slow spans four times the fast",
+    "description_full": "The strategy is a multi speed time series momentum program on liquid futures, designed to harvest persistent trend premia while targeting a stable portfolio level of risk. It trades a fixed universe of two contracts (S and P 500 E mini equity index futures and 10 year US Treasury Note futures) using daily data. Signals are generated from a family of exponentially weighted moving average crossover filters (fast spans as powers of two up to a configurable count, with slow spans four times the fast), converted into risk adjusted forecasts by dividing by an instrument specific daily risk estimate and scaling each horizon to a common forecast scale. Forecasts are then capped using rule specific nonlinear mappings (including special mappings for very fast and very slow horizons) and averaged across horizons with a diversification multiplier to maintain forecast amplitude, producing a single directional forecast per instrument.",
+    "tags": [
+      "Trend Following",
+      "Futures",
+      "Technical",
+      "Risk Parity"
+    ],
+    "asset_classes": [
+      "Future"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 1.43,
+    "sharpe_1y": -0.3226,
+    "return_3m": 7.5432,
+    "return_oos_1y": -0.5566,
+    "sharpe_oos_1y": -0.3226,
+    "cagr_5y": 0.628,
+    "drawdown_5y": 35.3,
+    "psr_5y": 0.91,
+    "watchers": 0,
+    "clones": 0,
+    "clone_project_id": 28536009,
+    "backtest_id": "286487814ac9d1c82e45263f987911ac",
+    "discussion_id": 20336,
+    "published_ts": 1742194800,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 344,
+    "backtestId": "286487814ac9d1c82e45263f987911ac",
+    "name": "Adjusted Trend on Futures",
+    "author": {
+      "name": "Derek Melchin",
+      "organizationName": "QuantConnect",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/d06c9930192dcf31587397285.jpg",
+      "bio": "Quantitative Developer at QuantConnect. Studied Computer Science and Finance at the University of Lethbridge. Competitor in the 2020-1 Rotman International Trading Competitions. \nSee my latest posts at derekmelchin.com.",
+      "publicId": "derek-melchin",
+      "facebook": null,
+      "twitter": "https://twitter.com/DerekMelchin",
+      "linkedin": "https://www.linkedin.com/in/derek-melchin-b22753137/",
+      "web": "http://www.derekmelchin.com",
+      "topAuthor": false
+    },
+    "description": "The strategy is a multi speed time series momentum program on liquid futures, designed to harvest persistent trend premia while targeting a stable portfolio level of risk. It trades a fixed universe of two contracts (S and P 500 E mini equity index futures and 10 year US Treasury Note futures) using daily data. Signals are generated from a family of exponentially weighted moving average crossover filters (fast spans as powers of two up to a configurable count, with slow spans four times the fast), converted into risk adjusted forecasts by dividing by an instrument specific daily risk estimate and scaling each horizon to a common forecast scale. Forecasts are then capped using rule specific nonlinear mappings (including special mappings for very fast and very slow horizons) and averaged across horizons with a diversification multiplier to maintain forecast amplitude, producing a single directional forecast per instrument.",
+    "cloneProjectId": 28536009,
+    "tags": [
+      "Trend Following",
+      "Futures",
+      "Technical",
+      "Risk Parity"
+    ],
+    "watchers": 0,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Mar 17, 2025",
+        "changes": [
+          "Initial deployment for strategy &quot;Multi-Speed Futures Time-Series Momentum Strategy&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Derek Melchin",
+    "organizationName": "QuantConnect",
+    "research": null,
+    "assetClasses": [
+      "Future"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771948620,
+          -0.1251
+        ],
+        [
+          1772029860,
+          -0.0998
+        ],
+        [
+          1772116260,
+          0.3975
+        ],
+        [
+          1772202660,
+          0.4293
+        ],
+        [
+          1772254800,
+          1.2419
+        ],
+        [
+          1772389800,
+          1.2419
+        ],
+        [
+          1772470620,
+          -1.4002
+        ],
+        [
+          1772553420,
+          -2.8776
+        ],
+        [
+          1772634660,
+          -2.259
+        ],
+        [
+          1772721060,
+          -3.0521
+        ],
+        [
+          1772807460,
+          -3.1213
+        ],
+        [
+          1772859600,
+          -3.0966
+        ],
+        [
+          1772991000,
+          -3.0966
+        ],
+        [
+          1773071820,
+          -3.2432
+        ],
+        [
+          1773154620,
+          -3.8816
+        ],
+        [
+          1773235860,
+          -3.6453
+        ],
+        [
+          1773322260,
+          -2.8737
+        ],
+        [
+          1773408660,
+          -2.8341
+        ],
+        [
+          1773460800,
+          -2.1785
+        ],
+        [
+          1773595800,
+          -2.1785
+        ],
+        [
+          1773676620,
+          -2.8483
+        ],
+        [
+          1773759420,
+          -3.5014
+        ],
+        [
+          1773845820,
+          -2.3157
+        ],
+        [
+          1773932220,
+          -1.1817
+        ],
+        [
+          1774018620,
+          1.0053
+        ],
+        [
+          1774065600,
+          0.9885
+        ],
+        [
+          1774200600,
+          0.9885
+        ],
+        [
+          1774281420,
+          0.0295
+        ],
+        [
+          1774364220,
+          0.1168
+        ],
+        [
+          1774445460,
+          -1.0015
+        ],
+        [
+          1774531860,
+          0.8868
+        ],
+        [
+          1774618260,
+          4.5373
+        ],
+        [
+          1774670400,
+          5.027
+        ],
+        [
+          1774805400,
+          5.027
+        ],
+        [
+          1774886220,
+          2.3994
+        ],
+        [
+          1774969020,
+          1.8929
+        ],
+        [
+          1775055420,
+          -1.1377
+        ],
+        [
+          1775141820,
+          -0.4515
+        ],
+        [
+          1775228220,
+          0.1326
+        ],
+        [
+          1775278800,
+          0.0864
+        ],
+        [
+          1775410200,
+          0.0864
+        ],
+        [
+          1775491020,
+          -0.1378
+        ],
+        [
+          1775573820,
+          0.3918
+        ],
+        [
+          1775660220,
+          -1.885
+        ],
+        [
+          1775746620,
+          -1.6212
+        ],
+        [
+          1775833020,
+          -1.7465
+        ],
+        [
+          1775880000,
+          -1.7168
+        ],
+        [
+          1776015000,
+          -1.7168
+        ],
+        [
+          1776095820,
+          -1.675
+        ],
+        [
+          1776175200,
+          -1.7364
+        ],
+        [
+          1776259920,
+          -1.5658
+        ],
+        [
+          1776346260,
+          -1.2693
+        ],
+        [
+          1776432660,
+          -0.9754
+        ],
+        [
+          1776484800,
+          -0.7462
+        ],
+        [
+          1776619860,
+          -0.7462
+        ],
+        [
+          1776700620,
+          -0.9922
+        ],
+        [
+          1776782340,
+          -0.7662
+        ],
+        [
+          1776864660,
+          -0.9236
+        ],
+        [
+          1776951060,
+          -0.8298
+        ],
+        [
+          1777037460,
+          -0.532
+        ],
+        [
+          1777089600,
+          -0.2009
+        ],
+        [
+          1777227480,
+          -0.2009
+        ],
+        [
+          1777296540,
+          -0.2009
+        ],
+        [
+          1777382760,
+          0.2911
+        ],
+        [
+          1777469220,
+          -0.2616
+        ],
+        [
+          1777555860,
+          0.4344
+        ],
+        [
+          1777642260,
+          2.1953
+        ],
+        [
+          1777694400,
+          1.4533
+        ],
+        [
+          1777829460,
+          1.4533
+        ],
+        [
+          1777910220,
+          2.2184
+        ],
+        [
+          1777993020,
+          2.91
+        ],
+        [
+          1778079420,
+          3.7994
+        ],
+        [
+          1778165820,
+          4.2221
+        ],
+        [
+          1778247060,
+          4.2254
+        ],
+        [
+          1778299200,
+          4.7827
+        ],
+        [
+          1778434260,
+          4.7827
+        ],
+        [
+          1778515020,
+          5.8169
+        ],
+        [
+          1778594520,
+          5.2902
+        ],
+        [
+          1778679060,
+          6.1556
+        ],
+        [
+          1778765460,
+          7.0565
+        ],
+        [
+          1778851860,
+          8.7631
+        ],
+        [
+          1778904000,
+          8.6312
+        ],
+        [
+          1779039000,
+          8.6312
+        ],
+        [
+          1779119820,
+          8.3064
+        ],
+        [
+          1779202620,
+          9.0896
+        ],
+        [
+          1779289020,
+          8.8113
+        ],
+        [
+          1779375420,
+          8.9668
+        ],
+        [
+          1779461820,
+          10.0462
+        ],
+        [
+          1779512400,
+          8.8788
+        ]
+      ],
+      "5y psr": 0.91,
+      "5y cagr": 0.628,
+      "1y sharpe": -0.3226,
+      "3m return": 7.5432,
+      "5y drawdown": 35.3,
+      "oos 1y return": -0.5566,
+      "oos 1y sharpe": -0.3226,
+      "oos 3m return": 7.5432,
+      "oos 3m sharpe": 1.4264
+    },
+    "rank": 999999,
+    "clones": 0,
+    "comments": 0,
+    "leaderboard": 62,
+    "score": 1.43,
+    "discussionId": 20336,
+    "hot": false,
+    "owner": false,
+    "followers": [],
+    "followersCount": 0,
+    "published": 1742194800
+  }
+}

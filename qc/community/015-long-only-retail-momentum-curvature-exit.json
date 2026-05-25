@@ -1,0 +1,466 @@
+{
+  "summary": {
+    "rank": 15,
+    "leaderboard_position": 27,
+    "id": 107,
+    "name": "Long-Only Retail Momentum Curvature Exit",
+    "author": "bub gaming",
+    "author_public_id": "bub-gaming",
+    "organization": "bub gaming",
+    "description": "The strategy is a long only, cross sectional momentum system designed to harvest short term trend persistence in a curated basket of high retail participation U.S. equities and thematic proxies (meme stocks, high beta tech, crypto related equities, ARKK and similar). The core signal is the sign change of a smoothed price curvature estimate: it seeks names with positive price velocity and positive inferred near term trend, and exits immediately when the estimated price acceleration flips from pos",
+    "description_full": "The strategy is a long only, cross sectional momentum system designed to harvest short term trend persistence in a curated basket of high retail participation U.S. equities and thematic proxies (meme stocks, high beta tech, crypto related equities, ARKK and similar). The core signal is the sign change of a smoothed price curvature estimate: it seeks names with positive price velocity and positive inferred near term trend, and exits immediately when the estimated price acceleration flips from positive to negative, aiming to avoid holding through momentum regime breaks and downside convexity common in speculative names.\n\n",
+    "tags": [
+      "Momentum",
+      "Equity",
+      "Technical",
+      "Machine Learning"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 5.18,
+    "sharpe_1y": 1.1746,
+    "return_3m": 32.069,
+    "return_oos_1y": null,
+    "sharpe_oos_1y": null,
+    "cagr_5y": 11.544,
+    "drawdown_5y": 58.1,
+    "psr_5y": 5.353,
+    "watchers": 1,
+    "clones": 4,
+    "clone_project_id": 27413523,
+    "backtest_id": "87901567aeaafcbfc1fe44483eff8ecf",
+    "discussion_id": 19987,
+    "published_ts": 1768204593,
+    "hot": false,
+    "top_author": true
+  },
+  "raw": {
+    "id": 107,
+    "backtestId": "87901567aeaafcbfc1fe44483eff8ecf",
+    "name": "Long-Only Retail Momentum Curvature Exit",
+    "author": {
+      "name": "bub gaming",
+      "organizationName": "bub gaming",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/1e31f1bab97968a1766707096.png",
+      "bio": null,
+      "publicId": "bub-gaming",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": null,
+      "web": null,
+      "topAuthor": true
+    },
+    "description": "The strategy is a long only, cross sectional momentum system designed to harvest short term trend persistence in a curated basket of high retail participation U.S. equities and thematic proxies (meme stocks, high beta tech, crypto related equities, ARKK and similar). The core signal is the sign change of a smoothed price curvature estimate: it seeks names with positive price velocity and positive inferred near term trend, and exits immediately when the estimated price acceleration flips from positive to negative, aiming to avoid holding through momentum regime breaks and downside convexity common in speculative names.\n\n",
+    "cloneProjectId": 27413523,
+    "tags": [
+      "Momentum",
+      "Equity",
+      "Technical",
+      "Machine Learning"
+    ],
+    "watchers": 1,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Jan 12, 2026",
+        "changes": [
+          "Initial deployment for strategy &quot;Long-Only Retail Momentum Curvature Exit&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "bub gaming",
+    "organizationName": "bub gaming",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771945200,
+          -2.0197
+        ],
+        [
+          1772031600,
+          0.6592
+        ],
+        [
+          1772118000,
+          1.3352
+        ],
+        [
+          1772204400,
+          3.5634
+        ],
+        [
+          1772254800,
+          -0.9984
+        ],
+        [
+          1772341200,
+          -0.9984
+        ],
+        [
+          1772463600,
+          -0.9984
+        ],
+        [
+          1772550000,
+          -0.5176
+        ],
+        [
+          1772640000,
+          -2.5033
+        ],
+        [
+          1772722800,
+          0.2458
+        ],
+        [
+          1772809200,
+          -0.6023
+        ],
+        [
+          1772859600,
+          -3.0533
+        ],
+        [
+          1772946000,
+          -3.0533
+        ],
+        [
+          1773068400,
+          -3.0533
+        ],
+        [
+          1773151200,
+          -2.0306
+        ],
+        [
+          1773241200,
+          -2.974
+        ],
+        [
+          1773324000,
+          -2.307
+        ],
+        [
+          1773410400,
+          -4.7558
+        ],
+        [
+          1773460800,
+          -4.6916
+        ],
+        [
+          1773547200,
+          -4.6916
+        ],
+        [
+          1773673200,
+          -4.6916
+        ],
+        [
+          1773756000,
+          -3.3752
+        ],
+        [
+          1773842400,
+          -2.5965
+        ],
+        [
+          1773928800,
+          -3.5149
+        ],
+        [
+          1774015200,
+          -2.9908
+        ],
+        [
+          1774065600,
+          -6.1527
+        ],
+        [
+          1774152000,
+          -6.1527
+        ],
+        [
+          1774274400,
+          -6.1527
+        ],
+        [
+          1774360800,
+          -4.1311
+        ],
+        [
+          1774447200,
+          -4.4983
+        ],
+        [
+          1774533600,
+          -2.764
+        ],
+        [
+          1774620000,
+          -6.9531
+        ],
+        [
+          1774670400,
+          -8.8498
+        ],
+        [
+          1774756800,
+          -8.8498
+        ],
+        [
+          1774879200,
+          -8.8498
+        ],
+        [
+          1774965600,
+          -10.3388
+        ],
+        [
+          1775052000,
+          -5.4102
+        ],
+        [
+          1775138400,
+          -4.7384
+        ],
+        [
+          1775188800,
+          -3.2379
+        ],
+        [
+          1775275200,
+          -3.2379
+        ],
+        [
+          1775361600,
+          -3.2379
+        ],
+        [
+          1775484000,
+          -3.2379
+        ],
+        [
+          1775570400,
+          -1.7321
+        ],
+        [
+          1775656800,
+          -2.1632
+        ],
+        [
+          1775743200,
+          1.287
+        ],
+        [
+          1775829600,
+          0.8934
+        ],
+        [
+          1775880000,
+          1.3332
+        ],
+        [
+          1775966400,
+          1.3332
+        ],
+        [
+          1776088800,
+          1.3332
+        ],
+        [
+          1776175200,
+          3.2601
+        ],
+        [
+          1776261600,
+          5.7182
+        ],
+        [
+          1776348000,
+          8.4899
+        ],
+        [
+          1776434400,
+          9.9381
+        ],
+        [
+          1776484800,
+          12.2359
+        ],
+        [
+          1776571200,
+          12.2359
+        ],
+        [
+          1776693600,
+          12.2359
+        ],
+        [
+          1776780000,
+          13.841
+        ],
+        [
+          1776866400,
+          12.2439
+        ],
+        [
+          1776952800,
+          14.2479
+        ],
+        [
+          1777039200,
+          11.6692
+        ],
+        [
+          1777089600,
+          12.8878
+        ],
+        [
+          1777176000,
+          12.8878
+        ],
+        [
+          1777298400,
+          12.8878
+        ],
+        [
+          1777384800,
+          12.6018
+        ],
+        [
+          1777471200,
+          10.3905
+        ],
+        [
+          1777557600,
+          11.5591
+        ],
+        [
+          1777647600,
+          12.6055
+        ],
+        [
+          1777694400,
+          15.336
+        ],
+        [
+          1777780800,
+          15.336
+        ],
+        [
+          1777903200,
+          15.336
+        ],
+        [
+          1777989600,
+          14.1261
+        ],
+        [
+          1778076000,
+          17.8492
+        ],
+        [
+          1778166000,
+          17.798
+        ],
+        [
+          1778252400,
+          18.1467
+        ],
+        [
+          1778299200,
+          20.6261
+        ],
+        [
+          1778385600,
+          20.6261
+        ],
+        [
+          1778511600,
+          20.6261
+        ],
+        [
+          1778594400,
+          21.4809
+        ],
+        [
+          1778684400,
+          20.0076
+        ],
+        [
+          1778767200,
+          24.1826
+        ],
+        [
+          1778853600,
+          25.0685
+        ],
+        [
+          1778904000,
+          22.1949
+        ],
+        [
+          1778990400,
+          22.1949
+        ],
+        [
+          1779112800,
+          22.1949
+        ],
+        [
+          1779199200,
+          20.8131
+        ],
+        [
+          1779285600,
+          19.5949
+        ],
+        [
+          1779375600,
+          22.7111
+        ],
+        [
+          1779480000,
+          30.7504
+        ]
+      ],
+      "5y psr": 5.353,
+      "5y cagr": 11.544,
+      "1y sharpe": 1.1746,
+      "3m return": 32.069,
+      "5y drawdown": 58.1,
+      "oos 1y return": null,
+      "oos 1y sharpe": null,
+      "oos 3m return": 32.069,
+      "oos 3m sharpe": 5.1816
+    },
+    "rank": 0,
+    "clones": 4,
+    "comments": 0,
+    "leaderboard": 27,
+    "score": 5.18,
+    "discussionId": 19987,
+    "hot": false,
+    "owner": false,
+    "followers": [
+      {
+        "name": "PauPadilla Greendry",
+        "publicId": "paupadilla-greendry",
+        "profileImage": "c8936829a65c8ed1600374814.jpg"
+      }
+    ],
+    "followersCount": 1,
+    "published": 1768204593
+  }
+}

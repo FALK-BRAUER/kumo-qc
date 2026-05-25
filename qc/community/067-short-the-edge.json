@@ -1,0 +1,481 @@
+{
+  "summary": {
+    "rank": 67,
+    "leaderboard_position": 68,
+    "id": 120,
+    "name": "Short The Edge",
+    "author": "Grant Forman",
+    "author_public_id": "grant_forman",
+    "organization": "Grant Forman",
+    "description": "The purpose of this strategy is to outperform SPY across most market conditions by trading SPY as a single-asset directional system that selectively reduces or reverses exposure only when downside risk becomes statistically significant. The algorithm maintains a rolling history of daily SPY returns and applies wavelet-based denoising to extract the underlying structure of the return series. A support-vector regression model is then used to estimate the next-period return, which is normalized by ",
+    "description_full": "The purpose of this strategy is to outperform SPY across most market conditions by trading SPY as a single-asset directional system that selectively reduces or reverses exposure only when downside risk becomes statistically significant. The algorithm maintains a rolling history of daily SPY returns and applies wavelet-based denoising to extract the underlying structure of the return series. A support-vector regression model is then used to estimate the next-period return, which is normalized by recent realized volatility to form a dimensionless “edge” metric. This framework keeps the strategy long SPY by default, reflecting the market’s long-term positive drift, but temporarily shifts to a short position when the normalized edge becomes sufficiently negative and broader trend conditions confirm a risk-off regime. By acting only on large, volatility-adjusted deviations rather than continuous signals, the approach seeks to capture equity upside while avoiding prolonged drawdowns during adverse market environments.",
+    "tags": [
+      "Equity",
+      "Daily",
+      "Machine Learning",
+      "Trend Filter"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 1.57,
+    "sharpe_1y": 0.9745,
+    "return_3m": 7.3303,
+    "return_oos_1y": null,
+    "sharpe_oos_1y": null,
+    "cagr_5y": 14.168,
+    "drawdown_5y": 21.9,
+    "psr_5y": 22.004,
+    "watchers": 7,
+    "clones": 2,
+    "clone_project_id": 27508963,
+    "backtest_id": "373c06a87d89d81a1e9cd6e5c0704d2d",
+    "discussion_id": 19998,
+    "published_ts": 1768581731,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 120,
+    "backtestId": "373c06a87d89d81a1e9cd6e5c0704d2d",
+    "name": "Short The Edge",
+    "author": {
+      "name": "Grant Forman",
+      "organizationName": "Grant Forman",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/c5e138fc6820dfa1766964256.jpg",
+      "bio": "I am a Ph.D. qualified chemist who has worked for a Nobel Prize winner in Chemistry and authored of over 30 peer-reviewed publications (cited more than 1000 times) and patents in the fields of environmental science (including life-cycle analysis and chemistry). \n\nMy approach in developing algorithms mirrors the scientific method I know well, but doesn&#039;t necessarily align with normal coding/development paradigms. ",
+      "publicId": "grant_forman",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": null,
+      "web": null,
+      "topAuthor": false
+    },
+    "description": "The purpose of this strategy is to outperform SPY across most market conditions by trading SPY as a single-asset directional system that selectively reduces or reverses exposure only when downside risk becomes statistically significant. The algorithm maintains a rolling history of daily SPY returns and applies wavelet-based denoising to extract the underlying structure of the return series. A support-vector regression model is then used to estimate the next-period return, which is normalized by recent realized volatility to form a dimensionless “edge” metric. This framework keeps the strategy long SPY by default, reflecting the market’s long-term positive drift, but temporarily shifts to a short position when the normalized edge becomes sufficiently negative and broader trend conditions confirm a risk-off regime. By acting only on large, volatility-adjusted deviations rather than continuous signals, the approach seeks to capture equity upside while avoiding prolonged drawdowns during adverse market environments.",
+    "cloneProjectId": 27508963,
+    "tags": [
+      "Equity",
+      "Daily",
+      "Machine Learning",
+      "Trend Filter"
+    ],
+    "watchers": 7,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Jan 16, 2026",
+        "changes": [
+          "Initial deployment for strategy &quot;Wavelet-SVM Volatility-Normalized SPY Long-Short&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Grant Forman",
+    "organizationName": "Grant Forman",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771945200,
+          -1.016
+        ],
+        [
+          1772031600,
+          -0.3002
+        ],
+        [
+          1772118000,
+          0.5368
+        ],
+        [
+          1772204400,
+          -0.0188
+        ],
+        [
+          1772254800,
+          -0.4964
+        ],
+        [
+          1772341200,
+          -0.4964
+        ],
+        [
+          1772463600,
+          -0.4964
+        ],
+        [
+          1772550000,
+          -0.4402
+        ],
+        [
+          1772636400,
+          -1.3133
+        ],
+        [
+          1772722800,
+          -0.6206
+        ],
+        [
+          1772809200,
+          -1.1718
+        ],
+        [
+          1772859600,
+          -2.4606
+        ],
+        [
+          1772946000,
+          -2.4606
+        ],
+        [
+          1773064800,
+          -2.4606
+        ],
+        [
+          1773151200,
+          -1.6105
+        ],
+        [
+          1773237600,
+          -1.7678
+        ],
+        [
+          1773324000,
+          -1.8905
+        ],
+        [
+          1773410400,
+          -3.3726
+        ],
+        [
+          1773460800,
+          -3.9167
+        ],
+        [
+          1773547200,
+          -3.9167
+        ],
+        [
+          1773669600,
+          -3.9167
+        ],
+        [
+          1773756000,
+          -2.944
+        ],
+        [
+          1773842400,
+          -2.69
+        ],
+        [
+          1773928800,
+          -4.0408
+        ],
+        [
+          1774018800,
+          -4.276
+        ],
+        [
+          1774065600,
+          -5.641
+        ],
+        [
+          1774152000,
+          -5.641
+        ],
+        [
+          1774274400,
+          -5.641
+        ],
+        [
+          1774360800,
+          -4.6556
+        ],
+        [
+          1774447200,
+          -4.9739
+        ],
+        [
+          1774533600,
+          -4.4472
+        ],
+        [
+          1774620000,
+          -6.1446
+        ],
+        [
+          1774670400,
+          -7.7364
+        ],
+        [
+          1774756800,
+          -7.7364
+        ],
+        [
+          1774879200,
+          -7.7364
+        ],
+        [
+          1774965600,
+          -6.8996
+        ],
+        [
+          1775052000,
+          -4.2274
+        ],
+        [
+          1775138400,
+          -4.9659
+        ],
+        [
+          1775188800,
+          -4.8808
+        ],
+        [
+          1775275200,
+          -4.8808
+        ],
+        [
+          1775361600,
+          -4.8808
+        ],
+        [
+          1775484000,
+          -4.8808
+        ],
+        [
+          1775570400,
+          -4.4334
+        ],
+        [
+          1775656800,
+          -4.3915
+        ],
+        [
+          1775743200,
+          -1.9893
+        ],
+        [
+          1775829600,
+          -2.5729
+        ],
+        [
+          1775880000,
+          -2.637
+        ],
+        [
+          1775966400,
+          -2.637
+        ],
+        [
+          1776088800,
+          -2.637
+        ],
+        [
+          1776175200,
+          -1.6904
+        ],
+        [
+          1776261600,
+          -0.4987
+        ],
+        [
+          1776348000,
+          0.2826
+        ],
+        [
+          1776434400,
+          0.5278
+        ],
+        [
+          1776484800,
+          1.7367
+        ],
+        [
+          1776571200,
+          1.7367
+        ],
+        [
+          1776693600,
+          1.7367
+        ],
+        [
+          1776780000,
+          1.5342
+        ],
+        [
+          1776866400,
+          0.8728
+        ],
+        [
+          1776952800,
+          1.8892
+        ],
+        [
+          1777039200,
+          1.4957
+        ],
+        [
+          1777089600,
+          2.2784
+        ],
+        [
+          1777176000,
+          2.2784
+        ],
+        [
+          1777298400,
+          2.2784
+        ],
+        [
+          1777384800,
+          2.4537
+        ],
+        [
+          1777471200,
+          1.9576
+        ],
+        [
+          1777557600,
+          1.942
+        ],
+        [
+          1777644000,
+          2.9513
+        ],
+        [
+          1777694400,
+          3.235
+        ],
+        [
+          1777780800,
+          3.235
+        ],
+        [
+          1777903200,
+          3.235
+        ],
+        [
+          1777989600,
+          2.8586
+        ],
+        [
+          1778076000,
+          3.6798
+        ],
+        [
+          1778162400,
+          5.1139
+        ],
+        [
+          1778248800,
+          4.7931
+        ],
+        [
+          1778299200,
+          5.6542
+        ],
+        [
+          1778385600,
+          5.6542
+        ],
+        [
+          1778508000,
+          5.6542
+        ],
+        [
+          1778594400,
+          5.8937
+        ],
+        [
+          1778680800,
+          5.734
+        ],
+        [
+          1778767200,
+          6.3228
+        ],
+        [
+          1778853600,
+          7.1582
+        ],
+        [
+          1778904000,
+          5.8752
+        ],
+        [
+          1778990400,
+          5.8752
+        ],
+        [
+          1779112800,
+          5.8752
+        ],
+        [
+          1779199200,
+          5.801
+        ],
+        [
+          1779285600,
+          5.0996
+        ],
+        [
+          1779372000,
+          6.1717
+        ],
+        [
+          1779480000,
+          6.7975
+        ]
+      ],
+      "5y psr": 22.004,
+      "5y cagr": 14.168,
+      "1y sharpe": 0.9745,
+      "3m return": 7.3303,
+      "5y drawdown": 21.9,
+      "oos 1y return": null,
+      "oos 1y sharpe": null,
+      "oos 3m return": 7.3303,
+      "oos 3m sharpe": 1.5676
+    },
+    "rank": 0,
+    "clones": 2,
+    "comments": 0,
+    "leaderboard": 68,
+    "score": 1.57,
+    "discussionId": 19998,
+    "hot": false,
+    "owner": false,
+    "followers": [
+      {
+        "name": "PauPadilla Greendry",
+        "publicId": "paupadilla-greendry",
+        "profileImage": "c8936829a65c8ed1600374814.jpg"
+      },
+      {
+        "name": "Marcus Zheng",
+        "publicId": "marcus-zheng",
+        "profileImage": "53a5c2d28330ad11762053276.png"
+      },
+      {
+        "name": "Arnaud Lavesque",
+        "publicId": "arnaud-lavesque",
+        "profileImage": "13d97c1bb1a24af1768769827.png"
+      },
+      {
+        "name": "Eliah Kilian",
+        "publicId": "eliah-kilian",
+        "profileImage": "a5bb493dcae8bbf1776882442.png"
+      }
+    ],
+    "followersCount": 7,
+    "published": 1768581731
+  }
+}

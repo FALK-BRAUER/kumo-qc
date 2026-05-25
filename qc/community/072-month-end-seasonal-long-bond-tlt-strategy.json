@@ -1,0 +1,466 @@
+{
+  "summary": {
+    "rank": 72,
+    "leaderboard_position": 76,
+    "id": 117,
+    "name": "Month-End Seasonal Long-Bond TLT Strategy",
+    "author": "Sebastien M. Laignel",
+    "author_public_id": "sebastien-m-laignel",
+    "organization": "SLaignel",
+    "description": "The strategy expresses a simple, calendar based directional view on long duration US Treasury risk via the TLT ETF. It seeks to capture recurring month end seasonality by taking fully invested positions at specific month ends, with the premise that systematic flows and rebalancing effects can create predictable short term return patterns in long bond proxies.\n\nTrading decisions occur at the close on month end trading days using only the exchange calendar as the input signal (no price, macro, or ",
+    "description_full": "The strategy expresses a simple, calendar based directional view on long duration US Treasury risk via the TLT ETF. It seeks to capture recurring month end seasonality by taking fully invested positions at specific month ends, with the premise that systematic flows and rebalancing effects can create predictable short term return patterns in long bond proxies.\n\nTrading decisions occur at the close on month end trading days using only the exchange calendar as the input signal (no price, macro, or volatility conditioning). At each month end the portfolio is set to a 100 percent short TLT exposure, except at the month ends of July when it is set to 100 percent long TLT, and September when the portfolio is fully liquidated (flat). Position sizing is binary and constant gross exposure when active, with no explicit stop losses, volatility targeting, leverage constraints, or drawdown controls beyond the scheduled liquidation and the implicit limitation to the account equity. The intended alpha source is structural seasonality rather than cross sectional selection or trend.",
+    "tags": [
+      "Seasonality",
+      "Fixed Income",
+      "Systematic",
+      "Swing"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 1.34,
+    "sharpe_1y": -0.4135,
+    "return_3m": 4.7575,
+    "return_oos_1y": 2.7822,
+    "sharpe_oos_1y": -0.4135,
+    "cagr_5y": 16.66,
+    "drawdown_5y": 16.8,
+    "psr_5y": 41.829,
+    "watchers": 3,
+    "clones": 3,
+    "clone_project_id": 27466536,
+    "backtest_id": "96aee3fa1be81045bee7574346babfe8",
+    "discussion_id": 19995,
+    "published_ts": 1716298007,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 117,
+    "backtestId": "96aee3fa1be81045bee7574346babfe8",
+    "name": "Month-End Seasonal Long-Bond TLT Strategy",
+    "author": {
+      "name": "Sebastien M. Laignel",
+      "organizationName": "SLaignel",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/1357abc179ee2fb1730286470.jpg",
+      "bio": "Developing and trading quantitative strategies independently. Documenting research, development logs, and practical workflows on Substack and Medium. Core code and resources available through GitHub: https://github.com/SL-Mar.",
+      "publicId": "sebastien-m-laignel",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": "https://www.linkedin.com/in/smrlaignel/",
+      "web": null,
+      "topAuthor": false
+    },
+    "description": "The strategy expresses a simple, calendar based directional view on long duration US Treasury risk via the TLT ETF. It seeks to capture recurring month end seasonality by taking fully invested positions at specific month ends, with the premise that systematic flows and rebalancing effects can create predictable short term return patterns in long bond proxies.\n\nTrading decisions occur at the close on month end trading days using only the exchange calendar as the input signal (no price, macro, or volatility conditioning). At each month end the portfolio is set to a 100 percent short TLT exposure, except at the month ends of July when it is set to 100 percent long TLT, and September when the portfolio is fully liquidated (flat). Position sizing is binary and constant gross exposure when active, with no explicit stop losses, volatility targeting, leverage constraints, or drawdown controls beyond the scheduled liquidation and the implicit limitation to the account equity. The intended alpha source is structural seasonality rather than cross sectional selection or trend.",
+    "cloneProjectId": 27466536,
+    "tags": [
+      "Seasonality",
+      "Fixed Income",
+      "Systematic",
+      "Swing"
+    ],
+    "watchers": 3,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "May 21, 2024",
+        "changes": [
+          "Initial release"
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Sebastien M. Laignel",
+    "organizationName": "SLaignel",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771943460,
+          0.3614
+        ],
+        [
+          1772029860,
+          0.189
+        ],
+        [
+          1772116260,
+          0.5894
+        ],
+        [
+          1772202660,
+          1.2121
+        ],
+        [
+          1772254800,
+          1.39
+        ],
+        [
+          1772341200,
+          1.39
+        ],
+        [
+          1772467020,
+          1.1345
+        ],
+        [
+          1772548260,
+          1.8606
+        ],
+        [
+          1772634660,
+          1.5702
+        ],
+        [
+          1772721060,
+          2.3075
+        ],
+        [
+          1772807460,
+          2.6091
+        ],
+        [
+          1772859600,
+          2.4527
+        ],
+        [
+          1772946000,
+          2.4527
+        ],
+        [
+          1773063060,
+          2.5476
+        ],
+        [
+          1773149460,
+          2.0729
+        ],
+        [
+          1773235860,
+          3.2682
+        ],
+        [
+          1773322260,
+          4.2747
+        ],
+        [
+          1773408660,
+          4.1228
+        ],
+        [
+          1773460800,
+          4.5976
+        ],
+        [
+          1773547200,
+          4.5976
+        ],
+        [
+          1773667860,
+          3.9049
+        ],
+        [
+          1773754260,
+          3.6368
+        ],
+        [
+          1773840660,
+          3.7095
+        ],
+        [
+          1773927060,
+          4.0222
+        ],
+        [
+          1774013460,
+          4.0222
+        ],
+        [
+          1774065600,
+          4.0222
+        ],
+        [
+          1774152000,
+          4.0222
+        ],
+        [
+          1774272660,
+          3.9436
+        ],
+        [
+          1774359060,
+          3.448
+        ],
+        [
+          1774445460,
+          4.7293
+        ],
+        [
+          1774531860,
+          4.2579
+        ],
+        [
+          1774618260,
+          3.182
+        ],
+        [
+          1774670400,
+          3.3754
+        ],
+        [
+          1774756800,
+          3.3754
+        ],
+        [
+          1774877460,
+          4.5843
+        ],
+        [
+          1774963860,
+          4.9529
+        ],
+        [
+          1775055420,
+          4.2089
+        ],
+        [
+          1775136660,
+          4.6622
+        ],
+        [
+          1775188800,
+          3.9369
+        ],
+        [
+          1775275200,
+          3.9369
+        ],
+        [
+          1775361600,
+          3.9369
+        ],
+        [
+          1775482260,
+          4.2633
+        ],
+        [
+          1775568660,
+          4.2633
+        ],
+        [
+          1775655060,
+          3.3023
+        ],
+        [
+          1775741460,
+          4.0578
+        ],
+        [
+          1775827860,
+          4.1908
+        ],
+        [
+          1775880000,
+          4.2995
+        ],
+        [
+          1775966400,
+          4.2995
+        ],
+        [
+          1776087060,
+          4.3721
+        ],
+        [
+          1776173460,
+          4.0941
+        ],
+        [
+          1776259860,
+          3.6589
+        ],
+        [
+          1776346260,
+          3.8161
+        ],
+        [
+          1776432660,
+          3.6227
+        ],
+        [
+          1776484800,
+          3.5985
+        ],
+        [
+          1776571200,
+          3.5985
+        ],
+        [
+          1776691860,
+          3.5803
+        ],
+        [
+          1776778260,
+          3.5803
+        ],
+        [
+          1776864660,
+          3.5326
+        ],
+        [
+          1776951060,
+          3.3595
+        ],
+        [
+          1777037460,
+          2.739
+        ],
+        [
+          1777089600,
+          3.1924
+        ],
+        [
+          1777176000,
+          3.1924
+        ],
+        [
+          1777296660,
+          2.9239
+        ],
+        [
+          1777383060,
+          2.4167
+        ],
+        [
+          1777469460,
+          2.2735
+        ],
+        [
+          1777555860,
+          2.2019
+        ],
+        [
+          1777647420,
+          1.8336
+        ],
+        [
+          1777694400,
+          1.9349
+        ],
+        [
+          1777780800,
+          1.9349
+        ],
+        [
+          1777901460,
+          2.3101
+        ],
+        [
+          1777987860,
+          2.4948
+        ],
+        [
+          1778074260,
+          1.4345
+        ],
+        [
+          1778160660,
+          1.1486
+        ],
+        [
+          1778247060,
+          1.363
+        ],
+        [
+          1778299200,
+          1.3749
+        ],
+        [
+          1778385600,
+          1.3749
+        ],
+        [
+          1778506260,
+          1.637
+        ],
+        [
+          1778592660,
+          2.4709
+        ],
+        [
+          1778679060,
+          2.7688
+        ],
+        [
+          1778765460,
+          2.3697
+        ],
+        [
+          1778851860,
+          3.9839
+        ],
+        [
+          1778904000,
+          4.2579
+        ],
+        [
+          1778990400,
+          4.2579
+        ],
+        [
+          1779111060,
+          4.2043
+        ],
+        [
+          1779197460,
+          4.2043
+        ],
+        [
+          1779283860,
+          4.2168
+        ],
+        [
+          1779370260,
+          4.8741
+        ],
+        [
+          1779480000,
+          6.2137
+        ]
+      ],
+      "5y psr": 41.829,
+      "5y cagr": 16.66,
+      "1y sharpe": -0.4135,
+      "3m return": 4.7575,
+      "5y drawdown": 16.8,
+      "oos 1y return": 2.7822,
+      "oos 1y sharpe": -0.4135,
+      "oos 3m return": 4.7575,
+      "oos 3m sharpe": 1.3395
+    },
+    "rank": 0.37,
+    "clones": 3,
+    "comments": 0,
+    "leaderboard": 76,
+    "score": 1.34,
+    "discussionId": 19995,
+    "hot": false,
+    "owner": false,
+    "followers": [
+      {
+        "name": "Y Mike",
+        "publicId": "y-mike",
+        "profileImage": "07229781b759f3c1745169414.png"
+      }
+    ],
+    "followersCount": 3,
+    "published": 1716298007
+  }
+}

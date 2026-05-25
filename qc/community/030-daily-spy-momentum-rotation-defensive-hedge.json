@@ -1,0 +1,464 @@
+{
+  "summary": {
+    "rank": 30,
+    "leaderboard_position": 41,
+    "id": 340,
+    "name": "Daily SPY Momentum Rotation Defensive Hedge",
+    "author": "Kristofferson V Tandoc",
+    "author_public_id": "kristofferson-v-tandoc",
+    "organization": "K.vta1991",
+    "description": "The strategy is a daily, single-position tactical rotation that seeks to capture intermediate-term equity momentum while using a defensive fallback when broad equity momentum is absent. It defines a universe as the top-weighted constituents of SPY (default 20 names) and ranks them each day by positive rate of change over a long lookback (approximately 79 trading days). If at least one constituent has positive momentum, the strategy selects the strongest name and enters only when price is between",
+    "description_full": "The strategy is a daily, single-position tactical rotation that seeks to capture intermediate-term equity momentum while using a defensive fallback when broad equity momentum is absent. It defines a universe as the top-weighted constituents of SPY (default 20 names) and ranks them each day by positive rate of change over a long lookback (approximately 79 trading days). If at least one constituent has positive momentum, the strategy selects the strongest name and enters only when price is between the Bollinger middle band and upper band (15-day bands with a wide, 4 standard deviation envelope), aiming to participate in an uptrend without chasing extreme overextension.\n\nIf no SPY constituent exhibits positive momentum, the strategy exits/avoids equities and allocates 100 percent to a single defensive ETF chosen by relative momentum: UUP versus TLT if either has positive momentum, otherwise GLD. Positions are exited via symmetric risk limits (take profit at +5 percent, stop at -5 percent) or a time stop after 10 calendar days. Decisions are made on daily close data with indicator warm-up enabled; portfolio risk is primarily controlled by the tight exit bands and by holding only one instrument at a time.",
+    "tags": [
+      "Momentum",
+      "Equity",
+      "Technical",
+      "Swing"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 3.16,
+    "sharpe_1y": 0.1194,
+    "return_3m": 31.9967,
+    "return_oos_1y": 5.0298,
+    "sharpe_oos_1y": 0.1194,
+    "cagr_5y": 5.627,
+    "drawdown_5y": 61.1,
+    "psr_5y": 2.541,
+    "watchers": 0,
+    "clones": 0,
+    "clone_project_id": 28535210,
+    "backtest_id": "588de785f063cfa4aa66f04dd2775307",
+    "discussion_id": 20332,
+    "published_ts": 1698994800,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 340,
+    "backtestId": "588de785f063cfa4aa66f04dd2775307",
+    "name": "Daily SPY Momentum Rotation Defensive Hedge",
+    "author": {
+      "name": "Kristofferson V Tandoc",
+      "organizationName": "K.vta1991",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/a3051a8b2a080ce1666574606.png",
+      "bio": null,
+      "publicId": "kristofferson-v-tandoc",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": null,
+      "web": null,
+      "topAuthor": false
+    },
+    "description": "The strategy is a daily, single-position tactical rotation that seeks to capture intermediate-term equity momentum while using a defensive fallback when broad equity momentum is absent. It defines a universe as the top-weighted constituents of SPY (default 20 names) and ranks them each day by positive rate of change over a long lookback (approximately 79 trading days). If at least one constituent has positive momentum, the strategy selects the strongest name and enters only when price is between the Bollinger middle band and upper band (15-day bands with a wide, 4 standard deviation envelope), aiming to participate in an uptrend without chasing extreme overextension.\n\nIf no SPY constituent exhibits positive momentum, the strategy exits/avoids equities and allocates 100 percent to a single defensive ETF chosen by relative momentum: UUP versus TLT if either has positive momentum, otherwise GLD. Positions are exited via symmetric risk limits (take profit at +5 percent, stop at -5 percent) or a time stop after 10 calendar days. Decisions are made on daily close data with indicator warm-up enabled; portfolio risk is primarily controlled by the tight exit bands and by holding only one instrument at a time.",
+    "cloneProjectId": 28535210,
+    "tags": [
+      "Momentum",
+      "Equity",
+      "Technical",
+      "Swing"
+    ],
+    "watchers": 0,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Nov 03, 2023",
+        "changes": [
+          "Initial deployment for strategy &quot;Daily SPY Momentum Rotation Defensive Hedge&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Kristofferson V Tandoc",
+    "organizationName": "K.vta1991",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771948800,
+          -1.5802
+        ],
+        [
+          1772035200,
+          -2.2298
+        ],
+        [
+          1772121600,
+          0.1822
+        ],
+        [
+          1772208000,
+          -2.7675
+        ],
+        [
+          1772254800,
+          -3.4676
+        ],
+        [
+          1772341200,
+          -3.4676
+        ],
+        [
+          1772467200,
+          -3.4676
+        ],
+        [
+          1772553600,
+          -3.4017
+        ],
+        [
+          1772640000,
+          -9.2341
+        ],
+        [
+          1772726400,
+          -9.2341
+        ],
+        [
+          1772812800,
+          -9.2341
+        ],
+        [
+          1772859600,
+          -9.2341
+        ],
+        [
+          1772946000,
+          -9.2341
+        ],
+        [
+          1773068400,
+          -9.2341
+        ],
+        [
+          1773154800,
+          -9.2341
+        ],
+        [
+          1773241200,
+          -9.2341
+        ],
+        [
+          1773327600,
+          -9.2341
+        ],
+        [
+          1773414000,
+          -10.0752
+        ],
+        [
+          1773460800,
+          -5.7965
+        ],
+        [
+          1773547200,
+          -5.7965
+        ],
+        [
+          1773673200,
+          -5.7965
+        ],
+        [
+          1773759600,
+          -2.5701
+        ],
+        [
+          1773846000,
+          -0.4771
+        ],
+        [
+          1773932400,
+          -1.1476
+        ],
+        [
+          1774018800,
+          -4.7223
+        ],
+        [
+          1774065600,
+          -9.0976
+        ],
+        [
+          1774152000,
+          -9.0976
+        ],
+        [
+          1774278000,
+          -9.0976
+        ],
+        [
+          1774364400,
+          -8.4599
+        ],
+        [
+          1774450800,
+          -8.4599
+        ],
+        [
+          1774537200,
+          -8.4599
+        ],
+        [
+          1774623600,
+          -8.4599
+        ],
+        [
+          1774670400,
+          -8.4599
+        ],
+        [
+          1774756800,
+          -8.4599
+        ],
+        [
+          1774882800,
+          -8.4599
+        ],
+        [
+          1774969200,
+          -8.4599
+        ],
+        [
+          1775055600,
+          -9.9939
+        ],
+        [
+          1775142000,
+          -14.487
+        ],
+        [
+          1775188800,
+          -12.6132
+        ],
+        [
+          1775275200,
+          -12.6132
+        ],
+        [
+          1775361600,
+          -12.6132
+        ],
+        [
+          1775487600,
+          -12.6132
+        ],
+        [
+          1775574000,
+          -12.6132
+        ],
+        [
+          1775660400,
+          -12.6132
+        ],
+        [
+          1775746800,
+          -12.6132
+        ],
+        [
+          1775833200,
+          -10.2432
+        ],
+        [
+          1775880000,
+          -10.4309
+        ],
+        [
+          1775966400,
+          -10.4309
+        ],
+        [
+          1776088800,
+          -10.4309
+        ],
+        [
+          1776178800,
+          -9.2127
+        ],
+        [
+          1776265200,
+          -1.2344
+        ],
+        [
+          1776351600,
+          -2.8882
+        ],
+        [
+          1776438000,
+          -2.0339
+        ],
+        [
+          1776484800,
+          -2.4706
+        ],
+        [
+          1776571200,
+          -2.4706
+        ],
+        [
+          1776693600,
+          -2.4706
+        ],
+        [
+          1776783600,
+          -3.8153
+        ],
+        [
+          1776870000,
+          -3.6212
+        ],
+        [
+          1776956400,
+          4.0829
+        ],
+        [
+          1777042800,
+          3.1659
+        ],
+        [
+          1777089600,
+          3.2707
+        ],
+        [
+          1777176000,
+          3.2707
+        ],
+        [
+          1777298400,
+          3.2707
+        ],
+        [
+          1777388400,
+          8.9325
+        ],
+        [
+          1777474800,
+          4.6729
+        ],
+        [
+          1777561200,
+          3.1281
+        ],
+        [
+          1777647600,
+          2.8718
+        ],
+        [
+          1777694400,
+          4.1119
+        ],
+        [
+          1777780800,
+          4.1119
+        ],
+        [
+          1777903200,
+          4.1119
+        ],
+        [
+          1777993200,
+          0.7192
+        ],
+        [
+          1778079600,
+          12.9992
+        ],
+        [
+          1778166000,
+          15.754
+        ],
+        [
+          1778252400,
+          14.3091
+        ],
+        [
+          1778299200,
+          29.1952
+        ],
+        [
+          1778385600,
+          29.1952
+        ],
+        [
+          1778511600,
+          29.1952
+        ],
+        [
+          1778598000,
+          35.1058
+        ],
+        [
+          1778684400,
+          31.4919
+        ],
+        [
+          1778770800,
+          31.1747
+        ],
+        [
+          1778857200,
+          26.8519
+        ],
+        [
+          1778904000,
+          20.7396
+        ],
+        [
+          1778990400,
+          20.7396
+        ],
+        [
+          1779112800,
+          20.7396
+        ],
+        [
+          1779202800,
+          15.114
+        ],
+        [
+          1779289200,
+          17.8873
+        ],
+        [
+          1779375600,
+          26.4917
+        ],
+        [
+          1779462000,
+          26.0066
+        ],
+        [
+          1779508800,
+          27.4196
+        ]
+      ],
+      "5y psr": 2.541,
+      "5y cagr": 5.627,
+      "1y sharpe": 0.1194,
+      "3m return": 31.9967,
+      "5y drawdown": 61.1,
+      "oos 1y return": 5.0298,
+      "oos 1y sharpe": 0.1194,
+      "oos 3m return": 31.9967,
+      "oos 3m sharpe": 3.1584
+    },
+    "rank": 999999,
+    "clones": 0,
+    "comments": 0,
+    "leaderboard": 41,
+    "score": 3.16,
+    "discussionId": 20332,
+    "hot": false,
+    "owner": false,
+    "followers": [],
+    "followersCount": 0,
+    "published": 1698994800
+  }
+}

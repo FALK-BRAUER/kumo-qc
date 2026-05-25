@@ -1,0 +1,468 @@
+{
+  "summary": {
+    "rank": 96,
+    "leaderboard_position": 87,
+    "id": 183,
+    "name": "Systematic 10D 30 SPY short puts",
+    "author": ".ekz.",
+    "author_public_id": "ekz",
+    "organization": "ThePrinters.io",
+    "description": "The strategy systematically sells short-dated out of the money SPY put options selected by delta, seeking to harvest option risk premia (primarily equity index put skew and volatility risk premium) through repeated premium collection. On each decision point using the current option chain and model greeks, it targets a put with delta near minus 0.30, and an expiration closest to 10 days while constrained to a 10 to 40 day maturity window, thereby standardizing exposure to downside convexity and t",
+    "description_full": "The strategy systematically sells short-dated out of the money SPY put options selected by delta, seeking to harvest option risk premia (primarily equity index put skew and volatility risk premium) through repeated premium collection. On each decision point using the current option chain and model greeks, it targets a put with delta near minus 0.30, and an expiration closest to 10 days while constrained to a 10 to 40 day maturity window, thereby standardizing exposure to downside convexity and time decay. The intended opportunity set is the persistent overpricing of crash protection in liquid index options, monetized via short put selling rather than directional equity positioning.\n\nExecution is discrete and rule-based: when the portfolio has no open positions and a valid chain is available, it opens a single short put position sized to approximately 15 percent notional exposure via holdings targeting, and otherwise does not add risk. There are no explicit take-profit, stop-loss, roll, or delta-hedging rules; positions are exited only through liquidation when the system detects an underlying equity position, and trades are entered opportunistically based on availability of contracts meeting the delta and tenor criteria. Data inputs are SPY equity and its listed options, with decisions evaluated on the platform data event frequency.",
+    "tags": [
+      "Options",
+      "Delta Hedge",
+      "Equity",
+      "Short Volatility"
+    ],
+    "asset_classes": [
+      "Equity",
+      "Option"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 0.72,
+    "sharpe_1y": 0.2982,
+    "return_3m": 2.5187,
+    "return_oos_1y": 9.1738,
+    "sharpe_oos_1y": 0.2982,
+    "cagr_5y": 3.805,
+    "drawdown_5y": 9.2,
+    "psr_5y": 14.502,
+    "watchers": 1,
+    "clones": 0,
+    "clone_project_id": 27721512,
+    "backtest_id": "6440e75cce519ac817e0698934b6a533",
+    "discussion_id": 20079,
+    "published_ts": 1623888000,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 183,
+    "backtestId": "6440e75cce519ac817e0698934b6a533",
+    "name": "Systematic 10D 30 SPY short puts",
+    "author": {
+      "name": ".ekz.",
+      "organizationName": "ThePrinters.io",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/6b83f0a7e5516131610146636.png",
+      "bio": null,
+      "publicId": "ekz",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": null,
+      "web": null,
+      "topAuthor": false
+    },
+    "description": "The strategy systematically sells short-dated out of the money SPY put options selected by delta, seeking to harvest option risk premia (primarily equity index put skew and volatility risk premium) through repeated premium collection. On each decision point using the current option chain and model greeks, it targets a put with delta near minus 0.30, and an expiration closest to 10 days while constrained to a 10 to 40 day maturity window, thereby standardizing exposure to downside convexity and time decay. The intended opportunity set is the persistent overpricing of crash protection in liquid index options, monetized via short put selling rather than directional equity positioning.\n\nExecution is discrete and rule-based: when the portfolio has no open positions and a valid chain is available, it opens a single short put position sized to approximately 15 percent notional exposure via holdings targeting, and otherwise does not add risk. There are no explicit take-profit, stop-loss, roll, or delta-hedging rules; positions are exited only through liquidation when the system detects an underlying equity position, and trades are entered opportunistically based on availability of contracts meeting the delta and tenor criteria. Data inputs are SPY equity and its listed options, with decisions evaluated on the platform data event frequency.",
+    "cloneProjectId": 27721512,
+    "tags": [
+      "Options",
+      "Delta Hedge",
+      "Equity",
+      "Short Volatility"
+    ],
+    "watchers": 1,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Jun 17, 2021",
+        "changes": [
+          "Initial deployment for strategy &quot;Systematic 10D 30 SPY short puts&quot;."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": ".ekz.",
+    "organizationName": "ThePrinters.io",
+    "research": null,
+    "assetClasses": [
+      "Equity",
+      "Option"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771932600,
+          -0.1191
+        ],
+        [
+          1772019000,
+          0.0765
+        ],
+        [
+          1772105400,
+          0.1695
+        ],
+        [
+          1772191800,
+          0.1906
+        ],
+        [
+          1772254800,
+          0.1906
+        ],
+        [
+          1772341200,
+          0.1906
+        ],
+        [
+          1772467020,
+          0.2183
+        ],
+        [
+          1772553420,
+          -0.0112
+        ],
+        [
+          1772623800,
+          0.5522
+        ],
+        [
+          1772710200,
+          0.8425
+        ],
+        [
+          1772796600,
+          0.7245
+        ],
+        [
+          1772859600,
+          0.1904
+        ],
+        [
+          1772946000,
+          0.1904
+        ],
+        [
+          1773052200,
+          0.1904
+        ],
+        [
+          1773138600,
+          0.7112
+        ],
+        [
+          1773225000,
+          0.7716
+        ],
+        [
+          1773311400,
+          0.9251
+        ],
+        [
+          1773413820,
+          0.3367
+        ],
+        [
+          1773460800,
+          0.0231
+        ],
+        [
+          1773547200,
+          0.0231
+        ],
+        [
+          1773667860,
+          0.7018
+        ],
+        [
+          1773743400,
+          0.7919
+        ],
+        [
+          1773829800,
+          0.9345
+        ],
+        [
+          1773916200,
+          0.6954
+        ],
+        [
+          1774018620,
+          0.5547
+        ],
+        [
+          1774065600,
+          0.3578
+        ],
+        [
+          1774152000,
+          0.3578
+        ],
+        [
+          1774261800,
+          0.3578
+        ],
+        [
+          1774348200,
+          0.8175
+        ],
+        [
+          1774434600,
+          0.8833
+        ],
+        [
+          1774521000,
+          1.1403
+        ],
+        [
+          1774623420,
+          0.6851
+        ],
+        [
+          1774670400,
+          0.0024
+        ],
+        [
+          1774756800,
+          0.0024
+        ],
+        [
+          1774877460,
+          0.7544
+        ],
+        [
+          1774953000,
+          0.5941
+        ],
+        [
+          1775039400,
+          1.1758
+        ],
+        [
+          1775125800,
+          1.2481
+        ],
+        [
+          1775188800,
+          1.306
+        ],
+        [
+          1775275200,
+          1.306
+        ],
+        [
+          1775361600,
+          1.306
+        ],
+        [
+          1775471400,
+          1.306
+        ],
+        [
+          1775557800,
+          1.3613
+        ],
+        [
+          1775644200,
+          1.3435
+        ],
+        [
+          1775730600,
+          1.4035
+        ],
+        [
+          1775833020,
+          1.4069
+        ],
+        [
+          1775880000,
+          1.4083
+        ],
+        [
+          1775966400,
+          1.4083
+        ],
+        [
+          1776076200,
+          1.4083
+        ],
+        [
+          1776162600,
+          1.6486
+        ],
+        [
+          1776249000,
+          1.765
+        ],
+        [
+          1776335400,
+          1.8148
+        ],
+        [
+          1776421800,
+          1.8403
+        ],
+        [
+          1776484800,
+          1.8547
+        ],
+        [
+          1776571200,
+          1.8547
+        ],
+        [
+          1776681000,
+          1.8547
+        ],
+        [
+          1776783420,
+          1.8575
+        ],
+        [
+          1776869820,
+          1.8662
+        ],
+        [
+          1776940200,
+          1.9122
+        ],
+        [
+          1777026600,
+          1.8717
+        ],
+        [
+          1777089600,
+          2.0064
+        ],
+        [
+          1777176000,
+          2.0064
+        ],
+        [
+          1777285800,
+          2.0064
+        ],
+        [
+          1777372200,
+          2.0773
+        ],
+        [
+          1777458600,
+          2.0817
+        ],
+        [
+          1777545000,
+          2.0933
+        ],
+        [
+          1777631400,
+          2.1609
+        ],
+        [
+          1777694400,
+          2.1665
+        ],
+        [
+          1777780800,
+          2.1665
+        ],
+        [
+          1777906620,
+          2.1681
+        ],
+        [
+          1777993020,
+          2.1935
+        ],
+        [
+          1778063400,
+          2.2239
+        ],
+        [
+          1778149800,
+          2.3575
+        ],
+        [
+          1778236200,
+          2.3735
+        ],
+        [
+          1778299200,
+          2.4206
+        ],
+        [
+          1778385600,
+          2.4206
+        ],
+        [
+          1778495400,
+          2.4206
+        ],
+        [
+          1778581800,
+          2.4295
+        ],
+        [
+          1778668200,
+          2.4428
+        ],
+        [
+          1778754600,
+          2.4539
+        ],
+        [
+          1778857020,
+          2.4594
+        ],
+        [
+          1778904000,
+          2.4611
+        ],
+        [
+          1778990400,
+          2.4611
+        ],
+        [
+          1779100200,
+          2.4611
+        ],
+        [
+          1779186600,
+          2.4241
+        ],
+        [
+          1779273000,
+          2.3152
+        ],
+        [
+          1779359400,
+          2.578
+        ],
+        [
+          1779480000,
+          2.7141
+        ]
+      ],
+      "5y psr": 14.502,
+      "5y cagr": 3.805,
+      "1y sharpe": 0.2982,
+      "3m return": 2.5187,
+      "5y drawdown": 9.2,
+      "oos 1y return": 9.1738,
+      "oos 1y sharpe": 0.2982,
+      "oos 3m return": 2.5187,
+      "oos 3m sharpe": 0.7157
+    },
+    "rank": 0,
+    "clones": 0,
+    "comments": 0,
+    "leaderboard": 87,
+    "score": 0.72,
+    "discussionId": 20079,
+    "hot": false,
+    "owner": false,
+    "followers": [
+      {
+        "name": "Jared Broad",
+        "publicId": "jared_broad",
+        "profileImage": "38a39cb1bee854f1758735439.jpg"
+      }
+    ],
+    "followersCount": 1,
+    "published": 1623888000
+  }
+}

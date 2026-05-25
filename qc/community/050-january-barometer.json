@@ -1,0 +1,466 @@
+{
+  "summary": {
+    "rank": 50,
+    "leaderboard_position": 54,
+    "id": 48,
+    "name": "January Barometer",
+    "author": "Jing Wu",
+    "author_public_id": "jing_wu_1",
+    "organization": "Jing Wu",
+    "description": "The strategy implements the January Barometer effect on US equities by using January performance of the S and P 500 proxy to select a full risk-on or risk-off allocation for the remainder of the year. It targets the behavioral and macro information embedded in early-year equity returns, hypothesizing that a positive January indicates favorable risk appetite and forward growth expectations, while a negative January signals elevated downside risk where capital preservation is preferable.\n\nThe inve",
+    "description_full": "The strategy implements the January Barometer effect on US equities by using January performance of the S and P 500 proxy to select a full risk-on or risk-off allocation for the remainder of the year. It targets the behavioral and macro information embedded in early-year equity returns, hypothesizing that a positive January indicates favorable risk appetite and forward growth expectations, while a negative January signals elevated downside risk where capital preservation is preferable.\n\nThe investable universe is limited to two daily priced ETFs: SPY (US large-cap equities) and BIL (1 to 3 month US Treasury bills as a cash substitute). The strategy records the SPY price at the start of January, then at the start of February computes SPY total price return over January; if the return is positive it holds 100 percent SPY, otherwise it holds 100 percent BIL. Portfolio decisions occur on a scheduled monthly cadence and positions are set via full notional targeting with no leverage, no volatility scaling, and no explicit stop-loss or drawdown control beyond the binary shift into T-bills. A one-year warm-up is used to ensure the January reference price is available before live allocation.",
+    "tags": [
+      "Seasonality",
+      "Equity",
+      "Rotation",
+      "Systematic"
+    ],
+    "asset_classes": [
+      "Equity"
+    ],
+    "language": "Python",
+    "version": "1.0.0",
+    "score": 2.06,
+    "sharpe_1y": 1.4272,
+    "return_3m": 8.979,
+    "return_oos_1y": 27.9121,
+    "sharpe_oos_1y": 1.4272,
+    "cagr_5y": 14.154,
+    "drawdown_5y": 18.7,
+    "psr_5y": 41.342,
+    "watchers": 3,
+    "clones": 72,
+    "clone_project_id": 26960653,
+    "backtest_id": "189ef82404097c0a75754798052031f6",
+    "discussion_id": 19909,
+    "published_ts": 1482452965,
+    "hot": false,
+    "top_author": false
+  },
+  "raw": {
+    "id": 48,
+    "backtestId": "189ef82404097c0a75754798052031f6",
+    "name": "January Barometer",
+    "author": {
+      "name": "Jing Wu",
+      "organizationName": "Jing Wu",
+      "image": "https://cdn.quantconnect.com/web/i/users/thumbnail/100/11e766258dae69d1498233757.jpg",
+      "bio": "Quant Developer",
+      "publicId": "jing_wu_1",
+      "facebook": null,
+      "twitter": null,
+      "linkedin": null,
+      "web": null,
+      "topAuthor": false
+    },
+    "description": "The strategy implements the January Barometer effect on US equities by using January performance of the S and P 500 proxy to select a full risk-on or risk-off allocation for the remainder of the year. It targets the behavioral and macro information embedded in early-year equity returns, hypothesizing that a positive January indicates favorable risk appetite and forward growth expectations, while a negative January signals elevated downside risk where capital preservation is preferable.\n\nThe investable universe is limited to two daily priced ETFs: SPY (US large-cap equities) and BIL (1 to 3 month US Treasury bills as a cash substitute). The strategy records the SPY price at the start of January, then at the start of February computes SPY total price return over January; if the return is positive it holds 100 percent SPY, otherwise it holds 100 percent BIL. Portfolio decisions occur on a scheduled monthly cadence and positions are set via full notional targeting with no leverage, no volatility scaling, and no explicit stop-loss or drawdown control beyond the binary shift into T-bills. A one-year warm-up is used to ensure the January reference price is available before live allocation.",
+    "cloneProjectId": 26960653,
+    "tags": [
+      "Seasonality",
+      "Equity",
+      "Rotation",
+      "Systematic"
+    ],
+    "watchers": 3,
+    "watching": false,
+    "version": "1.0.0",
+    "versionHistory": [
+      {
+        "version": "1.0.0",
+        "date": "Dec 23, 2016",
+        "changes": [
+          "Initial deployment for strategy January Barometer."
+        ]
+      }
+    ],
+    "hasCompileError": false,
+    "authorName": "Jing Wu",
+    "organizationName": "Jing Wu",
+    "research": null,
+    "assetClasses": [
+      "Equity"
+    ],
+    "statistics": {
+      "chart": [
+        [
+          1771945200,
+          -1.0196
+        ],
+        [
+          1772031600,
+          -0.3013
+        ],
+        [
+          1772118000,
+          0.5388
+        ],
+        [
+          1772204400,
+          -0.0188
+        ],
+        [
+          1772254800,
+          -0.4982
+        ],
+        [
+          1772341200,
+          -0.4982
+        ],
+        [
+          1772467200,
+          -0.4982
+        ],
+        [
+          1772550000,
+          -0.4417
+        ],
+        [
+          1772636400,
+          -1.318
+        ],
+        [
+          1772722800,
+          -0.6228
+        ],
+        [
+          1772809200,
+          -1.176
+        ],
+        [
+          1772859600,
+          -2.4694
+        ],
+        [
+          1772946000,
+          -2.4694
+        ],
+        [
+          1773064800,
+          -2.4694
+        ],
+        [
+          1773151200,
+          -1.6163
+        ],
+        [
+          1773237600,
+          -1.7742
+        ],
+        [
+          1773324000,
+          -1.8973
+        ],
+        [
+          1773410400,
+          -3.3847
+        ],
+        [
+          1773460800,
+          -3.9308
+        ],
+        [
+          1773547200,
+          -3.9308
+        ],
+        [
+          1773669600,
+          -3.9308
+        ],
+        [
+          1773756000,
+          -2.9546
+        ],
+        [
+          1773842400,
+          -2.6997
+        ],
+        [
+          1773928800,
+          -4.0553
+        ],
+        [
+          1774018800,
+          -4.2914
+        ],
+        [
+          1774065600,
+          -5.6613
+        ],
+        [
+          1774152000,
+          -5.6613
+        ],
+        [
+          1774274400,
+          -5.6613
+        ],
+        [
+          1774360800,
+          -4.6723
+        ],
+        [
+          1774447200,
+          -4.9918
+        ],
+        [
+          1774533600,
+          -4.4632
+        ],
+        [
+          1774620000,
+          -6.1667
+        ],
+        [
+          1774670400,
+          -7.7642
+        ],
+        [
+          1774756800,
+          -7.7642
+        ],
+        [
+          1774879200,
+          -7.7642
+        ],
+        [
+          1774965600,
+          -8.0721
+        ],
+        [
+          1775055600,
+          -5.4043
+        ],
+        [
+          1775138400,
+          -4.6927
+        ],
+        [
+          1775188800,
+          -4.607
+        ],
+        [
+          1775275200,
+          -4.607
+        ],
+        [
+          1775361600,
+          -4.607
+        ],
+        [
+          1775484000,
+          -4.607
+        ],
+        [
+          1775570400,
+          -4.1568
+        ],
+        [
+          1775656800,
+          -4.1147
+        ],
+        [
+          1775743200,
+          -1.6763
+        ],
+        [
+          1775829600,
+          -1.1099
+        ],
+        [
+          1775880000,
+          -1.1752
+        ],
+        [
+          1775966400,
+          -1.1752
+        ],
+        [
+          1776088800,
+          -1.1752
+        ],
+        [
+          1776175200,
+          -0.2109
+        ],
+        [
+          1776261600,
+          1.0032
+        ],
+        [
+          1776348000,
+          1.7991
+        ],
+        [
+          1776434400,
+          2.0488
+        ],
+        [
+          1776484800,
+          3.2804
+        ],
+        [
+          1776571200,
+          3.2804
+        ],
+        [
+          1776693600,
+          3.2804
+        ],
+        [
+          1776780000,
+          3.0742
+        ],
+        [
+          1776866400,
+          2.4003
+        ],
+        [
+          1776952800,
+          3.4358
+        ],
+        [
+          1777039200,
+          3.0349
+        ],
+        [
+          1777089600,
+          3.8323
+        ],
+        [
+          1777176000,
+          3.8323
+        ],
+        [
+          1777298400,
+          3.8323
+        ],
+        [
+          1777384800,
+          4.0109
+        ],
+        [
+          1777471200,
+          3.5055
+        ],
+        [
+          1777557600,
+          3.4895
+        ],
+        [
+          1777647600,
+          4.5177
+        ],
+        [
+          1777694400,
+          4.8067
+        ],
+        [
+          1777780800,
+          4.8067
+        ],
+        [
+          1777903200,
+          4.8067
+        ],
+        [
+          1777989600,
+          4.4233
+        ],
+        [
+          1778076000,
+          5.2598
+        ],
+        [
+          1778162400,
+          6.7208
+        ],
+        [
+          1778248800,
+          6.3941
+        ],
+        [
+          1778299200,
+          7.2713
+        ],
+        [
+          1778385600,
+          7.2713
+        ],
+        [
+          1778508000,
+          7.2713
+        ],
+        [
+          1778594400,
+          7.5152
+        ],
+        [
+          1778680800,
+          7.3526
+        ],
+        [
+          1778767200,
+          7.9524
+        ],
+        [
+          1778853600,
+          8.8034
+        ],
+        [
+          1778904000,
+          7.4964
+        ],
+        [
+          1778990400,
+          7.4964
+        ],
+        [
+          1779112800,
+          7.4964
+        ],
+        [
+          1779199200,
+          7.4208
+        ],
+        [
+          1779285600,
+          6.7063
+        ],
+        [
+          1779372000,
+          7.7984
+        ],
+        [
+          1779480000,
+          8.436
+        ]
+      ],
+      "5y psr": 41.342,
+      "5y cagr": 14.154,
+      "1y sharpe": 1.4272,
+      "3m return": 8.979,
+      "5y drawdown": 18.7,
+      "oos 1y return": 27.9121,
+      "oos 1y sharpe": 1.4272,
+      "oos 3m return": 8.979,
+      "oos 3m sharpe": 2.0565
+    },
+    "rank": 0,
+    "clones": 72,
+    "comments": 0,
+    "leaderboard": 54,
+    "score": 2.06,
+    "discussionId": 19909,
+    "hot": false,
+    "owner": false,
+    "followers": [
+      {
+        "name": "Kabardey Murat",
+        "publicId": "kabardey-murat",
+        "profileImage": "076d050a12b46e91767458704.png"
+      }
+    ],
+    "followersCount": 3,
+    "published": 1482452965
+  }
+}
