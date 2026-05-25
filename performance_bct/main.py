@@ -207,6 +207,21 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             ind = self._indicators.get(symbol)
             if ind is None:
                 continue
+            # === PRE-FILTER: skip symbols that cannot reach MIN_SCORE=7 ===
+            sma200_ind = ind.get("sma200")
+            d_ichi_ind = ind.get("d_ichi")
+            if (sma200_ind and sma200_ind.is_ready and d_ichi_ind and d_ichi_ind.is_ready):
+                price = float(self.securities[symbol].price)
+                if price <= 0:
+                    continue
+                # If below SMA200, condition 8 fails → max score 6 → skip (MIN_SCORE=7)
+                if price < sma200_ind.current.value:
+                    continue
+                # If below daily cloud, condition 5 fails → max score 6 → skip
+                cloud_top = max(d_ichi_ind.senkou_a.current.value, d_ichi_ind.senkou_b.current.value)
+                if price < cloud_top:
+                    continue
+            # === END PRE-FILTER ===
             result = score_symbol_native(self, symbol, ind)
             if result is None or result["score"] < self.MIN_SCORE:
                 continue

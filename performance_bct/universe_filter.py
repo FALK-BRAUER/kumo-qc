@@ -37,7 +37,8 @@ class BCTUniverseFilter:
         """
         candidates = [
             c for c in coarse
-            if c.price >= self.MIN_PRICE
+            if c.has_fundamental_data
+            and c.price >= self.MIN_PRICE
             and c.dollar_volume >= self.MIN_DOLLAR_VOLUME
         ]
         candidates.sort(key=lambda c: c.dollar_volume, reverse=True)
