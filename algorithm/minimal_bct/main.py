@@ -36,25 +36,11 @@ class BCTMinimalAlgorithm(QCAlgorithm):
     # Rotation engine parameters (Item 2: sT10e+R-B-v3)
     SCORE_RATIO_THRESHOLD: float = 2.0
     MIN_HOLD_DAYS: int = 1
-    ATR_ADAPTIVE_SCORE: bool = True
     MIN_PNL_PCT: float = 0.0
     PROFIT_VETO_PCT: float = 0.05
 
     # Buy-stop fill parameter (Item 3: sT10e+R-B-v3)
     BUY_STOP_PCT: float = 0.0075  # 0.75% above close
-
-    # ATR stop + sizing parameters (Item 7: sT10e champion)
-    ATR_PERIOD: int = 22
-    ATR_STOP_MULT_INITIAL: float = 2.5
-    ATR_STOP_MULT_FLOOR: float = 3.0
-    FIXED_RISK_DOLLARS: float = 200.0  # $200 max risk per position
-    MAX_POSITION_PCT: float = 0.10  # 10% max position size
-    TRAIL_TO_TENKAN_FIRST: bool = True
-    NEVER_LOWER_STOP: bool = True
-    STOP_ON_CLOSE_ONLY: bool = True
-    ADD_AT_CLOUD_BREAK_PCT: float = 0.50  # 50% of original position
-    MAX_ADDS: int = 1
-    PYRAMID_PCT: float = 0.50  # 50% of original
 
     # Entry gates (Item 4: sT10e champion)
     RESISTANCE_PROXIMITY_PCT: float = 0.03  # 3% from 52-week high
@@ -204,24 +190,11 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         # Rotation engine parameters (Item 2: sT10e+R-B-v3)
         self.score_ratio_threshold = float(self.get_parameter("score_ratio_threshold", str(self.SCORE_RATIO_THRESHOLD)))
         self.min_hold_days = int(self.get_parameter("min_hold_days", str(self.MIN_HOLD_DAYS)))
-        self.atr_adaptive_score = self.get_parameter("atr_adaptive_score", str(self.ATR_ADAPTIVE_SCORE)).lower() == "true"
         self.min_pnl_pct = float(self.get_parameter("min_pnl_pct", str(self.MIN_PNL_PCT)))
         self.profit_veto_pct = float(self.get_parameter("profit_veto_pct", str(self.PROFIT_VETO_PCT)))
 
         # Buy-stop fill parameter (Item 3: sT10e+R-B-v3)
         self.buy_stop_pct = float(self.get_parameter("buy_stop_pct", str(self.BUY_STOP_PCT)))
-
-        # ATR stop + sizing parameters (Item 7: sT10e champion)
-        self.atr_period = int(self.get_parameter("atr_period", str(self.ATR_PERIOD)))
-        self.atr_stop_mult_initial = float(self.get_parameter("atr_stop_mult_initial", str(self.ATR_STOP_MULT_INITIAL)))
-        self.atr_stop_mult_floor = float(self.get_parameter("atr_stop_mult_floor", str(self.ATR_STOP_MULT_FLOOR)))
-        self.fixed_risk_dollars = float(self.get_parameter("fixed_risk_dollars", str(self.FIXED_RISK_DOLLARS)))
-        self.trail_to_tenkan_first = self.get_parameter("trail_to_tenkan_first", str(self.TRAIL_TO_TENKAN_FIRST)).lower() == "true"
-        self.never_lower_stop = self.get_parameter("never_lower_stop", str(self.NEVER_LOWER_STOP)).lower() == "true"
-        self.stop_on_close_only = self.get_parameter("stop_on_close_only", str(self.STOP_ON_CLOSE_ONLY)).lower() == "true"
-        self.add_at_cloud_break_pct = float(self.get_parameter("add_at_cloud_break_pct", str(self.ADD_AT_CLOUD_BREAK_PCT)))
-        self.max_adds = int(self.get_parameter("max_adds", str(self.MAX_ADDS)))
-        self.pyramid_pct = float(self.get_parameter("pyramid_pct", str(self.PYRAMID_PCT)))
 
         # Entry gates parameters (Item 4: sT10e champion)
         self.resistance_proximity_pct = float(self.get_parameter("resistance_proximity_pct", str(self.RESISTANCE_PROXIMITY_PCT)))
@@ -268,8 +241,6 @@ class BCTMinimalAlgorithm(QCAlgorithm):
     def _register_indicators(self, sym) -> None:
         d_ichi = self.ichimoku(sym, 9, 26, 26, 52, 26, 26)
         sma200 = self.sma(sym, 200)
-        # ATR for stop loss calculation (Item 7)
-        atr = self.atr(sym, self.atr_period, MovingAverageType.Wilders)
 
         w_ichi = IchimokuKinkoHyo(9, 26, 26, 52, 26, 26)
         w_close = RollingWindow[float](28)
@@ -291,7 +262,6 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             "w_ichi": w_ichi,
             "w_close": w_close,
             "sma200": sma200,
-            "atr": atr,
             "consolidator": consolidator,
         }
 
@@ -382,79 +352,6 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         cloud_top = max(senkou_a, senkou_b)
         
         return close, kijun, cloud_top
-
-    def _get_atr(self, symbol) -> float:
-        """Get current ATR value for a symbol."""
-        if symbol not in self._indicators:
-            return 0.0
-        atr = self._indicators[symbol].get("atr")
-        if atr is None or not atr.is_ready:
-            return 0.0
-        return float(atr.current.value)
-
-    def _calculate_initial_stop(self, symbol: Symbol, entry_price: float) -> float:
-        """Calculate initial stop price: entry - (ATR × 2.5)."""
-        atr = self._get_atr(symbol)
-        if atr == 0:
-            # Fallback to 10% stop if ATR not ready
-            return entry_price * 0.90
-        return entry_price - (atr * self.atr_stop_mult_initial)
-
-    def _calculate_trailing_stop(self, symbol: Symbol, current_stop: float) -> float:
-        """Calculate trailing stop: max of Kijun-sen and (ATR × 3.0 floor)."""
-        if symbol not in self._indicators:
-            return current_stop
-        
-        d_ichi = self._indicators[symbol]["d_ichi"]
-        if not d_ichi.is_ready:
-            return current_stop
-        
-        # Get Kijun-sen (26-period mid-price)
-        kijun = d_ichi.kijun.current.value
-        
-        # Get ATR floor
-        atr = self._get_atr(symbol)
-        price = float(self.securities[symbol].price)
-        atr_floor = price - (atr * self.atr_stop_mult_floor) if atr > 0 else price * 0.97
-        
-        # Trail to higher of Kijun or ATR floor
-        new_stop = max(kijun, atr_floor)
-        
-        # Never lower stop if enabled
-        if self.never_lower_stop:
-            return max(current_stop, new_stop)
-        return new_stop
-
-    def _get_position_size_fixed_risk(self, symbol: Symbol, entry_price: float) -> int:
-        """Calculate position size based on $200 fixed risk."""
-        atr = self._get_atr(symbol)
-        if atr == 0:
-            # Default sizing if ATR not available
-            target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
-            return int(target_value / entry_price)
-        
-        # Risk per share = ATR × 2.5 (initial stop distance)
-        risk_per_share = atr * self.atr_stop_mult_initial
-        if risk_per_share <= 0:
-            return 0
-        
-        # Number of shares = fixed risk / risk per share
-        shares = int(self.fixed_risk_dollars / risk_per_share)
-        
-        # Cap at max position size (10% of portfolio)
-        max_position_value = self.portfolio.total_portfolio_value * self.MAX_POSITION_PCT
-        max_shares = int(max_position_value / entry_price)
-        
-        return min(shares, max_shares)
-
-    def _check_cloud_top_break(self, symbol: Symbol) -> bool:
-        """Check if price has broken above cloud top for add trigger."""
-        vals = self._daily_close_and_kijun_and_cloud_top(symbol)
-        if vals is None:
-            return False
-        close, _, cloud_top = vals
-        # Cloud top break = close > cloud_top (strong momentum)
-        return close > cloud_top and close > cloud_top * 1.02  # 2% buffer
 
     def _check_resistance_proximity(self, symbol: Symbol) -> bool:
         """Check if price is within 3% of 52-week high (resistance proximity block)."""
@@ -550,64 +447,49 @@ class BCTMinimalAlgorithm(QCAlgorithm):
 
     def _get_vix_size_multiplier(self) -> float:
         """Get position size multiplier based on VIX level."""
-        try:
-            vix_symbol = self.symbol("VIX")
-            vix_price = float(self.securities[vix_symbol].price)
-            if vix_price > self.vix_threshold:
-                return self.vix_size_multiplier  # 50% size
-        except:
-            pass
-        return 1.0  # Normal size
+        # DIAGNOSTIC: VIX tier disabled
+        return 1.0
+        # try:
+        #     vix_symbol = self.symbol("VIX")
+        #     vix_price = float(self.securities[vix_symbol].price)
+        #     if vix_price > self.vix_threshold:
+        #         return self.vix_size_multiplier  # 50% size
+        # except:
+        #     pass
+        # return 1.0  # Normal size
 
     def _check_all_entry_gates(self, symbol: Symbol) -> tuple[bool, str]:
         """Check all entry gates. Returns (passed, reason_if_failed)."""
-        # SPY gate must be open
-        if not self._spy_gate_open:
-            return False, "SPY_GATE_CLOSED"
-        # Resistance proximity
-        if self._check_resistance_proximity(symbol):
-            return False, "RESISTANCE_PROXIMITY"
-        # Kijun extension
-        if self._check_kijun_extension(symbol):
-            return False, "KIJUN_EXTENSION"
-        # Chikou check
-        if not self._check_chikou(symbol):
-            return False, "CHIKOU_FAIL"
-        # Min price/volume
-        if not self._check_min_price_volume(symbol):
-            return False, "MIN_PRICE_VOLUME"
-        # Earnings skip
-        if not self._check_earnings(symbol):
-            return False, "EARNINGS_SKIP"
+        # DIAGNOSTIC: all Item 4 gates disabled — isolating gate over-filter
         return True, ""
+        # # SPY gate must be open
+        # if not self._spy_gate_open:
+        #     return False, "SPY_GATE_CLOSED"
+        # # Resistance proximity
+        # if self._check_resistance_proximity(symbol):
+        #     return False, "RESISTANCE_PROXIMITY"
+        # # Kijun extension
+        # if self._check_kijun_extension(symbol):
+        #     return False, "KIJUN_EXTENSION"
+        # # Chikou check
+        # if not self._check_chikou(symbol):
+        #     return False, "CHIKOU_FAIL"
+        # # Min price/volume
+        # if not self._check_min_price_volume(symbol):
+        #     return False, "MIN_PRICE_VOLUME"
+        # # Earnings skip
+        # if not self._check_earnings(symbol):
+        #     return False, "EARNINGS_SKIP"
 
     def _update_and_check_stop(self, symbol: Symbol, holding) -> tuple[bool, str]:
         """Update trailing stop and check if stop triggered. Returns (should_exit, reason)."""
-        if symbol not in self._position_meta:
+        # DIAGNOSTIC: ATR stop disabled — daily Kijun stop only
+        vals = self._daily_close_and_kijun_and_cloud_top(symbol)
+        if vals is None:
             return False, ""
-        
-        meta = self._position_meta[symbol]
-        current_stop = meta.get("stop_price", 0)
-        if current_stop == 0:
-            return False, ""
-        
-        close = float(self.securities[symbol].price)
-        
-        # Update trailing stop (if price moved in our favor)
-        new_stop = self._calculate_trailing_stop(symbol, current_stop)
-        if new_stop > current_stop:
-            self._position_meta[symbol]["stop_price"] = new_stop
-        
-        # Check if stop triggered
-        if close < current_stop:
-            return True, f"ATR_STOP|stop={current_stop:.2f}|close={close:.2f}"
-        
-        # Check cloud break add opportunity
-        if self._check_cloud_top_break(symbol):
-            adds_count = meta.get("adds_count", 0)
-            if adds_count < self.max_adds:
-                return False, "ADD_TRIGGER"
-        
+        close, kijun, _ = vals
+        if close < kijun:
+            return True, f"KIJUN_STOP|kijun={kijun:.2f}|close={close:.2f}"
         return False, ""
 
     # ── Item 5: Ladder trim + reversal profit exit ────────────────────────────
@@ -787,16 +669,6 @@ class BCTMinimalAlgorithm(QCAlgorithm):
                     del self._position_meta[symbol]
                 continue
             
-            # Check for cloud top break add
-            if exit_reason == "ADD_TRIGGER":
-                meta = self._position_meta[symbol]
-                original_qty = meta.get("original_quantity", holding.quantity)
-                add_qty = int(original_qty * self.add_at_cloud_break_pct)
-                if add_qty > 0:
-                    self.market_on_open_order(symbol, add_qty)
-                    self._position_meta[symbol]["adds_count"] = meta.get("adds_count", 0) + 1
-                    self.log(f"ADD|{date_str}|{symbol.value}|qty={add_qty}|cloud_break")
-            
             # Legacy exit checks (optional, controlled by parameters)
             vals = self._daily_close_and_kijun_and_cloud_top(symbol)
             if vals:
@@ -899,36 +771,23 @@ class BCTMinimalAlgorithm(QCAlgorithm):
                 self.log(f"GATE_BLOCK|{date_str}|{symbol.value}|reason={gate_reason}|score={score}")
                 continue
             
-            # Calculate position size using fixed risk (Item 7)
-            quantity = self._get_position_size_fixed_risk(symbol, price)
+            # Calculate position size: flat 10% of portfolio
+            target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
+            quantity = int(target_value / price)
             if quantity <= 0:
                 continue
-            
-            # Apply VIX size multiplier (Item 4: sT10e champion)
-            vix_multiplier = self._get_vix_size_multiplier()
-            quantity = int(quantity * vix_multiplier)
-            if quantity <= 0:
-                continue
-            
-            # Calculate initial ATR stop (Item 7)
-            initial_stop = self._calculate_initial_stop(symbol, price)
 
-            # Entry: market-on-open at current price (reverted from buy-stop)
+            # Entry: market-on-open at current price
             self.market_on_open_order(symbol, quantity)
 
-            # Track position entry metadata with ATR stop info (Item 7)
+            # Track position entry metadata
             self._position_meta[symbol] = {
                 "entry_date": self.time,
                 "entry_price": price,
-                "stop_price": initial_stop,
                 "original_quantity": quantity,
-                "adds_count": 0,
-                "highest_price": price,  # For trailing stop calculation
                 "ladder_trims": set(),  # Track which ladder rungs fired
             }
 
-            atr_val = self._get_atr(symbol)
-            vix_tag = f"|vix_mult={vix_multiplier:.2f}" if vix_multiplier < 1.0 else ""
-            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|mark={price:.2f}|atr={atr_val:.2f}|init_stop={initial_stop:.2f}{vix_tag}")
+            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|mark={price:.2f}")
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
