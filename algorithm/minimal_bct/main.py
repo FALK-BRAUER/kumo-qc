@@ -500,8 +500,8 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         w_ichi = ind.get("w_ichi")
         if w_ichi is None or not w_ichi.is_ready:
             return
-        senkou_a = float(w_ichi.senkou_span_a.current.value)
-        senkou_b = float(w_ichi.senkou_span_b.current.value)
+        senkou_a = float(w_ichi.senkou_a.current.value)
+        senkou_b = float(w_ichi.senkou_b.current.value)
         cloud_top = max(senkou_a, senkou_b)
         spy_close = float(self.securities[spy_symbol].price)
         # Check if SPY above weekly cloud
