@@ -1,14 +1,15 @@
 from __future__ import annotations
 """
-Minimal BCT backtest — hardcoded 7-ticker universe, no Morningstar/fundamental data.
+Minimal BCT backtest — hardcoded universe, no Morningstar/fundamental data.
 
 Purpose: local + QC cloud parity baseline that bypasses has_fundamental_data=True
 blocker (GH #14/#16). Proves the BCT scoring and execution logic works end-to-end
 without the coarse/fine universe filter.
 
-Universe: SPY, QQQ, AAPL, MSFT, NVDA, AMZN, META (hardcoded via AddEquity).
+Universe: SPY, QQQ, AAPL (hardcoded via AddEquity).
 Signal: same 8-condition BCT Blue Flag checklist as performance_bct.
-Exits: daily Kijun stop only (reference baseline).
+Exits: daily Kijun stop (reference baseline) + optional cloud breach + weekly Kijun.
+Parameters: warmup_days (default 750), cloud_exit (default false), weekly_kijun_exit (default false).
 """
 
 from datetime import timedelta
@@ -42,6 +43,10 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         warmup_days = int(self.get_parameter("warmup_days", "750"))
         self.set_warmup(timedelta(days=warmup_days))
         self.warmup_days = warmup_days
+
+        # Exit condition parameters (default: disabled for reference baseline)
+        self.cloud_exit_enabled = self.get_parameter("cloud_exit", "false").lower() == "true"
+        self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", "false").lower() == "true"
 
         self.universe_settings.resolution = Resolution.DAILY
         self._indicators: dict = {}
@@ -133,23 +138,23 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         for symbol, holding in list(self.portfolio.items()):
             if not holding.invested or self._has_open_orders(symbol):
                 continue
-            price = float(self.securities[symbol].price)
-            hist = self.history([symbol], 30, Resolution.DAILY)
-            if hist is None or hist.empty:
+            vals = self._daily_close_and_kijun_and_cloud_top(symbol)
+            if vals is None:
                 continue
-            if isinstance(hist.index, pd.MultiIndex):
-                hist = hist.droplevel(0)
-            hist.columns = [c.lower() for c in hist.columns]
-            if "close" not in hist.columns or len(hist) < 26:
-                continue
-            hi = hist["high"]
-            lo = hist["low"]
-            kijun = ((hi.rolling(26).max() + lo.rolling(26).min()) / 2).iloc[-1]
-            if pd.isna(kijun):
-                continue
-            if price < kijun:
+            close, kijun, cloud_top = vals
+
+            w_ichi = self._indicators[symbol]["w_ichi"]
+            w_kijun = w_ichi.kijun.current.value if w_ichi.is_ready else None
+
+            if close < kijun:
                 self.market_on_open_order(symbol, -holding.quantity)
-                self.log(f"STOP|{date_str}|{symbol.value}|close={price:.2f}|kijun={kijun:.2f}")
+                self.log(f"STOP|{date_str}|{symbol.value}|close={close:.2f}|kijun={kijun:.2f}")
+            elif self.cloud_exit_enabled and close < cloud_top:
+                self.market_on_open_order(symbol, -holding.quantity)
+                self.log(f"CLOUD_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_top={cloud_top:.2f}")
+            elif self.weekly_kijun_exit_enabled and w_kijun is not None and close < w_kijun:
+                self.market_on_open_order(symbol, -holding.quantity)
+                self.log(f"WEEKLY_KIJUN_STOP|{date_str}|{symbol.value}|close={close:.2f}|w_kijun={w_kijun:.2f}")
 
         exiting = {
             o.symbol
