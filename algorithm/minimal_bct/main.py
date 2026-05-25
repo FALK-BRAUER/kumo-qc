@@ -108,6 +108,23 @@ class BCTMinimalAlgorithm(QCAlgorithm):
     def _has_open_orders(self, symbol) -> bool:
         return bool(self.transactions.get_open_orders(symbol))
 
+    def _daily_close_and_kijun_and_cloud_top(self, symbol) -> tuple[float, float, float] | None:
+        """Fetch daily close, Kijun-sen, and cloud top for exit logic."""
+        if symbol not in self._indicators:
+            return None
+        d_ichi = self._indicators[symbol]["d_ichi"]
+        if not d_ichi.is_ready:
+            return None
+        
+        close = float(self.securities[symbol].price)
+        kijun = d_ichi.kijun.current.value
+        
+        senkou_a = d_ichi.senkou_a.current.value
+        senkou_b = d_ichi.senkou_b.current.value
+        cloud_top = max(senkou_a, senkou_b)
+        
+        return close, kijun, cloud_top
+
     def _rebalance(self) -> None:
         if self.is_warming_up:
             return
@@ -152,6 +169,27 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             symbol = self.symbol(ticker)
             if self.portfolio[symbol].invested:
                 continue
+            
+            # === PRE-FILTER: skip symbols that cannot reach MIN_SCORE ===
+            ind = self._indicators.get(symbol)
+            if ind is not None:
+                sma200_ind = ind.get("sma200")
+                d_ichi_ind = ind.get("d_ichi")
+                if (sma200_ind and sma200_ind.is_ready and 
+                    d_ichi_ind and d_ichi_ind.is_ready):
+                    price = float(self.securities[symbol].price)
+                    if price <= 0:
+                        continue
+                    # Condition 8: price > SMA200
+                    if price < sma200_ind.current.value:
+                        continue
+                    # Condition 5: price > daily cloud top
+                    cloud_top = max(d_ichi_ind.senkou_a.current.value, 
+                                   d_ichi_ind.senkou_b.current.value)
+                    if price < cloud_top:
+                        continue
+            # === END PRE-FILTER ===
+            
             result = score_symbol(self, symbol)
             if result is None or result["score"] < self.MIN_SCORE:
                 continue
