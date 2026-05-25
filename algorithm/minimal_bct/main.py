@@ -912,11 +912,10 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             
             # Calculate initial ATR stop (Item 7)
             initial_stop = self._calculate_initial_stop(symbol, price)
-            
-            # Buy-stop fill: place stop order 0.75% above close (Item 3)
-            entry_stop = price * (1 + self.buy_stop_pct)
-            self.stop_market_order(symbol, quantity, entry_stop)
-            
+
+            # Entry: market-on-open at current price (reverted from buy-stop)
+            self.market_on_open_order(symbol, quantity)
+
             # Track position entry metadata with ATR stop info (Item 7)
             self._position_meta[symbol] = {
                 "entry_date": self.time,
@@ -927,9 +926,9 @@ class BCTMinimalAlgorithm(QCAlgorithm):
                 "highest_price": price,  # For trailing stop calculation
                 "ladder_trims": set(),  # Track which ladder rungs fired
             }
-            
+
             atr_val = self._get_atr(symbol)
             vix_tag = f"|vix_mult={vix_multiplier:.2f}" if vix_multiplier < 1.0 else ""
-            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|stop={entry_stop:.2f}|mark={price:.2f}|atr={atr_val:.2f}|init_stop={initial_stop:.2f}{vix_tag}")
+            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|mark={price:.2f}|atr={atr_val:.2f}|init_stop={initial_stop:.2f}{vix_tag}")
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
