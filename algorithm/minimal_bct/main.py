@@ -20,7 +20,9 @@ Parameters: warmup_days (default 750), cloud_exit (default false),
       weekly_kijun_exit (default false), atr_period (default 22).
 """
 
-from datetime import timedelta
+import csv
+import io
+from datetime import timedelta, datetime
 from pathlib import Path
 
 from AlgorithmImports import *  # noqa: F401,F403
@@ -210,8 +212,8 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             and f.dollar_volume >= 1_000_000
             and f.has_fundamental_data
         ]
-        top300 = sorted(filtered, key=lambda f: f.dollar_volume, reverse=True)[:300]
-        return [f.symbol for f in top300]
+        top500 = sorted(filtered, key=lambda f: f.dollar_volume, reverse=True)[:500]
+        return [f.symbol for f in top500]
 
     def on_securities_changed(self, changes: SecurityChanges) -> None:
         for s in changes.added_securities:
@@ -300,6 +302,15 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         self.register_indicator(spy_sym, self._spy_atr_14, Resolution.DAILY)
         self._spy_atr_252 = AverageTrueRange(252, MovingAverageType.Wilders)
         self.register_indicator(spy_sym, self._spy_atr_252, Resolution.DAILY)
+        
+        # ── GH #19: Load earnings dates from Object Store ──────────────────
+        try:
+            obj = self.object_store.read("earnings_dates.csv")
+            self._earnings_dict: dict[str, list[str]] = {}
+            for row in csv.DictReader(io.StringIO(obj)):
+                self._earnings_dict.setdefault(row["ticker"], []).append(row["report_date"])
+        except Exception:
+            self._earnings_dict = {}  # fallback: no earnings avoidance
         
         local_tickers = self._load_universe()
         if self._find_local_data_dir() is not None:
