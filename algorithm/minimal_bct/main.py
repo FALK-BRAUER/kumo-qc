@@ -196,6 +196,10 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         self.set_benchmark("SPY")
 
         warmup_days = int(self.get_parameter("warmup_days", "750"))
+        MIN_WARMUP_DAYS = 750  # ~107 weekly bars needed for Ichimoku readiness
+        if warmup_days < MIN_WARMUP_DAYS:
+            self.log(f"WARMUP_OVERRIDE|requested={warmup_days}|enforced={MIN_WARMUP_DAYS}")
+            warmup_days = MIN_WARMUP_DAYS
         self.set_warmup(timedelta(days=warmup_days))
         self.warmup_days = warmup_days
 
@@ -320,8 +324,8 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         }
 
     def _seed_weekly(self, sym, w_ichi, w_close) -> None:
-        # QC built-in warmup feeds bars to registered consolidators automatically.
-        # Skip manual seeding during warmup to avoid blocking history storms.
+        # Guard: with warmup >= 750 days, the weekly consolidator receives sufficient
+        # bars automatically. Manual history pull is redundant and skipped during warmup.
         if self.is_warming_up:
             return
         hist = self.history(sym, 750, Resolution.DAILY)
