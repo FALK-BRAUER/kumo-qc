@@ -8,8 +8,12 @@ without the coarse/fine universe filter.
 
 Universe: 545 tickers (S&P 500 + BCT DEFAULT_TICKERS, merged + deduped).
 Signal: same 8-condition BCT Blue Flag checklist as performance_bct.
-Exits: daily Kijun stop (reference baseline) + optional cloud breach + weekly Kijun.
-Parameters: warmup_days (default 750), cloud_exit (default false), weekly_kijun_exit (default false).
+Exits: ATR trailing stop (22-period, 2.5x initial, 3.0x floor) + Kijun trail + 
+      optional cloud breach + weekly Kijun.
+Sizing: Fixed-risk $200 per position with ATR-based position sizing.
+Adds: Cloud top break triggers (50% of original, max 1 add).
+Parameters: warmup_days (default 750), cloud_exit (default false), 
+      weekly_kijun_exit (default false), atr_period (default 22).
 """
 
 from datetime import timedelta
@@ -34,6 +38,19 @@ class BCTMinimalAlgorithm(QCAlgorithm):
 
     # Buy-stop fill parameter (Item 3: sT10e+R-B-v3)
     BUY_STOP_PCT: float = 0.0075  # 0.75% above close
+
+    # ATR stop + sizing parameters (Item 7: sT10e champion)
+    ATR_PERIOD: int = 22
+    ATR_STOP_MULT_INITIAL: float = 2.5
+    ATR_STOP_MULT_FLOOR: float = 3.0
+    FIXED_RISK_DOLLARS: float = 200.0  # $200 max risk per position
+    MAX_POSITION_PCT: float = 0.10  # 10% max position size
+    TRAIL_TO_TENKAN_FIRST: bool = True
+    NEVER_LOWER_STOP: bool = True
+    STOP_ON_CLOSE_ONLY: bool = True
+    ADD_AT_CLOUD_BREAK_PCT: float = 0.50  # 50% of original position
+    MAX_ADDS: int = 1
+    PYRAMID_PCT: float = 0.50  # 50% of original
 
     # Merged universe: 545 tickers (503 S&P 500 + 95 BCT, deduped)
     UNIVERSE: list[str] = [
@@ -180,6 +197,18 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         # Buy-stop fill parameter (Item 3: sT10e+R-B-v3)
         self.buy_stop_pct = float(self.get_parameter("buy_stop_pct", str(self.BUY_STOP_PCT)))
 
+        # ATR stop + sizing parameters (Item 7: sT10e champion)
+        self.atr_period = int(self.get_parameter("atr_period", str(self.ATR_PERIOD)))
+        self.atr_stop_mult_initial = float(self.get_parameter("atr_stop_mult_initial", str(self.ATR_STOP_MULT_INITIAL)))
+        self.atr_stop_mult_floor = float(self.get_parameter("atr_stop_mult_floor", str(self.ATR_STOP_MULT_FLOOR)))
+        self.fixed_risk_dollars = float(self.get_parameter("fixed_risk_dollars", str(self.FIXED_RISK_DOLLARS)))
+        self.trail_to_tenkan_first = self.get_parameter("trail_to_tenkan_first", str(self.TRAIL_TO_TENKAN_FIRST)).lower() == "true"
+        self.never_lower_stop = self.get_parameter("never_lower_stop", str(self.NEVER_LOWER_STOP)).lower() == "true"
+        self.stop_on_close_only = self.get_parameter("stop_on_close_only", str(self.STOP_ON_CLOSE_ONLY)).lower() == "true"
+        self.add_at_cloud_break_pct = float(self.get_parameter("add_at_cloud_break_pct", str(self.ADD_AT_CLOUD_BREAK_PCT)))
+        self.max_adds = int(self.get_parameter("max_adds", str(self.MAX_ADDS)))
+        self.pyramid_pct = float(self.get_parameter("pyramid_pct", str(self.PYRAMID_PCT)))
+
         self.universe_settings.resolution = Resolution.DAILY
         self._indicators: dict = {}
         self._position_meta: dict = {}  # Track entry date, avg price per position
@@ -196,6 +225,8 @@ class BCTMinimalAlgorithm(QCAlgorithm):
     def _register_indicators(self, sym) -> None:
         d_ichi = self.ichimoku(sym, 9, 26, 26, 52, 26, 26)
         sma200 = self.sma(sym, 200)
+        # ATR for stop loss calculation (Item 7)
+        atr = self.atr(sym, self.atr_period, MovingAverageType.Wilders)
 
         w_ichi = IchimokuKinkoHyo(9, 26, 26, 52, 26, 26)
         w_close = RollingWindow[float](28)
@@ -217,6 +248,7 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             "w_ichi": w_ichi,
             "w_close": w_close,
             "sma200": sma200,
+            "atr": atr,
             "consolidator": consolidator,
         }
 
@@ -308,31 +340,155 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         
         return close, kijun, cloud_top
 
+    def _get_atr(self, symbol) -> float:
+        """Get current ATR value for a symbol."""
+        if symbol not in self._indicators:
+            return 0.0
+        atr = self._indicators[symbol].get("atr")
+        if atr is None or not atr.is_ready:
+            return 0.0
+        return float(atr.current.value)
+
+    def _calculate_initial_stop(self, symbol: Symbol, entry_price: float) -> float:
+        """Calculate initial stop price: entry - (ATR × 2.5)."""
+        atr = self._get_atr(symbol)
+        if atr == 0:
+            # Fallback to 10% stop if ATR not ready
+            return entry_price * 0.90
+        return entry_price - (atr * self.atr_stop_mult_initial)
+
+    def _calculate_trailing_stop(self, symbol: Symbol, current_stop: float) -> float:
+        """Calculate trailing stop: max of Kijun-sen and (ATR × 3.0 floor)."""
+        if symbol not in self._indicators:
+            return current_stop
+        
+        d_ichi = self._indicators[symbol]["d_ichi"]
+        if not d_ichi.is_ready:
+            return current_stop
+        
+        # Get Kijun-sen (26-period mid-price)
+        kijun = d_ichi.kijun.current.value
+        
+        # Get ATR floor
+        atr = self._get_atr(symbol)
+        price = float(self.securities[symbol].price)
+        atr_floor = price - (atr * self.atr_stop_mult_floor) if atr > 0 else price * 0.97
+        
+        # Trail to higher of Kijun or ATR floor
+        new_stop = max(kijun, atr_floor)
+        
+        # Never lower stop if enabled
+        if self.never_lower_stop:
+            return max(current_stop, new_stop)
+        return new_stop
+
+    def _get_position_size_fixed_risk(self, symbol: Symbol, entry_price: float) -> int:
+        """Calculate position size based on $200 fixed risk."""
+        atr = self._get_atr(symbol)
+        if atr == 0:
+            # Default sizing if ATR not available
+            target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
+            return int(target_value / entry_price)
+        
+        # Risk per share = ATR × 2.5 (initial stop distance)
+        risk_per_share = atr * self.atr_stop_mult_initial
+        if risk_per_share <= 0:
+            return 0
+        
+        # Number of shares = fixed risk / risk per share
+        shares = int(self.fixed_risk_dollars / risk_per_share)
+        
+        # Cap at max position size (10% of portfolio)
+        max_position_value = self.portfolio.total_portfolio_value * self.MAX_POSITION_PCT
+        max_shares = int(max_position_value / entry_price)
+        
+        return min(shares, max_shares)
+
+    def _check_cloud_top_break(self, symbol: Symbol) -> bool:
+        """Check if price has broken above cloud top for add trigger."""
+        vals = self._daily_close_and_kijun_and_cloud_top(symbol)
+        if vals is None:
+            return False
+        close, _, cloud_top = vals
+        # Cloud top break = close > cloud_top (strong momentum)
+        return close > cloud_top and close > cloud_top * 1.02  # 2% buffer
+
+    def _update_and_check_stop(self, symbol: Symbol, holding) -> tuple[bool, str]:
+        """Update trailing stop and check if stop triggered. Returns (should_exit, reason)."""
+        if symbol not in self._position_meta:
+            return False, ""
+        
+        meta = self._position_meta[symbol]
+        current_stop = meta.get("stop_price", 0)
+        if current_stop == 0:
+            return False, ""
+        
+        close = float(self.securities[symbol].price)
+        
+        # Update trailing stop (if price moved in our favor)
+        new_stop = self._calculate_trailing_stop(symbol, current_stop)
+        if new_stop > current_stop:
+            self._position_meta[symbol]["stop_price"] = new_stop
+        
+        # Check if stop triggered
+        if close < current_stop:
+            return True, f"ATR_STOP|stop={current_stop:.2f}|close={close:.2f}"
+        
+        # Check cloud break add opportunity
+        if self._check_cloud_top_break(symbol):
+            adds_count = meta.get("adds_count", 0)
+            if adds_count < self.max_adds:
+                return False, "ADD_TRIGGER"
+        
+        return False, ""
+
     def _rebalance(self) -> None:
         if self.is_warming_up:
             return
         date_str = self.time.strftime("%Y-%m-%d")
 
+        # Process position exits and adds
         for symbol, holding in list(self.portfolio.items()):
             if not holding.invested or self._has_open_orders(symbol):
                 continue
-            vals = self._daily_close_and_kijun_and_cloud_top(symbol)
-            if vals is None:
+            
+            # Update trailing stop and check exit
+            should_exit, exit_reason = self._update_and_check_stop(symbol, holding)
+            if should_exit:
+                self.market_on_open_order(symbol, -holding.quantity)
+                self.log(f"EXIT|{date_str}|{symbol.value}|{exit_reason}")
+                # Clear position metadata
+                if symbol in self._position_meta:
+                    del self._position_meta[symbol]
                 continue
-            close, kijun, cloud_top = vals
-
-            w_ichi = self._indicators[symbol]["w_ichi"]
-            w_kijun = w_ichi.kijun.current.value if w_ichi.is_ready else None
-
-            if close < kijun:
-                self.market_on_open_order(symbol, -holding.quantity)
-                self.log(f"STOP|{date_str}|{symbol.value}|close={close:.2f}|kijun={kijun:.2f}")
-            elif self.cloud_exit_enabled and close < cloud_top:
-                self.market_on_open_order(symbol, -holding.quantity)
-                self.log(f"CLOUD_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_top={cloud_top:.2f}")
-            elif self.weekly_kijun_exit_enabled and w_kijun is not None and close < w_kijun:
-                self.market_on_open_order(symbol, -holding.quantity)
-                self.log(f"WEEKLY_KIJUN_STOP|{date_str}|{symbol.value}|close={close:.2f}|w_kijun={w_kijun:.2f}")
+            
+            # Check for cloud top break add
+            if exit_reason == "ADD_TRIGGER":
+                meta = self._position_meta[symbol]
+                original_qty = meta.get("original_quantity", holding.quantity)
+                add_qty = int(original_qty * self.add_at_cloud_break_pct)
+                if add_qty > 0:
+                    self.market_on_open_order(symbol, add_qty)
+                    self._position_meta[symbol]["adds_count"] = meta.get("adds_count", 0) + 1
+                    self.log(f"ADD|{date_str}|{symbol.value}|qty={add_qty}|cloud_break")
+            
+            # Legacy exit checks (optional, controlled by parameters)
+            vals = self._daily_close_and_kijun_and_cloud_top(symbol)
+            if vals:
+                close, kijun, cloud_top = vals
+                w_ichi = self._indicators[symbol]["w_ichi"]
+                w_kijun = w_ichi.kijun.current.value if w_ichi.is_ready else None
+                
+                if self.cloud_exit_enabled and close < cloud_top:
+                    self.market_on_open_order(symbol, -holding.quantity)
+                    self.log(f"CLOUD_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_top={cloud_top:.2f}")
+                    if symbol in self._position_meta:
+                        del self._position_meta[symbol]
+                elif self.weekly_kijun_exit_enabled and w_kijun is not None and close < w_kijun:
+                    self.market_on_open_order(symbol, -holding.quantity)
+                    self.log(f"WEEKLY_KIJUN_STOP|{date_str}|{symbol.value}|close={close:.2f}|w_kijun={w_kijun:.2f}")
+                    if symbol in self._position_meta:
+                        del self._position_meta[symbol]
 
         exiting = {
             o.symbol
@@ -399,18 +555,33 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         candidates.sort(key=lambda x: x[1], reverse=True)
 
         for symbol, score in candidates[:slots]:
-            price = self.securities[symbol].price
+            price = float(self.securities[symbol].price)
             if price <= 0:
                 continue
-            target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
-            quantity = int(target_value / price)
+            
+            # Calculate position size using fixed risk (Item 7)
+            quantity = self._get_position_size_fixed_risk(symbol, price)
             if quantity <= 0:
                 continue
+            
+            # Calculate initial ATR stop (Item 7)
+            initial_stop = self._calculate_initial_stop(symbol, price)
+            
             # Buy-stop fill: place stop order 0.75% above close (Item 3)
-            stop_price = price * (1 + self.buy_stop_pct)
-            self.stop_market_order(symbol, quantity, stop_price)
-            # Track position entry metadata for rotation engine
-            self._position_meta[symbol] = {"entry_date": self.time, "entry_price": price}
-            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|stop={stop_price:.2f}|mark={price:.2f}")
+            entry_stop = price * (1 + self.buy_stop_pct)
+            self.stop_market_order(symbol, quantity, entry_stop)
+            
+            # Track position entry metadata with ATR stop info (Item 7)
+            self._position_meta[symbol] = {
+                "entry_date": self.time,
+                "entry_price": price,
+                "stop_price": initial_stop,
+                "original_quantity": quantity,
+                "adds_count": 0,
+                "highest_price": price,  # For trailing stop calculation
+            }
+            
+            atr_val = self._get_atr(symbol)
+            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|stop={entry_stop:.2f}|mark={price:.2f}|atr={atr_val:.2f}|init_stop={initial_stop:.2f}")
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
