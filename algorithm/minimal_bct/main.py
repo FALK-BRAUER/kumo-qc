@@ -21,7 +21,7 @@ from bct_signal import score_symbol
 
 class BCTMinimalAlgorithm(QCAlgorithm):
 
-    MAX_POSITIONS: int = 7
+    MAX_POSITIONS: int = 10
     POSITION_PCT: float = 0.10
     MIN_SCORE: int = 7
 
