@@ -166,15 +166,29 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         "YUM", "ZBH", "ZBRA", "ZS", "ZTS",
     ]
 
+    @staticmethod
+    def _find_local_data_dir() -> Path | None:
+        """Return first existing local equity daily data directory, or None.
+
+        LEAN CLI mounts the project data/ folder to /Lean/Data inside Docker.
+        We check both the Docker mount and the native relative path so the
+        same code works in lean backtest (Docker) and bare Python unit tests.
+        """
+        candidates = [
+            Path("/Lean/Data/equity/usa/daily"),                     # LEAN Docker mount
+            Path("/Data/equity/usa/daily"),                          # alternative mount
+            Path(__file__).parent.parent.parent / "data/equity/usa/daily",  # native dev
+        ]
+        return next((d for d in candidates if d.exists()), None)
+
     def _load_universe(self) -> list[str]:
-        """Scan data/equity/usa/daily/ for .zip files → ticker list.
-        Falls back to hardcoded 545-ticker UNIVERSE if directory missing or empty.
+        """Scan local equity daily dir for .zip files → ticker list.
+        Falls back to hardcoded 545-ticker UNIVERSE if no local dir found.
         Result cached in self._universe_cache to avoid repeated disk scans."""
         if hasattr(self, '_universe_cache'):
             return self._universe_cache
-        here = Path(__file__).parent.parent.parent
-        data_dir = here / "data/equity/usa/daily"
-        if data_dir.exists():
+        data_dir = self._find_local_data_dir()
+        if data_dir is not None:
             tickers = [p.stem.upper() for p in data_dir.glob("*.zip")]
             if tickers:
                 self._universe_cache = tickers
@@ -275,8 +289,7 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         self._position_meta: dict = {}  # Track entry date, avg price per position
         self.add_equity("SPY", Resolution.DAILY)  # needed for benchmark + SPY gate
         local_tickers = self._load_universe()
-        here = Path(__file__).parent.parent.parent
-        if (here / "data/equity/usa/daily").exists():
+        if self._find_local_data_dir() is not None:
             # Local LEAN data present — static load, no asset cap
             for ticker in local_tickers:
                 try:
