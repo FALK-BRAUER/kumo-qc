@@ -168,13 +168,19 @@ class BCTMinimalAlgorithm(QCAlgorithm):
 
     def _load_universe(self) -> list[str]:
         """Scan data/equity/usa/daily/ for .zip files → ticker list.
-        Falls back to hardcoded 545-ticker UNIVERSE if directory missing or empty."""
-        data_dir = Path("data/equity/usa/daily")
+        Falls back to hardcoded 545-ticker UNIVERSE if directory missing or empty.
+        Result cached in self._universe_cache to avoid repeated disk scans."""
+        if hasattr(self, '_universe_cache'):
+            return self._universe_cache
+        here = Path(__file__).parent.parent.parent
+        data_dir = here / "data/equity/usa/daily"
         if data_dir.exists():
             tickers = [p.stem.upper() for p in data_dir.glob("*.zip")]
             if tickers:
+                self._universe_cache = tickers
                 return tickers
-        return list(self.UNIVERSE)  # fallback to hardcoded
+        self._universe_cache = list(self.UNIVERSE)
+        return self._universe_cache
 
     def initialize(self) -> None:
         self.set_time_zone("America/New_York")
