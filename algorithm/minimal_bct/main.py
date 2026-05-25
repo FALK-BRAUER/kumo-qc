@@ -31,7 +31,7 @@ class BCTMinimalAlgorithm(QCAlgorithm):
 
     MAX_POSITIONS: int = 10
     POSITION_PCT: float = 0.10
-    MIN_SCORE: int = 6
+    MIN_SCORE: int = 7
 
     # Rotation engine parameters (Item 2: sT10e+R-B-v3)
     SCORE_RATIO_THRESHOLD: float = 2.0
