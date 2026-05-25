@@ -24,6 +24,7 @@ from datetime import timedelta
 from pathlib import Path
 
 from AlgorithmImports import *  # noqa: F401,F403
+from QuantConnect.Indicators import AverageTrueRange, MovingAverageType
 
 from bct_signal import score_symbol
 
@@ -295,8 +296,10 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         
         # Register SPY ATR indicators for atr_adaptive_score (GH #21)
         spy_sym = self.symbol("SPY")
-        self._spy_atr_14 = self.atr(spy_sym, 14)
-        self._spy_atr_252 = self.atr(spy_sym, 252)
+        self._spy_atr_14 = AverageTrueRange(14, MovingAverageType.Wilders)
+        self.register_indicator(spy_sym, self._spy_atr_14, Resolution.DAILY)
+        self._spy_atr_252 = AverageTrueRange(252, MovingAverageType.Wilders)
+        self.register_indicator(spy_sym, self._spy_atr_252, Resolution.DAILY)
         
         local_tickers = self._load_universe()
         if self._find_local_data_dir() is not None:
@@ -324,7 +327,8 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         adx = self.adx(sym, 9)
         plus_di = adx.PositiveDirectionalIndex
         minus_di = adx.NegativeDirectionalIndex
-        atr = self.atr(sym, 14)  # ATR14 for position sizing and stops
+        atr = AverageTrueRange(14, MovingAverageType.Wilders)
+        self.register_indicator(sym, atr, Resolution.DAILY)
 
         w_ichi = IchimokuKinkoHyo(9, 26, 26, 52, 26, 26)
         w_close = RollingWindow[float](28)
