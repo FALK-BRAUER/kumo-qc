@@ -237,6 +237,16 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         self.adaptive_earnings_enabled = False
         self.adaptive_earnings_gain_threshold = 0.12
         self.adaptive_earnings_exit_days = 9
+        self.earnings_exit_days_before = 3  # Hard exit 3 days before earnings
+
+        # Ladder trim parameters (Item 5)
+        self.ladder_rungs_pct = [20.0, 40.0]  # Trim at +20%, +40%
+        self.ladder_trim_fraction = 0.50  # Trim 50% of position
+
+        # Reversal profit exit parameters (Item 5)
+        self.reversal_profit_enabled = True
+        self.reversal_profit_min_gain_pct = 0.06  # 6% gain required
+        self.reversal_profit_extension_pct = 0.10  # 10% above Tenkan
 
         # Track SPY gate state (4-day confirmation)
         self._spy_above_cloud_days: int = 0
