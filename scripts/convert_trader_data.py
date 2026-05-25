@@ -61,7 +61,7 @@ def _write_ticker_files(base: Path, ticker: str, rows: list[tuple]) -> None:
     for _, date_text, o, h, l, c, v in rows:
         ymd = date_text.replace("-", "")
         csv_lines.append(
-            f"{ymd},{_price_to_int(o)},{_price_to_int(h)},{_price_to_int(l)},{_price_to_int(c)},{int(v)}"
+            f"{ymd} 00:00,{_price_to_int(o)},{_price_to_int(h)},{_price_to_int(l)},{_price_to_int(c)},{int(v)}"
         )
     csv_blob = "\n".join(csv_lines) + "\n"
 
