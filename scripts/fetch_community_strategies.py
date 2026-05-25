@@ -13,9 +13,32 @@ Usage:
   python3 scripts/fetch_community_strategies.py [--max 100] [--out qc/community]
 
 Notes:
-  - The endpoint paginates via 'start' param (default page size appears to be 10).
+  - The endpoint paginates via 'start'/'end' params (QC uses start+end, not start+count).
   - We page until we have 'max' strategies or no more results.
   - No credentials needed; the leaderboard is public.
+
+KNOWN LIMITATION — Source code is NOT fetchable via the REST API:
+  Each strategy JSON has a 'clone_project_id' field. Instinct is to call
+  GET /api/v2/files/read?projectId={clone_project_id} to get the Python source.
+  This returns HTTP 403 (error 26956688: "project does not exist or no permissions").
+
+  Root cause: clone_project_id points to a project owned by the strategy author.
+  The files/read API is ownership-gated — only works on YOUR OWN projects.
+  The QC web UI "Clone" button uses browser session-cookie auth (a different auth
+  model from API token auth), which cannot be replicated via the REST API.
+
+  What was tried (2026-05-25, all 403):
+    - files/read?projectId={cloneProjectId}
+    - projects/clone with projectId={cloneProjectId}
+    - backtests/read with projectId + backtestId
+    - strategies/read — returns metadata only, no code field
+
+  To get source code you would need to:
+    a) Clone each strategy via the QC web UI (creates a copy under your account),
+       then files/read works on your copy — but this cannot be automated via API.
+    b) Use a headless browser with session cookies — fragile and against ToS.
+  Decision (txuvqj98, 2026-05-25): metadata + AI-generated descriptions are
+  sufficient. Do not re-investigate unless QC expands the API.
 """
 
 import argparse
