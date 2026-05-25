@@ -25,6 +25,13 @@ class BCTMinimalAlgorithm(QCAlgorithm):
     POSITION_PCT: float = 0.10
     MIN_SCORE: int = 7
 
+    # Rotation engine parameters (Item 2: sT10e+R-B-v3)
+    SCORE_RATIO_THRESHOLD: float = 2.0
+    MIN_HOLD_DAYS: int = 1
+    ATR_ADAPTIVE_SCORE: bool = True
+    MIN_PNL_PCT: float = 0.0
+    PROFIT_VETO_PCT: float = 0.05
+
     UNIVERSE: list[str] = [
         # Core indices
         "SPY", "QQQ",
@@ -55,8 +62,16 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", "false").lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", "false").lower() == "true"
 
+        # Rotation engine parameters (Item 2: sT10e+R-B-v3)
+        self.score_ratio_threshold = float(self.get_parameter("score_ratio_threshold", str(self.SCORE_RATIO_THRESHOLD)))
+        self.min_hold_days = int(self.get_parameter("min_hold_days", str(self.MIN_HOLD_DAYS)))
+        self.atr_adaptive_score = self.get_parameter("atr_adaptive_score", str(self.ATR_ADAPTIVE_SCORE)).lower() == "true"
+        self.min_pnl_pct = float(self.get_parameter("min_pnl_pct", str(self.MIN_PNL_PCT)))
+        self.profit_veto_pct = float(self.get_parameter("profit_veto_pct", str(self.PROFIT_VETO_PCT)))
+
         self.universe_settings.resolution = Resolution.DAILY
         self._indicators: dict = {}
+        self._position_meta: dict = {}  # Track entry date, avg price per position
         for ticker in self.UNIVERSE:
             sym = self.add_equity(ticker, Resolution.DAILY).symbol
             self._register_indicators(sym)
@@ -120,6 +135,51 @@ class BCTMinimalAlgorithm(QCAlgorithm):
     def _has_open_orders(self, symbol) -> bool:
         return bool(self.transactions.get_open_orders(symbol))
 
+    def _get_position_pnl_pct(self, symbol) -> float:
+        """Calculate position P&L percentage."""
+        holding = self.portfolio[symbol]
+        if not holding.invested or holding.average_price == 0:
+            return 0.0
+        current_price = float(self.securities[symbol].price)
+        return (current_price - holding.average_price) / holding.average_price
+
+    def _get_hold_days(self, symbol) -> int:
+        """Get number of days position has been held."""
+        if symbol not in self._position_meta:
+            return 0
+        entry_date = self._position_meta[symbol].get("entry_date")
+        if entry_date is None:
+            return 0
+        return (self.time - entry_date).days
+
+    def _should_rotate(self, symbol: Symbol, current_score: int, best_score: int) -> bool:
+        """
+        Rotation engine: determine if we should rotate out of current position.
+        Returns True if rotation criteria met.
+        """
+        # Check minimum hold period
+        hold_days = self._get_hold_days(symbol)
+        if hold_days < self.min_hold_days:
+            return False
+
+        # Score ratio threshold: only rotate if significantly better opportunity
+        if best_score <= 0 or current_score <= 0:
+            return False
+        score_ratio = best_score / current_score if current_score > 0 else float('inf')
+        if score_ratio < self.score_ratio_threshold:
+            return False
+
+        # Profit veto: don't rotate if position is profitable above threshold
+        pnl_pct = self._get_position_pnl_pct(symbol)
+        if pnl_pct > self.profit_veto_pct:
+            return False
+
+        # Minimum PnL check: only rotate losers or small gains
+        if pnl_pct < self.min_pnl_pct:
+            return True
+
+        return True
+
     def _daily_close_and_kijun_and_cloud_top(self, symbol) -> tuple[float, float, float] | None:
         """Fetch daily close, Kijun-sen, and cloud top for exit logic."""
         if symbol not in self._indicators:
@@ -176,11 +236,10 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         if slots <= 0:
             return
 
-        candidates: list[tuple] = []
+        # Score all symbols for rotation decisions
+        all_scores: dict[Symbol, int] = {}
         for ticker in self.UNIVERSE:
             symbol = self.symbol(ticker)
-            if self.portfolio[symbol].invested:
-                continue
             
             # === PRE-FILTER: skip symbols that cannot reach MIN_SCORE ===
             ind = self._indicators.get(symbol)
@@ -205,9 +264,29 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             result = score_symbol(self, symbol)
             if result is None or result["score"] < self.MIN_SCORE:
                 continue
-            candidates.append((symbol, result["score"]))
+            all_scores[symbol] = result["score"]
 
+        # Rotation engine: check for positions to rotate out
+        if len(all_scores) > 0:
+            best_score = max(all_scores.values())
+            for symbol, holding in list(self.portfolio.items()):
+                if not holding.invested:
+                    continue
+                current_score = all_scores.get(symbol, 0)
+                if self._should_rotate(symbol, current_score, best_score):
+                    self.market_on_open_order(symbol, -holding.quantity)
+                    self.log(f"ROTATE|{date_str}|{symbol.value}|score={current_score}|best={best_score}|pnl={self._get_position_pnl_pct(symbol):.2%}")
+                    # Clear position metadata
+                    if symbol in self._position_meta:
+                        del self._position_meta[symbol]
+
+        # Build candidates list from non-invested symbols
+        candidates: list[tuple[Symbol, int]] = [
+            (symbol, score) for symbol, score in all_scores.items()
+            if not self.portfolio[symbol].invested and symbol not in exiting
+        ]
         candidates.sort(key=lambda x: x[1], reverse=True)
+
         for symbol, score in candidates[:slots]:
             price = self.securities[symbol].price
             if price <= 0:
@@ -217,6 +296,8 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             if quantity <= 0:
                 continue
             self.market_on_open_order(symbol, quantity)
+            # Track position entry metadata for rotation engine
+            self._position_meta[symbol] = {"entry_date": self.time, "entry_price": price}
             self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
