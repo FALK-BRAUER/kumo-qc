@@ -541,6 +541,9 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         # Gate: weekly chikou (current week close > 26 weeks ago)
         if not self._check_chikou_weekly(symbol):
             return False, "CHIKOU_WEEKLY"
+        # Gate: SPY 4-day close above weekly cloud
+        if not self._spy_gate_open:
+            return False, "SPY_GATE_CLOSED"
         # Gate: DI positive + min ADX 20
         ind = self._indicators.get(symbol)
         if ind:
