@@ -17,8 +17,9 @@ WINDOWS = [
     ("W1", "2026-04-07", "2026-04-11"),
     ("W2", "2026-04-14", "2026-04-18"),
     ("W3", "2026-04-22", "2026-04-25"),
+    ("W4", "2026-04-28", "2026-05-02"),
+    ("W5", "2026-05-05", "2026-05-09"),
     ("W6", "2026-05-12", "2026-05-16"),
-    ("FY2025", "2025-01-01", "2025-12-31"),
 ]
 
 
@@ -80,7 +81,7 @@ def delete_auto_backtest():
 def submit_backtest(name, start, end, compile_id):
     sy, sm, sd = start.split("-")
     ey, em, ed = end.split("-")
-    warmup = 200 if name in ("W1", "W2", "W3", "W4", "W5", "W6") else 750
+    warmup = 750  # HQ directive: use 750 for all windows
     r = qc_post('/backtests/create', {
         'projectId': PROJECT_ID,
         'compileId': compile_id,
