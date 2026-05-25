@@ -239,6 +239,9 @@ class BCTMinimalAlgorithm(QCAlgorithm):
     def _register_indicators(self, sym) -> None:
         d_ichi = self.ichimoku(sym, 9, 26, 26, 52, 26, 26)
         sma200 = self.sma(sym, 200)
+        adx = self.adx(sym, 9)
+        plus_di = adx.plus_directional_movement_indicator
+        minus_di = adx.minus_directional_movement_indicator
 
         w_ichi = IchimokuKinkoHyo(9, 26, 26, 52, 26, 26)
         w_close = RollingWindow[float](28)
@@ -260,6 +263,9 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             "w_ichi": w_ichi,
             "w_close": w_close,
             "sma200": sma200,
+            "adx": adx,
+            "plus_di": plus_di,
+            "minus_di": minus_di,
             "consolidator": consolidator,
         }
 
@@ -724,7 +730,7 @@ class BCTMinimalAlgorithm(QCAlgorithm):
                         continue
             # === END PRE-FILTER ===
             
-            result = score_symbol(self, symbol)
+            result = score_symbol(self, symbol, ind)
             if result is None or result["score"] < self.MIN_SCORE:
                 continue
             all_scores[symbol] = result["score"]
