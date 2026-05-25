@@ -925,6 +925,7 @@ class BCTMinimalAlgorithm(QCAlgorithm):
                 "original_quantity": quantity,
                 "adds_count": 0,
                 "highest_price": price,  # For trailing stop calculation
+                "ladder_trims": set(),  # Track which ladder rungs fired
             }
             
             atr_val = self._get_atr(symbol)
