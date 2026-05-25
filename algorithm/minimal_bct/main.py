@@ -32,6 +32,9 @@ class BCTMinimalAlgorithm(QCAlgorithm):
     MIN_PNL_PCT: float = 0.0
     PROFIT_VETO_PCT: float = 0.05
 
+    # Buy-stop fill parameter (Item 3: sT10e+R-B-v3)
+    BUY_STOP_PCT: float = 0.0075  # 0.75% above close
+
     UNIVERSE: list[str] = [
         # Core indices
         "SPY", "QQQ",
@@ -68,6 +71,9 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         self.atr_adaptive_score = self.get_parameter("atr_adaptive_score", str(self.ATR_ADAPTIVE_SCORE)).lower() == "true"
         self.min_pnl_pct = float(self.get_parameter("min_pnl_pct", str(self.MIN_PNL_PCT)))
         self.profit_veto_pct = float(self.get_parameter("profit_veto_pct", str(self.PROFIT_VETO_PCT)))
+
+        # Buy-stop fill parameter (Item 3: sT10e+R-B-v3)
+        self.buy_stop_pct = float(self.get_parameter("buy_stop_pct", str(self.BUY_STOP_PCT)))
 
         self.universe_settings.resolution = Resolution.DAILY
         self._indicators: dict = {}
@@ -295,9 +301,11 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             quantity = int(target_value / price)
             if quantity <= 0:
                 continue
-            self.market_on_open_order(symbol, quantity)
+            # Buy-stop fill: place stop order 0.75% above close (Item 3)
+            stop_price = price * (1 + self.buy_stop_pct)
+            self.stop_market_order(symbol, quantity, stop_price)
             # Track position entry metadata for rotation engine
             self._position_meta[symbol] = {"entry_date": self.time, "entry_price": price}
-            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
+            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|stop={stop_price:.2f}|mark={price:.2f}")
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
