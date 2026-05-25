@@ -320,6 +320,10 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         }
 
     def _seed_weekly(self, sym, w_ichi, w_close) -> None:
+        # QC built-in warmup feeds bars to registered consolidators automatically.
+        # Skip manual seeding during warmup to avoid blocking history storms.
+        if self.is_warming_up:
+            return
         hist = self.history(sym, 750, Resolution.DAILY)
         if hist is None or hist.empty:
             return
