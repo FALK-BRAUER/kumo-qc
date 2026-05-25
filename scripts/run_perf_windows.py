@@ -14,6 +14,10 @@ API_TOKEN = subprocess.check_output(['security', 'find-generic-password', '-s', 
 PROJECT_ID = 32034565
 
 WINDOWS = [
+    ("W1", "2026-04-07", "2026-04-11"),
+    ("W2", "2026-04-14", "2026-04-18"),
+    ("W3", "2026-04-22", "2026-04-25"),
+    ("W6", "2026-05-12", "2026-05-16"),
     ("FY2025", "2025-01-01", "2025-12-31"),
 ]
 
@@ -76,6 +80,7 @@ def delete_auto_backtest():
 def submit_backtest(name, start, end, compile_id):
     sy, sm, sd = start.split("-")
     ey, em, ed = end.split("-")
+    warmup = 200 if name in ("W1", "W2", "W3", "W4", "W5", "W6") else 750
     r = qc_post('/backtests/create', {
         'projectId': PROJECT_ID,
         'compileId': compile_id,
@@ -85,7 +90,7 @@ def submit_backtest(name, start, end, compile_id):
             'end_year': ey, 'end_month': em, 'end_day': ed,
             'cloud_exit': 'True',
             'weekly_kijun_exit': 'True',
-            'warmup_days': 182,
+            'warmup_days': warmup,
         },
     })
     if not r.get('success', False):

@@ -1,6 +1,6 @@
 {
-  "name": "perf-W1",
-  "backtestId": "2fb6c98b3293108e4f22e9a03a4d1c40",
+  "name": "perf-FY2025",
+  "backtestId": "551a0a0283e161b0381387a0ce80e19a",
   "projectId": 32034565,
   "sharpe": 0,
   "cagr": 0,
@@ -10,7 +10,7 @@
   "netProfit": 0,
   "sparkline": "",
   "completed": false,
-  "created": "2026-05-24 11:03:31",
+  "created": "2026-05-24 11:10:45",
   "projectName": "performance_bct",
   "algorithm_downloaded": true
 }

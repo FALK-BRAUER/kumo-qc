@@ -27,27 +27,8 @@ def delete_backtest(backtest_id):
     return r.get('success', False)
 
 def main():
-    # Delete old FY2025 b166eed8d02c1581a2676875f7f2e3d2
-    result = delete_backtest("b166eed8d02c1581a2676875f7f2e3d2")
-    print(f"Delete FY2025 old: {result}")
+    result = delete_backtest("99d4c6b7e5ad81ef4e4a2a4c0116ead9")
+    print(f"Delete W6: {result}")
     
-    # Delete W1 1a20f110b4974b69e2b224cca61ae4fe (running)
-    result = delete_backtest("1a20f110b4974b69e2b224cca61ae4fe")
-    print(f"Delete W1: {result}")
-    
-    # Delete FY2025 0a064ccbb4395cc2fea647b909a46899 (zero trades)
-    result = delete_backtest("0a064ccbb4395cc2fea647b909a46899")
-    print(f"Delete FY2025 zero trades: {result}")
-    
-    # Delete FY2025 551a0a0283e161b0381387a0ce80e19a (new running)
-    result = delete_backtest("551a0a0283e161b0381387a0ce80e19a")
-    print(f"Delete FY2025 new: {result}")
-
 if __name__ == "__main__":
-    # Add stray W1 ID
-    result = delete_backtest("9c05fac5d114f265054322e90428844a")
-    print(f"Delete stray W1: {result}")
-    
-    # Delete running FY2025
-    result = delete_backtest("1051b475c856baaf35973221512bf281")
-    print(f"Delete FY2025 stuck: {result}")
+    main()

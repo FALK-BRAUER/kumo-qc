@@ -1,7 +1,7 @@
-# perf-W1
+# perf-FY2025
 **Project:** 32034565
-**Run date:** 2026-05-24 11:03:31
-**Backtest ID:** 2fb6c98b3293108e4f22e9a03a4d1c40
+**Run date:** 2026-05-24 11:10:45
+**Backtest ID:** 551a0a0283e161b0381387a0ce80e19a
 
 ## Key Metrics
 | Metric | Value |

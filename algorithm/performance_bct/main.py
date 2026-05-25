@@ -43,7 +43,10 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.set_end_date(ey, em, ed)
         self.set_cash(100_000)
         self.set_benchmark("SPY")
-        self.set_warmup(timedelta(days=750))
+        
+        warmup_days = int(self.get_parameter("warmup_days", "750"))
+        self.set_warmup(timedelta(days=warmup_days))
+        self.warmup_days = warmup_days
         
         # Exit condition parameter overrides
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"

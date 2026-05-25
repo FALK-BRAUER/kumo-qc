@@ -56,7 +56,7 @@ def submit_backtest(name, start, end, compile_id):
             'end_year': ey, 'end_month': em, 'end_day': ed,
             'cloud_exit': 'True',
             'weekly_kijun_exit': 'True',
-            'warmup_days.*182',
+            'warmup_days': 200,
         },
     })
     bt_id = r.get('backtestId') or (r.get('backtest', {}) or {}).get('backtestId')

@@ -36,29 +36,31 @@ def qc_post(path, body, user_id, api_token):
 user_id = get_cred("qc-user-id", "kumo-qc")
 api_token = get_cred("qc-api-token", "kumo-qc")
 
-backtest_id = "b166eed8d02c1581a2676875f7f2e3d2"
-project_id = 32034565
+backtest_ids = [
+    # Week 4
+    "be3e8b65c6d578d9e287edd0a2dde8ba",
+    # Week 5
+    "3e7eba1118f70470a2ed6973a7861b7a",
+    # Week 1
+    "24b9bc4ecad772cec83c41d07783da15",
+    # FY2025
+    "0a064ccbb4395cc2fea647b909a46899",
+    # Baseline exits 2020-2026
+    "c58e0e99e0322e6230b51a86e0179b43",
+]
 
-response = qc_post("/backtests/read", {"projectId": project_id, "backtestId": backtest_id}, user_id, api_token)
-if not response.get("success"):
-    print(f"Error fetching {backtest_id}: {response.get('errors', ['unknown'])}")
-    sys.exit(1)
-
-bt = response.get("backtest", {})
-completed = bt.get("completed", False)
-status = bt.get("status", "")
-progress = bt.get("progress", 0)
-name = bt.get("name", "")
-print(f"{name} ({backtest_id}) - completed={completed}, status={status}, progress={progress}")
-
-if completed:
+for bt_id in backtest_ids:
+    response = qc_post("/backtests/read", {"projectId": 32034565, "backtestId": bt_id}, user_id, api_token)
+    if not response.get("success"):
+        print(f"Error fetching {bt_id}: {response.get('errors', ['unknown'])}")
+        continue
+    bt = response.get("backtest", {})
+    name = bt.get("name", "")
+    completed = bt.get("completed", False)
     stats = bt.get("statistics", {})
     sharpe = stats.get("Sharpe Ratio", 0)
     trades = stats.get("Total Orders", 0)
     net_profit = stats.get("Net Profit", 0)
     cagr = stats.get("Compounding Annual Return", 0)
     drawdown = stats.get("Drawdown", 0)
-    print(f"Sharpe: {sharpe}, Trades: {trades}, NetProfit: {net_profit}, CAGR: {cagr}, Drawdown: {drawdown}")
-    # Write stats to file
-    with open(f"qc/FY2025/stats.json", "w") as f:
-        json.dump(bt, f, indent=2)
+    print(f"{bt_id} ({name}) - completed={completed}, Sharpe={sharpe}, Trades={trades}, NetProfit={net_profit}, CAGR={cagr}, Drawdown={drawdown}")

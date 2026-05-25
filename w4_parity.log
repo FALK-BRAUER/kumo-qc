@@ -1,0 +1,6 @@
+Running W4 parity test (QC cloud Sharpe 16.118, 10 trades)
+Algorithm path: algorithm/performance_bct
+[W4] Starting: 2026-04-28 → 2026-05-02
+[W4] Command: ['lean', 'backtest', 'algorithm/performance_bct', '--output', 'results/W4', '--lean-config', 'lean-api.json', '--parameter', 'start_year', '2026', '--parameter', 'start_month', '04', '--parameter', 'start_day', '28', '--parameter', 'end_year', '2026', '--parameter', 'end_month', '05', '--parameter', 'end_day', '02']
+[W4] 20260524 10:33:09.323 TRACE:: Composer(): Loading Assemblies from
+[W4] Completed with exit code -15
