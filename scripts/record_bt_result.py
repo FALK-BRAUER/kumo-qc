@@ -1,16 +1,55 @@
 #!/usr/bin/env python3
-"""Record backtest result to cloud_bt_results.json store."""
+"""Record backtest result to kumo-qc.db SQLite store."""
 
 import json
 import sys
 import os
 import subprocess
+import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-# Path to the results store
-RESULTS_PATH = Path(__file__).parent.parent / "data" / "cloud_bt_results.json"
+# Path to the SQLite database
+DB_PATH = Path(__file__).parent.parent / "data" / "kumo-qc.db"
+
+
+def get_db_connection() -> sqlite3.Connection:
+    """Get SQLite database connection."""
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db() -> None:
+    """Initialize database schema if not exists."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS bt_runs (
+        bt_id TEXT PRIMARY KEY,
+        submitted_at TEXT,
+        commit_sha TEXT,
+        window TEXT,
+        warmup_days INTEGER,
+        parameters TEXT,
+        status TEXT,
+        net_profit REAL,
+        sharpe REAL,
+        trades INTEGER,
+        win_rate REAL,
+        notes TEXT
+    )
+    ''')
+    
+    cursor.execute('''
+    CREATE INDEX IF NOT EXISTS idx_window_commit ON bt_runs(window, commit_sha)
+    ''')
+    
+    conn.commit()
+    conn.close()
 
 
 def get_git_commit_sha() -> str:
@@ -27,25 +66,6 @@ def get_git_commit_sha() -> str:
         return "unknown"
 
 
-def load_results() -> list[dict[str, Any]]:
-    """Load existing results from JSON file."""
-    if not RESULTS_PATH.exists():
-        return []
-    
-    try:
-        with open(RESULTS_PATH, "r") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, IOError):
-        return []
-
-
-def save_results(results: list[dict[str, Any]]) -> None:
-    """Save results back to JSON file."""
-    RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(RESULTS_PATH, "w") as f:
-        json.dump(results, f, indent=2)
-
-
 def record_result(
     bt_id: str,
     window: str,
@@ -58,7 +78,9 @@ def record_result(
     parameters: dict[str, Any] | None = None,
     notes: str = "",
 ) -> dict[str, Any]:
-    """Record a backtest result to the store."""
+    """Record a backtest result to the SQLite store."""
+    
+    init_db()
     
     record = {
         "bt_id": bt_id,
@@ -66,20 +88,40 @@ def record_result(
         "commit_sha": get_git_commit_sha(),
         "window": window,
         "warmup_days": warmup_days,
-        "parameters": parameters or {},
+        "parameters": json.dumps(parameters) if parameters else "{}",
         "status": status,
-        "metrics": {
-            "net_profit": net_profit,
-            "sharpe": sharpe,
-            "trades": trades,
-            "win_rate": win_rate,
-        },
+        "net_profit": net_profit,
+        "sharpe": sharpe,
+        "trades": trades,
+        "win_rate": win_rate,
         "notes": notes,
     }
     
-    results = load_results()
-    results.append(record)
-    save_results(results)
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+    INSERT OR REPLACE INTO bt_runs 
+    (bt_id, submitted_at, commit_sha, window, warmup_days, parameters, status, 
+     net_profit, sharpe, trades, win_rate, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (
+        record["bt_id"],
+        record["submitted_at"],
+        record["commit_sha"],
+        record["window"],
+        record["warmup_days"],
+        record["parameters"],
+        record["status"],
+        record["net_profit"],
+        record["sharpe"],
+        record["trades"],
+        record["win_rate"],
+        record["notes"],
+    ))
+    
+    conn.commit()
+    conn.close()
     
     return record
 
@@ -89,21 +131,57 @@ def check_existing_result(window: str, commit_sha: str | None = None) -> dict[st
     if commit_sha is None:
         commit_sha = get_git_commit_sha()
     
-    results = load_results()
+    init_db()
     
-    for result in results:
-        if result.get("window") == window and result.get("commit_sha") == commit_sha:
-            if result.get("status") == "completed":
-                return result
+    conn = get_db_connection()
+    cursor = conn.cursor()
     
+    cursor.execute('''
+    SELECT * FROM bt_runs 
+    WHERE window = ? AND commit_sha = ? AND status = 'completed'
+    LIMIT 1
+    ''', (window, commit_sha))
+    
+    row = cursor.fetchone()
+    conn.close()
+    
+    if row:
+        return dict(row)
     return None
+
+
+def get_all_results(window: str | None = None, commit_sha: str | None = None) -> list[dict[str, Any]]:
+    """Get all results, optionally filtered by window and/or commit."""
+    init_db()
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    query = "SELECT * FROM bt_runs WHERE 1=1"
+    params = []
+    
+    if window:
+        query += " AND window = ?"
+        params.append(window)
+    
+    if commit_sha:
+        query += " AND commit_sha = ?"
+        params.append(commit_sha)
+    
+    query += " ORDER BY submitted_at DESC"
+    
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    conn.close()
+    
+    return [dict(row) for row in rows]
 
 
 def main():
     """CLI entry point for recording backtest results."""
     import argparse
     
-    parser = argparse.ArgumentParser(description="Record backtest result to store")
+    parser = argparse.ArgumentParser(description="Record backtest result to SQLite store")
     parser.add_argument("--bt-id", required=True, help="Backtest ID")
     parser.add_argument("--window", required=True, help="Window identifier (e.g., W1-2025)")
     parser.add_argument("--warmup-days", type=int, default=750, help="Warmup days parameter")
@@ -115,20 +193,35 @@ def main():
     parser.add_argument("--parameters", type=str, default="{}", help="JSON string of additional parameters")
     parser.add_argument("--notes", default="", help="Additional notes")
     parser.add_argument("--check", action="store_true", help="Check for existing result instead of recording")
+    parser.add_argument("--list", action="store_true", help="List all results for window")
     
     args = parser.parse_args()
     
-    if args.check:
+    if args.list:
+        # List mode: show all results for window
+        results = get_all_results(window=args.window)
+        if results:
+            print(f"Found {len(results)} result(s) for {args.window}:")
+            for r in results:
+                status_icon = "✓" if r["status"] == "completed" else "✗"
+                print(f"  [{status_icon}] {r['bt_id'][:12]}... ({r['commit_sha'][:8]}) "
+                      f"Sharpe: {r['sharpe']:.2f}, Trades: {r['trades']}")
+        else:
+            print(f"No results found for {args.window}")
+        sys.exit(0)
+    
+    elif args.check:
         # Check mode: verify if result exists
         existing = check_existing_result(args.window)
         if existing:
-            print(f"EXISTS: {existing['bt_id']} (Sharpe: {existing['metrics']['sharpe']}, Trades: {existing['metrics']['trades']})")
+            print(f"EXISTS: {existing['bt_id']} (Sharpe: {existing['sharpe']:.2f}, Trades: {existing['trades']})")
             sys.exit(0)
         else:
             print("NOT_FOUND")
             sys.exit(1)
+    
     else:
-        # Record mode: append result to store
+        # Record mode: insert/update row in database
         params = json.loads(args.parameters) if args.parameters else {}
         
         record = record_result(
@@ -145,7 +238,7 @@ def main():
         )
         
         print(f"RECORDED: {record['bt_id']} @ {record['commit_sha'][:8]} ({record['window']})")
-        print(f"  Sharpe: {record['metrics']['sharpe']}, Trades: {record['metrics']['trades']}")
+        print(f"  Sharpe: {record['sharpe']:.2f}, Trades: {record['trades']}, Status: {record['status']}")
 
 
 if __name__ == "__main__":
