@@ -271,11 +271,23 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         self._spy_gate_open: bool = False
 
         self.universe_settings.resolution = Resolution.DAILY
-        self.universe_settings.asynchronous = True
         self._indicators: dict = {}
         self._position_meta: dict = {}  # Track entry date, avg price per position
         self.add_equity("SPY", Resolution.DAILY)  # needed for benchmark + SPY gate
-        self.add_universe(self._universe_filter)
+        local_tickers = self._load_universe()
+        here = Path(__file__).parent.parent.parent
+        if (here / "data/equity/usa/daily").exists():
+            # Local LEAN data present — static load, no asset cap
+            for ticker in local_tickers:
+                try:
+                    sym = self.add_equity(ticker, Resolution.DAILY).symbol
+                    self._register_indicators(sym)
+                except Exception:
+                    pass
+        else:
+            # Cloud — dynamic universe (cap 300, fundamental filter)
+            self.universe_settings.asynchronous = True
+            self.add_universe(self._universe_filter)
 
         self.schedule.on(
             self.date_rules.every_day(),
