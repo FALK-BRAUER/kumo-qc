@@ -57,118 +57,69 @@ class BCTMinimalAlgorithm(QCAlgorithm):
     VIX_THRESHOLD: float = 30.0
     VIX_SIZE_MULTIPLIER: float = 0.50  # 50% size when VIX > 30
 
-    # Merged universe: 545 tickers (503 S&P 500 + 95 BCT, deduped)
+    # 607 tickers (kumo-trader curated sim list)
     UNIVERSE: list[str] = [
-        # Group 1
-        "A", "AAL", "AAPL", "ABBV", "ABNB", "ABT", "ACGL", "ACN", "ADBE", "ADI",
-        # Group 2
-        "ADM", "ADP", "ADSK", "AEE", "AEP", "AES", "AFL", "AIG", "AIQ", "AIZ",
-        # Group 3
-        "AJG", "AKAM", "ALB", "ALGN", "ALL", "ALLE", "AMAT", "AMCR", "AMD", "AME",
-        # Group 4
-        "AMGN", "AMP", "AMT", "AMZN", "ANET", "AON", "AOS", "APA", "APD", "APH",
-        # Group 5
-        "APO", "APP", "APTV", "ARE", "ARES", "ARKQ", "ATO", "AVB", "AVGO", "AVY",
-        # Group 6
+        "A", "AAPL", "ABBV", "ABNB", "ABT", "ACGL", "ACN", "ADBE", "ADI", "ADM",
+        "ADP", "ADSK", "AEE", "AEP", "AES", "AFL", "AIG", "AIZ", "AJG", "AKAM",
+        "ALB", "ALGN", "ALL", "ALLE", "ALNY", "AMAT", "AMCR", "AMD", "AME", "AMGN",
+        "AMP", "AMT", "AMZN", "ANET", "AON", "AOS", "APA", "APD", "APH", "APO",
+        "APP", "APTV", "ARE", "ARES", "ARM", "ASML", "ATO", "AVB", "AVGO", "AVY",
         "AWK", "AXON", "AXP", "AZO", "BA", "BAC", "BALL", "BAX", "BBY", "BDX",
-        # Group 7
         "BEN", "BF-B", "BG", "BIIB", "BK", "BKNG", "BKR", "BLDR", "BLK", "BMY",
-        # Group 8
-        "BOTZ", "BR", "BRK-B", "BRO", "BSX", "BUG", "BX", "BXP", "C", "CAG",
-        # Group 9
-        "CAH", "CARR", "CASY", "CAT", "CB", "CBOE", "CBRE", "CCI", "CCL", "CDNS",
-        # Group 10
-        "CDW", "CEG", "CF", "CFG", "CGNX", "CHD", "CHRW", "CHTR", "CI", "CIBR",
-        # Group 11
-        "CIEN", "CINF", "CL", "CLX", "CMCSA", "CME", "CMG", "CMI", "CMS", "CNC",
-        # Group 12
-        "CNP", "COF", "COHR", "COIN", "COO", "COP", "COPX", "COR", "COST", "CPAY",
-        # Group 13
-        "CPB", "CPRT", "CPT", "CRH", "CRL", "CRM", "CRWD", "CSCO", "CSGP", "CSX",
-        # Group 14
-        "CTAS", "CTSH", "CTVA", "CVNA", "CVS", "CVX", "D", "DAL", "DASH", "DD",
-        # Group 15
-        "DDOG", "DE", "DECK", "DELL", "DG", "DGX", "DHI", "DHR", "DIS", "DLR",
-        # Group 16
-        "DLTR", "DOC", "DOV", "DOW", "DPZ", "DRI", "DTE", "DUK", "DVA", "DVN",
-        # Group 17
-        "DXCM", "EA", "EBAY", "ECL", "ED", "EFX", "EG", "EIX", "EL", "ELV",
-        # Group 18
-        "EME", "EMR", "EOG", "EPAM", "EQIX", "EQR", "EQT", "ERIE", "ES", "ESS",
-        # Group 19
-        "ETN", "ETR", "EVRG", "EW", "EWJ", "EXC", "EXE", "EXPD", "EXPE", "EXR",
-        # Group 20
-        "F", "FANG", "FAST", "FCX", "FDS", "FDX", "FE", "FFIV", "FICO", "FIS",
-        # Group 21
-        "FISV", "FITB", "FIX", "FOX", "FOXA", "FRT", "FSLR", "FTNT", "FTV", "FXI",
-        # Group 22
-        "GD", "GDDY", "GDX", "GE", "GEHC", "GEN", "GEV", "GILD", "GIS", "GL",
-        # Group 23
-        "GLD", "GLW", "GM", "GNRC", "GOOG", "GOOGL", "GPC", "GPN", "GRID", "GRMN",
-        # Group 24
-        "GS", "GWW", "HACK", "HAL", "HAS", "HBAN", "HCA", "HD", "HIG", "HII",
-        # Group 25
-        "HLT", "HON", "HOOD", "HPE", "HPQ", "HRL", "HSIC", "HST", "HSY", "HUBB",
-        # Group 26
-        "HUBS", "HUM", "HWM", "IBB", "IBIT", "IBKR", "IBM", "ICE", "ICLN", "IDXX",
-        # Group 27
-        "IEX", "IFF", "INCY", "INTC", "INTU", "INVH", "IP", "IQV", "IR", "IRBO",
-        # Group 28
-        "IRM", "ISRG", "IT", "ITA", "ITW", "IVZ", "IWM", "J", "JBHT", "JBL",
-        # Group 29
-        "JCI", "JKHY", "JNJ", "JPM", "KDP", "KEY", "KEYS", "KHC", "KIM", "KKR",
-        # Group 30
-        "KLAC", "KMB", "KMI", "KO", "KR", "KVUE", "KWEB", "L", "LDOS", "LEN",
-        # Group 31
-        "LH", "LHX", "LII", "LIN", "LITE", "LLY", "LMT", "LNT", "LOW", "LRCX",
-        # Group 32
-        "LULU", "LUV", "LVS", "LYB", "LYV", "MA", "MAA", "MAR", "MAS", "MCD",
-        # Group 33
-        "MCHP", "MCK", "MCO", "MDLZ", "MDT", "MET", "META", "MGM", "MKC", "MLM",
-        # Group 34
-        "MMM", "MNST", "MO", "MOS", "MPC", "MPWR", "MRK", "MRNA", "MRSH", "MRVL",
-        # Group 35
-        "MS", "MSCI", "MSFT", "MSI", "MSTR", "MTB", "MTD", "MU", "NCLH", "NDAQ",
-        # Group 36
-        "NDSN", "NEE", "NEM", "NET", "NFLX", "NI", "NKE", "NOC", "NOW", "NRG",
-        # Group 37
-        "NSC", "NTAP", "NTRS", "NUE", "NVDA", "NVR", "NWS", "NWSA", "NXPI", "O",
-        # Group 38
-        "ODFL", "OKE", "OMC", "ON", "ORCL", "ORLY", "OTIS", "OXY", "PANW", "PAYX",
-        # Group 39
-        "PCAR", "PCG", "PEG", "PEP", "PFE", "PFG", "PG", "PGR", "PH", "PHM",
-        # Group 40
-        "PKG", "PLD", "PLTR", "PM", "PNC", "PNR", "PNW", "PODD", "POOL", "PPG",
-        # Group 41
-        "PPL", "PRU", "PSA", "PSKY", "PSX", "PTC", "PWR", "PYPL", "Q", "QCOM",
-        # Group 42
-        "QQQ", "RCL", "REG", "REGN", "RF", "RJF", "RL", "RMD", "ROBO", "ROBT",
-        # Group 43
-        "ROK", "ROL", "ROP", "ROST", "RSG", "RTX", "RVTY", "SATS", "SBAC", "SBUX",
-        # Group 44
-        "SCHW", "SHW", "SJM", "SLB", "SLV", "SMCI", "SMH", "SNA", "SNDK", "SNOW",
-        # Group 45
-        "SNPS", "SO", "SOLV", "SPG", "SPGI", "SPY", "SRE", "STE", "STLD", "STT",
-        # Group 46
-        "STX", "STZ", "SW", "SWK", "SWKS", "SYF", "SYK", "SYY", "T", "TAP",
-        # Group 47
-        "TDG", "TDY", "TECH", "TEL", "TER", "TFC", "TGT", "TJX", "TKO", "TMO",
-        # Group 48
-        "TMUS", "TPL", "TPR", "TRGP", "TRMB", "TROW", "TRV", "TSCO", "TSLA", "TSM",
-        # Group 49
-        "TSN", "TT", "TTD", "TTWO", "TXN", "TXT", "TYL", "UAL", "UBER", "UDR",
-        # Group 50
-        "UHS", "ULTA", "UNH", "UNP", "UPS", "URI", "URNM", "USB", "USO", "V",
-        # Group 51
-        "VEEV", "VICI", "VLO", "VLTO", "VMC", "VRSK", "VRSN", "VRT", "VRTX", "VST",
-        # Group 52
-        "VTR", "VTRS", "VZ", "WAB", "WAT", "WBD", "WDAY", "WDC", "WEC", "WELL",
-        # Group 53
-        "WFC", "WM", "WMB", "WMT", "WRB", "WSM", "WST", "WTW", "WY", "WYNN",
-        # Group 54
-        "XAR", "XBI", "XEL", "XLE", "XLF", "XLK", "XME", "XOM", "XYL", "XYZ",
-        # Group 55
-        "YUM", "ZBH", "ZBRA", "ZS", "ZTS",
+        "BR", "BRK-B", "BRO", "BSX", "BX", "BXP", "C", "CAG", "CAH", "CARR",
+        "CASY", "CAT", "CB", "CBOE", "CBRE", "CCEP", "CCI", "CCL", "CDNS", "CDW",
+        "CEG", "CF", "CFG", "CHD", "CHRW", "CHTR", "CI", "CIEN", "CINF", "CL",
+        "CLX", "CMCSA", "CME", "CMG", "CMI", "CMS", "CNC", "CNP", "COF", "COHR",
+        "COIN", "COO", "COP", "COR", "COST", "CPAY", "CPB", "CPRT", "CPT", "CRH",
+        "CRL", "CRM", "CRWD", "CSCO", "CSGP", "CSX", "CTAS", "CTSH", "CTVA", "CVNA",
+        "CVS", "CVX", "D", "DAL", "DASH", "DD", "DDOG", "DE", "DECK", "DELL",
+        "DG", "DGX", "DHI", "DHR", "DIS", "DLR", "DLTR", "DOC", "DOV", "DOW",
+        "DPZ", "DRI", "DTE", "DUK", "DVA", "DVN", "DXCM", "EA", "EBAY", "ECL",
+        "ED", "EFX", "EG", "EIX", "EL", "ELV", "EME", "EMR", "EOG", "EPAM",
+        "EQIX", "EQR", "EQT", "ERIE", "ES", "ESS", "ETN", "ETR", "EVRG", "EW",
+        "EXC", "EXE", "EXPD", "EXPE", "EXR", "F", "FANG", "FAST", "FCX", "FDS",
+        "FDX", "FE", "FER", "FFIV", "FICO", "FIS", "FISV", "FITB", "FIX", "FOX",
+        "FOXA", "FRT", "FSLR", "FTNT", "FTV", "GD", "GDDY", "GE", "GEHC", "GEN",
+        "GEV", "GILD", "GIS", "GL", "GLW", "GM", "GNRC", "GOOG", "GOOGL", "GPC",
+        "GPN", "GRMN", "GS", "GWW", "HAL", "HAS", "HBAN", "HCA", "HD", "HIG",
+        "HII", "HLT", "HON", "HOOD", "HPE", "HPQ", "HRL", "HSIC", "HST", "HSY",
+        "HUBB", "HUM", "HWM", "IBKR", "IBM", "ICE", "IDXX", "IEX", "IFF", "INCY",
+        "INSM", "INTC", "INTU", "INVH", "IP", "IQV", "IR", "IRM", "ISRG", "IT",
+        "ITW", "IVZ", "J", "JBHT", "JBL", "JCI", "JKHY", "JNJ", "JPM", "KDP",
+        "KEY", "KEYS", "KHC", "KIM", "KKR", "KLAC", "KMB", "KMI", "KO", "KR",
+        "KVUE", "L", "LDOS", "LEN", "LH", "LHX", "LII", "LIN", "LITE", "LLY",
+        "LMT", "LNT", "LOW", "LRCX", "LULU", "LUV", "LVS", "LYB", "LYV", "MA",
+        "MAA", "MAR", "MAS", "MCD", "MCHP", "MCK", "MCO", "MDLZ", "MDT", "MELI",
+        "MET", "META", "MGM", "MKC", "MLM", "MMM", "MNST", "MO", "MOS", "MPC",
+        "MPWR", "MRK", "MRNA", "MRSH", "MRVL", "MS", "MSCI", "MSFT", "MSI", "MSTR",
+        "MTB", "MTD", "MU", "NCLH", "NDAQ", "NDSN", "NEE", "NEM", "NFLX", "NI",
+        "NKE", "NOC", "NOW", "NRG", "NSC", "NTAP", "NTRS", "NUE", "NVDA", "NVR",
+        "NWS", "NWSA", "NXPI", "O", "ODFL", "OKE", "OMC", "ON", "ORCL", "ORLY",
+        "OTIS", "OXY", "PANW", "PAYX", "PCAR", "PCG", "PDD", "PEG", "PEP", "PFE",
+        "PFG", "PG", "PGR", "PH", "PHM", "PKG", "PLD", "PLTR", "PM", "PNC",
+        "PNR", "PNW", "PODD", "POOL", "PPG", "PPL", "PRU", "PSA", "PSKY", "PSX",
+        "PTC", "PWR", "PYPL", "Q", "QCOM", "RCL", "REG", "REGN", "RF", "RJF",
+        "RL", "RMD", "ROK", "ROL", "ROP", "ROST", "RSG", "RTX", "RVTY", "SATS",
+        "SBAC", "SBUX", "SCHW", "SHOP", "SHW", "SJM", "SLB", "SMCI", "SNA", "SNDK",
+        "SNPS", "SO", "SOLV", "SPG", "SPGI", "SRE", "STE", "STLD", "STT", "STX",
+        "STZ", "SW", "SWK", "SWKS", "SYF", "SYK", "SYY", "T", "TAP", "TDG",
+        "TDY", "TECH", "TEL", "TER", "TFC", "TGT", "TJX", "TKO", "TMO", "TMUS",
+        "TPL", "TPR", "TRGP", "TRI", "TRMB", "TROW", "TRV", "TSCO", "TSLA", "TSN",
+        "TT", "TTD", "TTWO", "TXN", "TXT", "TYL", "UAL", "UBER", "UDR", "UHS",
+        "ULTA", "UNH", "UNP", "UPS", "URI", "USB", "V", "VEEV", "VICI", "VLO",
+        "VLTO", "VMC", "VRSK", "VRSN", "VRT", "VRTX", "VST", "VTR", "VTRS", "VZ",
+        "WAB", "WAT", "WBD", "WDAY", "WDC", "WEC", "WELL", "WFC", "WM", "WMB",
+        "WMT", "WRB", "WSM", "WST", "WTW", "WY", "WYNN", "XEL", "XOM", "XYL",
+        "XYZ", "YUM", "ZBH", "ZBRA", "ZS", "ZTS", "SPY", "QQQ", "DIA", "IWM",
+        "VTI", "VOO", "XLB", "XLC", "XLE", "XLF", "XLI", "XLK", "XLP", "XLRE",
+        "XLU", "XLV", "XLY", "SMH", "SOXX", "SOXL", "BOTZ", "ARKQ", "ARKK", "ARKG",
+        "AIQ", "ROBO", "IRBO", "ROBT", "CIBR", "HACK", "BUG", "ITA", "XAR", "GRID",
+        "ICLN", "URNM", "TAN", "OIH", "IBB", "XBI", "GDX", "GDXJ", "COPX", "XME",
+        "IBIT", "GBTC", "VNQ", "IYR", "VXX", "EWJ", "EWG", "EWU", "EWZ", "EWY",
+        "INDA", "EWT", "EWA", "EWC", "EWL", "FXI", "KWEB", "MCHI", "VEA", "VWO",
+        "EEM", "ASML", "SAP", "NVO", "SHEL", "BP", "TTE", "AZN", "UBS", "DEO",
+        "BTI", "TSM", "BABA", "JD", "BIDU", "SE", "ARM", "TM", "SONY", "HMC",
+        "GRAB", "MELI", "NU", "SHOP", "TD", "RY", "PBR",
     ]
 
     @staticmethod
