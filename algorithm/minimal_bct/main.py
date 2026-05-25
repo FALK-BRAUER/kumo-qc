@@ -200,7 +200,7 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         self.warmup_days = warmup_days
 
         # Exit condition parameters (default: disabled for reference baseline)
-        self.cloud_exit_enabled = self.get_parameter("cloud_exit", "false").lower() == "true"
+        self.cloud_exit_enabled = self.get_parameter("cloud_exit", "true").lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", "false").lower() == "true"
 
         # Rotation engine parameters (Item 2: sT10e+R-B-v3)
