@@ -69,7 +69,10 @@ def _write_ticker_files(base: Path, ticker: str, rows: list[tuple]) -> None:
     with zipfile.ZipFile(zip_path, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr(csv_name, csv_blob)
 
-    (map_dir / f"{lean}.csv").write_text(f"19700101,{ticker},{ticker}\n", encoding="utf-8")
+    first_date = rows[0][1].replace("-", "") if rows else "20220103"
+    (map_dir / f"{lean}.csv").write_text(
+        f"{first_date},{lean},Q\n20501231,{lean},Q\n", encoding="utf-8"
+    )
     (factor_dir / f"{lean}.csv").write_text("19700101,1,1\n", encoding="utf-8")
 
 
