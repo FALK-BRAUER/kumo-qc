@@ -165,6 +165,16 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         "YUM", "ZBH", "ZBRA", "ZS", "ZTS",
     ]
 
+    def _load_universe(self) -> list[str]:
+        """Scan data/equity/usa/daily/ for .zip files → ticker list.
+        Falls back to hardcoded 545-ticker UNIVERSE if directory missing or empty."""
+        data_dir = Path("data/equity/usa/daily")
+        if data_dir.exists():
+            tickers = [p.stem.upper() for p in data_dir.glob("*.zip")]
+            if tickers:
+                return tickers
+        return list(self.UNIVERSE)  # fallback to hardcoded
+
     def initialize(self) -> None:
         self.set_time_zone("America/New_York")
         sy = int(self.get_parameter("start_year",  "2025"))
@@ -226,7 +236,7 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         self.universe_settings.resolution = Resolution.DAILY
         self._indicators: dict = {}
         self._position_meta: dict = {}  # Track entry date, avg price per position
-        for ticker in self.UNIVERSE:
+        for ticker in self._load_universe():
             sym = self.add_equity(ticker, Resolution.DAILY).symbol
             self._register_indicators(sym)
 
@@ -698,7 +708,7 @@ class BCTMinimalAlgorithm(QCAlgorithm):
 
         # Score all symbols for rotation decisions
         all_scores: dict[Symbol, int] = {}
-        for ticker in self.UNIVERSE:
+        for ticker in self._load_universe():
             funnel_total_candidates += 1
             try:
                 symbol = self.symbol(ticker)
