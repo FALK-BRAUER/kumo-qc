@@ -511,38 +511,48 @@ class BCTMinimalAlgorithm(QCAlgorithm):
 
     def _get_vix_size_multiplier(self) -> float:
         """Get position size multiplier based on VIX level."""
-        # DIAGNOSTIC: VIX tier disabled
+        try:
+            vix_symbol = self.symbol("VIX")
+            vix_price = float(self.securities[vix_symbol].price)
+            if vix_price > self.vix_threshold:
+                return self.vix_size_multiplier  # 50% size
+        except Exception:
+            pass
         return 1.0
-        # try:
-        #     vix_symbol = self.symbol("VIX")
-        #     vix_price = float(self.securities[vix_symbol].price)
-        #     if vix_price > self.vix_threshold:
-        #         return self.vix_size_multiplier  # 50% size
-        # except:
-        #     pass
-        # return 1.0  # Normal size
+
+    def _check_chikou_weekly(self, symbol: Symbol) -> bool:
+        """Weekly chikou: current week close > close 26 weeks ago."""
+        ind = self._indicators.get(symbol)
+        if ind is None:
+            return False
+        w_close = ind["w_close"]
+        if w_close.count < 27:
+            return False
+        return w_close[0] > w_close[26]
 
     def _check_all_entry_gates(self, symbol: Symbol) -> tuple[bool, str]:
         """Check all entry gates. Returns (passed, reason_if_failed)."""
-        # Kijun extension enabled, other gates disabled
-        # SPY gate disabled
-        # if not self._spy_gate_open:
-        #     return False, "SPY_GATE_CLOSED"
-        # Resistance proximity disabled
-        # if self._check_resistance_proximity(symbol):
-        #     return False, "RESISTANCE_PROXIMITY"
-        # Kijun extension enabled
+        # Gate: kijun extension
         if self._check_kijun_extension(symbol):
             return False, "KIJUN_EXTENSION"
-        # Chikou check disabled
-        # if not self._check_chikou(symbol):
-        #     return False, "CHIKOU_FAIL"
-        # Min price/volume disabled
-        # if not self._check_min_price_volume(symbol):
-        #     return False, "MIN_PRICE_VOLUME"
-        # Earnings skip disabled
-        # if not self._check_earnings(symbol):
-        #     return False, "EARNINGS_SKIP"
+        # Gate: resistance proximity (within 3% of 52w high)
+        if self._check_resistance_proximity(symbol):
+            return False, "RESISTANCE_PROXIMITY"
+        # Gate: weekly chikou (current week close > 26 weeks ago)
+        if not self._check_chikou_weekly(symbol):
+            return False, "CHIKOU_WEEKLY"
+        # Gate: DI positive + min ADX 20
+        ind = self._indicators.get(symbol)
+        if ind:
+            adx_ind = ind.get("adx")
+            plus_di = ind.get("plus_di")
+            minus_di = ind.get("minus_di")
+            if adx_ind and adx_ind.is_ready and plus_di and minus_di:
+                adx_val = float(adx_ind.current.value)
+                if adx_val < 20:
+                    return False, "ADX_TOO_LOW"
+                if float(plus_di.current.value) <= float(minus_di.current.value):
+                    return False, "DI_NOT_POSITIVE"
         return True, ""
 
     def _get_atr(self, symbol: Symbol) -> float | None:
