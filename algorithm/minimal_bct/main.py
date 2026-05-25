@@ -654,6 +654,9 @@ class BCTMinimalAlgorithm(QCAlgorithm):
                     return False, "ADX_TOO_LOW"
                 if float(plus_di.current.value) <= float(minus_di.current.value):
                     return False, "DI_NOT_POSITIVE"
+        # Gate: earnings avoidance (skip entry if within 5 days)
+        if self._days_to_next_earnings(symbol) < 5:
+            return False, "EARNINGS_SKIP"
         return True, ""
 
     def _get_atr(self, symbol: Symbol) -> float | None:
@@ -820,16 +823,21 @@ class BCTMinimalAlgorithm(QCAlgorithm):
     # ── Item 6: Earnings avoidance ────────────────────────────────────────────
 
     def _days_to_next_earnings(self, symbol: Symbol) -> int | None:
-        """Return days until next earnings report, or None if unknown/unavailable.
-
-        NOTE: Stubbed to 999 to disable earnings gates. QC's Fundamental object
-        uses 'earning_reports' (singular) not 'earnings_reports', and even then
-        may not provide reliable forward-looking dates. Re-enable with proper
-        earnings data integration in future iteration.
-        """
-        # STUB: Return 999 to effectively disable all earnings gates
-        # This unblocks cloud backtesting while we research proper earnings data
-        return 999
+        """Return days until next earnings report, or None if unknown/unavailable."""
+        try:
+            ticker = symbol.value
+            dates = self._earnings_dict.get(ticker, [])
+            if not dates:
+                return 999
+            today = self.time.strftime("%Y-%m-%d")
+            future = [d for d in dates if d >= today]
+            if not future:
+                return 999
+            next_date = min(future)
+            delta = (datetime.strptime(next_date, "%Y-%m-%d") - self.time).days
+            return max(delta, 0)
+        except Exception:
+            return 999
 
     def _rebalance(self) -> None:
         if self.is_warming_up:
