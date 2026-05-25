@@ -240,8 +240,8 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         d_ichi = self.ichimoku(sym, 9, 26, 26, 52, 26, 26)
         sma200 = self.sma(sym, 200)
         adx = self.adx(sym, 9)
-        plus_di = adx.plus_directional_movement_indicator
-        minus_di = adx.minus_directional_movement_indicator
+        plus_di = adx.PositiveDirectionalIndex
+        minus_di = adx.NegativeDirectionalIndex
 
         w_ichi = IchimokuKinkoHyo(9, 26, 26, 52, 26, 26)
         w_close = RollingWindow[float](28)
