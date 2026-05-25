@@ -400,6 +400,8 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         """Pre-compute daily returns for all active symbols once per OnData (GH #22 performance fix).
         Stores in self._returns_cache to avoid N×M history() calls per rotation.
         """
+        if self.is_warming_up:
+            return
         self._returns_cache: dict[Symbol, np.ndarray] = {}
         for symbol in list(self._indicators.keys()):
             try:
