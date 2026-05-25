@@ -25,7 +25,14 @@ class BCTMinimalAlgorithm(QCAlgorithm):
     POSITION_PCT: float = 0.10
     MIN_SCORE: int = 7
 
-    UNIVERSE: list[str] = ["SPY", "QQQ", "AAPL"]
+    UNIVERSE: list[str] = [
+        # Core indices
+        "SPY", "QQQ",
+        # Large-cap tech/growth
+        "AAPL", "MSFT", "NVDA", "AMZN", "META", "TSLA", "GOOGL", "NFLX",
+        # Sector ETFs
+        "SMH", "XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLB", "XLU",
+    ]
 
     def initialize(self) -> None:
         self.set_time_zone("America/New_York")
