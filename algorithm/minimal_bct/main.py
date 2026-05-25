@@ -233,6 +233,11 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         self.vix_threshold = float(self.get_parameter("vix_threshold", str(self.VIX_THRESHOLD)))
         self.vix_size_multiplier = float(self.get_parameter("vix_size_multiplier", str(self.VIX_SIZE_MULTIPLIER)))
 
+        # Earnings avoidance parameters (Item 6: disabled via stub)
+        self.adaptive_earnings_enabled = False
+        self.adaptive_earnings_gain_threshold = 0.12
+        self.adaptive_earnings_exit_days = 9
+
         # Track SPY gate state (4-day confirmation)
         self._spy_above_cloud_days: int = 0
         self._spy_gate_open: bool = False
