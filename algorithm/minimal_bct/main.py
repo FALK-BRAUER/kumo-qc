@@ -39,6 +39,8 @@ class BCTMinimalAlgorithm(QCAlgorithm):
     MIN_HOLD_DAYS: int = 1
     MIN_PNL_PCT: float = 0.0
     PROFIT_VETO_PCT: float = 0.05
+    MAX_CORR: float = 0.75  # GH #22: skip rotation if correlation > 0.75
+    PROFIT_ALPHA: float = 0.0  # GH #22: 0.0 = use binary veto, >0 = continuous multiplier
 
     # Buy-stop fill parameter (Item 3: sT10e+R-B-v3)
     BUY_STOP_PCT: float = 0.0075  # 0.75% above close
@@ -252,6 +254,8 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         self.min_hold_days = int(self.get_parameter("min_hold_days", str(self.MIN_HOLD_DAYS)))
         self.min_pnl_pct = float(self.get_parameter("min_pnl_pct", str(self.MIN_PNL_PCT)))
         self.profit_veto_pct = float(self.get_parameter("profit_veto_pct", str(self.PROFIT_VETO_PCT)))
+        self.max_corr = float(self.get_parameter("max_corr", str(self.MAX_CORR)))  # GH #22
+        self.profit_alpha = float(self.get_parameter("profit_alpha", str(self.PROFIT_ALPHA)))  # GH #22
 
         # Buy-stop fill parameter (Item 3: sT10e+R-B-v3)
         self.buy_stop_pct = float(self.get_parameter("buy_stop_pct", str(self.BUY_STOP_PCT)))
@@ -288,6 +292,12 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         self._indicators: dict = {}
         self._position_meta: dict = {}  # Track entry date, avg price per position
         self.add_equity("SPY", Resolution.DAILY)  # needed for benchmark + SPY gate
+        
+        # Register SPY ATR indicators for atr_adaptive_score (GH #21)
+        spy_sym = self.symbol("SPY")
+        self._spy_atr_14 = self.atr(spy_sym, 14)
+        self._spy_atr_252 = self.atr(spy_sym, 252)
+        
         local_tickers = self._load_universe()
         if self._find_local_data_dir() is not None:
             # Local LEAN data present — static load, no asset cap
@@ -386,10 +396,51 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             return 0
         return (self.time - entry_date).days
 
-    def _should_rotate(self, symbol: Symbol, current_score: int, best_score: int) -> bool:
+    def _update_returns_cache(self) -> None:
+        """Pre-compute daily returns for all active symbols once per OnData (GH #22 performance fix).
+        Stores in self._returns_cache to avoid N×M history() calls per rotation.
+        """
+        self._returns_cache: dict[Symbol, np.ndarray] = {}
+        for symbol in list(self._indicators.keys()):
+            try:
+                hist = self.history(symbol, 61, Resolution.DAILY)  # 61 bars for 60 returns
+                if hist is None or hist.empty or len(hist) < 2:
+                    continue
+                if isinstance(hist.index, pd.MultiIndex):
+                    hist = hist.droplevel(0)
+                closes = hist['close'].values if 'close' in hist.columns else hist['Close'].values
+                if len(closes) < 2:
+                    continue
+                returns = np.diff(closes) / closes[:-1]
+                self._returns_cache[symbol] = returns
+            except Exception:
+                continue
+
+    def _get_correlation(self, symbol1: Symbol, symbol2: Symbol) -> float:
+        """Calculate rolling correlation between two symbols from pre-computed cache (GH #22).
+        Falls back to 0.0 if either symbol not in cache.
+        """
+        ret1 = self._returns_cache.get(symbol1)
+        ret2 = self._returns_cache.get(symbol2)
+        if ret1 is None or ret2 is None or len(ret1) < 2 or len(ret2) < 2:
+            return 0.0
+        # Align to minimum length
+        min_len = min(len(ret1), len(ret2))
+        if min_len < 2:
+            return 0.0
+        try:
+            corr = np.corrcoef(ret1[-min_len:], ret2[-min_len:])[0, 1]
+            return corr if not np.isnan(corr) else 0.0
+        except Exception:
+            return 0.0
+
+    def _should_rotate(self, symbol: Symbol, current_score: int, best_score: int, candidate_symbol: Symbol = None) -> bool:
         """
         Rotation engine: determine if we should rotate out of current position.
         Returns True if rotation criteria met.
+        Implements atr_adaptive_score (GH #21): effective_ratio scales up to 2x in high vol.
+        Implements max_corr (GH #22): skip if correlation > 0.75.
+        Implements profit_alpha (GH #22): continuous multiplier when > 0.
         """
         # Check minimum hold period
         hold_days = self._get_hold_days(symbol)
@@ -400,13 +451,39 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         if best_score <= 0 or current_score <= 0:
             return False
         score_ratio = best_score / current_score if current_score > 0 else float('inf')
-        if score_ratio < self.score_ratio_threshold:
-            return False
-
-        # Profit veto: don't rotate if position is profitable above threshold
+        
+        # ATR-adaptive score ratio (GH #21): scale up in high volatility periods
+        # effective_ratio = score_ratio * (1.0 + scale) where scale = min(max(atr_14/atr_252 - 1.0, 0.0), 1.0)
+        # Max 2x multiplier when SPY ATR-14 is 2x ATR-252 (extreme volatility)
+        effective_ratio = score_ratio
+        if hasattr(self, '_spy_atr_14') and hasattr(self, '_spy_atr_252'):
+            if self._spy_atr_14.is_ready and self._spy_atr_252.is_ready:
+                atr_14 = float(self._spy_atr_14.current.value)
+                atr_252 = float(self._spy_atr_252.current.value)
+                if atr_252 > 0:
+                    atr_ratio = atr_14 / atr_252
+                    scale = min(max(atr_ratio - 1.0, 0.0), 1.0)
+                    effective_ratio = score_ratio * (1.0 + scale)
+        
+        # GH #22: profit_alpha logic - continuous multiplier when > 0, otherwise binary veto
         pnl_pct = self._get_position_pnl_pct(symbol)
-        if pnl_pct > self.profit_veto_pct:
-            return False
+        if self.profit_alpha > 0.0:
+            # Continuous threshold: higher profit = harder to evict
+            effective_threshold = max(1.0, 1.0 + self.profit_alpha * pnl_pct)
+            if effective_ratio < effective_threshold * self.score_ratio_threshold:
+                return False
+        else:
+            # Binary veto (original logic)
+            if effective_ratio < self.score_ratio_threshold:
+                return False
+            if pnl_pct > self.profit_veto_pct:
+                return False
+
+        # GH #22: max_corr check - skip rotation if candidate correlation with any held position > max_corr
+        if candidate_symbol is not None and self.max_corr < 1.0:
+            corr = self._get_correlation(candidate_symbol, symbol)
+            if abs(corr) > self.max_corr:
+                return False
 
         # Minimum PnL check: only rotate losers or small gains
         if pnl_pct < self.min_pnl_pct:
@@ -852,6 +929,11 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         funnel_reach_sizing = 0
         funnel_orders_submitted = 0
 
+        # GH #22: Pre-compute returns cache for correlation checks (performance optimization)
+        # Avoids N×M history() calls during rotation
+        if self.max_corr < 1.0:
+            self._update_returns_cache()
+        
         # Score all symbols for rotation decisions
         all_scores: dict[Symbol, int] = {}
         for symbol in list(self._indicators.keys()):
@@ -916,6 +998,15 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             price = float(self.securities[symbol].price)
             if price <= 0:
                 continue
+            
+            # GH #22: max_corr check - skip candidate if correlation with any held position > max_corr
+            if self.max_corr < 1.0:
+                held_positions = [s for s, h in self.portfolio.items() if h.invested]
+                if held_positions:
+                    max_correlation = max(abs(self._get_correlation(symbol, held_sym)) for held_sym in held_positions)
+                    if max_correlation > self.max_corr:
+                        self.log(f"GATE_BLOCK|{date_str}|{symbol.value}|reason=CORR_TOO_HIGH|corr={max_correlation:.2f}|max={self.max_corr}")
+                        continue
             
             # ── Item 6: Earnings entry gate ────────────────────────────────
             days_out = self._days_to_next_earnings(symbol)
