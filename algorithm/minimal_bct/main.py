@@ -32,7 +32,7 @@ class BCTMinimalAlgorithm(QCAlgorithm):
 
     MAX_POSITIONS: int = 10
     POSITION_PCT: float = 0.10
-    MIN_SCORE: int = 7
+    MIN_SCORE: int = 6
 
     # Rotation engine parameters (Item 2: sT10e+R-B-v3)
     SCORE_RATIO_THRESHOLD: float = 2.0
@@ -182,6 +182,36 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         self._universe_cache = list(self.UNIVERSE)
         return self._universe_cache
 
+    # ── Dynamic Universe (replaces 545 static add_equity() calls) ──────────────
+    # B2-8 node cap = 500 assets. Static 545 add_equity() exceeded cap by 45 —
+    # only 83/545 tickers received data (silent gaps). Dynamic universe covers
+    # ~8,000 US equities; BCT score still narrows to ≤10 open slots.
+    def _universe_filter(self, fundamental: List[Fundamental]) -> List[Symbol]:
+        filtered = [
+            f for f in fundamental
+            if f.price >= self.min_price
+            and f.dollar_volume >= 1_000_000
+            and f.has_fundamental_data
+        ]
+        top300 = sorted(filtered, key=lambda f: f.dollar_volume, reverse=True)[:300]
+        return [f.symbol for f in top300]
+
+    def on_securities_changed(self, changes: SecurityChanges) -> None:
+        for s in changes.added_securities:
+            sym = s.symbol
+            if sym not in self._indicators:
+                self._register_indicators(sym)
+        for s in changes.removed_securities:
+            sym = s.symbol
+            if sym in self._indicators:
+                ind = self._indicators.pop(sym)
+                try:
+                    self.subscription_manager.remove_consolidator(sym, ind["consolidator"])
+                except Exception:
+                    pass
+            if sym in self._position_meta:
+                del self._position_meta[sym]
+
     def initialize(self) -> None:
         self.set_time_zone("America/New_York")
         sy = int(self.get_parameter("start_year",  "2025"))
@@ -241,11 +271,11 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         self._spy_gate_open: bool = False
 
         self.universe_settings.resolution = Resolution.DAILY
+        self.universe_settings.asynchronous = True
         self._indicators: dict = {}
         self._position_meta: dict = {}  # Track entry date, avg price per position
-        for ticker in self._load_universe():
-            sym = self.add_equity(ticker, Resolution.DAILY).symbol
-            self._register_indicators(sym)
+        self.add_equity("SPY", Resolution.DAILY)  # needed for benchmark + SPY gate
+        self.add_universe(self._universe_filter)
 
         self.schedule.on(
             self.date_rules.every_day(),
@@ -259,6 +289,7 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         adx = self.adx(sym, 9)
         plus_di = adx.PositiveDirectionalIndex
         minus_di = adx.NegativeDirectionalIndex
+        atr = self.atr(sym, 14)  # ATR14 for position sizing and stops
 
         w_ichi = IchimokuKinkoHyo(9, 26, 26, 52, 26, 26)
         w_close = RollingWindow[float](28)
@@ -283,6 +314,7 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             "adx": adx,
             "plus_di": plus_di,
             "minus_di": minus_di,
+            "atr": atr,
             "consolidator": consolidator,
         }
 
@@ -488,15 +520,47 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         #     return False, "EARNINGS_SKIP"
         return True, ""
 
+    def _get_atr(self, symbol: Symbol) -> float | None:
+        """Get ATR14 value for symbol."""
+        ind = self._indicators.get(symbol)
+        if ind is None:
+            return None
+        atr = ind.get("atr")
+        if atr is None or not atr.is_ready:
+            return None
+        return float(atr.current.value)
+
+    def _get_position_stop_price(self, symbol: Symbol) -> float | None:
+        """Get current stop price for position (daily ATR or Kijun trail)."""
+        if symbol not in self._position_meta:
+            return None
+        meta = self._position_meta[symbol]
+        entry_price = meta.get("entry_price", 0.0)
+        if entry_price <= 0:
+            return None
+
+        atr = self._get_atr(symbol)
+        initial_stop = (entry_price - 2.5 * atr) if atr and atr > 0 else entry_price * 0.95
+
+        # Kijun trail: ratchet UP only, never below ATR stop
+        vals = self._daily_close_and_kijun_and_cloud_top(symbol)
+        if vals:
+            _, kijun, _ = vals
+            return max(initial_stop, kijun)
+        return initial_stop
+
     def _update_and_check_stop(self, symbol: Symbol, holding) -> tuple[bool, str]:
         """Update trailing stop and check if stop triggered. Returns (should_exit, reason)."""
-        # DIAGNOSTIC: ATR stop disabled — daily Kijun stop only
-        vals = self._daily_close_and_kijun_and_cloud_top(symbol)
-        if vals is None:
+        # ATR initial stop with Kijun trail
+        stop_price = self._get_position_stop_price(symbol)
+        if stop_price is None:
             return False, ""
-        close, kijun, _ = vals
-        if close < kijun:
-            return True, f"KIJUN_STOP|kijun={kijun:.2f}|close={close:.2f}"
+        
+        close = float(self.securities[symbol].price)
+        if close < stop_price:
+            vals = self._daily_close_and_kijun_and_cloud_top(symbol)
+            kijun = vals[1] if vals else 0
+            return True, f"ATR_STOP|stop={stop_price:.2f}|close={close:.2f}|kijun={kijun:.2f}"
         return False, ""
 
     # ── Item 5: Ladder trim + reversal profit exit ────────────────────────────
@@ -535,6 +599,8 @@ class BCTMinimalAlgorithm(QCAlgorithm):
           3. Today's candle is a reversal: upper shadow >= 2x body AND
              close in the bottom 30% of the day's high-low range
         """
+        date_str = self.time.strftime("%Y-%m-%d")
+        
         if not self.reversal_profit_enabled:
             return False
         if symbol not in self._position_meta:
@@ -547,41 +613,72 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         close = float(self.securities[symbol].price)
         gain = (close - entry_price) / entry_price
         if gain < self.reversal_profit_min_gain_pct:
+            self.log(f"REVERSAL_CHECK|{date_str}|{symbol.value}|FAIL=gain|gain={gain:.3f}|min={self.reversal_profit_min_gain_pct:.3f}")
             return False
 
         # Check Tenkan extension
         ind = self._indicators.get(symbol)
         if ind is None:
+            self.log(f"REVERSAL_CHECK|{date_str}|{symbol.value}|FAIL=no_indicators")
             return False
         d_ichi = ind.get("d_ichi")
         if d_ichi is None or not d_ichi.is_ready:
+            self.log(f"REVERSAL_CHECK|{date_str}|{symbol.value}|FAIL=ichi_not_ready")
             return False
+        # Tenkan extension check (primary)
         tenkan = d_ichi.tenkan.current.value
-        if tenkan <= 0:
-            return False
-        extension = (close - tenkan) / tenkan
+        extension = (close - tenkan) / tenkan if tenkan > 0 else 0
+        tenkan_ext = extension
+        
+        # If Tenkan extension fails, try Kijun fallback (champion behavior)
         if extension < self.reversal_profit_extension_pct:
+            kijun = d_ichi.kijun.current.value
+            if kijun > 0:
+                extension = (close - kijun) / kijun
+        
+        if extension < self.reversal_profit_extension_pct:
+            self.log(f"REVERSAL_CHECK|{date_str}|{symbol.value}|FAIL=extension|gain={gain:.3f}|tenkan_ext={tenkan_ext:.3f}|kijun_ext={extension:.3f}|min_ext={self.reversal_profit_extension_pct:.3f}")
             return False
 
         # Check reversal candle using last 2 daily bars
         hist = self.history(symbol, 2, Resolution.DAILY)
         if hist is None or hist.empty or len(hist) < 1:
+            self.log(f"REVERSAL_CHECK|{date_str}|{symbol.value}|FAIL=no_history")
             return False
         if isinstance(hist.index, pd.MultiIndex):
             hist = hist.droplevel(0)
         hist.columns = [c.lower() for c in hist.columns]
         required = {"open", "high", "low", "close"}
         if not required.issubset(hist.columns):
+            self.log(f"REVERSAL_CHECK|{date_str}|{symbol.value}|FAIL=missing_ohlc")
             return False
         today_bar = hist.iloc[-1]
+        prev_bar = hist.iloc[-2] if len(hist) > 1 else None
         o, h, lo, c = float(today_bar["open"]), float(today_bar["high"]), float(today_bar["low"]), float(today_bar["close"])
         body = abs(c - o)
         candle_range = h - lo
         if candle_range <= 0:
+            self.log(f"REVERSAL_CHECK|{date_str}|{symbol.value}|FAIL=zero_range|gain={gain:.3f}|ext={extension:.3f}")
             return False
-        upper_shadow = h - max(o, c)
-        # Reversal: upper shadow >= 2x body AND close in bottom 30% of range
-        is_reversal = (upper_shadow >= 2.0 * body) and ((c - lo) / candle_range <= 0.30)
+        
+        # Champion reversal candle check: spinning top OR bearish engulfing
+        body_ratio = 0.35
+        is_spinning_top = body < body_ratio * candle_range
+        
+        # Bearish engulfing pattern
+        is_bearish_engulfing = False
+        if prev_bar is not None:
+            prev_o = float(prev_bar["open"])
+            prev_c = float(prev_bar["close"])
+            is_bearish_engulfing = (c < o) and (o >= prev_c) and (c <= prev_o)
+        
+        is_reversal = is_spinning_top or is_bearish_engulfing
+        
+        if not is_reversal:
+            self.log(f"REVERSAL_CHECK|{date_str}|{symbol.value}|FAIL=candle|gain={gain:.3f}|ext={extension:.3f}|spinning={is_spinning_top}|engulf={is_bearish_engulfing}")
+        else:
+            self.log(f"REVERSAL_CHECK|{date_str}|{symbol.value}|PASS|gain={gain:.3f}|ext={extension:.3f}|spinning={is_spinning_top}|engulf={is_bearish_engulfing}")
+        
         return is_reversal
 
     # ── Item 6: Earnings avoidance ────────────────────────────────────────────
@@ -715,11 +812,9 @@ class BCTMinimalAlgorithm(QCAlgorithm):
 
         # Score all symbols for rotation decisions
         all_scores: dict[Symbol, int] = {}
-        for ticker in self._load_universe():
+        for symbol in list(self._indicators.keys()):
             funnel_total_candidates += 1
-            try:
-                symbol = self.symbol(ticker)
-            except Exception:
+            if not self.securities.contains_key(symbol):
                 continue
 
             # Stage 2: pre-filter (price >= min_price only)
@@ -795,10 +890,29 @@ class BCTMinimalAlgorithm(QCAlgorithm):
                 self.log(f"GATE_BLOCK|{date_str}|{symbol.value}|reason={gate_reason}|score={score}")
                 continue
             
-            # Calculate position size: flat 10% of portfolio
+            # Fixed-risk sizing: $200 risk per position / (2.5 * ATR14)
             funnel_reach_sizing += 1
-            target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
-            quantity = int(target_value / price)
+            atr = self._get_atr(symbol)
+            if atr and atr > 0:
+                # 2% floor: reject if ATR stop < 2% below entry
+                stop_pct = (2.5 * atr) / price
+                if stop_pct < 0.02:
+                    self.log(f"GATE_BLOCK|{date_str}|{symbol.value}|reason=ATR_FLOOR_2PCT|atr_pct={stop_pct:.3f}")
+                    continue
+                # Position size = $200 / (2.5 * ATR)
+                risk_per_share = 2.5 * atr
+                shares = int(200.0 / risk_per_share)
+                target_value = shares * price
+                # Cap at max position size (10% of portfolio)
+                max_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
+                if target_value > max_value:
+                    target_value = max_value
+                    shares = int(target_value / price)
+                quantity = shares
+            else:
+                # Fallback: flat 10% sizing if ATR unavailable
+                target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
+                quantity = int(target_value / price)
             if quantity <= 0:
                 continue
 
@@ -811,7 +925,7 @@ class BCTMinimalAlgorithm(QCAlgorithm):
                 "entry_date": self.time,
                 "entry_price": price,
                 "original_quantity": quantity,
-                "ladder_trims": set(),  # Track which ladder rungs fired
+                "ladder_trims": set(),
             }
 
             self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|mark={price:.2f}")
