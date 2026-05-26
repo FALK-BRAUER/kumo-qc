@@ -9,7 +9,7 @@ without the coarse/fine universe filter.
 Universe: 545 tickers (S&P 500 + BCT DEFAULT_TICKERS, merged + deduped).
 Signal: same 8-condition BCT Blue Flag checklist as performance_bct.
 Entry Gates: SPY 4-day confirm, 3% from 52w high, Kijun extension check,
-      chikou confirm, min $3 price, $500K volume, VIX tier (50% if >30).
+      chikou confirm, min $3 price, $500K volume, VIX tier (50% if >90th pct 2yr).
 Exits: ATR trailing stop (22-period, 2.5x initial, 3.0x floor) + Kijun trail +
       ladder trim [20%,40%] + reversal_profit_exit (6% gain, 10% Tenkan ext) +
       earnings exits (adaptive 9d / hard 3d) + optional cloud breach + weekly Kijun.
@@ -54,8 +54,8 @@ class BCTMinimalAlgorithm(QCAlgorithm):
     MIN_PRICE: float = 3.0
     SKIP_IF_EARNINGS_DAYS: int = 5
     SPY_GATE_CONFIRM_DAYS: int = 4
-    VIX_THRESHOLD: float = 30.0
-    VIX_SIZE_MULTIPLIER: float = 0.50  # 50% size when VIX > 30
+    VIX_PERCENTILE_THRESHOLD: float = 90.0  # GH #28: reduce size above 90th pct
+    VIX_SIZE_MULTIPLIER: float = 0.50  # 50% size when VIX > 90th pct of 2yr dist
 
     # 607 tickers (kumo-trader curated sim list)
     UNIVERSE: list[str] = [
@@ -224,7 +224,7 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         self.min_price = float(self.get_parameter("min_price", str(self.MIN_PRICE)))
         self.skip_if_earnings_days = int(self.get_parameter("skip_if_earnings_days", str(self.SKIP_IF_EARNINGS_DAYS)))
         self.spy_gate_confirm_days = int(self.get_parameter("spy_gate_confirm_days", str(self.SPY_GATE_CONFIRM_DAYS)))
-        self.vix_threshold = float(self.get_parameter("vix_threshold", str(self.VIX_THRESHOLD)))
+        self.vix_percentile_threshold = float(self.get_parameter("vix_percentile_threshold", str(self.VIX_PERCENTILE_THRESHOLD)))
         self.vix_size_multiplier = float(self.get_parameter("vix_size_multiplier", str(self.VIX_SIZE_MULTIPLIER)))
 
         # Earnings avoidance parameters (Item 6: disabled via stub)
@@ -245,11 +245,13 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         # Track SPY gate state (4-day confirmation)
         self._spy_above_cloud_days: int = 0
         self._spy_gate_open: bool = False
+        self._vix_size_mult: float = 1.0  # GH #28: cached daily VIX percentile multiplier
 
         self.universe_settings.resolution = Resolution.DAILY
         self._indicators: dict = {}
         self._position_meta: dict = {}  # Track entry date, avg price per position
         self.add_equity("SPY", Resolution.DAILY)  # needed for benchmark + SPY gate
+        self.add_index("VIX", Resolution.DAILY)  # GH #28: VIX percentile gate
         
         # Register SPY ATR indicators for atr_adaptive_score (GH #21)
         spy_sym = self.symbol("SPY")
@@ -566,16 +568,36 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         # Gate opens after 4 consecutive days
         self._spy_gate_open = self._spy_above_cloud_days >= self.spy_gate_confirm_days
 
-    def _get_vix_size_multiplier(self) -> float:
-        """Get position size multiplier based on VIX level."""
+    def _update_vix_percentile(self) -> None:
+        """GH #28: Update cached VIX size multiplier using 2-year percentile rank.
+
+        Fetches 504-day VIX history daily. If current VIX is above the 90th
+        percentile of that distribution, sets _vix_size_mult to 0.5 (half-size).
+        Falls back to 1.0 (full size) on any data error.
+        """
         try:
-            vix_symbol = self.symbol("VIX")
-            vix_price = float(self.securities[vix_symbol].price)
-            if vix_price > self.vix_threshold:
-                return self.vix_size_multiplier  # 50% size
+            vix_sym = self.symbol("VIX")
+            hist = self.history(vix_sym, 504, Resolution.DAILY)
+            if hist is None or hist.empty:
+                return
+            if isinstance(hist.index, pd.MultiIndex):
+                hist = hist.droplevel(0)
+            closes = hist["close"].dropna().values
+            if len(closes) < 10:
+                return
+            current = float(self.securities[vix_sym].price)
+            if current <= 0:
+                return
+            pct_rank = float((closes < current).sum()) / len(closes) * 100
+            self._vix_size_mult = (
+                self.vix_size_multiplier if pct_rank >= self.vix_percentile_threshold else 1.0
+            )
         except Exception:
-            pass
-        return 1.0
+            self._vix_size_mult = 1.0
+
+    def _get_vix_size_multiplier(self) -> float:
+        """Return cached VIX size multiplier (updated daily in _rebalance)."""
+        return self._vix_size_mult
 
     def _check_chikou_weekly(self, symbol: Symbol) -> bool:
         """Weekly chikou: current week close > close 26 weeks ago."""
@@ -805,6 +827,8 @@ class BCTMinimalAlgorithm(QCAlgorithm):
 
         # Update SPY gate state (Item 4: sT10e champion)
         self._update_spy_gate()
+        # Update VIX percentile size multiplier (GH #28)
+        self._update_vix_percentile()
 
         # Process position exits and adds
         for symbol, holding in list(self.portfolio.items()):
