@@ -78,10 +78,16 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
 
+        # H5: relative strength ranking toggle
+        self.rs_ranking_enabled = self.get_parameter("relative_strength_ranking", "False").lower() == "true"
+
         self.universe_settings.resolution = Resolution.DAILY
         self._active: set = set()
         self._indicators: dict = {}
         self._polygon_universe: dict | None = None
+
+        # H5: SPY subscription for relative strength calculation
+        self._spy = self.add_equity("SPY", Resolution.DAILY).symbol
 
         if self._find_local_data_dir() is not None:
             # Local: static universe from Polygon daily snapshot (867 unique tickers, FY2025)
@@ -281,7 +287,54 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 continue
             candidates.append((symbol, result["score"]))
 
-        candidates.sort(key=lambda x: x[1], reverse=True)
+        # H5: compute 20-day relative strength vs SPY when enabled
+        if self.rs_ranking_enabled and len(candidates) > 0:
+            spy_price_now = float(self.securities[self._spy].price) if self.securities.contains_key(self._spy) else None
+            if spy_price_now and spy_price_now > 0:
+                spy_hist = self.history(self._spy, 21, Resolution.DAILY)
+                spy_price_20d_ago = None
+                if spy_hist is not None and not spy_hist.empty:
+                    if isinstance(spy_hist.index, pd.MultiIndex):
+                        spy_hist = spy_hist.droplevel(0)
+                    spy_hist.columns = [c.lower() for c in spy_hist.columns]
+                    if 'close' in spy_hist.columns and len(spy_hist) >= 2:
+                        spy_price_20d_ago = float(spy_hist['close'].iloc[0])
+
+                if spy_price_20d_ago and spy_price_20d_ago > 0:
+                    spy_return_20d = spy_price_now / spy_price_20d_ago - 1.0
+
+                    rs_candidates = []
+                    for symbol, score in candidates:
+                        sym_hist = self.history(symbol, 21, Resolution.DAILY)
+                        if sym_hist is not None and not sym_hist.empty:
+                            if isinstance(sym_hist.index, pd.MultiIndex):
+                                sym_hist = sym_hist.droplevel(0)
+                            sym_hist.columns = [c.lower() for c in sym_hist.columns]
+                            if 'close' in sym_hist.columns and len(sym_hist) >= 2:
+                                sym_price_now = float(self.securities[symbol].price)
+                                sym_price_20d_ago = float(sym_hist['close'].iloc[0])
+                                if sym_price_20d_ago > 0:
+                                    sym_return_20d = sym_price_now / sym_price_20d_ago - 1.0
+                                    if spy_return_20d != 0:
+                                        rs_20d = sym_return_20d / spy_return_20d
+                                    else:
+                                        rs_20d = sym_return_20d
+                                    rs_candidates.append((symbol, score, rs_20d))
+                                    continue
+                        # Fallback if history unavailable: use score only
+                        rs_candidates.append((symbol, score, 0.0))
+
+                    # Sort by relative strength descending, then by score
+                    rs_candidates.sort(key=lambda x: (x[2], x[1]), reverse=True)
+                    candidates = [(s, sc) for s, sc, _ in rs_candidates]
+                    self.log(f"H5_RS|{date_str}|candidates={len(candidates)}|spy_ret20d={spy_return_20d:.4f}")
+                else:
+                    candidates.sort(key=lambda x: x[1], reverse=True)
+            else:
+                candidates.sort(key=lambda x: x[1], reverse=True)
+        else:
+            candidates.sort(key=lambda x: x[1], reverse=True)
+
         for symbol, score in candidates[:slots]:
             price = self.securities[symbol].price
             if price <= 0:
