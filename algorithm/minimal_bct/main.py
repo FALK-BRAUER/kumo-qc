@@ -725,9 +725,10 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         # Update meta
         meta["add_count"] = meta.get("add_count", 0) + 1
         
+        atr_str = f"{atr:.2f}" if atr else "0.00"
         self.log(
             f"PYRAMID_ADD|{date_str}|{symbol.value}"
-            f"|qty={add_qty}|kijun={kijun:.2f}|atr={atr:.2f if atr else 0:.2f}"
+            f"|qty={add_qty}|kijun={kijun:.2f}|atr={atr_str}"
         )
 
     def _update_and_check_stop(self, symbol: Symbol, holding) -> tuple[bool, str]:
