@@ -107,6 +107,15 @@ def score_symbol(algorithm: Any, symbol: Any) -> dict[str, Any] | None:
     if any(pd.isna(v) for v in critical):
         return None
 
+    # === E8: ADX Hard Gate — enforce +DI > -DI as mandatory entry condition ===
+    # Per GH #47: Change ADX from scored condition #7 to hard gate
+    # Blue flag analysis: 33.8% of losers missing ADX +DI > -DI condition
+    adx_condition_passed = bool(adx_rising and plus_di_now > minus_di_now and adx_now >= 20)
+    if not adx_condition_passed:
+        # ADX gate failed — skip entry regardless of other conditions
+        return None
+    # === END E8 ADX Hard Gate ===
+
     conditions: list[bool] = [
         bool(w_price > max(w_cloud_a_now, w_cloud_b_now)),                        # 1. weekly above cloud top
         bool(w_tenkan_now > w_kijun_now),                                          # 2. weekly TK > KJ
@@ -114,7 +123,7 @@ def score_symbol(algorithm: Any, symbol: Any) -> dict[str, Any] | None:
         bool(w_cloud_a_now > w_cloud_b_now),                                       # 4. weekly cloud green
         bool(d_price > max(d_cloud_a_now, d_cloud_b_now)),                        # 5. daily above cloud top
         bool(d_price > d_tenkan_now),                                              # 6. daily above tenkan
-        bool(adx_rising and plus_di_now > minus_di_now and adx_now >= 20),        # 7. ADX
+        adx_condition_passed,                                                       # 7. ADX (now hard gate, always True here)
         bool(d_price > ma200),                                                     # 8. 200MA
     ]
     score = sum(conditions)
