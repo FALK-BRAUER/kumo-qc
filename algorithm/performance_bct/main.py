@@ -241,6 +241,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
 
         self.universe_settings.resolution = Resolution.DAILY
+        self.universe_settings.data_normalization_mode = DataNormalizationMode.RAW
         self._active: set = set()
         self._indicators: dict = {}
         self._polygon_universe: dict | None = None
@@ -257,7 +258,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 self.log(f"LOCAL_UNIVERSE|polygon_equity|unique_tickers={len(all_tickers)}")
                 for ticker in sorted(all_tickers):
                     try:
-                        self.add_equity(ticker, Resolution.DAILY)
+                        self.add_equity(ticker, Resolution.DAILY, fill_data_forward=True, extended_hours=False, data_normalization_mode=DataNormalizationMode.RAW)
                     except Exception:
                         pass
             else:
@@ -265,12 +266,12 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 self.log("LOCAL_UNIVERSE|fallback_etf_only|polygon_json_not_found")
                 etfs = ["QQQ", "SMH", "XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLB", "XLU", "XLRE", "XLC", "SPY"]
                 for etf in etfs:
-                    self.add_equity(etf, Resolution.DAILY)
+                    self.add_equity(etf, Resolution.DAILY, fill_data_forward=True, extended_hours=False, data_normalization_mode=DataNormalizationMode.RAW)
         else:
             # Cloud: dynamic universe via Morningstar CoarseFundamental + ETFs
             etfs = ["QQQ", "SMH", "XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLB", "XLU", "XLRE", "XLC"]
             for etf in etfs:
-                self.add_equity(etf, Resolution.DAILY)
+                self.add_equity(etf, Resolution.DAILY, fill_data_forward=True, extended_hours=False, data_normalization_mode=DataNormalizationMode.RAW)
             self._filter = BCTUniverseFilter(self)
             self.add_universe(
                 self._filter.coarse_selection,
