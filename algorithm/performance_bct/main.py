@@ -235,6 +235,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # Exit condition parameter overrides
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
+        self.chikou_gate_enabled = self.get_parameter("chikou_gate_enabled", "true").lower() == "true"
 
         self.universe_settings.resolution = Resolution.DAILY
         self._active: set = set()
@@ -481,6 +482,22 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             price = self.securities[symbol].price
             if price <= 0:
                 continue
+            if self.chikou_gate_enabled:
+                try:
+                    hist = self.history([symbol], 28, Resolution.DAILY)
+                    if hist is None or hist.empty or len(hist) < 27:
+                        self.log(f"CHIKOU_SKIP|{date_str}|{symbol.value}|reason=insufficient_history")
+                        continue
+                    if isinstance(hist.index, pd.MultiIndex):
+                        closes = hist["close"].droplevel(0)
+                    else:
+                        closes = hist["close"]
+                    close_26d_ago = float(closes.iloc[0])
+                    if float(price) <= close_26d_ago:
+                        self.log(f"CHIKOU_BLOCK|{date_str}|{symbol.value}|price={price:.2f}|close_26d={close_26d_ago:.2f}")
+                        continue
+                except Exception:
+                    pass
             target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
             quantity = int(target_value / price)
             if quantity <= 0:
