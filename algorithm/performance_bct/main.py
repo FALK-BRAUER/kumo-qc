@@ -315,11 +315,14 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         if not self.is_warming_up:
             self._seed_weekly(sym, w_ichi, w_close)
 
+        atr14 = self.atr(sym, 14)
+
         self._indicators[sym] = {
             "d_ichi": d_ichi,
             "w_ichi": w_ichi,
             "w_close": w_close,
             "sma200": sma200,
+            "atr14": atr14,
             "consolidator": consolidator,
         }
 
@@ -388,12 +391,15 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     in_phase3 = True
 
             if in_phase3:
-                if close < cloud_bottom:
+                atr14 = self._indicators[symbol].get("atr14")
+                atr_val = atr14.current.value if (atr14 and atr14.is_ready) else 0.0
+                stop_anchor = cloud_bottom - 0.5 * atr_val
+                if close < stop_anchor:
                     self.market_on_open_order(symbol, -holding.quantity)
                     meta = self._position_meta.pop(symbol, {})
                     days_h = (self.time - meta.get("entry_date", self.time)).days
                     pnl_h = close / meta.get("entry_price", close) - 1
-                    self.log(f"PHASE3_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_bottom={cloud_bottom:.2f}|days={days_h}|pnl={pnl_h:.1%}")
+                    self.log(f"PHASE3_EXIT|{date_str}|{symbol.value}|close={close:.2f}|stop_anchor={stop_anchor:.2f}|cloud_bottom={cloud_bottom:.2f}|atr={atr_val:.2f}|days={days_h}|pnl={pnl_h:.1%}")
             else:
                 if close < kijun:
                     self.market_on_open_order(symbol, -holding.quantity)
