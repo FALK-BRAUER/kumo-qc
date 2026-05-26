@@ -19,9 +19,13 @@ Local mode: when LEAN data dir is detected, loads polygon_universe_equity200_fy2
 G3 experiment: Phase 3 cloud-bottom trailing stop — after ≥56 calendar days held
 AND unrealized PnL ≥ +15%, switch stop anchor from Kijun to cloud bottom
 (min(Senkou_A, Senkou_B)). Extends winners; implements methodology.md §5 Rule #13 Phase 3.
+
+E33 SUE Boost: +1 to entry score if SUE > 1σ. Still requires all 8/8 BCT conditions.
+Uses seasonal random walk (quarterly EPS YoY). Never blocks entries.
 """
 
 import json
+from collections import deque
 from datetime import timedelta
 from pathlib import Path
 
@@ -157,7 +161,7 @@ class BCTUniverseFilter:
     """
     Plug into the main algorithm:
 
-        self._universe_filter = BCTUniverseFilter()
+        self._universe_filter = BCTUniverseFilter(self)
         self.add_universe(
             self._universe_filter.coarse_selection,
             self._universe_filter.fine_selection,
@@ -167,6 +171,9 @@ class BCTUniverseFilter:
     MIN_PRICE: float = 10.0
     MIN_DOLLAR_VOLUME: float = 5_000_000
     COARSE_MAX: int = 9999
+
+    def __init__(self, algorithm: "BCTPerformanceAlgorithm") -> None:
+        self._algorithm = algorithm
 
     def coarse_selection(self, coarse: List[CoarseFundamental]) -> List[Symbol]:
         candidates = [
@@ -179,6 +186,21 @@ class BCTUniverseFilter:
         return [c.symbol for c in candidates[: self.COARSE_MAX]]
 
     def fine_selection(self, fine: List[FineFundamental]) -> List[Symbol]:
+        # E33: Cache quarterly EPS for SUE calculation
+        if self._algorithm.use_sue_boost:
+            for f in fine:
+                try:
+                    # Access quarterly EPS from FineFundamental
+                    if f.earning_reports and f.earning_reports.basic_eps:
+                        eps_three_months = f.earning_reports.basic_eps.three_months
+                        if eps_three_months is not None:
+                            symbol = f.symbol
+                            if symbol not in self._algorithm._eps_history:
+                                self._algorithm._eps_history[symbol] = deque(maxlen=12)
+                            self._algorithm._eps_history[symbol].append(float(eps_three_months))
+                except Exception:
+                    # Skip if fundamental data unavailable
+                    pass
         return [f.symbol for f in fine]
 
 
@@ -236,11 +258,15 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
 
+        # E33 SUE Boost: +1 to score if SUE > 1σ (default false — must explicitly enable)
+        self.use_sue_boost = self.get_parameter("use_sue_boost", "false").lower() == "true"
+
         self.universe_settings.resolution = Resolution.DAILY
         self._active: set = set()
         self._indicators: dict = {}
         self._polygon_universe: dict | None = None
         self._position_meta: dict = {}  # symbol → {entry_date, entry_price}
+        self._eps_history: dict = {}  # symbol → deque of EPS (max 12 quarters)
 
         if self._find_local_data_dir() is not None:
             # Local: static universe from Polygon daily snapshot (867 unique tickers, FY2025)
@@ -267,7 +293,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             etfs = ["QQQ", "SMH", "XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLB", "XLU", "XLRE", "XLC"]
             for etf in etfs:
                 self.add_equity(etf, Resolution.DAILY)
-            self._filter = BCTUniverseFilter()
+            self._filter = BCTUniverseFilter(self)
             self.add_universe(
                 self._filter.coarse_selection,
                 self._filter.fine_selection,
@@ -381,6 +407,50 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     def _has_open_orders(self, symbol) -> bool:
         return bool(self.transactions.get_open_orders(symbol))
 
+    def _calculate_sue_boost(self, symbol: Any) -> int:
+        """
+        E33 SUE Boost: Calculate SUE (Standardized Unexpected Earnings).
+        SUE = (Current Q EPS - Same Q Last Year EPS) / σ(surprises)
+        Returns +1 if SUE > 1σ, otherwise 0.
+        """
+        if not self.use_sue_boost:
+            return 0
+
+        history = self._eps_history.get(symbol)
+        if history is None or len(history) < 8:
+            # Need at least 8 quarters to compute σ of surprises
+            return 0
+
+        try:
+            # Convert deque to list for indexing
+            eps_list = list(history)
+            # Need current quarter and same quarter last year (4 quarters back)
+            current_eps = eps_list[-1]
+            if len(eps_list) < 5:
+                return 0
+            expected_eps = eps_list[-5]  # Same quarter last year
+
+            # Calculate σ of past 8 quarter-over-year differences (surprises)
+            surprises = []
+            for i in range(4, len(eps_list)):
+                surprise = eps_list[i] - eps_list[i - 4]
+                surprises.append(surprise)
+
+            if len(surprises) < 2:
+                return 0
+
+            sigma = float(np.std(surprises))
+            if sigma <= 0:
+                return 0
+
+            sue = (current_eps - expected_eps) / sigma
+
+            # Boost if SUE > 1σ
+            return 1 if sue > 1.0 else 0
+
+        except Exception:
+            return 0
+
     def _rebalance(self) -> None:
         if self.is_warming_up:
             return
@@ -474,10 +544,15 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             result = score_symbol_native(self, symbol, ind)
             if result is None or result["score"] < self.MIN_SCORE:
                 continue
-            candidates.append((symbol, result["score"]))
+
+            # E33 SUE Boost: +1 if SUE > 1σ (independent of 8 BCT conditions)
+            sue_boost = self._calculate_sue_boost(symbol)
+            total_score = result["score"] + sue_boost
+
+            candidates.append((symbol, total_score, sue_boost))
 
         candidates.sort(key=lambda x: x[1], reverse=True)
-        for symbol, score in candidates[:slots]:
+        for symbol, score, sue_boost in candidates[:slots]:
             price = self.securities[symbol].price
             if price <= 0:
                 continue
@@ -487,6 +562,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 continue
             self.market_on_open_order(symbol, quantity)
             self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price)}
-            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
+            sue_tag = f"|SUE+{sue_boost}" if sue_boost > 0 else ""
+            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/9|bct={score-sue_boost}/8{sue_tag}|qty={quantity}|price~{price:.2f}")
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
