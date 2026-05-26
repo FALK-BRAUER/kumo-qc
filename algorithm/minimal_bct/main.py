@@ -182,6 +182,65 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             if sym in self._position_meta:
                 del self._position_meta[sym]
 
+    def on_order_event(self, order_event: OrderEvent) -> None:
+        """
+        GH #25 CRITICAL FIX #1, #2: Handle order fill events.
+        
+        Only set _position_meta and place exit stop AFTER buy-stop entry fills.
+        Prevents:
+        - Illegal short positions (sell-stop firing before buy fills)
+        - Phantom meta for unfilled orders
+        """
+        if not self.intraday_enabled:
+            return
+        
+        # Check if this is a fill event for a pending entry
+        if not hasattr(self, '_pending_entries'):
+            return
+        
+        order_id = order_event.order_id
+        if order_id not in self._pending_entries:
+            return
+        
+        entry_info = self._pending_entries[order_id]
+        
+        # Only process fill events (status = Filled or PartiallyFilled)
+        if order_event.status not in [OrderStatus.FILLED, OrderStatus.PARTIALLYFILLED]:
+            return
+        
+        symbol = entry_info["symbol"]
+        quantity = entry_info["quantity"]
+        score = entry_info["score"]
+        
+        date_str = self.time.strftime("%Y-%m-%d")
+        
+        # CRITICAL FIX #2: Set _position_meta ONLY after fill confirmation
+        self._position_meta[symbol] = {
+            "entry_date": entry_info["entry_date"],
+            "entry_price": entry_info["entry_price"],
+            "initial_quantity": quantity,
+            "add_count": 0,
+            "previous_stop": None,
+            "ladder_trims": set(),
+            "stop_market_order_id": None,
+        }
+        
+        self.log(f"ENTRY_FILL|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|fill_qty={order_event.fill_quantity}")
+        
+        # CRITICAL FIX #1: Place exit stop ONLY after entry fills
+        # Get stop price and place exit stop market order
+        exit_stop = self._get_position_stop_price(symbol)
+        
+        # CRITICAL FIX #3: Handle None stop price gracefully
+        if exit_stop:
+            self._place_stop_market_exit(symbol, quantity, exit_stop)
+        else:
+            # Log warning but keep position meta - exit will be handled by daily rebalance
+            self.log(f"EXIT_STOP_DEFERRED|{date_str}|{symbol.value}|reason=stop_calc_pending")
+        
+        # Remove from pending entries
+        del self._pending_entries[order_id]
+
     def initialize(self) -> None:
         self.set_time_zone("America/New_York")
         sy = int(self.get_parameter("start_year",  "2025"))
@@ -1063,20 +1122,21 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             if quantity <= 0:
                 continue
 
-            # ── GH #25: Intraday entry with Tenkan confirmation ──────────────
-            entry_params = {
-                "score": score,
-                "quantity": quantity,
-                "price": price,
-            }
+            # ── GH #25: Intraday entry ───────────────────────────────────────
+            # MAJOR BUG FIX: Tenkan confirmation moved to 11 AM intraday rebalance
+            # At 16:05 (post-close), no minute bars available - defer to 11 AM for Tenkan check
             
+            # When intraday + Tenkan confirmation enabled: defer entry to 11 AM rebalance
             if self.intraday_enabled and self.tenkan_confirmation:
-                # Check Tenkan confirmation before entering
-                if not self._tenkan_confirmed(symbol):
-                    # Defer entry until Tenkan confirmation
-                    self._defer_entry(symbol, entry_params)
-                    self.log(f"ENTRY_DEFERRED|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|reason=tenkan_pending")
-                    continue
+                entry_params = {
+                    "score": score,
+                    "quantity": quantity,
+                    "price": price,
+                    "deferred_at": self.time,
+                }
+                self._defer_entry(symbol, entry_params)
+                self.log(f"ENTRY_DEFERRED|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|reason=awaiting_11am_tenkan")
+                continue
             
             # Execute entry with stop market order (immediate execution)
             if self.intraday_enabled:
@@ -1087,23 +1147,23 @@ class BCTMinimalAlgorithm(QCAlgorithm):
                 if ticket:
                     funnel_orders_submitted += 1
                     
-                    # Track position entry metadata
-                    self._position_meta[symbol] = {
-                        "entry_date": self.time,
+                    # GH #25 CRITICAL FIX #1, #2: DO NOT set _position_meta or place exit here
+                    # Wait for on_order_event fill confirmation to prevent:
+                    # - Illegal short positions (if sell-stop fires before buy fills)
+                    # - Phantom meta for unfilled orders
+                    # Store pending entry info for on_order_event handler
+                    if not hasattr(self, '_pending_entries'):
+                        self._pending_entries = {}
+                    self._pending_entries[ticket.order_id] = {
+                        "symbol": symbol,
+                        "score": score,
+                        "quantity": quantity,
                         "entry_price": price,
-                        "initial_quantity": quantity,
-                        "add_count": 0,
-                        "previous_stop": None,
-                        "ladder_trims": set(),
-                        "stop_market_order_id": None,
+                        "stop_price": stop_price,
+                        "entry_date": self.time,
                     }
                     
-                    # Immediately place stop market exit
-                    exit_stop = self._get_position_stop_price(symbol)
-                    if exit_stop:
-                        self._place_stop_market_exit(symbol, quantity, exit_stop)
-                    
-                    self.log(f"ENTRY_STOP|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|mark={price:.2f}|buy_stop={stop_price:.2f}")
+                    self.log(f"ENTRY_STOP|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|mark={price:.2f}|buy_stop={stop_price:.2f}|order_id={ticket.order_id}")
                 else:
                     self.log(f"ENTRY_STOP_FAIL|{date_str}|{symbol.value}|score={score}/8|qty={quantity}")
             else:
@@ -1259,25 +1319,22 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         ticket = self.stop_market_order(symbol, quantity, stop_price)
         
         if ticket:
-            # Track position
-            self._position_meta[symbol] = {
-                "entry_date": self.time,
+            # GH #25 CRITICAL FIX #1, #2: DO NOT set _position_meta or place exit here
+            # Wait for on_order_event fill confirmation
+            if not hasattr(self, '_pending_entries'):
+                self._pending_entries = {}
+            self._pending_entries[ticket.order_id] = {
+                "symbol": symbol,
+                "score": score,
+                "quantity": quantity,
                 "entry_price": price,
-                "initial_quantity": quantity,
-                "add_count": 0,
-                "previous_stop": None,
-                "ladder_trims": set(),
-                "stop_market_order_id": None,  # Will be set after fill
+                "stop_price": stop_price,
+                "entry_date": self.time,
             }
-            
-            # Immediately place stop market exit
-            exit_stop = self._get_position_stop_price(symbol)
-            if exit_stop:
-                self._place_stop_market_exit(symbol, quantity, exit_stop)
             
             date_str = self.time.strftime("%Y-%m-%d")
             deferred_minutes = (self.time - entry_params.get('deferred_at', self.time)).total_seconds() / 60
-            self.log(f"ENTRY_DEFERRED_EXEC|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|deferred_for={deferred_minutes:.0f}min")
+            self.log(f"ENTRY_DEFERRED_EXEC|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|deferred_for={deferred_minutes:.0f}min|order_id={ticket.order_id}")
     
     def _place_stop_market_exit(self, symbol: Symbol, quantity: int, stop_price: float) -> int | None:
         """
