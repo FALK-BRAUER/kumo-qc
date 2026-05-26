@@ -39,9 +39,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     # Exit condition flags — False = reference bct‑perf‑2020‑2026 (daily Kijun only)
     ENABLE_CLOUD_BREACH_EXIT: bool = False
     ENABLE_WEEKLY_KIJUN_EXIT: bool = False
-    # Phase 3 stop progression (methodology.md §5 Rule #13)
-    PHASE3_DAYS: int = 56         # calendar days before Phase 3 eligible
-    PHASE3_PNL: float = 0.15      # unrealized PnL threshold for Phase 3
+    # Phase 3 stop progression — v2: lower thresholds (42d/10% vs 56d/15%)
+    PHASE3_DAYS: int = 42         # calendar days before Phase 3 eligible
+    PHASE3_PNL: float = 0.10      # unrealized PnL threshold for Phase 3
 
     @staticmethod
     def _find_local_data_dir() -> Path | None:
@@ -242,7 +242,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     meta = self._position_meta.pop(symbol, {})
                     days_h = (self.time - meta.get("entry_date", self.time)).days
                     pnl_h = close / meta.get("entry_price", close) - 1
-                    self.log(f"PHASE3_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_bottom={cloud_bottom:.2f}|days={days_h}|pnl={pnl_h:.1%}")
+                    self.log(f"PHASE3_EARLY_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_bottom={cloud_bottom:.2f}|days={days_h}|pnl={pnl_h:.1%}")
             else:
                 if close < kijun:
                     self.market_on_open_order(symbol, -holding.quantity)
