@@ -279,6 +279,17 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             result = score_symbol_native(self, symbol, ind)
             if result is None or result["score"] < self.MIN_SCORE:
                 continue
+            # === Experiment C: Cloud thickness gate (1.5% minimum) ===
+            # Thin clouds indicate weak trend conviction — skip entry
+            price = float(self.securities[symbol].price)
+            if price > 0 and d_ichi_ind and d_ichi_ind.is_ready:
+                senkou_a = d_ichi_ind.senkou_a.current.value
+                senkou_b = d_ichi_ind.senkou_b.current.value
+                cloud_thickness = abs(senkou_a - senkou_b) / price
+                if cloud_thickness < 0.015:  # 1.5% minimum thickness
+                    self.log(f"THIN_CLOUD|{date_str}|{symbol.value}|thickness={cloud_thickness:.3f}|price={price:.2f}")
+                    continue  # Skip thin cloud candidates
+            # === END Experiment C ===
             candidates.append((symbol, result["score"]))
 
         candidates.sort(key=lambda x: x[1], reverse=True)
