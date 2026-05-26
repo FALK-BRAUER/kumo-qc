@@ -193,6 +193,10 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     # Phase 3 stop progression (methodology.md §5 Rule #13)
     PHASE3_DAYS: int = 56         # calendar days before Phase 3 eligible
     PHASE3_PNL: float = 0.15      # unrealized PnL threshold for Phase 3
+    # E82: 3-Phase Stop Progression — graduated stops vs binary phase system
+    ENABLE_THREE_PHASE_STOP: bool = False
+    PHASE2_DAYS: int = 28         # calendar days before Phase 2 eligible
+    PHASE2_PNL: float = 0.05      # unrealized PnL threshold for Phase 2
 
     @staticmethod
     def _find_local_data_dir() -> Path | None:
@@ -235,6 +239,8 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # Exit condition parameter overrides
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
+        # E82: 3-Phase Stop Progression parameter
+        self.three_phase_stop_enabled = self.get_parameter("three_phase_stop", str(self.ENABLE_THREE_PHASE_STOP)).lower() == "true"
 
         self.universe_settings.resolution = Resolution.DAILY
         self._active: set = set()
@@ -400,11 +406,14 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             # Determine stop anchor: Phase 3 (≥56 days + ≥15% gain) → cloud bottom
             meta = self._position_meta.get(symbol)
             in_phase3 = False
+            in_phase2 = False
             if meta is not None:
                 days_held = (self.time - meta["entry_date"]).days
                 pnl_pct = close / meta["entry_price"] - 1
                 if days_held >= self.PHASE3_DAYS and pnl_pct >= self.PHASE3_PNL:
                     in_phase3 = True
+                elif self.three_phase_stop_enabled and days_held >= self.PHASE2_DAYS and pnl_pct >= self.PHASE2_PNL:
+                    in_phase2 = True
 
             if in_phase3:
                 if close < cloud_bottom:
@@ -413,6 +422,13 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     days_h = (self.time - meta.get("entry_date", self.time)).days
                     pnl_h = close / meta.get("entry_price", close) - 1
                     self.log(f"PHASE3_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_bottom={cloud_bottom:.2f}|days={days_h}|pnl={pnl_h:.1%}")
+            elif in_phase2:
+                if close < cloud_top:
+                    self.market_on_open_order(symbol, -holding.quantity)
+                    meta = self._position_meta.pop(symbol, {})
+                    days_h = (self.time - meta.get("entry_date", self.time)).days
+                    pnl_h = close / meta.get("entry_price", close) - 1
+                    self.log(f"PHASE2_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_top={cloud_top:.2f}|days={days_h}|pnl={pnl_h:.1%}")
             else:
                 if close < kijun:
                     self.market_on_open_order(symbol, -holding.quantity)
