@@ -589,16 +589,31 @@ class BCTMinimalAlgorithm(QCAlgorithm):
     def _check_all_entry_gates(self, symbol: Symbol) -> tuple[bool, str]:
         """Check hard-veto entry gates. Returns (passed, reason_if_failed).
 
-        GH #34: BCT score ≥7 (MIN_SCORE) and chikou/ADX/DI are already
-        embedded in score_symbol() — removed as redundant hard blocks.
-        Resistance proximity removed (was blocking 84% of candidates).
+        GH #34: MIN_SCORE=7, RESISTANCE_PROXIMITY removed (84% block rate).
+        CHIKOU_WEEKLY, ADX_TOO_LOW, DI_NOT_POSITIVE restored as hard gates
+        — BCT core requirements that must fire regardless of score.
         """
         # Gate: kijun extension
         if self._check_kijun_extension(symbol):
             return False, "KIJUN_EXTENSION"
+        # Gate: weekly chikou (current week close > 26 weeks ago)
+        if not self._check_chikou_weekly(symbol):
+            return False, "CHIKOU_WEEKLY"
         # Gate: SPY 4-day close above weekly cloud
         if not self._spy_gate_open:
             return False, "SPY_GATE_CLOSED"
+        # Gate: DI positive + min ADX 20
+        ind = self._indicators.get(symbol)
+        if ind:
+            adx_ind = ind.get("adx")
+            plus_di = ind.get("plus_di")
+            minus_di = ind.get("minus_di")
+            if adx_ind and adx_ind.is_ready and plus_di and minus_di:
+                adx_val = float(adx_ind.current.value)
+                if adx_val < 20:
+                    return False, "ADX_TOO_LOW"
+                if float(plus_di.current.value) <= float(minus_di.current.value):
+                    return False, "DI_NOT_POSITIVE"
         # Gate: earnings avoidance (skip entry if within 5 days)
         if self._days_to_next_earnings(symbol) < 5:
             return False, "EARNINGS_SKIP"
