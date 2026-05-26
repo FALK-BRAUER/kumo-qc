@@ -194,7 +194,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         if not d_ichi.is_ready:
             return None
         
-        close = float(self.securities[symbol].price)
+        close = float(self.securities[symbol].close)
         kijun = d_ichi.kijun.current.value
         
         # Access the displaced Senkou Span A/B values directly
