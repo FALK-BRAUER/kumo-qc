@@ -57,6 +57,10 @@ class BCTMinimalAlgorithm(QCAlgorithm):
     VIX_PERCENTILE_THRESHOLD: float = 90.0  # GH #28: reduce size above 90th pct
     VIX_SIZE_MULTIPLIER: float = 0.50  # 50% size when VIX > 90th pct of 2yr dist
 
+    # Portfolio circuit breaker (GH #32)
+    DRAWDOWN_CIRCUIT_PCT: float = 0.04  # Halt entries when equity < peak * (1 - 0.04)
+    DRAWDOWN_RECOVERY_PCT: float = 0.02  # Re-enable when equity > peak * (1 - 0.02)
+
     # 607 tickers (kumo-trader curated sim list)
     UNIVERSE: list[str] = [
         "A", "AAPL", "ABBV", "ABNB", "ABT", "ACGL", "ACN", "ADBE", "ADI", "ADM",
@@ -226,6 +230,12 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         self.spy_gate_confirm_days = int(self.get_parameter("spy_gate_confirm_days", str(self.SPY_GATE_CONFIRM_DAYS)))
         self.vix_percentile_threshold = float(self.get_parameter("vix_percentile_threshold", str(self.VIX_PERCENTILE_THRESHOLD)))
         self.vix_size_multiplier = float(self.get_parameter("vix_size_multiplier", str(self.VIX_SIZE_MULTIPLIER)))
+
+        # Portfolio circuit breaker (GH #32)
+        self.drawdown_circuit_pct = float(self.get_parameter("drawdown_circuit_pct", str(self.DRAWDOWN_CIRCUIT_PCT)))
+        self.drawdown_recovery_pct = float(self.get_parameter("drawdown_recovery_pct", str(self.DRAWDOWN_RECOVERY_PCT)))
+        self._portfolio_peak: float = 0.0
+        self._circuit_breaker: bool = False
 
         # Earnings avoidance parameters (Item 6: disabled via stub)
         self.adaptive_earnings_enabled = False
@@ -611,6 +621,9 @@ class BCTMinimalAlgorithm(QCAlgorithm):
 
     def _check_all_entry_gates(self, symbol: Symbol) -> tuple[bool, str]:
         """Check all entry gates. Returns (passed, reason_if_failed)."""
+        # Gate: portfolio drawdown circuit breaker (GH #32)
+        if self._circuit_breaker:
+            return False, "DRAWDOWN_CIRCUIT"
         # Gate: kijun extension
         if self._check_kijun_extension(symbol):
             return False, "KIJUN_EXTENSION"
@@ -829,6 +842,19 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         self._update_spy_gate()
         # Update VIX percentile size multiplier (GH #28)
         self._update_vix_percentile()
+
+        # GH #32: Portfolio drawdown circuit breaker
+        current_equity = float(self.portfolio.total_portfolio_value)
+        if current_equity > self._portfolio_peak:
+            self._portfolio_peak = current_equity
+        if self._portfolio_peak > 0:
+            drawdown = (self._portfolio_peak - current_equity) / self._portfolio_peak
+            if not self._circuit_breaker and drawdown >= self.drawdown_circuit_pct:
+                self._circuit_breaker = True
+                self.log(f"CIRCUIT_BREAKER|{date_str}|activated|drawdown={drawdown:.2%}|peak={self._portfolio_peak:.2f}")
+            elif self._circuit_breaker and drawdown <= self.drawdown_recovery_pct:
+                self._circuit_breaker = False
+                self.log(f"CIRCUIT_BREAKER|{date_str}|deactivated|drawdown={drawdown:.2%}|peak={self._portfolio_peak:.2f}")
 
         # Process position exits and adds
         for symbol, holding in list(self.portfolio.items()):
