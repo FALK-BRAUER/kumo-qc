@@ -15,19 +15,22 @@ ADX retained in score_symbol_native() — QC native ADX is period 14.
 
 Local mode: when LEAN data dir is detected, loads polygon_universe_equity200_fy2025.json
 (326 unique tickers, top-200 S&P equity by dollar volume) instead of Morningstar CoarseFundamental filter.
+
+G3 experiment: Phase 3 cloud-bottom trailing stop — after ≥56 calendar days held
+AND unrealized PnL ≥ +15%, switch stop anchor from Kijun to cloud bottom
+(min(Senkou_A, Senkou_B)). Extends winners; implements methodology.md §5 Rule #13 Phase 3.
 """
 
 import json
 from datetime import timedelta
 from pathlib import Path
-from typing import Any
 
 from AlgorithmImports import *  # noqa: F401,F403
 
+from typing import Any
+
 import numpy as np
 import pandas as pd
-
-
 
 
 _WEEKLY_BARS = 130
@@ -146,12 +149,7 @@ def score_symbol(algorithm: Any, symbol: Any) -> dict[str, Any] | None:
 
 
 def score_symbol_native(algorithm: Any, symbol: Any, ind: Any) -> dict[str, Any] | None:
-    """Delegates to score_symbol (History-based).
-
-    The pre-registered native indicators in ind are not used — standalone
-    IchimokuKinkoHyo exposes tenkan/kijun but not senkou_span_a/b in LEAN Python.
-    score_symbol fetches 700 daily bars and computes all indicators from scratch.
-    """
+    """Delegates to score_symbol (History-based)."""
     return score_symbol(algorithm, symbol)
 
 
@@ -164,24 +162,13 @@ class BCTUniverseFilter:
             self._universe_filter.coarse_selection,
             self._universe_filter.fine_selection,
         )
-
-    BCT signal scoring happens in the scheduled rebalance function after
-    the universe settles, not inside fine_selection.
     """
 
-    # Coarse thresholds — tune in Phase 4 backtest validation
     MIN_PRICE: float = 10.0
-    MIN_DOLLAR_VOLUME: float = 5_000_000  # $5M/day liquidity floor
+    MIN_DOLLAR_VOLUME: float = 5_000_000
     COARSE_MAX: int = 9999
 
-    def coarse_selection(self, coarse: list) -> list:
-        """
-        - has_fundamental_data: excludes ETFs, ADRs, OTC/pink-sheet names
-          (QC's Morningstar dataset covers ~8,100 US equities only)
-        - price > MIN_PRICE: removes sub-$10 names
-        - dollar_volume > MIN_DOLLAR_VOLUME: liquidity floor
-        Sorted by dollar_volume desc, capped at COARSE_MAX.
-        """
+    def coarse_selection(self, coarse: List[CoarseFundamental]) -> List[Symbol]:
         candidates = [
             c for c in coarse
             if c.has_fundamental_data
@@ -191,7 +178,7 @@ class BCTUniverseFilter:
         candidates.sort(key=lambda c: c.dollar_volume, reverse=True)
         return [c.symbol for c in candidates[: self.COARSE_MAX]]
 
-    def fine_selection(self, fine: list) -> list:
+    def fine_selection(self, fine: List[FineFundamental]) -> List[Symbol]:
         return [f.symbol for f in fine]
 
 
@@ -203,6 +190,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     # Exit condition flags — False = reference bct‑perf‑2020‑2026 (daily Kijun only)
     ENABLE_CLOUD_BREACH_EXIT: bool = False
     ENABLE_WEEKLY_KIJUN_EXIT: bool = False
+    # Phase 3 stop progression (methodology.md §5 Rule #13)
+    PHASE3_DAYS: int = 56         # calendar days before Phase 3 eligible
+    PHASE3_PNL: float = 0.15      # unrealized PnL threshold for Phase 3
 
     @staticmethod
     def _find_local_data_dir() -> Path | None:
@@ -246,16 +236,11 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
 
-        # H5: relative strength ranking toggle
-        self.rs_ranking_enabled = self.get_parameter("relative_strength_ranking", "False").lower() == "true"
-
         self.universe_settings.resolution = Resolution.DAILY
         self._active: set = set()
         self._indicators: dict = {}
         self._polygon_universe: dict | None = None
-
-        # H5: SPY subscription for relative strength calculation
-        self._spy = self.add_equity("SPY", Resolution.DAILY).symbol
+        self._position_meta: dict = {}  # symbol → {entry_date, entry_price}
 
         if self._find_local_data_dir() is not None:
             # Local: static universe from Polygon daily snapshot (867 unique tickers, FY2025)
@@ -361,23 +346,18 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             w_ichi.update(bar)
             w_close.add(float(row["close"]))
 
-    def _daily_close_and_kijun_and_cloud_top(self, symbol) -> tuple[float, float, float] | None:
+    def _daily_vals(self, symbol) -> tuple[float, float, float, float] | None:
+        """Returns (close, kijun, cloud_top, cloud_bottom)."""
         if symbol not in self._indicators:
             return None
         d_ichi = self._indicators[symbol]["d_ichi"]
         if not d_ichi.is_ready:
             return None
-        
         close = float(self.securities[symbol].close)
         kijun = d_ichi.kijun.current.value
-        
-        # Access the displaced Senkou Span A/B values directly
         senkou_a = d_ichi.senkou_a.current.value
         senkou_b = d_ichi.senkou_b.current.value
-        
-        cloud_top = max(senkou_a, senkou_b)
-        
-        return close, kijun, cloud_top
+        return close, kijun, max(senkou_a, senkou_b), min(senkou_a, senkou_b)
 
     def _has_open_orders(self, symbol) -> bool:
         return bool(self.transactions.get_open_orders(symbol))
@@ -390,23 +370,43 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         for symbol, holding in list(self.portfolio.items()):
             if not holding.invested or self._has_open_orders(symbol):
                 continue
-            vals = self._daily_close_and_kijun_and_cloud_top(symbol)
+            vals = self._daily_vals(symbol)
             if vals is None:
                 continue
-            close, kijun, cloud_top = vals
-            
+            close, kijun, cloud_top, cloud_bottom = vals
+
             w_ichi = self._indicators[symbol]["w_ichi"]
             w_kijun = w_ichi.kijun.current.value if w_ichi.is_ready else None
 
-            if close < kijun:
-                self.market_on_open_order(symbol, -holding.quantity)
-                self.log(f"STOP|{date_str}|{symbol.value}|close={close:.2f}|kijun={kijun:.2f}")
-            elif self.cloud_exit_enabled and close < cloud_top:
-                self.market_on_open_order(symbol, -holding.quantity)
-                self.log(f"CLOUD_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_top={cloud_top:.2f}")
-            elif self.weekly_kijun_exit_enabled and w_kijun is not None and close < w_kijun:
-                self.market_on_open_order(symbol, -holding.quantity)
-                self.log(f"WEEKLY_KIJUN_STOP|{date_str}|{symbol.value}|close={close:.2f}|w_kijun={w_kijun:.2f}")
+            # Determine stop anchor: Phase 3 (≥56 days + ≥15% gain) → cloud bottom
+            meta = self._position_meta.get(symbol)
+            in_phase3 = False
+            if meta is not None:
+                days_held = (self.time - meta["entry_date"]).days
+                pnl_pct = close / meta["entry_price"] - 1
+                if days_held >= self.PHASE3_DAYS and pnl_pct >= self.PHASE3_PNL:
+                    in_phase3 = True
+
+            if in_phase3:
+                if close < cloud_bottom:
+                    self.market_on_open_order(symbol, -holding.quantity)
+                    meta = self._position_meta.pop(symbol, {})
+                    days_h = (self.time - meta.get("entry_date", self.time)).days
+                    pnl_h = close / meta.get("entry_price", close) - 1
+                    self.log(f"PHASE3_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_bottom={cloud_bottom:.2f}|days={days_h}|pnl={pnl_h:.1%}")
+            else:
+                if close < kijun:
+                    self.market_on_open_order(symbol, -holding.quantity)
+                    self._position_meta.pop(symbol, None)
+                    self.log(f"STOP|{date_str}|{symbol.value}|close={close:.2f}|kijun={kijun:.2f}")
+                elif self.cloud_exit_enabled and close < cloud_top:
+                    self.market_on_open_order(symbol, -holding.quantity)
+                    self._position_meta.pop(symbol, None)
+                    self.log(f"CLOUD_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_top={cloud_top:.2f}")
+                elif self.weekly_kijun_exit_enabled and w_kijun is not None and close < w_kijun:
+                    self.market_on_open_order(symbol, -holding.quantity)
+                    self._position_meta.pop(symbol, None)
+                    self.log(f"WEEKLY_KIJUN_STOP|{date_str}|{symbol.value}|close={close:.2f}|w_kijun={w_kijun:.2f}")
 
         exiting = {
             o.symbol
@@ -432,6 +432,8 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 continue
             if self.portfolio[symbol].invested:
                 continue
+            if self._has_open_orders(symbol):
+                continue
             ind = self._indicators.get(symbol)
             if ind is None:
                 continue
@@ -455,54 +457,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 continue
             candidates.append((symbol, result["score"]))
 
-        # H5: compute 20-day relative strength vs SPY when enabled
-        if self.rs_ranking_enabled and len(candidates) > 0:
-            spy_price_now = float(self.securities[self._spy].price) if self.securities.contains_key(self._spy) else None
-            if spy_price_now and spy_price_now > 0:
-                spy_hist = self.history(self._spy, 21, Resolution.DAILY)
-                spy_price_20d_ago = None
-                if spy_hist is not None and not spy_hist.empty:
-                    if isinstance(spy_hist.index, pd.MultiIndex):
-                        spy_hist = spy_hist.droplevel(0)
-                    spy_hist.columns = [c.lower() for c in spy_hist.columns]
-                    if 'close' in spy_hist.columns and len(spy_hist) >= 2:
-                        spy_price_20d_ago = float(spy_hist['close'].iloc[0])
-
-                if spy_price_20d_ago and spy_price_20d_ago > 0:
-                    spy_return_20d = spy_price_now / spy_price_20d_ago - 1.0
-
-                    rs_candidates = []
-                    for symbol, score in candidates:
-                        sym_hist = self.history(symbol, 21, Resolution.DAILY)
-                        if sym_hist is not None and not sym_hist.empty:
-                            if isinstance(sym_hist.index, pd.MultiIndex):
-                                sym_hist = sym_hist.droplevel(0)
-                            sym_hist.columns = [c.lower() for c in sym_hist.columns]
-                            if 'close' in sym_hist.columns and len(sym_hist) >= 2:
-                                sym_price_now = float(self.securities[symbol].price)
-                                sym_price_20d_ago = float(sym_hist['close'].iloc[0])
-                                if sym_price_20d_ago > 0:
-                                    sym_return_20d = sym_price_now / sym_price_20d_ago - 1.0
-                                    if spy_return_20d != 0:
-                                        rs_20d = sym_return_20d / spy_return_20d
-                                    else:
-                                        rs_20d = sym_return_20d
-                                    rs_candidates.append((symbol, score, rs_20d))
-                                    continue
-                        # Fallback if history unavailable: use score only
-                        rs_candidates.append((symbol, score, 0.0))
-
-                    # Sort by relative strength descending, then by score
-                    rs_candidates.sort(key=lambda x: (x[2], x[1]), reverse=True)
-                    candidates = [(s, sc) for s, sc, _ in rs_candidates]
-                    self.log(f"H5_RS|{date_str}|candidates={len(candidates)}|spy_ret20d={spy_return_20d:.4f}")
-                else:
-                    candidates.sort(key=lambda x: x[1], reverse=True)
-            else:
-                candidates.sort(key=lambda x: x[1], reverse=True)
-        else:
-            candidates.sort(key=lambda x: x[1], reverse=True)
-
+        candidates.sort(key=lambda x: x[1], reverse=True)
         for symbol, score in candidates[:slots]:
             price = self.securities[symbol].price
             if price <= 0:
@@ -512,6 +467,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             if quantity <= 0:
                 continue
             self.market_on_open_order(symbol, quantity)
+            self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price)}
             self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
