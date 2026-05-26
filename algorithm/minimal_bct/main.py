@@ -35,7 +35,7 @@ class BCTMinimalAlgorithm(QCAlgorithm):
 
     MAX_POSITIONS: int = 10
     POSITION_PCT: float = 0.10
-    MIN_SCORE: int = 6
+    MIN_SCORE: int = 7
 
     # Rotation engine parameters (Item 2: sT10e+R-B-v3)
     SCORE_RATIO_THRESHOLD: float = 2.0
@@ -267,19 +267,18 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         except Exception:
             self._earnings_dict = {}  # fallback: no earnings avoidance
         
-        local_tickers = self._load_universe()
-        if self._find_local_data_dir() is not None:
-            # Local LEAN data present — static load, no asset cap
+        if not self._find_local_data_dir():  # cloud path
+            # Cloud — dynamic universe (cap 300, fundamental filter)
+            self.universe_settings.asynchronous = True
+            self.add_universe(self._universe_filter)
+        else:  # local path
+            local_tickers = self._load_universe()
             for ticker in local_tickers:
                 try:
                     sym = self.add_equity(ticker, Resolution.DAILY).symbol
                     self._register_indicators(sym)
                 except Exception:
                     pass
-        else:
-            # Cloud — dynamic universe (cap 300, fundamental filter)
-            self.universe_settings.asynchronous = True
-            self.add_universe(self._universe_filter)
 
         self.schedule.on(
             self.date_rules.every_day(),
@@ -588,31 +587,18 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         return w_close[0] > w_close[26]
 
     def _check_all_entry_gates(self, symbol: Symbol) -> tuple[bool, str]:
-        """Check all entry gates. Returns (passed, reason_if_failed)."""
+        """Check hard-veto entry gates. Returns (passed, reason_if_failed).
+
+        GH #34: BCT score ≥7 (MIN_SCORE) and chikou/ADX/DI are already
+        embedded in score_symbol() — removed as redundant hard blocks.
+        Resistance proximity removed (was blocking 84% of candidates).
+        """
         # Gate: kijun extension
         if self._check_kijun_extension(symbol):
             return False, "KIJUN_EXTENSION"
-        # Gate: resistance proximity (within 3% of 52w high)
-        if self._check_resistance_proximity(symbol):
-            return False, "RESISTANCE_PROXIMITY"
-        # Gate: weekly chikou (current week close > 26 weeks ago)
-        if not self._check_chikou_weekly(symbol):
-            return False, "CHIKOU_WEEKLY"
         # Gate: SPY 4-day close above weekly cloud
         if not self._spy_gate_open:
             return False, "SPY_GATE_CLOSED"
-        # Gate: DI positive + min ADX 20
-        ind = self._indicators.get(symbol)
-        if ind:
-            adx_ind = ind.get("adx")
-            plus_di = ind.get("plus_di")
-            minus_di = ind.get("minus_di")
-            if adx_ind and adx_ind.is_ready and plus_di and minus_di:
-                adx_val = float(adx_ind.current.value)
-                if adx_val < 20:
-                    return False, "ADX_TOO_LOW"
-                if float(plus_di.current.value) <= float(minus_di.current.value):
-                    return False, "DI_NOT_POSITIVE"
         # Gate: earnings avoidance (skip entry if within 5 days)
         if self._days_to_next_earnings(symbol) < 5:
             return False, "EARNINGS_SKIP"
