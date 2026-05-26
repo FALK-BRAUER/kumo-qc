@@ -235,7 +235,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # Exit condition parameter overrides
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
-        self.chikou_gate_enabled = self.get_parameter("chikou_gate_enabled", "true").lower() == "true"
+        self.chikou_gate_enabled = self.get_parameter("chikou_gate_enabled", "false").lower() == "true"
 
         self.universe_settings.resolution = Resolution.DAILY
         self._active: set = set()
