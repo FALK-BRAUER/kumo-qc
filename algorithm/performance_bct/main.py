@@ -425,9 +425,12 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             elif in_phase2:
                 if close < cloud_top:
                     self.market_on_open_order(symbol, -holding.quantity)
-                    meta = self._position_meta.pop(symbol, {})
-                    days_h = (self.time - meta.get("entry_date", self.time)).days
-                    pnl_h = close / meta.get("entry_price", close) - 1
+                    meta = self._position_meta.pop(symbol, None)
+                    if meta is not None:
+                        days_h = (self.time - meta["entry_date"]).days
+                        pnl_h = close / meta["entry_price"] - 1
+                    else:
+                        days_h, pnl_h = 0, 0.0
                     self.log(f"PHASE2_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_top={cloud_top:.2f}|days={days_h}|pnl={pnl_h:.1%}")
             else:
                 if close < kijun:
