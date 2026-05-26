@@ -82,6 +82,8 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self._active: set = set()
         self._indicators: dict = {}
         self._polygon_universe: dict | None = None
+        # SPY always added for weekly cloud macro gate (not in equity-200 JSON)
+        self._spy_symbol = self.add_equity("SPY", Resolution.DAILY).symbol
 
         if self._find_local_data_dir() is not None:
             # Local: static universe from Polygon daily snapshot (867 unique tickers, FY2025)
@@ -282,9 +284,39 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             candidates.append((symbol, result["score"]))
 
         candidates.sort(key=lambda x: x[1], reverse=True)
+        # SPY weekly cloud gate — compute cloud top from daily history (weekly resample)
+        _spy_above_cloud: bool | None = None
+        try:
+            spy_hist = self.history(self._spy_symbol, 120, Resolution.DAILY)
+            if spy_hist is not None and not spy_hist.empty:
+                if isinstance(spy_hist.index, pd.MultiIndex):
+                    spy_hist = spy_hist.droplevel(0)
+                spy_hist.columns = [c.lower() for c in spy_hist.columns]
+                weekly = spy_hist.resample("W-FRI").agg(
+                    {"high": "max", "low": "min"}
+                ).dropna()
+                if len(weekly) >= 52:
+                    h, l = weekly["high"].values, weekly["low"].values
+                    # Span A (26 bars ago): (Tenkan9 + Kijun26) / 2
+                    tenkan = (max(h[-35:-26]) + min(l[-35:-26])) / 2
+                    kijun = (max(h[-52:-26]) + min(l[-52:-26])) / 2
+                    span_a = (tenkan + kijun) / 2
+                    # Span B (26 bars ago): 52-period midpoint
+                    span_b = (max(h[-78:-26]) + min(l[-78:-26])) / 2 if len(h) >= 78 else (max(h[-52:-26]) + min(l[-52:-26])) / 2
+                    spy_cloud_top = max(span_a, span_b)
+                    spy_price = float(self.securities[self._spy_symbol].price)
+                    _spy_above_cloud = spy_price > spy_cloud_top
+        except Exception:
+            pass
+
+        filtered_count = 0
         for symbol, score in candidates[:slots]:
             price = self.securities[symbol].price
             if price <= 0:
+                continue
+            # Score=7 gate: skip when SPY above weekly cloud (bear macro = higher BCT WR)
+            if score == 7 and _spy_above_cloud is True:
+                filtered_count += 1
                 continue
             target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
             quantity = int(target_value / price)
@@ -292,5 +324,8 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 continue
             self.market_on_open_order(symbol, quantity)
             self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
+
+        if filtered_count:
+            self.log(f"SPY_GATE|{date_str}|filtered={filtered_count}|spy_above_cloud={_spy_above_cloud}")
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
