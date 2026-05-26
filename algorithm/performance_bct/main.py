@@ -289,16 +289,6 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     self.log(f"THIN_CLOUD|{date_str}|{symbol.value}|thickness={cloud_thickness:.3f}|price={price:.2f}")
                     continue  # Skip thin cloud candidates
             # === END Experiment C ===
-            # === Experiment D: Volume surge confirmation ===
-            # Require entry-day volume >= 1.2x 20-day average volume
-            vol_sma = ind.get("vol_sma")
-            if vol_sma is not None and vol_sma.is_ready:
-                current_volume = float(self.securities[symbol].volume)
-                avg_volume = float(vol_sma.current.value)
-                if avg_volume > 0 and current_volume < avg_volume * 1.2:
-                    self.log(f"LOW_VOLUME|{date_str}|{symbol.value}|vol={current_volume:,.0f}|avg20={avg_volume:,.0f}|ratio={current_volume/avg_volume:.2f}")
-                    continue  # Skip low-volume candidates
-            # === END Experiment D ===
             candidates.append((symbol, result["score"]))
 
         candidates.sort(key=lambda x: x[1], reverse=True)
