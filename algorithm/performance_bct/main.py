@@ -77,6 +77,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # Exit condition parameter overrides
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
+        self.kijun_priority_enabled = self.get_parameter("kijun_priority_enabled", "false").lower() == "true"
 
         self.universe_settings.resolution = Resolution.DAILY
         self._active: set = set()
@@ -279,10 +280,22 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             result = score_symbol_native(self, symbol, ind)
             if result is None or result["score"] < self.MIN_SCORE:
                 continue
-            candidates.append((symbol, result["score"]))
+            kijun_dist = 0.0
+            if self.kijun_priority_enabled:
+                d_ichi = ind.get("d_ichi")
+                if d_ichi and d_ichi.is_ready:
+                    p = float(self.securities[symbol].price)
+                    k = d_ichi.kijun.current.value
+                    kijun_dist = abs(p - k) / k if k > 0 else 0.0
+            candidates.append((symbol, result["score"], kijun_dist))
 
-        candidates.sort(key=lambda x: x[1], reverse=True)
-        for symbol, score in candidates[:slots]:
+        if self.kijun_priority_enabled:
+            # Primary: score descending; secondary: kijun_distance ascending (closer = better)
+            candidates.sort(key=lambda x: (-x[1], x[2]))
+        else:
+            candidates.sort(key=lambda x: x[1], reverse=True)
+        for entry in candidates[:slots]:
+            symbol, score, kijun_dist = entry
             price = self.securities[symbol].price
             if price <= 0:
                 continue
@@ -291,6 +304,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             if quantity <= 0:
                 continue
             self.market_on_open_order(symbol, quantity)
-            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
+            kd_tag = f"|kijun_dist={kijun_dist:.4f}" if self.kijun_priority_enabled else ""
+            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}{kd_tag}")
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
