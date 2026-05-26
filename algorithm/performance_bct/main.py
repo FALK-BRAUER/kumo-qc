@@ -241,12 +241,8 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # Exit condition parameter overrides
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
-        # E49: IWM breadth gate parameter
-        self.iwm_breadth_gate_enabled = self.get_parameter("iwm_breadth_gate", str(self.ENABLE_IWM_BREADTH_GATE)).lower() == "true"
-        if self.iwm_breadth_gate_enabled:
-            self.iwm_symbol = self.add_equity("IWM", Resolution.DAILY).symbol
-            self.iwm_sma50 = self.sma(self.iwm_symbol, 50)
-            self.log("IWM_BREADTH_GATE|enabled|IWM_50D_SMA_registered")
+        # E18: Time-based exit variant parameters
+        self.time_based_exit_enabled = self.get_parameter("time_based_exit", str(self.TIME_BASED_EXIT_ENABLED)).lower() == "true"
 
         self.universe_settings.resolution = Resolution.DAILY
         self._active: set = set()
@@ -470,6 +466,19 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     pnl_h = close / meta.get("entry_price", close) - 1
                     self.log(f"PHASE3_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_bottom={cloud_bottom:.2f}|days={days_h}|pnl={pnl_h:.1%}")
             else:
+                # E18: Time-based exit — after N days with profit, exit on Tenkan breach
+                if self.time_based_exit_enabled and meta is not None:
+                    days_held = (self.time - meta["entry_date"]).days
+                    pnl_pct = close / meta["entry_price"] - 1
+                    if days_held >= self.TIME_BASED_EXIT_DAYS and pnl_pct >= self.TIME_BASED_EXIT_PNL:
+                        d_ichi = self._indicators[symbol]["d_ichi"]
+                        tenkan = d_ichi.tenkan.current.value if d_ichi.is_ready else None
+                        if tenkan is not None and close < tenkan:
+                            self.market_on_open_order(symbol, -holding.quantity)
+                            self._position_meta.pop(symbol, None)
+                            self.log(f"TIME_EXIT|{date_str}|{symbol.value}|close={close:.2f}|tenkan={tenkan:.2f}|days={days_held}|pnl={pnl_pct:.1%}")
+                            continue  # Skip other exit checks for this symbol
+
                 if close < kijun:
                     self.market_on_open_order(symbol, -holding.quantity)
                     self._position_meta.pop(symbol, None)
