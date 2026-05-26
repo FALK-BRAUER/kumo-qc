@@ -292,7 +292,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 continue
             size_mult = 1.5 if score == 8 else 1.0
             target_value = portfolio_value * self.POSITION_PCT * size_mult
-            if invested_value + target_value > portfolio_value:
+            if invested_value + target_value > portfolio_value * 1.5:
                 continue
             quantity = int(target_value / price)
             if quantity <= 0:
