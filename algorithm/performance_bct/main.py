@@ -236,6 +236,11 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
 
+        # E34: risk-based sizing. Default "false" = use flat POSITION_PCT.
+        # Enable: --parameter heat_per_slot 0.01  (risk_budget = equity * heat_per_slot)
+        _heat_raw = self.get_parameter("heat_per_slot", "false")
+        self.heat_per_slot: float | bool = False if _heat_raw.lower() == "false" else float(_heat_raw)
+
         self.universe_settings.resolution = Resolution.DAILY
         self._active: set = set()
         self._indicators: dict = {}
@@ -477,16 +482,28 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             candidates.append((symbol, result["score"]))
 
         candidates.sort(key=lambda x: x[1], reverse=True)
+        equity = self.portfolio.total_portfolio_value
         for symbol, score in candidates[:slots]:
             price = self.securities[symbol].price
             if price <= 0:
                 continue
-            target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
-            quantity = int(target_value / price)
+            # E34: risk-based or flat sizing
+            vals = self._daily_vals(symbol) if self.heat_per_slot else None
+            kijun_at_entry = float(vals[1]) if vals is not None else 0.0
+            stop_distance = price - kijun_at_entry
+            if self.heat_per_slot and stop_distance > 0:
+                quantity = int(equity * self.heat_per_slot / stop_distance)
+            else:
+                # flat 10% (also fallback when stop_price >= entry_price)
+                quantity = int(equity * self.POSITION_PCT / price)
             if quantity <= 0:
                 continue
             self.market_on_open_order(symbol, quantity)
-            self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price)}
-            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
+            self._position_meta[symbol] = {
+                "entry_date": self.time,
+                "entry_price": float(price),
+                "entry_kijun": kijun_at_entry,
+            }
+            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}|stop={kijun_at_entry:.2f}")
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
