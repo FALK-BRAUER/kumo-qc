@@ -13,8 +13,8 @@ Uses QC native IchimokuKinkoHyo: daily registered via self.ichimoku(),
 weekly via TradeBarConsolidator(Calendar.WEEKLY). Custom Wilder period-9
 ADX retained in score_symbol_native() — QC native ADX is period 14.
 
-Local mode: when LEAN data dir is detected, loads polygon_universe_daily_fy2025.json
-(867 unique tickers) instead of Morningstar CoarseFundamental filter.
+Local mode: when LEAN data dir is detected, loads polygon_universe_equity200_fy2025.json
+(326 unique tickers, top-200 S&P equity by dollar volume) instead of Morningstar CoarseFundamental filter.
 """
 
 import json
@@ -152,7 +152,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.subscription_manager.add_consolidator(sym, consolidator)
 
         # With 750-day warmup, consolidator receives sufficient weekly bars automatically.
-        # Skip manual seed during warmup to avoid 867× history() calls at init time.
+        # Skip manual seed during warmup to avoid 326× history() calls at init time.
         if not self.is_warming_up:
             self._seed_weekly(sym, w_ichi, w_close)
 
