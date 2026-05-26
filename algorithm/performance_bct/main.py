@@ -184,8 +184,6 @@ class BCTUniverseFilter:
 
 class BCTPerformanceAlgorithm(QCAlgorithm):
 
-    MAX_POSITIONS: int = 10
-    POSITION_PCT: float = 0.10
     MIN_SCORE: int = 7
     # Exit condition flags — False = reference bct‑perf‑2020‑2026 (daily Kijun only)
     ENABLE_CLOUD_BREACH_EXIT: bool = False
@@ -193,6 +191,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     # Phase 3 stop progression (methodology.md §5 Rule #13)
     PHASE3_DAYS: int = 56         # calendar days before Phase 3 eligible
     PHASE3_PNL: float = 0.15      # unrealized PnL threshold for Phase 3
+    # Risk-based sizing defaults
+    RISK_PER_TRADE_PCT: float = 0.01   # 1% of equity risked per trade
+    HEAT_CAP_PCT: float = 0.10         # max 10% of equity at risk across all open positions
 
     @staticmethod
     def _find_local_data_dir() -> Path | None:
@@ -236,11 +237,15 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
 
+        # Risk-based sizing parameters
+        self.risk_per_trade_pct = float(self.get_parameter("risk_per_trade_pct", str(self.RISK_PER_TRADE_PCT)))
+        self.heat_cap_pct = float(self.get_parameter("heat_cap_pct", str(self.HEAT_CAP_PCT)))
+
         self.universe_settings.resolution = Resolution.DAILY
         self._active: set = set()
         self._indicators: dict = {}
         self._polygon_universe: dict | None = None
-        self._position_meta: dict = {}  # symbol → {entry_date, entry_price}
+        self._position_meta: dict = {}  # symbol → {entry_date, entry_price, stop_price}
 
         if self._find_local_data_dir() is not None:
             # Local: static universe from Polygon daily snapshot (867 unique tickers, FY2025)
@@ -388,6 +393,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     in_phase3 = True
 
             if in_phase3:
+                # Update stop_price in meta to cloud_bottom for heat-cap accounting
+                if meta is not None:
+                    meta["stop_price"] = cloud_bottom
                 if close < cloud_bottom:
                     self.market_on_open_order(symbol, -holding.quantity)
                     meta = self._position_meta.pop(symbol, {})
@@ -417,8 +425,21 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             1 for sym, h in self.portfolio.items()
             if h.invested and sym not in exiting
         )
-        slots = self.MAX_POSITIONS - open_count
-        if slots <= 0:
+
+        # Heat cap: total $ at risk across all open positions
+        equity = self.portfolio.total_portfolio_value
+        total_at_risk = 0.0
+        for sym, meta in self._position_meta.items():
+            if self.portfolio[sym].invested and sym not in exiting:
+                qty = abs(self.portfolio[sym].quantity)
+                stop = meta.get("stop_price", meta.get("entry_price", 0))
+                entry = meta.get("entry_price", 0)
+                if entry > 0 and stop > 0:
+                    total_at_risk += qty * (entry - stop)
+        heat_cap = equity * self.heat_cap_pct
+        if total_at_risk >= heat_cap:
+            self.log(f"HEAT_CAP|{date_str}|at_risk={total_at_risk:.0f}|cap={heat_cap:.0f}|skipping_entries")
+            self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries=0|heat_capped=True")
             return
 
         # When running locally with polygon universe, restrict candidates to today's snapshot
@@ -457,17 +478,39 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 continue
             candidates.append((symbol, result["score"]))
 
-        candidates.sort(key=lambda x: x[1], reverse=True)
-        for symbol, score in candidates[:slots]:
-            price = self.securities[symbol].price
-            if price <= 0:
+        # FIFO: no ranking — take candidates in sorted(symbol) order
+        new_entries = 0
+        for symbol, score in candidates:
+            if total_at_risk >= heat_cap:
+                break
+            vals = self._daily_vals(symbol)
+            if vals is None:
                 continue
-            target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
-            quantity = int(target_value / price)
+            price, kijun, cloud_top, cloud_bottom = vals
+            if price <= 0 or kijun <= 0:
+                continue
+            stop_price = kijun  # Phase 1-2 stop anchor
+            stop_distance = price - stop_price
+            if stop_distance <= 0:
+                continue
+            risk_dollars = equity * self.risk_per_trade_pct
+            quantity = int(risk_dollars / stop_distance)
+            if quantity <= 0:
+                continue
+            # Cap position value at 20% of equity to avoid over-concentration
+            max_qty = int(equity * 0.20 / price)
+            quantity = min(quantity, max_qty)
             if quantity <= 0:
                 continue
             self.market_on_open_order(symbol, quantity)
-            self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price)}
-            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
+            position_risk = quantity * stop_distance
+            total_at_risk += position_risk
+            self._position_meta[symbol] = {
+                "entry_date": self.time,
+                "entry_price": float(price),
+                "stop_price": float(stop_price),
+            }
+            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}|stop={stop_price:.2f}|risk=${position_risk:.0f}")
+            new_entries += 1
 
-        self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
+        self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={new_entries}|at_risk={total_at_risk:.0f}|heat_cap={heat_cap:.0f}")
