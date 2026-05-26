@@ -514,6 +514,13 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 if price < cloud_top:
                     continue
             # === END PRE-FILTER ===
+
+            # === C2: Resistance Proximity Gate ===
+            # Skip entries within 2% of 52-week high (resistance proximity)
+            if self._is_near_resistance(symbol):
+                continue
+            # === END C2 GATE ===
+
             result = score_symbol_native(self, symbol, ind)
             if result is None or result["score"] < self.MIN_SCORE:
                 continue
