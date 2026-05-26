@@ -77,11 +77,13 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # Exit condition parameter overrides
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
+        self.doji_timing_enabled = self.get_parameter("doji_timing_enabled", "true").lower() == "true"
 
         self.universe_settings.resolution = Resolution.DAILY
         self._active: set = set()
         self._indicators: dict = {}
         self._polygon_universe: dict | None = None
+        self._doji_pending: dict = {}  # symbol -> doji_high; cleared each rebalance
 
         if self._find_local_data_dir() is not None:
             # Local: static universe from Polygon daily snapshot (867 unique tickers, FY2025)
@@ -208,6 +210,27 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     def _has_open_orders(self, symbol) -> bool:
         return bool(self.transactions.get_open_orders(symbol))
 
+    def _is_doji_pullback(self, symbol) -> tuple[bool, float]:
+        """Returns (is_doji_after_pullback, today_high). Doji: body/range < 0.15."""
+        try:
+            hist = self.history(symbol, 4, Resolution.DAILY)
+            if hist is None or hist.empty or len(hist) < 3:
+                return False, 0.0
+            if isinstance(hist.index, pd.MultiIndex):
+                hist = hist.droplevel(0)
+            hist.columns = [c.lower() for c in hist.columns]
+            today = hist.iloc[-1]
+            prev = hist.iloc[-2]
+            candle_range = today["high"] - today["low"]
+            if candle_range <= 0:
+                return False, 0.0
+            body = abs(today["open"] - today["close"])
+            is_doji = (body / candle_range) < 0.15
+            pullback = float(prev["close"]) > float(today["close"])
+            return is_doji and pullback, float(today["high"])
+        except Exception:
+            return False, 0.0
+
     def _rebalance(self) -> None:
         if self.is_warming_up:
             return
@@ -243,7 +266,32 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             1 for sym, h in self.portfolio.items()
             if h.invested and sym not in exiting
         )
-        slots = self.MAX_POSITIONS - open_count
+
+        # === DOJI PENDING BREAKOUT CHECK ===
+        # Pending entries were deferred yesterday; today check close > doji_high
+        pending_filled = 0
+        if self.doji_timing_enabled and self._doji_pending:
+            for pending_sym in list(self._doji_pending.keys()):
+                doji_high = self._doji_pending.pop(pending_sym)
+                if self.portfolio[pending_sym].invested or pending_sym in exiting:
+                    continue
+                if open_count + pending_filled >= self.MAX_POSITIONS:
+                    continue
+                price = self.securities[pending_sym].price
+                close = float(self.securities[pending_sym].close)
+                if close <= doji_high or price <= 0:
+                    self.log(f"DOJI_MISS|{date_str}|{pending_sym.value}|close={close:.2f}|doji_high={doji_high:.2f}")
+                    continue
+                target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
+                quantity = int(target_value / price)
+                if quantity <= 0:
+                    continue
+                self.market_on_open_order(pending_sym, quantity)
+                pending_filled += 1
+                self.log(f"ENTRY_DOJI|{date_str}|{pending_sym.value}|doji_high={doji_high:.2f}|qty={quantity}|price~{price:.2f}")
+        # === END DOJI PENDING CHECK ===
+
+        slots = self.MAX_POSITIONS - open_count - pending_filled
         if slots <= 0:
             return
 
@@ -282,15 +330,23 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             candidates.append((symbol, result["score"]))
 
         candidates.sort(key=lambda x: x[1], reverse=True)
+        new_entries = 0
         for symbol, score in candidates[:slots]:
             price = self.securities[symbol].price
             if price <= 0:
                 continue
+            if self.doji_timing_enabled:
+                is_doji, doji_high = self._is_doji_pullback(symbol)
+                if is_doji:
+                    self._doji_pending[symbol] = doji_high
+                    self.log(f"DOJI_DEFER|{date_str}|{symbol.value}|score={score}/8|doji_high={doji_high:.2f}")
+                    continue
             target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
             quantity = int(target_value / price)
             if quantity <= 0:
                 continue
             self.market_on_open_order(symbol, quantity)
+            new_entries += 1
             self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
 
-        self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
+        self.log(f"REBALANCE|{date_str}|open={open_count}|pending_filled={pending_filled}|new_entries={new_entries}")
