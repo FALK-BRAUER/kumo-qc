@@ -297,6 +297,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     def _register_indicators(self, sym) -> None:
         d_ichi = self.ichimoku(sym, 9, 26, 26, 52, 26, 26)
         sma200 = self.sma(sym, 200)
+        atr14 = self.atr(sym, 14)
 
         w_ichi = IchimokuKinkoHyo(9, 26, 26, 52, 26, 26)
         w_close = RollingWindow[float](28)
@@ -320,6 +321,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             "w_ichi": w_ichi,
             "w_close": w_close,
             "sma200": sma200,
+            "atr14": atr14,
             "consolidator": consolidator,
         }
 
@@ -388,12 +390,16 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     in_phase3 = True
 
             if in_phase3:
-                if close < cloud_bottom:
+                atr_ind = self._indicators[symbol].get("atr14")
+                atr = atr_ind.current.value if (atr_ind and atr_ind.is_ready) else 0.0
+                kijun_atr_stop = kijun - atr
+                stop_anchor = kijun_atr_stop if kijun_atr_stop > cloud_bottom else cloud_bottom
+                if close < stop_anchor:
                     self.market_on_open_order(symbol, -holding.quantity)
                     meta = self._position_meta.pop(symbol, {})
                     days_h = (self.time - meta.get("entry_date", self.time)).days
                     pnl_h = close / meta.get("entry_price", close) - 1
-                    self.log(f"PHASE3_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_bottom={cloud_bottom:.2f}|days={days_h}|pnl={pnl_h:.1%}")
+                    self.log(f"PHASE3_EXIT|{date_str}|{symbol.value}|close={close:.2f}|stop={stop_anchor:.2f}|cloud_bottom={cloud_bottom:.2f}|kijun_atr={kijun_atr_stop:.2f}|days={days_h}|pnl={pnl_h:.1%}")
             else:
                 if close < kijun:
                     self.market_on_open_order(symbol, -holding.quantity)
