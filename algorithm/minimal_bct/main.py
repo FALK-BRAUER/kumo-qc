@@ -396,6 +396,8 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             return
         self._returns_cache: dict[Symbol, np.ndarray] = {}
         for symbol in list(self._indicators.keys()):
+            if symbol in self._credit_etf_symbols:  # GH #29: skip credit ETFs from returns cache
+                continue
             try:
                 hist = self.history(symbol, 61, Resolution.DAILY)  # 61 bars for 60 returns
                 if hist is None or hist.empty or len(hist) < 2:
@@ -594,8 +596,8 @@ class BCTMinimalAlgorithm(QCAlgorithm):
                 roc = ind.get("roc63")
                 if roc and roc.is_ready:
                     values.append(float(roc.current.value))
-            except Exception:
-                pass
+            except Exception as e:
+                self.log(f"CREDIT_GATE_ERROR|{ticker}|{e}")
         if len(values) < 3:
             self.log(f"CREDIT_GATE_DEGRADED|ready={len(values)}/3|gate_frozen={self._credit_gate_open}")
             return
@@ -966,6 +968,8 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         # Score all symbols for rotation decisions
         all_scores: dict[Symbol, int] = {}
         for symbol in list(self._indicators.keys()):
+            if symbol in self._credit_etf_symbols:  # GH #29: skip credit ETFs from scorer
+                continue
             funnel_total_candidates += 1
             if not self.securities.contains_key(symbol):
                 continue
