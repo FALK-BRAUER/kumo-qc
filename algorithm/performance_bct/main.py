@@ -27,7 +27,7 @@ from AlgorithmImports import *  # noqa: F401,F403
 import numpy as np
 import pandas as pd
 
-from universe_filter import BCTUniverseFilter
+
 
 
 _WEEKLY_BARS = 130
@@ -153,6 +153,46 @@ def score_symbol_native(algorithm: Any, symbol: Any, ind: Any) -> dict[str, Any]
     score_symbol fetches 700 daily bars and computes all indicators from scratch.
     """
     return score_symbol(algorithm, symbol)
+
+
+class BCTUniverseFilter:
+    """
+    Plug into the main algorithm:
+
+        self._universe_filter = BCTUniverseFilter()
+        self.add_universe(
+            self._universe_filter.coarse_selection,
+            self._universe_filter.fine_selection,
+        )
+
+    BCT signal scoring happens in the scheduled rebalance function after
+    the universe settles, not inside fine_selection.
+    """
+
+    # Coarse thresholds — tune in Phase 4 backtest validation
+    MIN_PRICE: float = 10.0
+    MIN_DOLLAR_VOLUME: float = 5_000_000  # $5M/day liquidity floor
+    COARSE_MAX: int = 9999
+
+    def coarse_selection(self, coarse: list) -> list:
+        """
+        - has_fundamental_data: excludes ETFs, ADRs, OTC/pink-sheet names
+          (QC's Morningstar dataset covers ~8,100 US equities only)
+        - price > MIN_PRICE: removes sub-$10 names
+        - dollar_volume > MIN_DOLLAR_VOLUME: liquidity floor
+        Sorted by dollar_volume desc, capped at COARSE_MAX.
+        """
+        candidates = [
+            c for c in coarse
+            if c.has_fundamental_data
+            and c.price >= self.MIN_PRICE
+            and c.dollar_volume >= self.MIN_DOLLAR_VOLUME
+        ]
+        candidates.sort(key=lambda c: c.dollar_volume, reverse=True)
+        return [c.symbol for c in candidates[: self.COARSE_MAX]]
+
+    def fine_selection(self, fine: list) -> list:
+        return [f.symbol for f in fine]
 
 
 class BCTPerformanceAlgorithm(QCAlgorithm):
