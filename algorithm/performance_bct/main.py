@@ -193,6 +193,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     # Phase 3 stop progression (methodology.md §5 Rule #13)
     PHASE3_DAYS: int = 56         # calendar days before Phase 3 eligible
     PHASE3_PNL: float = 0.15      # unrealized PnL threshold for Phase 3
+    # E82: 3-phase graduated stop — Phase 1: kijun, Phase 2: cloud top, Phase 3: cloud bottom
+    PHASE2_DAYS: int = 28         # calendar days before Phase 2 (cloud top stop) eligible
+    THREE_PHASE_STOP_ENABLED: bool = False  # E82: enable graduated 3-phase stop system
 
     @staticmethod
     def _find_local_data_dir() -> Path | None:
@@ -235,6 +238,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # Exit condition parameter overrides
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
+
+        # E22: Active Return Gate parameter
+        self.active_return_gate_enabled = self.get_parameter("active_return_gate_enabled", "false").lower() == "true"
 
         self.universe_settings.resolution = Resolution.DAILY
         self._active: set = set()
@@ -381,6 +387,53 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     def _has_open_orders(self, symbol) -> bool:
         return bool(self.transactions.get_open_orders(symbol))
 
+    def _active_return_filter_passed(self, symbol) -> bool:
+        """
+        E22: Active Return Gate - Filter stocks where 10-day active return vs SPY is <= 0.
+        Only pass stocks that are outperforming SPY (active return > 0).
+        """
+        if not self.active_return_gate_enabled:
+            return True  # Gate disabled, pass all
+
+        from QuantConnect import Resolution  # noqa: PLC0415
+
+        try:
+            # Get 11 days of history for 10-day return calculation
+            stock_hist = self.history(symbol, 11, Resolution.DAILY)
+            spy_hist = self.history(self._spy_sym, 11, Resolution.DAILY)
+        except Exception:
+            return False  # Fail closed if data unavailable
+
+        if stock_hist is None or stock_hist.empty or len(stock_hist) < 11:
+            return False
+        if spy_hist is None or spy_hist.empty or len(spy_hist) < 11:
+            return False
+
+        # Extract close prices
+        if isinstance(stock_hist.index, pd.MultiIndex):
+            stock_hist = stock_hist.droplevel(0)
+        if isinstance(spy_hist.index, pd.MultiIndex):
+            spy_hist = spy_hist.droplevel(0)
+
+        if "close" not in stock_hist.columns or "close" not in spy_hist.columns:
+            return False
+
+        stock_closes = stock_hist["close"].astype(float)
+        spy_closes = spy_hist["close"].astype(float)
+
+        if len(stock_closes) < 11 or len(spy_closes) < 11:
+            return False
+
+        # Calculate 10-day returns
+        stock_return_10d = stock_closes.iloc[-1] / stock_closes.iloc[0] - 1
+        spy_return_10d = spy_closes.iloc[-1] / spy_closes.iloc[0] - 1
+
+        # Active return = stock return - benchmark return
+        active_return_10d = stock_return_10d - spy_return_10d
+
+        # Pass only if outperforming SPY (active return > 0)
+        return bool(active_return_10d > 0)
+
     def _rebalance(self) -> None:
         if self.is_warming_up:
             return
@@ -471,6 +524,13 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 if price < cloud_top:
                     continue
             # === END PRE-FILTER ===
+
+            # === E22: Active Return Gate ===
+            # Skip stocks not outperforming SPY (10-day active return <= 0)
+            if self.active_return_gate_enabled and not self._active_return_filter_passed(symbol):
+                continue
+            # === END E22 GATE ===
+
             result = score_symbol_native(self, symbol, ind)
             if result is None or result["score"] < self.MIN_SCORE:
                 continue
