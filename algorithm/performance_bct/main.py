@@ -22,7 +22,7 @@ AND unrealized PnL ≥ +15%, switch stop anchor from Kijun to cloud bottom
 """
 
 import json
-from datetime import timedelta
+from datetime import timedelta, date
 from pathlib import Path
 
 from AlgorithmImports import *  # noqa: F401,F403
@@ -215,6 +215,18 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     return json.load(f)
         return None
 
+    @staticmethod
+    def _load_earnings_calendar() -> dict:
+        candidates = [
+            Path(__file__).parent / "earnings_calendar_2025.json",
+            Path("/Lean/Data/earnings_calendar_2025.json"),
+        ]
+        for p in candidates:
+            if p.exists():
+                with open(p) as f:
+                    return json.load(f)
+        return {}
+
     def initialize(self) -> None:
         self.set_time_zone("America/New_York")
         sy = int(self.get_parameter("start_year",  "2025"))
@@ -240,6 +252,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self._active: set = set()
         self._indicators: dict = {}
         self._polygon_universe: dict | None = None
+        self._earnings_calendar: dict = self._load_earnings_calendar()
         self._position_meta: dict = {}  # symbol → {entry_date, entry_price}
 
         if self._find_local_data_dir() is not None:
@@ -471,6 +484,14 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 if price < cloud_top:
                     continue
             # === END PRE-FILTER ===
+            # Earnings avoidance: skip if earnings within 5 calendar days
+            if self._earnings_calendar:
+                today_date = self.time.date()
+                if any(
+                    0 <= (date.fromisoformat(e) - today_date).days <= 5
+                    for e in self._earnings_calendar.get(symbol.value, [])
+                ):
+                    continue
             result = score_symbol_native(self, symbol, ind)
             if result is None or result["score"] < self.MIN_SCORE:
                 continue
