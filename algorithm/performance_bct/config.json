@@ -1,3 +1,15 @@
 {
-    "local-id": 679828420
+    "local-id": 679828420,
+    "parameters": {
+        "warmup_days": "750",
+        "weekly_kijun_exit": "True",
+        "cloud_exit": "True",
+        "three_phase_stop_enabled": "True",
+        "start_year": "2025",
+        "start_month": "1",
+        "start_day": "1",
+        "end_year": "2025",
+        "end_month": "12",
+        "end_day": "31"
+    }
 }

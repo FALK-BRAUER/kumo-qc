@@ -193,6 +193,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     # Phase 3 stop progression (methodology.md §5 Rule #13)
     PHASE3_DAYS: int = 56         # calendar days before Phase 3 eligible
     PHASE3_PNL: float = 0.15      # unrealized PnL threshold for Phase 3
+    PHASE1_DAYS: int = 28         # calendar days of Phase 1 tight Tenkan/cloud stop
 
     @staticmethod
     def _find_local_data_dir() -> Path | None:
@@ -235,6 +236,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # Exit condition parameter overrides
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
+        self.three_phase_stop_enabled = self.get_parameter("three_phase_stop_enabled", "false").lower() == "true"
 
         self.universe_settings.resolution = Resolution.DAILY
         self._active: set = set()
@@ -413,6 +415,18 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     days_h = (self.time - meta.get("entry_date", self.time)).days
                     pnl_h = close / meta.get("entry_price", close) - 1
                     self.log(f"PHASE3_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_bottom={cloud_bottom:.2f}|days={days_h}|pnl={pnl_h:.1%}")
+            elif self.three_phase_stop_enabled and meta is not None and days_held < self.PHASE1_DAYS:
+                # Phase 1 (0-28d): tight stop — Tenkan or cloud breach
+                d_ichi = self._indicators[symbol]["d_ichi"]
+                tenkan = d_ichi.tenkan.current.value if d_ichi.is_ready else kijun
+                if close < tenkan:
+                    self.market_on_open_order(symbol, -holding.quantity)
+                    self._position_meta.pop(symbol, None)
+                    self.log(f"PHASE1_TENKAN|{date_str}|{symbol.value}|close={close:.2f}|tenkan={tenkan:.2f}|days={days_held}")
+                elif close < cloud_top:
+                    self.market_on_open_order(symbol, -holding.quantity)
+                    self._position_meta.pop(symbol, None)
+                    self.log(f"PHASE1_CLOUD|{date_str}|{symbol.value}|close={close:.2f}|cloud_top={cloud_top:.2f}|days={days_held}")
             else:
                 if close < kijun:
                     self.market_on_open_order(symbol, -holding.quantity)
