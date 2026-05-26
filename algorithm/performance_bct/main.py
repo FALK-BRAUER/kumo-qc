@@ -282,15 +282,23 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             candidates.append((symbol, result["score"]))
 
         candidates.sort(key=lambda x: x[1], reverse=True)
+        portfolio_value = self.portfolio.total_portfolio_value
+        invested_value = sum(
+            h.holdings_value for h in self.portfolio.values() if h.invested
+        )
         for symbol, score in candidates[:slots]:
             price = self.securities[symbol].price
             if price <= 0:
                 continue
-            target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
+            size_mult = 1.5 if score == 8 else 1.0
+            target_value = portfolio_value * self.POSITION_PCT * size_mult
+            if invested_value + target_value > portfolio_value:
+                continue
             quantity = int(target_value / price)
             if quantity <= 0:
                 continue
             self.market_on_open_order(symbol, quantity)
-            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
+            invested_value += target_value
+            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|size={size_mult:.1f}x|qty={quantity}|price~{price:.2f}")
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
