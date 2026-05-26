@@ -12,6 +12,9 @@ Use scripts/run_windows.py to launch all 6-window + FY2025 backtests.
 Uses QC native IchimokuKinkoHyo: daily registered via self.ichimoku(),
 weekly via TradeBarConsolidator(Calendar.WEEKLY). Custom Wilder period-9
 ADX retained in score_symbol_native() — QC native ADX is period 14.
+
+R2 experiment: stagnation rotation — exit held positions with
+  days_held >= 10 AND pnl < -2% if a candidate with equal or higher score exists.
 """
 
 from datetime import timedelta
@@ -22,13 +25,15 @@ from AlgorithmImports import *  # noqa: F401,F403
 from bct_signal import score_symbol_native
 from universe_filter import BCTUniverseFilter
 
+STAGNATION_DAYS = 10
+STAGNATION_PNL_THRESHOLD = -0.02
+
 
 class BCTPerformanceAlgorithm(QCAlgorithm):
 
     MAX_POSITIONS: int = 10
     POSITION_PCT: float = 0.10
     MIN_SCORE: int = 7
-    # Exit condition flags — False = reference bct‑perf‑2020‑2026 (daily Kijun only)
     ENABLE_CLOUD_BREACH_EXIT: bool = False
     ENABLE_WEEKLY_KIJUN_EXIT: bool = False
 
@@ -44,17 +49,14 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.set_end_date(ey, em, ed)
         self.set_cash(100_000)
         self.set_benchmark("SPY")
-        
+
         warmup_days = int(self.get_parameter("warmup_days", "750"))
         self.set_warmup(timedelta(days=warmup_days))
         self.warmup_days = warmup_days
-        
-        # Exit condition parameter overrides
+
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
-        
-        # Add ETFs explicitly (Morningstar fundamental data excludes ETFs)
-        # These will be included in the BCT scoring universe
+
         etfs = ["QQQ", "SMH", "XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLB", "XLU", "XLRE", "XLC"]
         for etf_symbol in etfs:
             self.add_equity(etf_symbol)
@@ -64,20 +66,23 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self._filter = BCTUniverseFilter()
         self._active: set = set()
         self._indicators: dict = {}
+        self._position_meta: dict = {}  # symbol → {entry_date, entry_price, score}
 
-        # Local mode: bypass CoarseFundamental (not available locally)
-        # Load tickers directly from local data directory
-        data_dir = Path("data/equity/usa/daily")
-        if data_dir.exists():
-            tickers = [p.stem.upper() for p in data_dir.glob("*.zip")]
-            tickers.sort()  # deterministic order
-            for ticker in tickers[:500]:  # cap at 500 for local BT
+        _dyn_file = Path(__file__).parent / "polygon_universe_equity200_fy2025.json"
+        if _dyn_file.exists():
+            import json as _json
+            with open(_dyn_file) as _f:
+                self._daily_universe: dict = _json.load(_f)
+            _all_tickers: set = set()
+            for _tickers in self._daily_universe.values():
+                _all_tickers.update(_tickers)
+            for _ticker in sorted(_all_tickers):
                 try:
-                    self.add_equity(ticker)
+                    self.add_equity(_ticker, Resolution.DAILY)
                 except Exception:
                     pass
         else:
-            # Fallback to cloud universe filter
+            self._daily_universe = {}
             self.add_universe(
                 self._filter.coarse_selection,
                 self._filter.fine_selection,
@@ -160,16 +165,11 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         d_ichi = self._indicators[symbol]["d_ichi"]
         if not d_ichi.is_ready:
             return None
-        
         close = float(self.securities[symbol].price)
         kijun = d_ichi.kijun.current.value
-        
-        # Access the displaced Senkou Span A/B values directly
         senkou_a = d_ichi.senkou_a.current.value
         senkou_b = d_ichi.senkou_b.current.value
-        
         cloud_top = max(senkou_a, senkou_b)
-        
         return close, kijun, cloud_top
 
     def _has_open_orders(self, symbol) -> bool:
@@ -179,7 +179,39 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         if self.is_warming_up:
             return
         date_str = self.time.strftime("%Y-%m-%d")
+        today_universe = set(self._daily_universe.get(date_str, []))
 
+        # === SCORE ALL CANDIDATES (non-invested, not open orders) ===
+        all_candidates: list[tuple] = []
+        for symbol in sorted(self._active):
+            if today_universe and symbol.value not in today_universe:
+                continue
+            if self.portfolio[symbol].invested:
+                continue
+            if self._has_open_orders(symbol):
+                continue
+            ind = self._indicators.get(symbol)
+            if ind is None:
+                continue
+            sma200_ind = ind.get("sma200")
+            d_ichi_ind = ind.get("d_ichi")
+            if sma200_ind and sma200_ind.is_ready and d_ichi_ind and d_ichi_ind.is_ready:
+                price = float(self.securities[symbol].price)
+                if price <= 0:
+                    continue
+                if price < sma200_ind.current.value:
+                    continue
+                cloud_top_val = max(d_ichi_ind.senkou_a.current.value, d_ichi_ind.senkou_b.current.value)
+                if price < cloud_top_val:
+                    continue
+            result = score_symbol_native(self, symbol, ind)
+            if result is None or result["score"] < self.MIN_SCORE:
+                continue
+            all_candidates.append((symbol, result["score"]))
+        all_candidates.sort(key=lambda x: x[1], reverse=True)
+        best_candidate_score = all_candidates[0][1] if all_candidates else 0
+
+        # === STANDARD EXITS (Kijun stop, cloud, weekly Kijun) ===
         for symbol, holding in list(self.portfolio.items()):
             if not holding.invested or self._has_open_orders(symbol):
                 continue
@@ -187,20 +219,47 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             if vals is None:
                 continue
             close, kijun, cloud_top = vals
-            
             w_ichi = self._indicators[symbol]["w_ichi"]
             w_kijun = w_ichi.kijun.current.value if w_ichi.is_ready else None
 
             if close < kijun:
                 self.market_on_open_order(symbol, -holding.quantity)
                 self.log(f"STOP|{date_str}|{symbol.value}|close={close:.2f}|kijun={kijun:.2f}")
+                self._position_meta.pop(symbol, None)
             elif self.cloud_exit_enabled and close < cloud_top:
                 self.market_on_open_order(symbol, -holding.quantity)
                 self.log(f"CLOUD_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_top={cloud_top:.2f}")
+                self._position_meta.pop(symbol, None)
             elif self.weekly_kijun_exit_enabled and w_kijun is not None and close < w_kijun:
                 self.market_on_open_order(symbol, -holding.quantity)
                 self.log(f"WEEKLY_KIJUN_STOP|{date_str}|{symbol.value}|close={close:.2f}|w_kijun={w_kijun:.2f}")
+                self._position_meta.pop(symbol, None)
 
+        # === STAGNATION ROTATION EXITS ===
+        if best_candidate_score > 0:
+            for symbol, holding in list(self.portfolio.items()):
+                if not holding.invested or self._has_open_orders(symbol):
+                    continue
+                meta = self._position_meta.get(symbol)
+                if meta is None:
+                    continue
+                days_held = (self.time - meta["entry_date"]).days
+                if days_held < STAGNATION_DAYS:
+                    continue
+                price = float(self.securities[symbol].price)
+                pnl_pct = price / meta["entry_price"] - 1
+                if pnl_pct >= STAGNATION_PNL_THRESHOLD:
+                    continue
+                if best_candidate_score >= meta["score"]:
+                    self.market_on_open_order(symbol, -holding.quantity)
+                    self.log(
+                        f"ROTATION_EXIT|{date_str}|{symbol.value}"
+                        f"|days={days_held}|pnl={pnl_pct:.1%}"
+                        f"|held_score={meta['score']}|best_cand={best_candidate_score}"
+                    )
+                    self._position_meta.pop(symbol, None)
+
+        # === NEW ENTRIES ===
         exiting = {
             o.symbol
             for o in self.transactions.get_open_orders()
@@ -214,35 +273,8 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         if slots <= 0:
             return
 
-        candidates: list[tuple] = []
-        for symbol in sorted(self._active):
-            if self.portfolio[symbol].invested:
-                continue
-            ind = self._indicators.get(symbol)
-            if ind is None:
-                continue
-            # === PRE-FILTER: skip symbols that cannot reach MIN_SCORE=7 ===
-            sma200_ind = ind.get("sma200")
-            d_ichi_ind = ind.get("d_ichi")
-            if (sma200_ind and sma200_ind.is_ready and d_ichi_ind and d_ichi_ind.is_ready):
-                price = float(self.securities[symbol].price)
-                if price <= 0:
-                    continue
-                # If below SMA200, condition 8 fails → max score 6 → skip (MIN_SCORE=7)
-                if price < sma200_ind.current.value:
-                    continue
-                # If below daily cloud, condition 5 fails → max score 6 → skip
-                cloud_top = max(d_ichi_ind.senkou_a.current.value, d_ichi_ind.senkou_b.current.value)
-                if price < cloud_top:
-                    continue
-            # === END PRE-FILTER ===
-            result = score_symbol_native(self, symbol, ind)
-            if result is None or result["score"] < self.MIN_SCORE:
-                continue
-            candidates.append((symbol, result["score"]))
-
-        candidates.sort(key=lambda x: x[1], reverse=True)
-        for symbol, score in candidates[:slots]:
+        new_entries = 0
+        for symbol, score in all_candidates[:slots]:
             price = self.securities[symbol].price
             if price <= 0:
                 continue
@@ -251,6 +283,12 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             if quantity <= 0:
                 continue
             self.market_on_open_order(symbol, quantity)
+            self._position_meta[symbol] = {
+                "entry_date": self.time,
+                "entry_price": float(price),
+                "score": score,
+            }
             self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
+            new_entries += 1
 
-        self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
+        self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={new_entries}")
