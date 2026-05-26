@@ -83,6 +83,10 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self._indicators: dict = {}
         self._polygon_universe: dict | None = None
 
+        # HY credit momentum overlay (QC-2)
+        self._hyg_sym = self.add_equity("HYG", Resolution.DAILY).symbol
+        self._hyg_roc = self.roc(self._hyg_sym, 20)
+
         if self._find_local_data_dir() is not None:
             # Local: static universe from Polygon daily snapshot (867 unique tickers, FY2025)
             poly = self._load_polygon_universe()
@@ -282,15 +286,19 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             candidates.append((symbol, result["score"]))
 
         candidates.sort(key=lambda x: x[1], reverse=True)
+        hyg_risk_off = self._hyg_roc.is_ready and self._hyg_roc.current.value < 0
         for symbol, score in candidates[:slots]:
             price = self.securities[symbol].price
             if price <= 0:
                 continue
-            target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
+            # QC-2: halve position size for score=7 entries when HYG 20d momentum is negative
+            pos_pct = self.POSITION_PCT * 0.5 if (score == 7 and hyg_risk_off) else self.POSITION_PCT
+            target_value = self.portfolio.total_portfolio_value * pos_pct
             quantity = int(target_value / price)
             if quantity <= 0:
                 continue
             self.market_on_open_order(symbol, quantity)
-            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
+            hyg_tag = f"|hyg_roc={self._hyg_roc.current.value:.4f}|half_size=True" if (score == 7 and hyg_risk_off) else ""
+            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}{hyg_tag}")
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
