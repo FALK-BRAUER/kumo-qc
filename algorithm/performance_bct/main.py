@@ -193,6 +193,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     # Phase 3 stop progression (methodology.md §5 Rule #13)
     PHASE3_DAYS: int = 56         # calendar days before Phase 3 eligible
     PHASE3_PNL: float = 0.15      # unrealized PnL threshold for Phase 3
+    PHASE1_DAYS: int = 28         # calendar days of Phase 1 tight Tenkan/cloud stop
 
     @staticmethod
     def _find_local_data_dir() -> Path | None:
@@ -235,6 +236,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # Exit condition parameter overrides
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
+        self.three_phase_stop_enabled = self.get_parameter("three_phase_stop_enabled", "false").lower() == "true"
 
         self.universe_settings.resolution = Resolution.DAILY
         self._active: set = set()
@@ -381,6 +383,49 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     def _has_open_orders(self, symbol) -> bool:
         return bool(self.transactions.get_open_orders(symbol))
 
+    def _calculate_cloud_thickness_sizing(self, symbol: Any, base_pct: float) -> float:
+        """
+        E58: Cloud Thickness-Based Position Sizing
+        Larger positions when cloud is thick (strong trend),
+        smaller positions when cloud is thin (weak trend).
+        """
+        ind = self._indicators.get(symbol)
+        if ind is None:
+            return base_pct
+
+        d_ichi = ind.get("d_ichi")
+        if d_ichi is None or not d_ichi.is_ready:
+            return base_pct
+
+        # Calculate cloud thickness
+        senkou_a = d_ichi.senkou_a.current.value
+        senkou_b = d_ichi.senkou_b.current.value
+        thickness = abs(senkou_a - senkou_b)
+
+        # Store thickness for median calculation
+        if not hasattr(self, '_cloud_thickness_values'):
+            self._cloud_thickness_values = []
+        self._cloud_thickness_values.append(thickness)
+
+        # Calculate median thickness (use recent values)
+        if len(self._cloud_thickness_values) > 1000:
+            self._cloud_thickness_values = self._cloud_thickness_values[-1000:]
+
+        if len(self._cloud_thickness_values) < 10:
+            return base_pct
+
+        median_thickness = np.median(self._cloud_thickness_values)
+        if median_thickness == 0:
+            return base_pct
+
+        # Calculate thickness ratio
+        thickness_ratio = thickness / median_thickness
+
+        # Apply sizing multiplier: [0.5x, 2.0x] base position
+        sizing_multiplier = np.clip(thickness_ratio, 0.5, 2.0)
+
+        return base_pct * sizing_multiplier
+
     def _rebalance(self) -> None:
         if self.is_warming_up:
             return
@@ -414,7 +459,17 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     pnl_h = close / meta.get("entry_price", close) - 1
                     self.log(f"PHASE3_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_bottom={cloud_bottom:.2f}|days={days_h}|pnl={pnl_h:.1%}")
             else:
-                if close < kijun:
+                # E55: Weekly Kijun exit — replaces daily Kijun as primary stop
+                exit_kijun = w_kijun if w_kijun is not None else kijun
+                if close < exit_kijun:
+                    self.market_on_open_order(symbol, -holding.quantity)
+                    self._position_meta.pop(symbol, None)
+                    self.log(f"WEEKLY_KIJUN_STOP|{date_str}|{symbol.value}|close={close:.2f}|kijun={exit_kijun:.2f}")
+                elif self.cloud_exit_enabled and close < cloud_top:
+                    self.market_on_open_order(symbol, -holding.quantity)
+                    self._position_meta.pop(symbol, None)
+                    self.log(f"CLOUD_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_top={cloud_top:.2f}")
+                elif close < kijun:
                     self.market_on_open_order(symbol, -holding.quantity)
                     self._position_meta.pop(symbol, None)
                     self.log(f"STOP|{date_str}|{symbol.value}|close={close:.2f}|kijun={kijun:.2f}")
@@ -422,10 +477,6 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     self.market_on_open_order(symbol, -holding.quantity)
                     self._position_meta.pop(symbol, None)
                     self.log(f"CLOUD_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_top={cloud_top:.2f}")
-                elif self.weekly_kijun_exit_enabled and w_kijun is not None and close < w_kijun:
-                    self.market_on_open_order(symbol, -holding.quantity)
-                    self._position_meta.pop(symbol, None)
-                    self.log(f"WEEKLY_KIJUN_STOP|{date_str}|{symbol.value}|close={close:.2f}|w_kijun={w_kijun:.2f}")
 
         exiting = {
             o.symbol
@@ -476,17 +527,24 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 continue
             candidates.append((symbol, result["score"]))
 
+        # E58: Reset thickness tracking for this rebalance
+        self._cloud_thickness_values = []
+
         candidates.sort(key=lambda x: x[1], reverse=True)
         for symbol, score in candidates[:slots]:
             price = self.securities[symbol].price
             if price <= 0:
                 continue
-            target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
+
+            # E58: Calculate dynamic position size based on cloud thickness
+            position_pct = self._calculate_cloud_thickness_sizing(symbol, self.POSITION_PCT)
+
+            target_value = self.portfolio.total_portfolio_value * position_pct
             quantity = int(target_value / price)
             if quantity <= 0:
                 continue
             self.market_on_open_order(symbol, quantity)
             self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price)}
-            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
+            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}|size_pct={position_pct:.1%}")
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
