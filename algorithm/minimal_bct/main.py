@@ -1068,7 +1068,7 @@ class BCTMinimalAlgorithm(QCAlgorithm):
                     continue
                 # Position size = $200 / (2.5 * ATR)
                 risk_per_share = 2.5 * atr
-                shares = int(200.0 / risk_per_share)
+                shares = int(200.0 / risk_per_share * self._get_vix_size_multiplier())
                 target_value = shares * price
                 # Cap at max position size (10% of portfolio)
                 max_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
@@ -1079,7 +1079,7 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             else:
                 # Fallback: flat 10% sizing if ATR unavailable
                 target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
-                quantity = int(target_value / price)
+                quantity = int(target_value / price * self._get_vix_size_multiplier())
             if quantity <= 0:
                 continue
 
