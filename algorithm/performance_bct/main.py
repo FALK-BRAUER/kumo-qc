@@ -168,6 +168,10 @@ class BCTUniverseFilter:
     MIN_DOLLAR_VOLUME: float = 5_000_000
     COARSE_MAX: int = 9999
 
+    def __init__(self, algorithm=None):
+        if algorithm is not None:
+            self.COARSE_MAX = int(algorithm.get_parameter("coarse_max", "9999"))
+
     def coarse_selection(self, coarse: List[CoarseFundamental]) -> List[Symbol]:
         candidates = [
             c for c in coarse
@@ -267,7 +271,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             etfs = ["QQQ", "SMH", "XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLB", "XLU", "XLRE", "XLC"]
             for etf in etfs:
                 self.add_equity(etf, Resolution.DAILY)
-            self._filter = BCTUniverseFilter()
+            self._filter = BCTUniverseFilter(self)
             self.add_universe(
                 self._filter.coarse_selection,
                 self._filter.fine_selection,
