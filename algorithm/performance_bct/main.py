@@ -15,6 +15,10 @@ ADX retained in score_symbol_native() — QC native ADX is period 14.
 
 Local mode: when LEAN data dir is detected, loads polygon_universe_equity200_fy2025.json
 (326 unique tickers, top-200 S&P equity by dollar volume) instead of Morningstar CoarseFundamental filter.
+
+G3 experiment: Phase 3 cloud-bottom trailing stop — after ≥56 calendar days held
+AND unrealized PnL ≥ +15%, switch stop anchor from Kijun to cloud bottom
+(min(Senkou_A, Senkou_B)). Extends winners; implements methodology.md §5 Rule #13 Phase 3.
 """
 
 import json
@@ -35,6 +39,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     # Exit condition flags — False = reference bct‑perf‑2020‑2026 (daily Kijun only)
     ENABLE_CLOUD_BREACH_EXIT: bool = False
     ENABLE_WEEKLY_KIJUN_EXIT: bool = False
+    # Phase 3 stop progression (methodology.md §5 Rule #13)
+    PHASE3_DAYS: int = 56         # calendar days before Phase 3 eligible
+    PHASE3_PNL: float = 0.15      # unrealized PnL threshold for Phase 3
 
     @staticmethod
     def _find_local_data_dir() -> Path | None:
@@ -82,6 +89,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self._active: set = set()
         self._indicators: dict = {}
         self._polygon_universe: dict | None = None
+        self._position_meta: dict = {}  # symbol → {entry_date, entry_price}
 
         if self._find_local_data_dir() is not None:
             # Local: static universe from Polygon daily snapshot (867 unique tickers, FY2025)
@@ -187,23 +195,18 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             w_ichi.update(bar)
             w_close.add(float(row["close"]))
 
-    def _daily_close_and_kijun_and_cloud_top(self, symbol) -> tuple[float, float, float] | None:
+    def _daily_vals(self, symbol) -> tuple[float, float, float, float] | None:
+        """Returns (close, kijun, cloud_top, cloud_bottom)."""
         if symbol not in self._indicators:
             return None
         d_ichi = self._indicators[symbol]["d_ichi"]
         if not d_ichi.is_ready:
             return None
-        
         close = float(self.securities[symbol].close)
         kijun = d_ichi.kijun.current.value
-        
-        # Access the displaced Senkou Span A/B values directly
         senkou_a = d_ichi.senkou_a.current.value
         senkou_b = d_ichi.senkou_b.current.value
-        
-        cloud_top = max(senkou_a, senkou_b)
-        
-        return close, kijun, cloud_top
+        return close, kijun, max(senkou_a, senkou_b), min(senkou_a, senkou_b)
 
     def _has_open_orders(self, symbol) -> bool:
         return bool(self.transactions.get_open_orders(symbol))
@@ -216,23 +219,43 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         for symbol, holding in list(self.portfolio.items()):
             if not holding.invested or self._has_open_orders(symbol):
                 continue
-            vals = self._daily_close_and_kijun_and_cloud_top(symbol)
+            vals = self._daily_vals(symbol)
             if vals is None:
                 continue
-            close, kijun, cloud_top = vals
-            
+            close, kijun, cloud_top, cloud_bottom = vals
+
             w_ichi = self._indicators[symbol]["w_ichi"]
             w_kijun = w_ichi.kijun.current.value if w_ichi.is_ready else None
 
-            if close < kijun:
-                self.market_on_open_order(symbol, -holding.quantity)
-                self.log(f"STOP|{date_str}|{symbol.value}|close={close:.2f}|kijun={kijun:.2f}")
-            elif self.cloud_exit_enabled and close < cloud_top:
-                self.market_on_open_order(symbol, -holding.quantity)
-                self.log(f"CLOUD_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_top={cloud_top:.2f}")
-            elif self.weekly_kijun_exit_enabled and w_kijun is not None and close < w_kijun:
-                self.market_on_open_order(symbol, -holding.quantity)
-                self.log(f"WEEKLY_KIJUN_STOP|{date_str}|{symbol.value}|close={close:.2f}|w_kijun={w_kijun:.2f}")
+            # Determine stop anchor: Phase 3 (≥56 days + ≥15% gain) → cloud bottom
+            meta = self._position_meta.get(symbol)
+            in_phase3 = False
+            if meta is not None:
+                days_held = (self.time - meta["entry_date"]).days
+                pnl_pct = close / meta["entry_price"] - 1
+                if days_held >= self.PHASE3_DAYS and pnl_pct >= self.PHASE3_PNL:
+                    in_phase3 = True
+
+            if in_phase3:
+                if close < cloud_bottom:
+                    self.market_on_open_order(symbol, -holding.quantity)
+                    meta = self._position_meta.pop(symbol, {})
+                    days_h = (self.time - meta.get("entry_date", self.time)).days
+                    pnl_h = close / meta.get("entry_price", close) - 1
+                    self.log(f"PHASE3_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_bottom={cloud_bottom:.2f}|days={days_h}|pnl={pnl_h:.1%}")
+            else:
+                if close < kijun:
+                    self.market_on_open_order(symbol, -holding.quantity)
+                    self._position_meta.pop(symbol, None)
+                    self.log(f"STOP|{date_str}|{symbol.value}|close={close:.2f}|kijun={kijun:.2f}")
+                elif self.cloud_exit_enabled and close < cloud_top:
+                    self.market_on_open_order(symbol, -holding.quantity)
+                    self._position_meta.pop(symbol, None)
+                    self.log(f"CLOUD_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_top={cloud_top:.2f}")
+                elif self.weekly_kijun_exit_enabled and w_kijun is not None and close < w_kijun:
+                    self.market_on_open_order(symbol, -holding.quantity)
+                    self._position_meta.pop(symbol, None)
+                    self.log(f"WEEKLY_KIJUN_STOP|{date_str}|{symbol.value}|close={close:.2f}|w_kijun={w_kijun:.2f}")
 
         exiting = {
             o.symbol
@@ -257,6 +280,8 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             if today_poly is not None and symbol.value not in today_poly:
                 continue
             if self.portfolio[symbol].invested:
+                continue
+            if self._has_open_orders(symbol):
                 continue
             ind = self._indicators.get(symbol)
             if ind is None:
@@ -291,6 +316,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             if quantity <= 0:
                 continue
             self.market_on_open_order(symbol, quantity)
+            self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price)}
             self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
