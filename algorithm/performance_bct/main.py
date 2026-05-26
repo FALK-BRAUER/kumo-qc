@@ -190,9 +190,15 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     # Exit condition flags — False = reference bct‑perf‑2020‑2026 (daily Kijun only)
     ENABLE_CLOUD_BREACH_EXIT: bool = False
     ENABLE_WEEKLY_KIJUN_EXIT: bool = False
+    # E49: IWM breadth gate — block entries when Russell 2000 < 50D SMA (weak breadth)
+    ENABLE_IWM_BREADTH_GATE: bool = False
     # Phase 3 stop progression (methodology.md §5 Rule #13)
     PHASE3_DAYS: int = 56         # calendar days before Phase 3 eligible
     PHASE3_PNL: float = 0.15      # unrealized PnL threshold for Phase 3
+    # E18: Time-based exit variant — after N days with any profit, exit on Tenkan breach
+    TIME_BASED_EXIT_ENABLED: bool = False
+    TIME_BASED_EXIT_DAYS: int = 90  # calendar days before time-based exit eligible
+    TIME_BASED_EXIT_PNL: float = 0.0  # unrealized PnL threshold (≥0 = any profit)
 
     @staticmethod
     def _find_local_data_dir() -> Path | None:
@@ -235,6 +241,12 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # Exit condition parameter overrides
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
+        # E49: IWM breadth gate parameter
+        self.iwm_breadth_gate_enabled = self.get_parameter("iwm_breadth_gate", str(self.ENABLE_IWM_BREADTH_GATE)).lower() == "true"
+        if self.iwm_breadth_gate_enabled:
+            self.iwm_symbol = self.add_equity("IWM", Resolution.DAILY).symbol
+            self.iwm_sma50 = self.sma(self.iwm_symbol, 50)
+            self.log("IWM_BREADTH_GATE|enabled|IWM_50D_SMA_registered")
 
         self.universe_settings.resolution = Resolution.DAILY
         self._active: set = set()
@@ -381,6 +393,50 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     def _has_open_orders(self, symbol) -> bool:
         return bool(self.transactions.get_open_orders(symbol))
 
+    def _is_near_resistance(self, symbol) -> bool:
+        """
+        E48: Resistance Proximity Gate - Block entries near 52-week high resistance.
+        Uses 5% threshold (vs 2% in original C2).
+        Returns True if price is within 5% of 52-week high (too close to resistance).
+        """
+        from QuantConnect import Resolution  # noqa: PLC0415
+
+        # Get 252-day history for 52-week high calculation
+        try:
+            hist = self.history(symbol, 252, Resolution.DAILY)
+        except Exception:
+            return False
+
+        if hist is None or hist.empty or len(hist) < 50:  # Need at least 50 days
+            return False
+
+        # Extract close prices
+        if isinstance(hist.index, pd.MultiIndex):
+            hist = hist.droplevel(0)
+
+        if "close" not in hist.columns:
+            return False
+
+        closes = hist["close"].astype(float)
+        if len(closes) < 50:
+            return False
+
+        # Calculate 52-week high
+        high_52wk = closes.max()
+        if high_52wk == 0:
+            return False
+
+        # Get current price
+        current_price = float(self.securities[symbol].close)
+        if current_price <= 0:
+            return False
+
+        # Calculate proximity to 52-week high
+        proximity_pct = (high_52wk - current_price) / high_52wk
+
+        # Block if within 5% of 52-week high (too close to resistance)
+        return bool(proximity_pct < 0.05)
+
     def _rebalance(self) -> None:
         if self.is_warming_up:
             return
@@ -440,6 +496,16 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         if slots <= 0:
             return
 
+        # E49: IWM breadth gate — block entries when IWM < 50D SMA (weak breadth)
+        if self.iwm_breadth_gate_enabled:
+            iwm_price = float(self.securities[self.iwm_symbol].price)
+            iwm_sma50_val = self.iwm_sma50.current.value if self.iwm_sma50.is_ready else None
+            if iwm_sma50_val is not None and iwm_price < iwm_sma50_val:
+                self.log(f"IWM_GATE_BLOCK|{date_str}|iwm={iwm_price:.2f}|sma50={iwm_sma50_val:.2f}|entries_blocked=1")
+                return
+            elif iwm_sma50_val is not None:
+                self.log(f"IWM_GATE_PASS|{date_str}|iwm={iwm_price:.2f}|sma50={iwm_sma50_val:.2f}")
+
         # When running locally with polygon universe, restrict candidates to today's snapshot
         today_poly: set[str] | None = None
         if self._polygon_universe is not None:
@@ -471,6 +537,13 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 if price < cloud_top:
                     continue
             # === END PRE-FILTER ===
+
+            # === E48: Resistance Proximity Gate (5% threshold) ===
+            # Skip entries within 5% of 52-week high (resistance proximity)
+            if self._is_near_resistance(symbol):
+                continue
+            # === END E48 GATE ===
+
             result = score_symbol_native(self, symbol, ind)
             if result is None or result["score"] < self.MIN_SCORE:
                 continue
