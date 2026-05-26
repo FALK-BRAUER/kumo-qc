@@ -245,7 +245,8 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         # Track SPY gate state (4-day confirmation)
         self._spy_above_cloud_days: int = 0
         self._spy_gate_open: bool = False
-        self._vix_size_mult: float = 1.0  # GH #28: cached daily VIX percentile multiplier
+        self._vix_size_mult: float = 1.0  # GH #28: cached VIX percentile multiplier
+        self._vix_last_fetch: datetime | None = None  # GH #42: weekly refresh guard
 
         self.universe_settings.resolution = Resolution.DAILY
         self._indicators: dict = {}
@@ -1065,7 +1066,9 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             self._position_meta[symbol] = {
                 "entry_date": self.time,
                 "entry_price": price,
-                "original_quantity": quantity,
+                "initial_quantity": quantity,
+                "add_count": 0,
+                "previous_stop": None,
                 "ladder_trims": set(),
             }
 
