@@ -215,6 +215,18 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     return json.load(f)
         return None
 
+    @staticmethod
+    def _load_etf_universe() -> dict | None:
+        candidates = [
+            Path(__file__).parent / "etf_universe_fy2025.json",
+            Path("/Lean/Data/etf_universe_fy2025.json"),
+        ]
+        for p in candidates:
+            if p.exists():
+                with open(p) as f:
+                    return json.load(f)
+        return None
+
     def initialize(self) -> None:
         self.set_time_zone("America/New_York")
         sy = int(self.get_parameter("start_year",  "2025"))
@@ -240,10 +252,14 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self._active: set = set()
         self._indicators: dict = {}
         self._polygon_universe: dict | None = None
-        self._position_meta: dict = {}  # symbol → {entry_date, entry_price}
+        self._etf_universe: dict | None = None
+        self._etf_tickers: set[str] = set()
+        self._etf_entries: int = 0
+        self._equity_entries: int = 0
+        self._position_meta: dict = {}  # symbol → {entry_date, entry_price, is_etf}
 
         if self._find_local_data_dir() is not None:
-            # Local: static universe from Polygon daily snapshot (867 unique tickers, FY2025)
+            # Local: static universe from Polygon daily snapshot (equity-200) + 30-ETF universe
             poly = self._load_polygon_universe()
             if poly is not None:
                 self._polygon_universe = poly
@@ -262,6 +278,20 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 etfs = ["QQQ", "SMH", "XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLB", "XLU", "XLRE", "XLC", "SPY"]
                 for etf in etfs:
                     self.add_equity(etf, Resolution.DAILY)
+
+            etf_data = self._load_etf_universe()
+            if etf_data is not None:
+                self._etf_universe = etf_data
+                all_etfs: set[str] = set()
+                for tickers in etf_data.values():
+                    all_etfs.update(tickers)
+                self._etf_tickers = all_etfs
+                self.log(f"LOCAL_UNIVERSE|etf|unique_tickers={len(all_etfs)}")
+                for ticker in sorted(all_etfs):
+                    try:
+                        self.add_equity(ticker, Resolution.DAILY)
+                    except Exception:
+                        pass
         else:
             # Cloud: dynamic universe via Morningstar CoarseFundamental + ETFs
             etfs = ["QQQ", "SMH", "XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLB", "XLU", "XLRE", "XLC"]
@@ -421,14 +451,22 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         if slots <= 0:
             return
 
-        # When running locally with polygon universe, restrict candidates to today's snapshot
+        # When running locally, restrict candidates to today's equity + ETF snapshots
         today_poly: set[str] | None = None
         if self._polygon_universe is not None:
             today_poly = set(self._polygon_universe.get(date_str, []))
+        today_etf: set[str] | None = None
+        if self._etf_universe is not None:
+            today_etf = set(self._etf_universe.get(date_str, []))
+
+        def _in_today_universe(val: str) -> bool:
+            if today_poly is None and today_etf is None:
+                return True
+            return (today_poly is not None and val in today_poly) or (today_etf is not None and val in today_etf)
 
         candidates: list[tuple] = []
         for symbol in sorted(self._active):
-            if today_poly is not None and symbol.value not in today_poly:
+            if not _in_today_universe(symbol.value):
                 continue
             if self.portfolio[symbol].invested:
                 continue
@@ -466,8 +504,17 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             quantity = int(target_value / price)
             if quantity <= 0:
                 continue
+            is_etf = symbol.value in self._etf_tickers
             self.market_on_open_order(symbol, quantity)
-            self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price)}
-            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
+            self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price), "is_etf": is_etf}
+            if is_etf:
+                self._etf_entries += 1
+            else:
+                self._equity_entries += 1
+            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}|type={'etf' if is_etf else 'equity'}")
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
+
+    def on_end_of_algorithm(self) -> None:
+        total = self._etf_entries + self._equity_entries
+        self.log(f"FINAL_SUMMARY|etf_entries={self._etf_entries}|equity_entries={self._equity_entries}|total_entries={total}")
