@@ -206,8 +206,8 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     @staticmethod
     def _load_polygon_universe() -> dict | None:
         candidates = [
-            Path(__file__).parent / "polygon_universe_equity200_fy2025.json",
-            Path("/Lean/Data/polygon_universe_equity200_fy2025.json"),
+            Path(__file__).parent / "sp500_universe_fy2025.json",
+            Path("/Lean/Data/sp500_universe_fy2025.json"),
         ]
         for p in candidates:
             if p.exists():
