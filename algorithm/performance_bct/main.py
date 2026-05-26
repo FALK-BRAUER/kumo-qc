@@ -83,6 +83,14 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self._indicators: dict = {}
         self._polygon_universe: dict | None = None
 
+        # H3: regime detection subscriptions
+        self._vix_sym = Symbol.create("VIX", SecurityType.Index, Market.USA)
+        self.add_index("VIX", Resolution.DAILY)
+        self._iwm = self.add_equity("IWM", Resolution.DAILY).symbol
+        self._iwm_sma50 = self.sma("IWM", 50, Resolution.DAILY)
+        self._current_regime: str = "INIT"
+        self._regime_history: list[tuple[str, str]] = []  # [(date, regime)]
+
         if self._find_local_data_dir() is not None:
             # Local: static universe from Polygon daily snapshot (867 unique tickers, FY2025)
             poly = self._load_polygon_universe()
@@ -213,6 +221,44 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             return
         date_str = self.time.strftime("%Y-%m-%d")
 
+        # H3: regime detection
+        vix_val = None
+        if self.securities.contains_key(self._vix_sym):
+            vix_sec = self.securities[self._vix_sym]
+            if vix_sec is not None and vix_sec.price > 0:
+                vix_val = float(vix_sec.price)
+
+        iwm_price = None
+        iwm_sma50_val = None
+        if self.securities.contains_key(self._iwm):
+            iwm_sec = self.securities[self._iwm]
+            if iwm_sec is not None and iwm_sec.price > 0:
+                iwm_price = float(iwm_sec.price)
+        if self._iwm_sma50 is not None and self._iwm_sma50.is_ready:
+            iwm_sma50_val = float(self._iwm_sma50.current.value)
+
+        if vix_val is not None and iwm_price is not None and iwm_sma50_val is not None:
+            iwm_above_sma = iwm_price > iwm_sma50_val
+            iwm_near_sma = iwm_price <= iwm_sma50_val * 1.02
+
+            if vix_val >= 25.0 and not iwm_above_sma:
+                regime = "HOSTILE"
+                max_positions = 5
+            elif (vix_val >= 15.0) or iwm_near_sma:
+                regime = "NEUTRAL"
+                max_positions = 7
+            else:  # vix < 15 and iwm well above sma50
+                regime = "BULLISH"
+                max_positions = 10
+
+            if regime != self._current_regime:
+                self._regime_history.append((date_str, regime))
+                self.log(f"REGIME|{date_str}|{self._current_regime}->{regime}|vix={vix_val:.2f}|iwm={iwm_price:.2f}|sma50={iwm_sma50_val:.2f}")
+                self._current_regime = regime
+        else:
+            regime = self._current_regime if self._current_regime != "INIT" else "NEUTRAL"
+            max_positions = 5 if regime == "HOSTILE" else (7 if regime == "NEUTRAL" else 10)
+
         for symbol, holding in list(self.portfolio.items()):
             if not holding.invested or self._has_open_orders(symbol):
                 continue
@@ -243,7 +289,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             1 for sym, h in self.portfolio.items()
             if h.invested and sym not in exiting
         )
-        slots = self.MAX_POSITIONS - open_count
+        slots = max_positions - open_count
         if slots <= 0:
             return
 
@@ -293,4 +339,4 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             self.market_on_open_order(symbol, quantity)
             self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
 
-        self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
+        self.log(f"REBALANCE|{date_str}|regime={regime}|max_pos={max_positions}|open={open_count}|new_entries={min(len(candidates), slots)}")
