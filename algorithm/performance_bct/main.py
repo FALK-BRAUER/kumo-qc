@@ -497,9 +497,12 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             quantity = int(risk_dollars / stop_distance)
             if quantity <= 0:
                 continue
-            # Cap position value at 20% of equity to avoid over-concentration
-            max_qty = int(equity * 0.20 / price)
-            quantity = min(quantity, max_qty)
+            # Cap 1: max 20% of equity per position
+            max_qty_pct = int(equity * 0.20 / price)
+            # Cap 2: available cash (leave 5% buffer for fills)
+            available_cash = self.portfolio.cash * 0.95
+            max_qty_cash = int(available_cash / price)
+            quantity = min(quantity, max_qty_pct, max_qty_cash)
             if quantity <= 0:
                 continue
             self.market_on_open_order(symbol, quantity)
