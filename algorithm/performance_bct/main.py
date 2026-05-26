@@ -39,7 +39,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     # Exit condition flags — False = reference bct‑perf‑2020‑2026 (daily Kijun only)
     ENABLE_CLOUD_BREACH_EXIT: bool = False
     ENABLE_WEEKLY_KIJUN_EXIT: bool = False
-    # Phase 3 stop progression (methodology.md §5 Rule #13)
+    # Phase 2/3 stop progression (methodology.md §5 Rule #13)
+    PHASE2_DAYS: int = 28         # calendar days before Phase 2 extension eligible
+    PHASE2_PNL: float = 0.05      # unrealized PnL threshold for Phase 2 extension
     PHASE3_DAYS: int = 56         # calendar days before Phase 3 eligible
     PHASE3_PNL: float = 0.15      # unrealized PnL threshold for Phase 3
 
@@ -227,14 +229,17 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             w_ichi = self._indicators[symbol]["w_ichi"]
             w_kijun = w_ichi.kijun.current.value if w_ichi.is_ready else None
 
-            # Determine stop anchor: Phase 3 (≥56 days + ≥15% gain) → cloud bottom
+            # Determine stop phase: Phase 3 (≥56d + ≥15%) > Phase 2 ext (≥28d + ≥5%) > default Kijun
             meta = self._position_meta.get(symbol)
             in_phase3 = False
+            in_phase2_ext = False
             if meta is not None:
                 days_held = (self.time - meta["entry_date"]).days
                 pnl_pct = close / meta["entry_price"] - 1
                 if days_held >= self.PHASE3_DAYS and pnl_pct >= self.PHASE3_PNL:
                     in_phase3 = True
+                elif days_held >= self.PHASE2_DAYS and pnl_pct >= self.PHASE2_PNL:
+                    in_phase2_ext = True
 
             if in_phase3:
                 if close < cloud_bottom:
@@ -243,6 +248,13 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     days_h = (self.time - meta.get("entry_date", self.time)).days
                     pnl_h = close / meta.get("entry_price", close) - 1
                     self.log(f"PHASE3_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_bottom={cloud_bottom:.2f}|days={days_h}|pnl={pnl_h:.1%}")
+            elif in_phase2_ext:
+                if close < cloud_bottom:
+                    self.market_on_open_order(symbol, -holding.quantity)
+                    meta = self._position_meta.pop(symbol, {})
+                    days_h = (self.time - meta.get("entry_date", self.time)).days
+                    pnl_h = close / meta.get("entry_price", close) - 1
+                    self.log(f"PHASE2_EXTENSION_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_bottom={cloud_bottom:.2f}|days={days_h}|pnl={pnl_h:.1%}")
             else:
                 if close < kijun:
                     self.market_on_open_order(symbol, -holding.quantity)
