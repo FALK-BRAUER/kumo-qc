@@ -156,12 +156,19 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         if not self.is_warming_up:
             self._seed_weekly(sym, w_ichi, w_close)
 
+        # === Experiment D: Volume surge confirmation ===
+        # 20-day SMA of volume for entry-day surge check
+        vol_sma = SimpleMovingAverage(20)
+        self.register_indicator(sym, vol_sma, Resolution.DAILY, Field.Volume)
+        # === END Experiment D ===
+
         self._indicators[sym] = {
             "d_ichi": d_ichi,
             "w_ichi": w_ichi,
             "w_close": w_close,
             "sma200": sma200,
             "consolidator": consolidator,
+            "vol_sma": vol_sma,
         }
 
     def _seed_weekly(self, sym, w_ichi, w_close) -> None:
@@ -279,6 +286,31 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             result = score_symbol_native(self, symbol, ind)
             if result is None or result["score"] < self.MIN_SCORE:
                 continue
+            # === Experiment C: Cloud thickness gate (1.5% minimum) ===
+            # Thin clouds indicate weak trend conviction — skip entry
+            if price > 0 and d_ichi_ind and d_ichi_ind.is_ready:
+                senkou_a = d_ichi_ind.senkou_a.current.value
+                senkou_b = d_ichi_ind.senkou_b.current.value
+                cloud_thickness = abs(senkou_a - senkou_b) / price
+                if cloud_thickness < 0.015:  # 1.5% minimum thickness
+                    self.log(f"THIN_CLOUD|{date_str}|{symbol.value}|thickness={cloud_thickness:.3f}|price={price:.2f}")
+                    continue  # Skip thin cloud candidates
+            # === END Experiment C ===
+            # === Experiment D: Volume surge confirmation ===
+            # Require entry-day volume >= 1.2x 20-day average volume
+            vol_sma = ind.get("vol_sma")
+            if vol_sma is not None and vol_sma.is_ready:
+                current_volume = float(self.securities[symbol].volume)
+                avg_volume = float(vol_sma.current.value)
+                if avg_volume > 0 and current_volume < avg_volume * 1.2:
+                    self.log(f"LOW_VOLUME|{date_str}|{symbol.value}|vol={current_volume:,.0f}|avg20={avg_volume:,.0f}|ratio={current_volume/avg_volume:.2f}")
+                    continue  # Skip low-volume candidates
+            # === END Experiment D ===
+            if self.sector_filter_enabled:
+                sector = self.SECTOR_MAP.get(symbol.value)
+                if sector in self.BLOCKED_SECTORS:
+                    self.log(f"SECTOR_BLOCK|{date_str}|{symbol.value}|sector={sector}")
+                    continue
             candidates.append((symbol, result["score"]))
 
         candidates.sort(key=lambda x: x[1], reverse=True)
