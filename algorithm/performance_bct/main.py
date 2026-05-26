@@ -332,16 +332,35 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         hist.columns = [c.lower() for c in hist.columns]
         if not {"open", "high", "low", "close", "volume"}.issubset(hist.columns):
             return
-        weekly = hist.resample("W-FRI").agg({
-            "open": "first", "high": "max", "low": "min",
-            "close": "last", "volume": "sum",
-        }).dropna(subset=["close"])
-        for time, row in weekly.iterrows():
+        # P0 fix: avoid DataFrame.resample() timeout on QC cloud (5-min limit).
+        # Manual weekly aggregation — same result as resample("W-FRI")
+        # but avoids pandas resample overhead that triggers QC timeout.
+        weeks: dict = {}
+        for time, row in hist.iterrows():
+            # Friday of this week
+            friday = time + pd.Timedelta(days=(4 - time.weekday()) % 7)
+            friday = friday.normalize()
+            if friday not in weeks:
+                weeks[friday] = {
+                    "open": float(row["open"]),
+                    "high": float(row["high"]),
+                    "low": float(row["low"]),
+                    "close": float(row["close"]),
+                    "volume": int(row["volume"]),
+                }
+            else:
+                weeks[friday]["high"] = max(weeks[friday]["high"], float(row["high"]))
+                weeks[friday]["low"] = min(weeks[friday]["low"], float(row["low"]))
+                weeks[friday]["close"] = float(row["close"])
+                weeks[friday]["volume"] += int(row["volume"])
+
+        for time in sorted(weeks):
+            row = weeks[time]
             bar = TradeBar(
                 time, sym,
-                float(row["open"]), float(row["high"]),
-                float(row["low"]), float(row["close"]),
-                int(row["volume"]), timedelta(weeks=1),
+                row["open"], row["high"],
+                row["low"], row["close"],
+                row["volume"], timedelta(weeks=1),
             )
             w_ichi.update(bar)
             w_close.add(float(row["close"]))
@@ -361,6 +380,49 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
     def _has_open_orders(self, symbol) -> bool:
         return bool(self.transactions.get_open_orders(symbol))
+
+    def _is_near_resistance(self, symbol) -> bool:
+        """
+        C2: Resistance Proximity Gate - Block entries near 52-week high resistance.
+        Returns True if price is within 2% of 52-week high (too close to resistance).
+        """
+        from QuantConnect import Resolution  # noqa: PLC0415
+
+        # Get 252-day history for 52-week high calculation
+        try:
+            hist = self.history(symbol, 252, Resolution.DAILY)
+        except Exception:
+            return False
+
+        if hist is None or hist.empty or len(hist) < 50:  # Need at least 50 days
+            return False
+
+        # Extract close prices
+        if isinstance(hist.index, pd.MultiIndex):
+            hist = hist.droplevel(0)
+
+        if "close" not in hist.columns:
+            return False
+
+        closes = hist["close"].astype(float)
+        if len(closes) < 50:
+            return False
+
+        # Calculate 52-week high
+        high_52wk = closes.max()
+        if high_52wk == 0:
+            return False
+
+        # Get current price
+        current_price = float(self.securities[symbol].close)
+        if current_price <= 0:
+            return False
+
+        # Calculate proximity to 52-week high
+        proximity_pct = (high_52wk - current_price) / high_52wk
+
+        # Block if within 2% of 52-week high (too close to resistance)
+        return bool(proximity_pct < 0.02)
 
     def _rebalance(self) -> None:
         if self.is_warming_up:
