@@ -240,6 +240,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # Risk-based sizing parameters
         self.risk_per_trade_pct = float(self.get_parameter("risk_per_trade_pct", str(self.RISK_PER_TRADE_PCT)))
         self.heat_cap_pct = float(self.get_parameter("heat_cap_pct", str(self.HEAT_CAP_PCT)))
+        self.inverse_vol_sizing_enabled = self.get_parameter("inverse_vol_sizing_enabled", "true").lower() == "true"
+
+        self._spy_sym = self.add_equity("SPY", Resolution.DAILY).symbol
 
         self.universe_settings.resolution = Resolution.DAILY
         self._active: set = set()
@@ -350,6 +353,30 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             )
             w_ichi.update(bar)
             w_close.add(float(row["close"]))
+
+    def _get_spy_vol_20d(self) -> float:
+        try:
+            hist = self.history(self._spy_sym, 22, Resolution.DAILY)
+            if hist is None or hist.empty:
+                return 0.015
+            closes = hist["close"].values.astype(float)
+            if len(closes) < 2:
+                return 0.015
+            return float(np.std(np.diff(np.log(closes))))
+        except Exception:
+            return 0.015
+
+    def _get_stock_vol_20d(self, symbol) -> float:
+        try:
+            hist = self.history(symbol, 22, Resolution.DAILY)
+            if hist is None or hist.empty:
+                return 0.015
+            closes = hist["close"].values.astype(float)
+            if len(closes) < 2:
+                return 0.015
+            return float(max(np.std(np.diff(np.log(closes))), 1e-6))
+        except Exception:
+            return 0.015
 
     def _daily_vals(self, symbol) -> tuple[float, float, float, float] | None:
         """Returns (close, kijun, cloud_top, cloud_bottom)."""
@@ -478,6 +505,8 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 continue
             candidates.append((symbol, result["score"]))
 
+        spy_vol = self._get_spy_vol_20d() if self.inverse_vol_sizing_enabled else 0.015
+
         # FIFO: no ranking — take candidates in sorted(symbol) order
         new_entries = 0
         for symbol, score in candidates:
@@ -502,6 +531,13 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             quantity = min(quantity, max_qty)
             if quantity <= 0:
                 continue
+            vol_scalar = 1.0
+            if self.inverse_vol_sizing_enabled:
+                stock_vol = self._get_stock_vol_20d(symbol)
+                vol_scalar = max(0.5, min(2.0, spy_vol / stock_vol))
+                quantity = int(quantity * vol_scalar)
+                if quantity <= 0:
+                    continue
             self.market_on_open_order(symbol, quantity)
             position_risk = quantity * stop_distance
             total_at_risk += position_risk
@@ -510,7 +546,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 "entry_price": float(price),
                 "stop_price": float(stop_price),
             }
-            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}|stop={stop_price:.2f}|risk=${position_risk:.0f}")
+            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}|stop={stop_price:.2f}|risk=${position_risk:.0f}|vol_scalar={vol_scalar:.2f}")
             new_entries += 1
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={new_entries}|at_risk={total_at_risk:.0f}|heat_cap={heat_cap:.0f}")
