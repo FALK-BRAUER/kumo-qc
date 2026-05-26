@@ -145,5 +145,6 @@ class LiveBCT(QCAlgorithm):
                 w_kijun = w_ichi.Kijun.Current.Value
                 if price < w_kijun:
                     self.Liquidate(sym)
-                    self.Log(f"EXIT|{date_str}|{sym}|reason=weekly_kijun_stop|w_kijun={w_kijun:.2f}|price={price:.2f}")
+                    self.Log(f"WEEKLY_KIJUN_STOP|{date_str}|{sym}|close={price:.2f}|w_kijun={w_kijun:.2f}")
                     self._kijun_stops.pop(str(sym), None)
+                    continue
