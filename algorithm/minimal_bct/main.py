@@ -9,7 +9,8 @@ without the coarse/fine universe filter.
 Universe: 545 tickers (S&P 500 + BCT DEFAULT_TICKERS, merged + deduped).
 Signal: same 8-condition BCT Blue Flag checklist as performance_bct.
 Entry Gates: SPY 4-day confirm, 3% from 52w high, Kijun extension check,
-      chikou confirm, min $3 price, $500K volume, VIX tier (50% if >30).
+      chikou confirm, min $3 price, $500K volume, VIX tier (50% if >30),
+      credit risk-off filter (HYG/LQD/TLT 63-day momentum composite, GH #29).
 Exits: ATR trailing stop (22-period, 2.5x initial, 3.0x floor) + Kijun trail +
       ladder trim [20%,40%] + reversal_profit_exit (6% gain, 10% Tenkan ext) +
       earnings exits (adaptive 9d / hard 3d) + optional cloud breach + weekly Kijun.
@@ -56,6 +57,7 @@ class BCTMinimalAlgorithm(QCAlgorithm):
     SPY_GATE_CONFIRM_DAYS: int = 4
     VIX_THRESHOLD: float = 30.0
     VIX_SIZE_MULTIPLIER: float = 0.50  # 50% size when VIX > 30
+    CREDIT_CONFIRM_DAYS: int = 3  # GH #29: days composite must stay negative to flip risk-off
 
     # 607 tickers (kumo-trader curated sim list)
     UNIVERSE: list[str] = [
@@ -173,6 +175,8 @@ class BCTMinimalAlgorithm(QCAlgorithm):
                 self._register_indicators(sym)
         for s in changes.removed_securities:
             sym = s.symbol
+            if sym in self._credit_etf_symbols:
+                continue  # GH #29: never drop credit ETF indicators
             if sym in self._indicators:
                 ind = self._indicators.pop(sym)
                 try:
@@ -226,6 +230,7 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         self.spy_gate_confirm_days = int(self.get_parameter("spy_gate_confirm_days", str(self.SPY_GATE_CONFIRM_DAYS)))
         self.vix_threshold = float(self.get_parameter("vix_threshold", str(self.VIX_THRESHOLD)))
         self.vix_size_multiplier = float(self.get_parameter("vix_size_multiplier", str(self.VIX_SIZE_MULTIPLIER)))
+        self.credit_confirm_days = int(self.get_parameter("credit_confirm_days", str(self.CREDIT_CONFIRM_DAYS)))
 
         # Earnings avoidance parameters (Item 6: disabled via stub)
         self.adaptive_earnings_enabled = False
@@ -246,11 +251,24 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         self._spy_above_cloud_days: int = 0
         self._spy_gate_open: bool = False
 
+        # GH #29: credit risk-off gate state (3-day confirmation)
+        self._credit_risk_off_days: int = 0
+        self._credit_gate_open: bool = True
+        self._credit_etf_symbols: set = set()  # protected from universe removal
+
         self.universe_settings.resolution = Resolution.DAILY
         self._indicators: dict = {}
         self._position_meta: dict = {}  # Track entry date, avg price per position
         self.add_equity("SPY", Resolution.DAILY)  # needed for benchmark + SPY gate
-        
+
+        # GH #29: credit risk-off ETFs (HYG/LQD/TLT 63-day momentum composite)
+        for _ticker in ("HYG", "LQD", "TLT"):
+            _sym = self.add_equity(_ticker, Resolution.DAILY).symbol
+            _roc = RateOfChange(63)
+            self.register_indicator(_sym, _roc, Resolution.DAILY)
+            self._indicators[_sym] = {"roc63": _roc}
+            self._credit_etf_symbols.add(_sym)
+
         # Register SPY ATR indicators for atr_adaptive_score (GH #21)
         spy_sym = self.symbol("SPY")
         self._spy_atr_14 = AverageTrueRange(14, MovingAverageType.Wilders)
@@ -566,6 +584,28 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         # Gate opens after 4 consecutive days
         self._spy_gate_open = self._spy_above_cloud_days >= self.spy_gate_confirm_days
 
+    def _update_credit_gate(self):
+        """GH #29: Update credit risk-off gate via HYG/LQD/TLT 63-day momentum composite."""
+        values = []
+        for ticker in ("HYG", "LQD", "TLT"):
+            try:
+                sym = self.symbol(ticker)
+                ind = self._indicators.get(sym, {})
+                roc = ind.get("roc63")
+                if roc and roc.is_ready:
+                    values.append(float(roc.current.value))
+            except Exception:
+                pass
+        if len(values) < 3:
+            self.log(f"CREDIT_GATE_DEGRADED|ready={len(values)}/3|gate_frozen={self._credit_gate_open}")
+            return
+        composite = sum(values) / len(values)
+        if composite < 0:
+            self._credit_risk_off_days += 1
+        else:
+            self._credit_risk_off_days = 0
+        self._credit_gate_open = self._credit_risk_off_days < self.credit_confirm_days
+
     def _get_vix_size_multiplier(self) -> float:
         """Get position size multiplier based on VIX level."""
         try:
@@ -589,6 +629,9 @@ class BCTMinimalAlgorithm(QCAlgorithm):
 
     def _check_all_entry_gates(self, symbol: Symbol) -> tuple[bool, str]:
         """Check all entry gates. Returns (passed, reason_if_failed)."""
+        # Gate: credit risk-off composite (GH #29)
+        if not self._credit_gate_open:
+            return False, "CREDIT_RISK_OFF"
         # Gate: kijun extension
         if self._check_kijun_extension(symbol):
             return False, "KIJUN_EXTENSION"
@@ -805,6 +848,8 @@ class BCTMinimalAlgorithm(QCAlgorithm):
 
         # Update SPY gate state (Item 4: sT10e champion)
         self._update_spy_gate()
+        # Update credit risk-off gate (GH #29)
+        self._update_credit_gate()
 
         # Process position exits and adds
         for symbol, holding in list(self.portfolio.items()):
