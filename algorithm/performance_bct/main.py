@@ -332,16 +332,35 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         hist.columns = [c.lower() for c in hist.columns]
         if not {"open", "high", "low", "close", "volume"}.issubset(hist.columns):
             return
-        weekly = hist.resample("W-FRI").agg({
-            "open": "first", "high": "max", "low": "min",
-            "close": "last", "volume": "sum",
-        }).dropna(subset=["close"])
-        for time, row in weekly.iterrows():
+        # P0 fix: avoid DataFrame.resample() timeout on QC cloud (5-min limit).
+        # Manual weekly aggregation — same result as resample("W-FRI")
+        # but avoids pandas resample overhead that triggers QC timeout.
+        weeks: dict = {}
+        for time, row in hist.iterrows():
+            # Friday of this week
+            friday = time + pd.Timedelta(days=(4 - time.weekday()) % 7)
+            friday = friday.normalize()
+            if friday not in weeks:
+                weeks[friday] = {
+                    "open": float(row["open"]),
+                    "high": float(row["high"]),
+                    "low": float(row["low"]),
+                    "close": float(row["close"]),
+                    "volume": int(row["volume"]),
+                }
+            else:
+                weeks[friday]["high"] = max(weeks[friday]["high"], float(row["high"]))
+                weeks[friday]["low"] = min(weeks[friday]["low"], float(row["low"]))
+                weeks[friday]["close"] = float(row["close"])
+                weeks[friday]["volume"] += int(row["volume"])
+
+        for time in sorted(weeks):
+            row = weeks[time]
             bar = TradeBar(
                 time, sym,
-                float(row["open"]), float(row["high"]),
-                float(row["low"]), float(row["close"]),
-                int(row["volume"]), timedelta(weeks=1),
+                row["open"], row["high"],
+                row["low"], row["close"],
+                row["volume"], timedelta(weeks=1),
             )
             w_ichi.update(bar)
             w_close.add(float(row["close"]))
