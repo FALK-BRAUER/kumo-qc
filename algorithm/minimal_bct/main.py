@@ -242,6 +242,14 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         self.reversal_profit_min_gain_pct = 0.06  # 6% gain required
         self.reversal_profit_extension_pct = 0.10  # 10% above Tenkan
 
+        # GH #25: Intraday execution parameters
+        self.intraday_enabled = self.get_parameter("intraday_enabled", "false").lower() == "true"
+        self.tenkan_confirmation = self.get_parameter("tenkan_confirmation", "true").lower() == "true"
+        self.tenkan_tolerance_pct = float(self.get_parameter("tenkan_tolerance_pct", "0.005"))
+        self.mid_day_rebalance_hour = int(self.get_parameter("mid_day_rebalance_hour", "11"))
+        self.mid_day_rebalance_min = int(self.get_parameter("mid_day_rebalance_min", "0"))
+        self.max_deferred_entries = int(self.get_parameter("max_deferred_entries", "5"))
+
         # Track SPY gate state (4-day confirmation)
         self._spy_above_cloud_days: int = 0
         self._spy_gate_open: bool = False
@@ -249,6 +257,9 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         self.universe_settings.resolution = Resolution.DAILY
         self._indicators: dict = {}
         self._position_meta: dict = {}  # Track entry date, avg price per position
+        
+        # GH #25: Intraday tracking
+        self._deferred_entries: dict = {}  # symbol -> entry_params waiting for Tenkan confirmation
         self.add_equity("SPY", Resolution.DAILY)  # needed for benchmark + SPY gate
         
         # Register SPY ATR indicators for atr_adaptive_score (GH #21)
@@ -286,6 +297,15 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             self.time_rules.at(16, 5),
             self._rebalance,
         )
+        
+        # GH #25: Mid-day intraday rebalance (if enabled)
+        if self.intraday_enabled:
+            self.schedule.on(
+                self.date_rules.every_day(),
+                self.time_rules.at(self.mid_day_rebalance_hour, self.mid_day_rebalance_min),
+                self._intraday_rebalance,
+            )
+            self.log(f"INTRADAY_INIT|enabled=True|tenkan={self.tenkan_confirmation}|mid_day={self.mid_day_rebalance_hour:02d}:{self.mid_day_rebalance_min:02d}")
 
     def _register_indicators(self, sym) -> None:
         d_ichi = self.ichimoku(sym, 9, 26, 26, 52, 26, 26)
@@ -869,8 +889,18 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             # Update trailing stop and check exit
             should_exit, exit_reason = self._update_and_check_stop(symbol, holding)
             if should_exit:
-                self.market_on_open_order(symbol, -holding.quantity)
-                self.log(f"EXIT|{date_str}|{symbol.value}|{exit_reason}")
+                # ── GH #25: Intraday stop market exit ──────────────────────────
+                if self.intraday_enabled:
+                    # Get stop price and place stop market order
+                    stop_price = self._get_position_stop_price(symbol)
+                    if stop_price:
+                        self._place_stop_market_exit(symbol, holding.quantity, stop_price)
+                        self.log(f"EXIT_STOP|{date_str}|{symbol.value}|{exit_reason}|stop={stop_price:.2f}")
+                else:
+                    # Legacy: market on open
+                    self.market_on_open_order(symbol, -holding.quantity)
+                    self.log(f"EXIT|{date_str}|{symbol.value}|{exit_reason}")
+                
                 # Clear position metadata
                 if symbol in self._position_meta:
                     del self._position_meta[symbol]
@@ -1033,19 +1063,63 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             if quantity <= 0:
                 continue
 
-            # Entry: market-on-open at current price
-            self.market_on_open_order(symbol, quantity)
-            funnel_orders_submitted += 1
-
-            # Track position entry metadata
-            self._position_meta[symbol] = {
-                "entry_date": self.time,
-                "entry_price": price,
-                "original_quantity": quantity,
-                "ladder_trims": set(),
+            # ── GH #25: Intraday entry with Tenkan confirmation ──────────────
+            entry_params = {
+                "score": score,
+                "quantity": quantity,
+                "price": price,
             }
+            
+            if self.intraday_enabled and self.tenkan_confirmation:
+                # Check Tenkan confirmation before entering
+                if not self._tenkan_confirmed(symbol):
+                    # Defer entry until Tenkan confirmation
+                    self._defer_entry(symbol, entry_params)
+                    self.log(f"ENTRY_DEFERRED|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|reason=tenkan_pending")
+                    continue
+            
+            # Execute entry with stop market order (immediate execution)
+            if self.intraday_enabled:
+                # Use buy-stop entry (enter when price rises above threshold)
+                stop_price = price * (1.0 + self.buy_stop_pct)
+                ticket = self.stop_market_order(symbol, quantity, stop_price)
+                
+                if ticket:
+                    funnel_orders_submitted += 1
+                    
+                    # Track position entry metadata
+                    self._position_meta[symbol] = {
+                        "entry_date": self.time,
+                        "entry_price": price,
+                        "initial_quantity": quantity,
+                        "add_count": 0,
+                        "previous_stop": None,
+                        "ladder_trims": set(),
+                        "stop_market_order_id": None,
+                    }
+                    
+                    # Immediately place stop market exit
+                    exit_stop = self._get_position_stop_price(symbol)
+                    if exit_stop:
+                        self._place_stop_market_exit(symbol, quantity, exit_stop)
+                    
+                    self.log(f"ENTRY_STOP|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|mark={price:.2f}|buy_stop={stop_price:.2f}")
+                else:
+                    self.log(f"ENTRY_STOP_FAIL|{date_str}|{symbol.value}|score={score}/8|qty={quantity}")
+            else:
+                # Legacy: market-on-open at current price
+                self.market_on_open_order(symbol, quantity)
+                funnel_orders_submitted += 1
 
-            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|mark={price:.2f}")
+                # Track position entry metadata
+                self._position_meta[symbol] = {
+                    "entry_date": self.time,
+                    "entry_price": price,
+                    "original_quantity": quantity,
+                    "ladder_trims": set(),
+                }
+
+                self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|mark={price:.2f}")
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
         self.debug(
@@ -1057,3 +1131,220 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             f"|reach_sizing={funnel_reach_sizing}"
             f"|order_submitted={funnel_orders_submitted}"
         )
+
+    def _tenkan_confirmed(self, symbol: Symbol) -> bool:
+        """
+        Intraday confirmation: current price > minute Tenkan-sen (9-period midpoint).
+        
+        Per GH #25 design spec: Wait for price above Tenkan before entering.
+        This provides intraday momentum confirmation beyond daily signals.
+        
+        Args:
+            symbol: Symbol to check
+            
+        Returns:
+            True if confirmed (price > Tenkan or data insufficient - permissive)
+            False if price below Tenkan (defer entry)
+        """
+        if not self.tenkan_confirmation or not self.intraday_enabled:
+            return True  # Bypass if disabled
+        
+        try:
+            # Fetch 10 minutes of 1-min bars (enough for 9-period Tenkan)
+            hist = self.history(symbol, 10, Resolution.MINUTE)
+            if hist is None or len(hist) < 9:
+                return True  # Permissive if insufficient data
+            
+            if isinstance(hist.index, pd.MultiIndex):
+                hist = hist.droplevel(0)
+            
+            # Calculate 9-period Tenkan-sen: (highest high + lowest low) / 2
+            highs = hist['high'].values if 'high' in hist.columns else hist['High'].values
+            lows = hist['low'].values if 'low' in hist.columns else hist['Low'].values
+            
+            tenkan_1m = (max(highs[-9:]) + min(lows[-9:])) / 2.0
+            current_price = float(self.securities[symbol].price)
+            
+            # Allow small tolerance above Tenkan
+            threshold = tenkan_1m * (1.0 + self.tenkan_tolerance_pct)
+            confirmed = current_price > threshold
+            
+            if not confirmed:
+                self.log(f"TENKAN_DEFER|{symbol.value}|price={current_price:.2f}|tenkan={tenkan_1m:.2f}|threshold={threshold:.2f}")
+            
+            return confirmed
+            
+        except Exception as e:
+            # Log error but be permissive to avoid blocking entries on data issues
+            self.log(f"TENKAN_ERROR|{symbol.value}|error={str(e)}")
+            return True
+    
+    def _intraday_rebalance(self) -> None:
+        """
+        Mid-day rebalance (11:00 AM ET per schedule).
+        
+        Responsibilities:
+        1. Update stop market orders to current ATR/Kijun levels
+        2. Check Tenkan confirmation for deferred entries
+        3. Process any intraday earnings surprises (if data available)
+        """
+        if not self.intraday_enabled or self.is_warming_up:
+            return
+        
+        date_str = self.time.strftime("%Y-%m-%d %H:%M")
+        self.log(f"INTRADAY_REBALANCE|{date_str}")
+        
+        # 1. Update stop market orders for all positions
+        for symbol, holding in self.portfolio.items():
+            if not holding.invested:
+                continue
+            
+            # Get current stop price
+            stop_price = self._get_position_stop_price(symbol)
+            if stop_price:
+                self._update_stop_market_order(symbol, stop_price)
+        
+        # 2. Process deferred entries (waiting for Tenkan confirmation)
+        if self._deferred_entries:
+            confirmed_entries = []
+            
+            for symbol, entry_params in list(self._deferred_entries.items()):
+                if self._tenkan_confirmed(symbol):
+                    confirmed_entries.append((symbol, entry_params))
+                else:
+                    # Check if deferred too long (max 1 day)
+                    deferred_time = entry_params.get("deferred_at")
+                    if deferred_time and (self.time - deferred_time).days >= 1:
+                        self.log(f"DEFERRED_EXPIRED|{symbol.value}|deferred_at={deferred_time}")
+                        confirmed_entries.append((symbol, entry_params))  # Enter anyway
+            
+            # Execute confirmed entries
+            for symbol, entry_params in confirmed_entries:
+                self._execute_deferred_entry(symbol, entry_params)
+                del self._deferred_entries[symbol]
+        
+        self.log(f"INTRADAY_REBALANCE_DONE|{date_str}|deferred_remaining={len(self._deferred_entries)}")
+    
+    def _defer_entry(self, symbol: Symbol, entry_params: dict) -> None:
+        """
+        Defer entry until Tenkan confirmation.
+        
+        Args:
+            symbol: Symbol to enter
+            entry_params: Dict with entry parameters (score, quantity, etc.)
+        """
+        if len(self._deferred_entries) >= self.max_deferred_entries:
+            # Remove oldest deferred entry
+            oldest = min(self._deferred_entries.items(), key=lambda x: x[1].get("deferred_at", self.time))
+            del self._deferred_entries[oldest[0]]
+            self.log(f"DEFERRED_EVICTION|{oldest[0].value}|for={symbol.value}")
+        
+        entry_params["deferred_at"] = self.time
+        self._deferred_entries[symbol] = entry_params
+        
+        self.log(f"ENTRY_DEFERRED|{symbol.value}|score={entry_params.get('score')}|qty={entry_params.get('quantity')}")
+    
+    def _execute_deferred_entry(self, symbol: Symbol, entry_params: dict) -> None:
+        """Execute a deferred entry order."""
+        quantity = entry_params.get("quantity", 0)
+        score = entry_params.get("score", 0)
+        
+        if quantity <= 0:
+            return
+        
+        # Use stop market order for entry (buy stop at close + 0.75%)
+        price = float(self.securities[symbol].price)
+        stop_price = price * (1.0 + self.buy_stop_pct)
+        
+        ticket = self.stop_market_order(symbol, quantity, stop_price)
+        
+        if ticket:
+            # Track position
+            self._position_meta[symbol] = {
+                "entry_date": self.time,
+                "entry_price": price,
+                "initial_quantity": quantity,
+                "add_count": 0,
+                "previous_stop": None,
+                "ladder_trims": set(),
+                "stop_market_order_id": None,  # Will be set after fill
+            }
+            
+            # Immediately place stop market exit
+            exit_stop = self._get_position_stop_price(symbol)
+            if exit_stop:
+                self._place_stop_market_exit(symbol, quantity, exit_stop)
+            
+            date_str = self.time.strftime("%Y-%m-%d")
+            deferred_minutes = (self.time - entry_params.get('deferred_at', self.time)).total_seconds() / 60
+            self.log(f"ENTRY_DEFERRED_EXEC|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|deferred_for={deferred_minutes:.0f}min")
+    
+    def _place_stop_market_exit(self, symbol: Symbol, quantity: int, stop_price: float) -> int | None:
+        """
+        Place a stop market order for exit (sell when price hits stop level).
+        
+        Args:
+            symbol: Symbol to exit
+            quantity: Quantity to sell
+            stop_price: Stop price level
+            
+        Returns:
+            Order ID if placed successfully, None otherwise
+        """
+        try:
+            # Cancel any existing stop market order for this symbol
+            self._cancel_existing_stop_order(symbol)
+            
+            # Place new stop market order
+            ticket = self.stop_market_order(symbol, -quantity, stop_price)
+            
+            if ticket and ticket.order_id:
+                # Track in position meta
+                if symbol in self._position_meta:
+                    self._position_meta[symbol]["stop_market_order_id"] = ticket.order_id
+                    self._position_meta[symbol]["stop_price"] = stop_price
+                
+                self.log(f"STOP_MARKET_EXIT|{symbol.value}|qty={quantity}|stop={stop_price:.2f}|order_id={ticket.order_id}")
+                return ticket.order_id
+            
+            return None
+            
+        except Exception as e:
+            self.log(f"STOP_MARKET_ERROR|{symbol.value}|error={str(e)}")
+            return None
+    
+    def _cancel_existing_stop_order(self, symbol: Symbol) -> None:
+        """Cancel existing stop market order for symbol if present."""
+        if symbol not in self._position_meta:
+            return
+        
+        existing_order_id = self._position_meta[symbol].get("stop_market_order_id")
+        if existing_order_id:
+            try:
+                self.transactions.cancel_order(existing_order_id)
+                self.log(f"STOP_CANCEL|{symbol.value}|old_order_id={existing_order_id}")
+            except Exception:
+                pass  # Order may have already filled or been cancelled
+            
+            self._position_meta[symbol]["stop_market_order_id"] = None
+    
+    def _update_stop_market_order(self, symbol: Symbol, new_stop_price: float) -> None:
+        """
+        Update stop market order to new price level.
+        Cancels existing and places new order.
+        """
+        if symbol not in self._position_meta:
+            return
+        
+        holding = self.portfolio[symbol]
+        if not holding.invested:
+            return
+        
+        current_stop = self._position_meta[symbol].get("stop_price")
+        
+        # Only update if stop has moved up (ratchet behavior)
+        if current_stop and new_stop_price <= current_stop:
+            return
+        
+        # Place new stop market order
+        self._place_stop_market_exit(symbol, holding.quantity, new_stop_price)
