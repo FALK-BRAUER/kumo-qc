@@ -12,9 +12,14 @@ Use scripts/run_windows.py to launch all 6-window + FY2025 backtests.
 Uses QC native IchimokuKinkoHyo: daily registered via self.ichimoku(),
 weekly via TradeBarConsolidator(Calendar.WEEKLY). Custom Wilder period-9
 ADX retained in score_symbol_native() — QC native ADX is period 14.
+
+Local mode: when LEAN data dir is detected, loads polygon_universe_equity200_fy2025.json
+(326 unique tickers, top-200 S&P equity by dollar volume) instead of Morningstar CoarseFundamental filter.
 """
 
+import json
 from datetime import timedelta
+from pathlib import Path
 
 from AlgorithmImports import *  # noqa: F401,F403
 
@@ -31,6 +36,27 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     ENABLE_CLOUD_BREACH_EXIT: bool = False
     ENABLE_WEEKLY_KIJUN_EXIT: bool = False
 
+    @staticmethod
+    def _find_local_data_dir() -> Path | None:
+        candidates = [
+            Path("/Lean/Data/equity/usa/daily"),
+            Path("/Data/equity/usa/daily"),
+            Path(__file__).parent.parent.parent / "data/equity/usa/daily",
+        ]
+        return next((d for d in candidates if d.exists()), None)
+
+    @staticmethod
+    def _load_polygon_universe() -> dict | None:
+        candidates = [
+            Path(__file__).parent / "polygon_universe_equity200_fy2025.json",
+            Path("/Lean/Data/polygon_universe_equity200_fy2025.json"),
+        ]
+        for p in candidates:
+            if p.exists():
+                with open(p) as f:
+                    return json.load(f)
+        return None
+
     def initialize(self) -> None:
         self.set_time_zone("America/New_York")
         sy = int(self.get_parameter("start_year",  "2025"))
@@ -43,31 +69,50 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.set_end_date(ey, em, ed)
         self.set_cash(100_000)
         self.set_benchmark("SPY")
-        
+
         warmup_days = int(self.get_parameter("warmup_days", "750"))
         self.set_warmup(timedelta(days=warmup_days))
         self.warmup_days = warmup_days
-        
+
         # Exit condition parameter overrides
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
-        
-        # Add ETFs explicitly (Morningstar fundamental data excludes ETFs)
-        # These will be included in the BCT scoring universe
-        etfs = ["QQQ", "SMH", "XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLB", "XLU", "XLRE", "XLC"]
-        for etf_symbol in etfs:
-            self.add_equity(etf_symbol)
 
         self.universe_settings.resolution = Resolution.DAILY
-
-        self._filter = BCTUniverseFilter()
         self._active: set = set()
         self._indicators: dict = {}
+        self._polygon_universe: dict | None = None
 
-        self.add_universe(
-            self._filter.coarse_selection,
-            self._filter.fine_selection,
-        )
+        if self._find_local_data_dir() is not None:
+            # Local: static universe from Polygon daily snapshot (867 unique tickers, FY2025)
+            poly = self._load_polygon_universe()
+            if poly is not None:
+                self._polygon_universe = poly
+                all_tickers: set[str] = set()
+                for tickers in poly.values():
+                    all_tickers.update(tickers)
+                self.log(f"LOCAL_UNIVERSE|polygon_equity|unique_tickers={len(all_tickers)}")
+                for ticker in sorted(all_tickers):
+                    try:
+                        self.add_equity(ticker, Resolution.DAILY)
+                    except Exception:
+                        pass
+            else:
+                # Fallback: ETFs only (no polygon JSON found)
+                self.log("LOCAL_UNIVERSE|fallback_etf_only|polygon_json_not_found")
+                etfs = ["QQQ", "SMH", "XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLB", "XLU", "XLRE", "XLC", "SPY"]
+                for etf in etfs:
+                    self.add_equity(etf, Resolution.DAILY)
+        else:
+            # Cloud: dynamic universe via Morningstar CoarseFundamental + ETFs
+            etfs = ["QQQ", "SMH", "XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLB", "XLU", "XLRE", "XLC"]
+            for etf in etfs:
+                self.add_equity(etf, Resolution.DAILY)
+            self._filter = BCTUniverseFilter()
+            self.add_universe(
+                self._filter.coarse_selection,
+                self._filter.fine_selection,
+            )
 
         self.schedule.on(
             self.date_rules.every_day(),
@@ -106,6 +151,8 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         consolidator.data_consolidated += _on_weekly
         self.subscription_manager.add_consolidator(sym, consolidator)
 
+        # With 750-day warmup, consolidator receives sufficient weekly bars automatically.
+        # Skip manual seed during warmup to avoid 326× history() calls at init time.
         if not self.is_warming_up:
             self._seed_weekly(sym, w_ichi, w_close)
 
@@ -200,8 +247,15 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         if slots <= 0:
             return
 
+        # When running locally with polygon universe, restrict candidates to today's snapshot
+        today_poly: set[str] | None = None
+        if self._polygon_universe is not None:
+            today_poly = set(self._polygon_universe.get(date_str, []))
+
         candidates: list[tuple] = []
         for symbol in sorted(self._active):
+            if today_poly is not None and symbol.value not in today_poly:
+                continue
             if self.portfolio[symbol].invested:
                 continue
             ind = self._indicators.get(symbol)
