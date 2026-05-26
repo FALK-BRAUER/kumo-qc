@@ -240,7 +240,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # Risk-based sizing parameters
         self.risk_per_trade_pct = float(self.get_parameter("risk_per_trade_pct", str(self.RISK_PER_TRADE_PCT)))
         self.heat_cap_pct = float(self.get_parameter("heat_cap_pct", str(self.HEAT_CAP_PCT)))
-        self.inverse_vol_sizing_enabled = self.get_parameter("inverse_vol_sizing_enabled", "true").lower() == "true"
+        self.inverse_vol_sizing_enabled = self.get_parameter("inverse_vol_sizing_enabled", "false").lower() == "true"
 
         self._spy_sym = self.add_equity("SPY", Resolution.DAILY).symbol
 
