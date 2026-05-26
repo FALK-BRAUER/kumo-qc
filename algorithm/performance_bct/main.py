@@ -15,6 +15,7 @@ ADX retained in score_symbol_native() — QC native ADX is period 14.
 """
 
 from datetime import timedelta
+from pathlib import Path
 
 from AlgorithmImports import *  # noqa: F401,F403
 
@@ -64,10 +65,23 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self._active: set = set()
         self._indicators: dict = {}
 
-        self.add_universe(
-            self._filter.coarse_selection,
-            self._filter.fine_selection,
-        )
+        # Local mode: bypass CoarseFundamental (not available locally)
+        # Load tickers directly from local data directory
+        data_dir = Path("data/equity/usa/daily")
+        if data_dir.exists():
+            tickers = [p.stem.upper() for p in data_dir.glob("*.zip")]
+            tickers.sort()  # deterministic order
+            for ticker in tickers[:500]:  # cap at 500 for local BT
+                try:
+                    self.add_equity(ticker)
+                except Exception:
+                    pass
+        else:
+            # Fallback to cloud universe filter
+            self.add_universe(
+                self._filter.coarse_selection,
+                self._filter.fine_selection,
+            )
 
         self.schedule.on(
             self.date_rules.every_day(),
