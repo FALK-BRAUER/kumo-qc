@@ -205,7 +205,7 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         entry_info = self._pending_entries[order_id]
         
         # Only process fill events (status = Filled or PartiallyFilled)
-        if order_event.status not in [OrderStatus.FILLED, OrderStatus.PARTIALLYFILLED]:
+        if order_event.status not in [OrderStatus.FILLED, OrderStatus.PARTIALLY_FILLED]:
             return
         
         symbol = entry_info["symbol"]
@@ -238,8 +238,16 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             # Log warning but keep position meta - exit will be handled by daily rebalance
             self.log(f"EXIT_STOP_DEFERRED|{date_str}|{symbol.value}|reason=stop_calc_pending")
         
-        # Remove from pending entries
-        del self._pending_entries[order_id]
+        # FIX #2: Only remove from pending entries on complete fill
+        # Track cumulative fill quantity to handle partial fills correctly
+        cum_fill = entry_info.get("cumulative_fill", 0) + order_event.fill_quantity
+        if cum_fill >= quantity:
+            # Complete fill - remove from pending
+            del self._pending_entries[order_id]
+        else:
+            # Partial fill - update cumulative fill, keep in pending for remaining fills
+            entry_info["cumulative_fill"] = cum_fill
+            self._pending_entries[order_id] = entry_info
 
     def initialize(self) -> None:
         self.set_time_zone("America/New_York")
