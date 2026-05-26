@@ -4,6 +4,7 @@
     "parameters": {
         "warmup_days": "750",
         "weekly_kijun_exit": "True",
-        "cloud_exit": "True"
+        "cloud_exit": "True",
+        "inverse_vol_sizing_enabled": "True"
     }
 }

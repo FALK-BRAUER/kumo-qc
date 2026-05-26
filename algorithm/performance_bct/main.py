@@ -35,6 +35,8 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     # Exit condition flags — False = reference bct‑perf‑2020‑2026 (daily Kijun only)
     ENABLE_CLOUD_BREACH_EXIT: bool = False
     ENABLE_WEEKLY_KIJUN_EXIT: bool = False
+    # Inverse vol sizing: median 20d daily vol calibrated to equity-200 universe
+    BASELINE_VOL: float = 0.015
 
     @staticmethod
     def _find_local_data_dir() -> Path | None:
@@ -77,6 +79,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # Exit condition parameter overrides
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
+        self.inverse_vol_sizing_enabled = self.get_parameter("inverse_vol_sizing_enabled", "false").lower() == "true"
 
         self.universe_settings.resolution = Resolution.DAILY
         self._active: set = set()
@@ -208,6 +211,28 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     def _has_open_orders(self, symbol) -> bool:
         return bool(self.transactions.get_open_orders(symbol))
 
+    def _get_vol_size_mult(self, symbol) -> float:
+        try:
+            hist = self.history(symbol, 21, Resolution.DAILY)
+            if hist is None or hist.empty:
+                return 1.0
+            if isinstance(hist.index, pd.MultiIndex):
+                hist = hist.droplevel(0)
+            hist.columns = [c.lower() for c in hist.columns]
+            if "close" not in hist.columns or len(hist) < 5:
+                return 1.0
+            closes = hist["close"].values.astype(float)
+            log_returns = np.diff(np.log(closes))
+            if len(log_returns) < 4:
+                return 1.0
+            realized_vol = float(np.std(log_returns))
+            if realized_vol <= 0:
+                return 1.0
+            size_mult = self.BASELINE_VOL / realized_vol
+            return max(0.5, min(2.0, size_mult))
+        except Exception:
+            return 1.0
+
     def _rebalance(self) -> None:
         if self.is_warming_up:
             return
@@ -286,11 +311,12 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             price = self.securities[symbol].price
             if price <= 0:
                 continue
-            target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
+            size_mult = self._get_vol_size_mult(symbol) if self.inverse_vol_sizing_enabled else 1.0
+            target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT * size_mult
             quantity = int(target_value / price)
             if quantity <= 0:
                 continue
             self.market_on_open_order(symbol, quantity)
-            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
+            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|size={size_mult:.2f}x|qty={quantity}|price~{price:.2f}")
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
