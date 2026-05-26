@@ -674,12 +674,16 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         else:
             new_stop = initial_stop
 
-        # Detect Kijun trail ratchet (GH #36)
+        # Detect Kijun trail ratchet — store for caller, do NOT fire add here (race guard)
         prev_stop = meta.get("previous_stop")
-        if prev_stop is not None and new_stop > prev_stop:
-            # Check if driven by Kijun (kijun > initial_stop, not just ATR)
-            if vals and kijun > initial_stop:
-                self._check_pyramid_add(symbol, kijun, atr)
+        kijun_ratchet = (
+            prev_stop is not None
+            and new_stop > prev_stop
+            and vals is not None
+            and kijun > initial_stop
+        )
+        meta["_ratchet_kijun"] = kijun if kijun_ratchet else None
+        meta["_ratchet_atr"] = atr if kijun_ratchet else None
 
         # Update previous stop
         meta["previous_stop"] = new_stop
@@ -694,17 +698,24 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         # Guard: max adds
         if meta.get("add_count", 0) >= self.PYRAMID_MAX_ADDS:
             return
-        
-        # Guard: not extended (> Kijun + 1.5×ATR)
-        if atr and atr > 0:
-            price = float(self.securities[symbol].price)
-            if price > kijun + 1.5 * atr:
-                return
-        
-        # Guard: heat cap room (same check as entries)
-        open_count = sum(1 for _, h in self.portfolio.items() if h.invested)
-        if open_count >= self.MAX_POSITIONS:
+        if meta.get("_add_ticket") is not None:
+            return  # add order pending fill
+
+        # Guard: not extended (> Kijun + 1.5×ATR) — fail-safe if ATR missing
+        if not atr or atr <= 0:
             return
+        price = float(self.securities[symbol].price)
+        if price > kijun + 1.5 * atr:
+            return
+        
+        # Guard: portfolio heat — block adds when >90% invested
+        total_pv = float(self.portfolio.total_portfolio_value)
+        if total_pv > 0:
+            invested_pct = sum(
+                float(h.holdings_value) for _, h in self.portfolio.items() if h.invested
+            ) / total_pv
+            if invested_pct > 0.90:
+                return
         
         # All guards pass — execute pyramid add
         self._execute_pyramid_add(symbol, kijun, atr)
@@ -712,18 +723,15 @@ class BCTMinimalAlgorithm(QCAlgorithm):
     def _execute_pyramid_add(self, symbol: Symbol, kijun: float, atr: float | None) -> None:
         """Execute pyramid add order."""
         meta = self._position_meta[symbol]
-        initial_qty = meta.get("initial_quantity", 0)
-        if initial_qty <= 0:
+        current_qty = abs(int(self.portfolio[symbol].quantity))
+        if current_qty <= 0:
             return
-        
-        add_qty = max(1, int(initial_qty * self.PYRAMID_ADD_FRACTION))
+
+        add_qty = max(1, int(current_qty * self.PYRAMID_ADD_FRACTION))
         date_str = self.time.strftime("%Y-%m-%d")
         
-        # Place market-on-open order (existing GTC stop covers the add)
-        self.market_on_open_order(symbol, add_qty)
-        
-        # Update meta
-        meta["add_count"] = meta.get("add_count", 0) + 1
+        # Place market-on-open order — count on fill, not on placement
+        meta["_add_ticket"] = self.market_on_open_order(symbol, add_qty)
         
         atr_str = f"{atr:.2f}" if atr else "0.00"
         self.log(
@@ -731,18 +739,39 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             f"|qty={add_qty}|kijun={kijun:.2f}|atr={atr_str}"
         )
 
+    def on_order_event(self, order_event) -> None:
+        """Confirm pyramid add fill and bump add_count."""
+        from QuantConnect.Orders import OrderStatus
+        if order_event.status != OrderStatus.Filled:
+            return
+        for symbol, meta in self._position_meta.items():
+            ticket = meta.get("_add_ticket")
+            if ticket is not None and ticket.order_id == order_event.order_id:
+                meta["add_count"] = meta.get("add_count", 0) + 1
+                meta.pop("_add_ticket", None)
+                break
+
     def _update_and_check_stop(self, symbol: Symbol, holding) -> tuple[bool, str]:
         """Update trailing stop and check if stop triggered. Returns (should_exit, reason)."""
-        # Update stop (may trigger pyramid add on Kijun trail ratchet)
         stop_price = self._update_trailing_stop(symbol)
         if stop_price is None:
             return False, ""
-        
+
         close = float(self.securities[symbol].price)
         if close < stop_price:
             vals = self._daily_close_and_kijun_and_cloud_top(symbol)
             kijun = vals[1] if vals else 0
+            # Clear pending ratchet — position exiting, no add
+            meta = self._position_meta.get(symbol, {})
+            meta["_ratchet_kijun"] = None
             return True, f"ATR_STOP|stop={stop_price:.2f}|close={close:.2f}|kijun={kijun:.2f}"
+
+        # No exit — fire pyramid add if ratchet was detected
+        meta = self._position_meta.get(symbol, {})
+        ratchet_kijun = meta.pop("_ratchet_kijun", None)
+        ratchet_atr = meta.pop("_ratchet_atr", None)
+        if ratchet_kijun is not None:
+            self._check_pyramid_add(symbol, ratchet_kijun, ratchet_atr)
         return False, ""
 
     # ── Item 5: Ladder trim + reversal profit exit ────────────────────────────
@@ -1129,7 +1158,7 @@ class BCTMinimalAlgorithm(QCAlgorithm):
                 "initial_quantity": quantity,  # GH #36: for pyramid add sizing
                 "ladder_trims": set(),
                 "add_count": 0,  # GH #36: pyramid add counter
-                "previous_stop": None,  # GH #36: track stop ratchets
+                "previous_stop": (price - 2.5 * atr) if (atr and atr > 0) else price * 0.95,  # ATR floor at entry, no Kijun
             }
 
             self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|mark={price:.2f}")
