@@ -235,12 +235,14 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # Exit condition parameter overrides
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
+        self.inverse_vol_sizing_enabled = self.get_parameter("inverse_vol_sizing_enabled", "true").lower() == "true"
 
         self.universe_settings.resolution = Resolution.DAILY
         self._active: set = set()
         self._indicators: dict = {}
         self._polygon_universe: dict | None = None
         self._position_meta: dict = {}  # symbol → {entry_date, entry_price}
+        self._spy_sym = self.add_equity("SPY", Resolution.DAILY).symbol
 
         if self._find_local_data_dir() is not None:
             # Local: static universe from Polygon daily snapshot (867 unique tickers, FY2025)
@@ -359,8 +361,83 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         senkou_b = d_ichi.senkou_b.current.value
         return close, kijun, max(senkou_a, senkou_b), min(senkou_a, senkou_b)
 
+    def _active_return_gate_passed(self, symbol) -> bool:
+        """
+        E22: Active Return Gate - Only consider stocks outperforming SPY over 10 days.
+        Returns True if stock_10d_return > spy_10d_return (active return > 0).
+        """
+        from QuantConnect import Resolution  # noqa: PLC0415
+
+        # Get 11 days of history to calculate 10-day return
+        try:
+            stock_hist = self.history(symbol, 11, Resolution.DAILY)
+            spy_hist = self.history(self._spy_sym, 11, Resolution.DAILY)
+        except Exception:
+            return False
+
+        if stock_hist is None or stock_hist.empty or len(stock_hist) < 11:
+            return False
+        if spy_hist is None or spy_hist.empty or len(spy_hist) < 11:
+            return False
+
+        # Extract close prices
+        if isinstance(stock_hist.index, pd.MultiIndex):
+            stock_hist = stock_hist.droplevel(0)
+        if isinstance(spy_hist.index, pd.MultiIndex):
+            spy_hist = spy_hist.droplevel(0)
+
+        stock_close = stock_hist["close"].astype(float)
+        spy_close = spy_hist["close"].astype(float)
+
+        if len(stock_close) < 11 or len(spy_close) < 11:
+            return False
+
+        # Calculate 10-day returns
+        stock_return_10d = stock_close.iloc[-1] / stock_close.iloc[-11] - 1
+        spy_return_10d = spy_close.iloc[-1] / spy_close.iloc[-11] - 1
+
+        # Active return: stock minus benchmark
+        active_return_10d = stock_return_10d - spy_return_10d
+
+        # Gate: only pass if outperforming SPY (active return > 0)
+        return bool(active_return_10d > 0)
+
     def _has_open_orders(self, symbol) -> bool:
         return bool(self.transactions.get_open_orders(symbol))
+
+    def _get_spy_vol_20d(self) -> float:
+        try:
+            hist = self.history(self._spy_sym, 22, Resolution.DAILY)
+            if hist is None or hist.empty:
+                return 0.015
+            if isinstance(hist.index, pd.MultiIndex):
+                hist = hist.droplevel(0)
+            hist.columns = [c.lower() for c in hist.columns]
+            closes = hist["close"].values.astype(float)
+            log_returns = np.diff(np.log(closes))
+            if len(log_returns) < 4:
+                return 0.015
+            return float(np.std(log_returns))
+        except Exception:
+            return 0.015
+
+    def _get_stock_vol_20d(self, symbol) -> float:
+        try:
+            hist = self.history(symbol, 22, Resolution.DAILY)
+            if hist is None or hist.empty:
+                return 0.015
+            if isinstance(hist.index, pd.MultiIndex):
+                hist = hist.droplevel(0)
+            hist.columns = [c.lower() for c in hist.columns]
+            if "close" not in hist.columns or len(hist) < 5:
+                return 0.015
+            closes = hist["close"].values.astype(float)
+            log_returns = np.diff(np.log(closes))
+            if len(log_returns) < 4:
+                return 0.015
+            return max(float(np.std(log_returns)), 1e-6)
+        except Exception:
+            return 0.015
 
     def _rebalance(self) -> None:
         if self.is_warming_up:
@@ -437,6 +514,11 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             ind = self._indicators.get(symbol)
             if ind is None:
                 continue
+            # === E22 PRE-FILTER: Active Return Gate (stock vs SPY 10-day) ===
+            if not self._active_return_gate_passed(symbol):
+                continue
+            # === END E22 PRE-FILTER ===
+
             # === PRE-FILTER: skip symbols that cannot reach MIN_SCORE=7 ===
             sma200_ind = ind.get("sma200")
             d_ichi_ind = ind.get("d_ichi")
