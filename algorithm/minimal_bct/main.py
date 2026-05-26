@@ -572,10 +572,14 @@ class BCTMinimalAlgorithm(QCAlgorithm):
     def _update_vix_percentile(self) -> None:
         """GH #28: Update cached VIX size multiplier using 2-year percentile rank.
 
-        Fetches 504-day VIX history daily. If current VIX is above the 90th
-        percentile of that distribution, sets _vix_size_mult to 0.5 (half-size).
+        Fetches 504-day VIX history once per week (GH #42: weekly guard prevents
+        O(N*504) daily history calls that caused 5x BT slowdown). If current VIX
+        is above the 90th percentile, sets _vix_size_mult to 0.5 (half-size).
         Falls back to 1.0 (full size) on any data error.
         """
+        if (self._vix_last_fetch is not None
+                and (self.time - self._vix_last_fetch).days < 5):
+            return
         try:
             vix_sym = self.symbol("VIX")
             hist = self.history(vix_sym, 504, Resolution.DAILY)
@@ -593,6 +597,7 @@ class BCTMinimalAlgorithm(QCAlgorithm):
             self._vix_size_mult = (
                 self.vix_size_multiplier if pct_rank >= self.vix_percentile_threshold else 1.0
             )
+            self._vix_last_fetch = self.time
         except Exception:
             self._vix_size_mult = 1.0
 
