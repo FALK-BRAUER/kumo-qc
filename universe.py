@@ -4,6 +4,7 @@ Upload this file to QC project alongside main.py
 """
 
 EQUITY_200 = [
+    # Equities (326 tickers)
     'AAL', 'AAPL', 'ABBV', 'ABNB', 'ABT',
     'ACN', 'ADBE', 'ADI', 'ADP', 'ADSK',
     'AEP', 'AIG', 'AJG', 'ALB', 'ALL',
@@ -70,4 +71,28 @@ EQUITY_200 = [
     'WDC', 'WELL', 'WFC', 'WM', 'WMB',
     'WMT', 'WSM', 'XEL', 'XOM', 'XYZ',
     'ZTS'
+]
+
+# ETF-1: Broad market ETFs for separate pool
+ETF_TICKERS = [
+    'SMH',   # VanEck Semiconductor ETF
+    'TAN',   # Invesco Solar ETF
+    'XLE',   # Energy Select Sector SPDR
+    'DBB',   # Invesco DB Base Metals ETF
+    'SPY',   # SPDR S&P 500 ETF
+    'QQQ',   # Invesco QQQ Trust
+    'IWM',   # iShares Russell 2000 ETF
+    'XLK',   # Technology Select Sector SPDR
+    'XLF',   # Financial Select Sector SPDR
+    'XLI',   # Industrial Select Sector SPDR
+    'XLV',   # Health Care Select Sector SPDR
+    'XLU',   # Utilities Select Sector SPDR
+    'XLRE',  # Real Estate Select Sector SPDR
+    'XLB',   # Materials Select Sector SPDR
+    'XLP',   # Consumer Staples Select Sector SPDR
+    'XLY',   # Consumer Discretionary Select Sector SPDR
+    'VGT',   # Vanguard Information Technology ETF
+    'VHT',   # Vanguard Health Care ETF
+    'VFH',   # Vanguard Financials ETF
+    'VTI',   # Vanguard Total Stock Market ETF
 ]

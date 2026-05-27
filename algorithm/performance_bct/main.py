@@ -28,9 +28,10 @@ from pathlib import Path
 from AlgorithmImports import *  # noqa: F401,F403
 
 try:
-    from universe import EQUITY_200  # Cloud static universe (uploaded with main.py)
+    from universe import EQUITY_200, ETF_TICKERS  # Cloud static universe (uploaded with main.py)
 except ImportError:
     EQUITY_200 = []  # Fallback if universe.py not available
+    ETF_TICKERS = []  # Fallback if universe.py not available
 
 from typing import Any
 
@@ -150,7 +151,7 @@ def score_symbol(algorithm: Any, symbol: Any) -> dict[str, Any] | None:
     elif score >= 4: rating = "+"
     elif score >= 2: rating = "="
     else:            rating = "--"
-    return {"score": score, "rating": rating, "conditions": conditions}
+    return {"score": score, "rating": rating, "conditions": conditions, "adx": adx_now}
 
 
 def score_symbol_native(algorithm: Any, symbol: Any, ind: Any) -> dict[str, Any] | None:
@@ -202,6 +203,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     # Phase 3 stop progression (methodology.md §5 Rule #13)
     PHASE3_DAYS: int = 56         # calendar days before Phase 3 eligible
     PHASE3_PNL: float = 0.15      # unrealized PnL threshold for Phase 3
+    # ETF-1: Two-pool system parameters
+    MAX_ETF_POSITIONS: int = 0   # 0 = disabled, 1-2 = dedicated ETF slots
+    MIN_ETF_SCORE: int = 6       # Lower threshold for ETFs vs stocks (≥6 vs ≥7)
 
     @staticmethod
     def _find_local_data_dir() -> Path | None:
@@ -226,7 +230,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
     def initialize(self) -> None:
         self.set_time_zone("America/New_York")
-        self.log("VERSION_MARKER|cloud_e40b_v2_v20")
+        self.log("VERSION_MARKER|etf1_two_pool_v1")
         sy = int(self.get_parameter("start_year",  "2025"))
         sm = int(self.get_parameter("start_month", "1"))
         sd = int(self.get_parameter("start_day",   "1"))
@@ -245,6 +249,13 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # Exit condition parameter overrides
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
+
+        # ETF-1: Two-pool system parameters
+        self.max_etf_positions = int(self.get_parameter("max_etf_positions", str(self.MAX_ETF_POSITIONS)))
+        self.min_etf_score = int(self.get_parameter("min_etf_score", str(self.MIN_ETF_SCORE)))
+        self.etf_set = set(ETF_TICKERS)  # Quick lookup for ETF detection
+        if self.max_etf_positions > 0:
+            self.log(f"ETF1_CONFIG|max_etf_positions={self.max_etf_positions}|min_etf_score={self.min_etf_score}|etfs={len(self.etf_set)}")
 
         # E40b-v2: SPY regime gate using existing SPY subscription + SMA200
         self.spy = self.add_equity("SPY", Resolution.DAILY).symbol
@@ -276,8 +287,21 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         else:
             # Cloud: static universe from universe.py (uploaded alongside main.py)
             if EQUITY_200:
-                self.log(f"CLOUD_UNIVERSE|static_py|tickers={len(EQUITY_200)}")
-                for ticker in EQUITY_200:
+                all_tickers = list(EQUITY_200)
+                # ETF-1: Add ETFs to universe if two-pool enabled
+                if self.max_etf_positions > 0 and ETF_TICKERS:
+                    etf_added = []
+                    for etf in ETF_TICKERS:
+                        if etf not in all_tickers:
+                            all_tickers.append(etf)
+                            etf_added.append(etf)
+                    if etf_added:
+                        self.log(f"CLOUD_UNIVERSE|static_py|tickers={len(EQUITY_200)}|etf_added={len(etf_added)}")
+                    else:
+                        self.log(f"CLOUD_UNIVERSE|static_py|tickers={len(EQUITY_200)}|etf_already_present")
+                else:
+                    self.log(f"CLOUD_UNIVERSE|static_py|tickers={len(EQUITY_200)}")
+                for ticker in all_tickers:
                     try:
                         self.add_equity(ticker, Resolution.DAILY)
                     except Exception:
@@ -478,7 +502,10 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         if self._polygon_universe is not None:
             today_poly = set(self._polygon_universe.get(date_str, []))
 
-        candidates: list[tuple] = []
+        # ETF-1: Two-pool system — separate ETF and stock candidates
+        etf_candidates: list[tuple] = []  # (symbol, score, adx)
+        stock_candidates: list[tuple] = []  # (symbol, score)
+
         for symbol in sorted(self._active):
             if today_poly is not None and symbol.value not in today_poly:
                 continue
@@ -489,28 +516,54 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             ind = self._indicators.get(symbol)
             if ind is None:
                 continue
-            # === PRE-FILTER: skip symbols that cannot reach MIN_SCORE=7 ===
+            # === PRE-FILTER: skip symbols that cannot reach their pool's MIN_SCORE ===
             sma200_ind = ind.get("sma200")
             d_ichi_ind = ind.get("d_ichi")
+            is_etf = symbol.value in self.etf_set
+            min_score = self.min_etf_score if is_etf else self.MIN_SCORE
             if (sma200_ind and sma200_ind.is_ready and d_ichi_ind and d_ichi_ind.is_ready):
                 price = float(self.securities[symbol].price)
                 if price <= 0:
                     continue
-                # If below SMA200, condition 8 fails → max score 6 → skip (MIN_SCORE=7)
-                if price < sma200_ind.current.value:
+                # If below SMA200, condition 8 fails → max score 6
+                if price < sma200_ind.current.value and min_score > 6:
                     continue
-                # If below daily cloud, condition 5 fails → max score 6 → skip
+                # If below daily cloud, condition 5 fails → max score 6
                 cloud_top = max(d_ichi_ind.senkou_a.current.value, d_ichi_ind.senkou_b.current.value)
-                if price < cloud_top:
+                if price < cloud_top and min_score > 6:
                     continue
             # === END PRE-FILTER ===
             result = score_symbol_native(self, symbol, ind)
-            if result is None or result["score"] < self.MIN_SCORE:
+            if result is None:
                 continue
-            candidates.append((symbol, result["score"]))
+            score = result["score"]
+            adx = result.get("adx", 0.0)
+            if is_etf:
+                # ETF pool: lower threshold, include ADX for sorting
+                if score >= self.min_etf_score:
+                    etf_candidates.append((symbol, score, adx))
+            else:
+                # Stock pool: standard threshold
+                if score >= self.MIN_SCORE:
+                    stock_candidates.append((symbol, score))
 
-        candidates.sort(key=lambda x: x[1], reverse=True)
-        for symbol, score in candidates[:slots]:
+        # ETF-1: Sort ETFs by (score DESC, ADX DESC), stocks by score DESC
+        etf_candidates.sort(key=lambda x: (x[1], x[2]), reverse=True)
+        stock_candidates.sort(key=lambda x: x[1], reverse=True)
+
+        # ETF-1: Fill slots — ETFs first (up to max_etf_positions), then stocks
+        entries = 0
+        max_etf = self.max_etf_positions if self.max_etf_positions > 0 else 0
+        etf_count = sum(1 for sym, h in self.portfolio.items() if h.invested and sym.value in self.etf_set and sym not in exiting)
+        stock_count = open_count - etf_count
+
+        etf_slots = max(0, max_etf - etf_count)
+        stock_slots = max(0, slots - etf_slots)
+
+        # Take ETF slots first
+        for symbol, score, adx in etf_candidates:
+            if etf_slots <= 0:
+                break
             price = self.securities[symbol].price
             if price <= 0:
                 continue
@@ -520,6 +573,27 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 continue
             self.market_on_open_order(symbol, quantity)
             self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price)}
-            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
+            self.log(f"ENTRY|{date_str}|{symbol.value}|pool=etf|score={score}/8|adx={adx:.1f}|qty={quantity}|price~{price:.2f}")
+            etf_slots -= 1
+            entries += 1
 
-        self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
+        # Then fill remaining slots with stocks
+        for symbol, score in stock_candidates:
+            if stock_slots <= 0:
+                break
+            price = self.securities[symbol].price
+            if price <= 0:
+                continue
+            target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
+            quantity = int(target_value / price)
+            if quantity <= 0:
+                continue
+            self.market_on_open_order(symbol, quantity)
+            self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price)}
+            self.log(f"ENTRY|{date_str}|{symbol.value}|pool=stock|score={score}/8|qty={quantity}|price~{price:.2f}")
+            stock_slots -= 1
+            entries += 1
+
+        total_etf_in_portfolio = sum(1 for sym, h in self.portfolio.items() if h.invested and sym.value in self.etf_set)
+        total_stock_in_portfolio = sum(1 for sym, h in self.portfolio.items() if h.invested and sym.value not in self.etf_set)
+        self.log(f"REBALANCE|{date_str}|open={open_count}|entries={entries}|etfs={total_etf_in_portfolio}|stocks={total_stock_in_portfolio}")
