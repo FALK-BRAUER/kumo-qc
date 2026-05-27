@@ -381,10 +381,42 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     def _has_open_orders(self, symbol) -> bool:
         return bool(self.transactions.get_open_orders(symbol))
 
+    def _calculate_atr(self, symbol, period=14) -> float | None:
+        """Calculate Average True Range (ATR) for a symbol."""
+        try:
+            hist = self.history(symbol, period + 1, Resolution.DAILY)
+            if hist is None or len(hist) < period + 1:
+                return None
+
+            # Handle MultiIndex from History
+            if isinstance(hist.index, pd.MultiIndex):
+                hist = hist.droplevel(0)
+
+            highs = hist["high"]
+            lows = hist["low"]
+            closes = hist["close"]
+
+            # True Range = max(high-low, |high-previous_close|, |low-previous_close|)
+            tr1 = highs - lows
+            tr2 = (highs - closes.shift(1)).abs()
+            tr3 = (lows - closes.shift(1)).abs()
+            tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+
+            # ATR = simple moving average of TR
+            atr = tr.rolling(window=period).mean().iloc[-1]
+            return float(atr) if pd.notna(atr) else None
+        except Exception:
+            return None
+
     def _rebalance(self) -> None:
         if self.is_warming_up:
             return
         date_str = self.time.strftime("%Y-%m-%d")
+
+        # Log version marker once per day (on first rebalance)
+        if not hasattr(self, '_version_marker_logged'):
+            self.log("VERSION_MARKER|atr_initial_stop_e36")
+            self._version_marker_logged = True
 
         for symbol, holding in list(self.portfolio.items()):
             if not holding.invested or self._has_open_orders(symbol):
@@ -414,10 +446,17 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     pnl_h = close / meta.get("entry_price", close) - 1
                     self.log(f"PHASE3_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_bottom={cloud_bottom:.2f}|days={days_h}|pnl={pnl_h:.1%}")
             else:
-                if close < kijun:
+                # E36: Use ATR initial stop, trail up with Kijun (higher of the two)
+                meta = self._position_meta.get(symbol, {})
+                initial_stop = meta.get("initial_stop", 0.0)
+                # Dynamic stop = max(initial ATR stop, current Kijun) — trails up, never down
+                dynamic_stop = max(initial_stop, kijun) if initial_stop > 0 else kijun
+
+                if close < dynamic_stop:
                     self.market_on_open_order(symbol, -holding.quantity)
                     self._position_meta.pop(symbol, None)
-                    self.log(f"STOP|{date_str}|{symbol.value}|close={close:.2f}|kijun={kijun:.2f}")
+                    stop_type = "atr" if initial_stop > kijun else "kijun"
+                    self.log(f"STOP|{date_str}|{symbol.value}|close={close:.2f}|stop={dynamic_stop:.2f}|{stop_type}|initial={initial_stop:.2f}|kijun={kijun:.2f}")
                 elif self.cloud_exit_enabled and close < cloud_top:
                     self.market_on_open_order(symbol, -holding.quantity)
                     self._position_meta.pop(symbol, None)
@@ -486,7 +525,22 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             if quantity <= 0:
                 continue
             self.market_on_open_order(symbol, quantity)
-            self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price)}
-            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
+
+            # E36: Calculate ATR-based initial stop
+            atr14 = self._calculate_atr(symbol, 14)
+            if atr14 and atr14 > 0:
+                initial_stop = price - (2.5 * atr14)
+            else:
+                # Fallback: use Kijun if ATR unavailable
+                vals = self._daily_vals(symbol)
+                initial_stop = vals[1] if vals else price * 0.95  # 5% fallback
+
+            self._position_meta[symbol] = {
+                "entry_date": self.time,
+                "entry_price": float(price),
+                "initial_stop": float(initial_stop),
+                "atr14": float(atr14) if atr14 else None,
+            }
+            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}|atr_stop={initial_stop:.2f}")
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
