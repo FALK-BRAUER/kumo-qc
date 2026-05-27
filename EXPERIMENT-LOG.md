@@ -164,7 +164,7 @@ updated: 2026-05-28
 ### Active (Running)
 | ID | Description | Status | GH | Notes |
 |----|-------------|--------|:---:|-------|
-| E45 | Constant-R position resizing on Kijun step-up | 🔄 W1–W6 RUNNING | [#109](https://github.com/FALK-BRAUER/kumo-qc/issues/109) | FY2025: 1.582 Sharpe / +70.5% / DD 20.4% — POTENTIAL CHAMPION pending windows |
+| E45 | Constant-R position resizing on Kijun step-up | ❌ 1.582 FY / 2/6 windows | [#109](https://github.com/FALK-BRAUER/kumo-qc/issues/109) | FY2025 1.582 (+0.140) but 4/6 windows negative delta — leverage amplifier not alpha; W3/W4 dominate FY result |
 
 ### Completed This Session
 | ID | Description | Status | GH | Notes |
