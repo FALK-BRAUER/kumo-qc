@@ -158,11 +158,30 @@ updated: 2026-05-28
 
 ## Queued Experiments
 
-| ID | Description | Status | Hypothesis | Base | GH |
-|----|-------------|--------|------------|------|----|
-| E43-v2 | Pyramid add only — no breakeven stop | ⏳ | Isolate pyramid add contribution; Kijun stop throughout; cloud top cross trigger | E40d | [#94](https://github.com/FALK-BRAUER/kumo-qc/issues/94) |
-| E44-v2 | ADX tiebreaker in candidate ranking | ⏳ | Keep MAX_POSITIONS=10; sort (score desc, ADX desc) — score-8 priority maintained, STX (ADX 64) surfaces before plateau ADX=30 within tier | E40d | [#95](https://github.com/FALK-BRAUER/kumo-qc/issues/95) |
-| Score fix | Scanner BUY threshold = score ≥ 7 | ⏳ | George's actual threshold is 7/8; scanner requires 8/8 | premarket brief | [#35](https://github.com/falkhansen/kumo-qc/issues/35) ✓ |
+### Active (Running)
+| ID | Description | Status | GH | Worker |
+|----|-------------|--------|:---:|--------|
+| E43-v2 | Pyramid add only — no breakeven stop | 🔄 | [#94](https://github.com/FALK-BRAUER/kumo-qc/issues/94) | fpixpg96 |
+| E44-v2 | ADX tiebreaker: sort (score desc, ADX desc) | 🔄 | [#95](https://github.com/FALK-BRAUER/kumo-qc/issues/95) | 2dfwm2xd |
+
+### Priority Queue (dispatch order)
+| ID | Description | Hypothesis | Base | GH |
+|----|-------------|------------|------|----|
+| W7/E40d | YTD-2026 window on E40d | Validate champion in 2026 conditions | E40d | — |
+| E40d-sp500 | S&P 500 universe BT | Broader universe removes polygon-326 momentum bias (survivorship confirmed) | E40d | [#103](https://github.com/FALK-BRAUER/kumo-qc/issues/103) |
+| E40d-v2 | VIX<20 (stricter) | Tighter fear filter = fewer but higher-quality entries | E40d | [#106](https://github.com/FALK-BRAUER/kumo-qc/issues/106) |
+| E40d-v3 | VIX<30 (looser) | Recovers some blocked winners at cost of more noise | E40d | [#104](https://github.com/FALK-BRAUER/kumo-qc/issues/104) |
+| E40f | HY credit spread >4% entry block | Correct application of credit stress as REGIME gate (not sizing like rejected E56) | E40d | [#105](https://github.com/FALK-BRAUER/kumo-qc/issues/105) |
+| E40g | Breadth gate: <50% S&P above 50MA | Distribution phase detection — individual signals less reliable in weak breadth | E40d | [#108](https://github.com/FALK-BRAUER/kumo-qc/issues/108) |
+| E40h | VVIX<100 (vol-of-vol) | VIX itself unstable when VVIX high = avoid | E40d | [#107](https://github.com/FALK-BRAUER/kumo-qc/issues/107) |
+| E40-combo | VIX<25 AND SPY>200MA ≥3d | Stacking two gates: does double-filter reduce crashes further or over-filter? | E40d | [#98](https://github.com/FALK-BRAUER/kumo-qc/issues/98) |
+| E53-v2 | Earnings avoidance ±2d | Shorter window preserves pre-earnings runup | E40d | [#96](https://github.com/FALK-BRAUER/kumo-qc/issues/96) |
+| E53-v3 | Earnings avoidance ±1d (day-of only) | Minimal avoidance — only skip entry day itself | E40d | [#97](https://github.com/FALK-BRAUER/kumo-qc/issues/97) |
+| E36-v2 | ATR stop 1.5× multiplier | Tighter ATR may outperform Kijun stop at entry | E40d | [#99](https://github.com/FALK-BRAUER/kumo-qc/issues/99) |
+| E85 | Signal freshness gate (>2d = stale) | Blocks entries on stale signals | E40d | [#100](https://github.com/FALK-BRAUER/kumo-qc/issues/100) |
+| E51 | Parabolic entry block (13d move >25%) | Avoid buying exhaustion peaks | E40d | [#101](https://github.com/FALK-BRAUER/kumo-qc/issues/101) |
+| E87 | Rotation quality gate (RSI>50 + weekly>Tenkan) | Quality filter at entry | E40d | [#102](https://github.com/FALK-BRAUER/kumo-qc/issues/102) |
+| Score fix | Scanner BUY threshold = score ≥ 7 | ✅ Done — b9634e9 kumo-trader | premarket brief | [#35](https://github.com/falkhansen/kumo-qc/issues/35) ✓ |
 
 ---
 
