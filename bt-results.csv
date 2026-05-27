@@ -1,6 +1,7 @@
 date_run,window,period_start,period_end,commit,branch,environment,sharpe,net_profit_pct,net_profit_usd,total_orders,win_rate_pct,max_drawdown_pct,total_fees_usd,notes
 2026-05-27,FY2025,2025-01-01,2025-12-31,7f2f9c2,main,cloud,-0.001,6.74,6740,318,39,13.5,,G3 CLOUD v9: S&P500 ETF universe. Universe too large (318 trades vs 232 local). BT 7bc659b6
 2026-05-27,FY2025,2025-01-01,2025-12-31,d81d93b,main,cloud,0.303,13.256,13256,38,50,24.9,,G3 CLOUD v10: DV-200 coarse filter with has_fundamental_data. Only 38 trades — filter too aggressive. BT 40fc0e7c
+2026-05-27,FY2025,2025-01-01,2025-12-31,8a88ec1,main,cloud,0.52,22.161,22161,34,33,31.7,35.46,G3 CLOUD v11: DV>$1M no has_fundamental. 34 trades vs 232 local — universe still diverging. Sharpe 0.52 vs local 1.079. BT bd7c8c2e
 2026-05-27,Q2-2025,2025-04-01,2025-06-30,feat/e32-dd-circuit-breaker,feat/e32-dd-circuit-breaker,local,-0.608,-1.73,-1730,0,0,0,98.40,E32 DD circuit breaker Q2-2025 — REJECTED (0 trips, circuit never fires). Individual Kijun stops exit positions within 1-5d before portfolio DD accumulates
 2026-05-27,Q2-2025,2025-04-01,2025-06-30,c077e95,feat/e32-dd-circuit-breaker,local,-0.608,-1.73,-1730,,,,98.40,E32 Q2 4% DD circuit breaker — REJECTED (0 circuit trips; BCT Kijun stops exit before portfolio DD reaches 4%)
 2026-05-27,FY2025,2025-01-01,2025-12-31,feat/e82-three-phase-stop,feat/e82-three-phase-stop,local,0.562,19.22,19220,202,0,0,0,E82 three-phase stop progression — UNVERIFIED (result source unknown/contradictory, NEEDS BT-capable worker verification. If valid: -0.474 Sharpe vs 1.036)
