@@ -22,6 +22,7 @@ AND unrealized PnL ≥ +15%, switch stop anchor from Kijun to cloud bottom
 """
 
 import json
+from datetime import date as _date
 from datetime import timedelta
 from pathlib import Path
 
@@ -226,7 +227,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
     def initialize(self) -> None:
         self.set_time_zone("America/New_York")
-        self.log("VERSION_MARKER|cloud_static200_v15")
+        self.log("VERSION_MARKER|earnings_avoidance_v1")
         sy = int(self.get_parameter("start_year",  "2025"))
         sm = int(self.get_parameter("start_month", "1"))
         sd = int(self.get_parameter("start_day",   "1"))
@@ -245,6 +246,8 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # Exit condition parameter overrides
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
+        self.earnings_avoidance_enabled = self.get_parameter("earnings_avoidance", "false").lower() == "true"
+        self.earnings_proximity_days = int(self.get_parameter("earnings_proximity_days", "2"))
 
         self.universe_settings.resolution = Resolution.DAILY
         self.universe_settings.data_normalization_mode = DataNormalizationMode.RAW
@@ -252,6 +255,8 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self._indicators: dict = {}
         self._polygon_universe: dict | None = None
         self._position_meta: dict = {}  # symbol → {entry_date, entry_price}
+        self._earnings_skips: int = 0
+        self._earnings_exits: int = 0
 
         poly = self._load_polygon_universe()
         if poly is not None:
@@ -394,6 +399,22 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     def _has_open_orders(self, symbol) -> bool:
         return bool(self.transactions.get_open_orders(symbol))
 
+    def _get_next_earnings(self, symbol) -> "_date | None":
+        """Returns next earnings date from QC Morningstar data. None if unavailable."""
+        try:
+            fund = getattr(self.securities[symbol], "fundamentals", None)
+            if fund is None:
+                return None
+            er = getattr(fund, "earning_reports", None)
+            if er is None:
+                return None
+            ned = getattr(er, "next_earnings_date", None)
+            if ned is None or ned.year < 2000:
+                return None
+            return _date(ned.year, ned.month, ned.day)
+        except Exception:
+            return None
+
     def _rebalance(self) -> None:
         if self.is_warming_up:
             return
@@ -409,6 +430,19 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
             w_ichi = self._indicators[symbol]["w_ichi"]
             w_kijun = w_ichi.kijun.current.value if w_ichi.is_ready else None
+
+            # Earnings avoidance: exit before earnings window
+            if self.earnings_avoidance_enabled:
+                ned = self._get_next_earnings(symbol)
+                if ned is not None:
+                    days_to = (ned - self.time.date()).days
+                    if 0 <= days_to <= self.earnings_proximity_days:
+                        pnl_pct = close / self._position_meta.get(symbol, {}).get("entry_price", close) - 1
+                        self.market_on_open_order(symbol, -holding.quantity)
+                        self._position_meta.pop(symbol, None)
+                        self._earnings_exits += 1
+                        self.log(f"EARNINGS_EXIT|{date_str}|{symbol.value}|earnings_in={days_to}d|pnl={pnl_pct:.1%}")
+                        continue
 
             # Determine stop anchor: Phase 3 (≥56 days + ≥15% gain) → cloud bottom
             meta = self._position_meta.get(symbol)
@@ -487,6 +521,14 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             result = score_symbol_native(self, symbol, ind)
             if result is None or result["score"] < self.MIN_SCORE:
                 continue
+            if self.earnings_avoidance_enabled:
+                ned = self._get_next_earnings(symbol)
+                if ned is not None:
+                    days_to = (ned - self.time.date()).days
+                    if 0 <= days_to <= self.earnings_proximity_days:
+                        self._earnings_skips += 1
+                        self.log(f"EARNINGS_SKIP|{date_str}|{symbol.value}|earnings_in={days_to}d")
+                        continue
             candidates.append((symbol, result["score"]))
 
         candidates.sort(key=lambda x: x[1], reverse=True)
@@ -502,4 +544,4 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price)}
             self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
 
-        self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
+        self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}|e_skips={self._earnings_skips}|e_exits={self._earnings_exits}")
