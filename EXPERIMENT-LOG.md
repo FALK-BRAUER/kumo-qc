@@ -161,8 +161,9 @@ updated: 2026-05-28
 ### Active (Running)
 | ID | Description | Status | GH | Worker |
 |----|-------------|--------|:---:|--------|
-| E43-v2 | Pyramid add only — no breakeven stop | 🔄 | [#94](https://github.com/FALK-BRAUER/kumo-qc/issues/94) | fpixpg96 |
-| E44-v2 | ADX tiebreaker: sort (score desc, ADX desc) | 🔄 | [#95](https://github.com/FALK-BRAUER/kumo-qc/issues/95) | 2dfwm2xd |
+| E43-v2 | Pyramid add only — no breakeven stop | ⏸ NEEDS RE-DISPATCH | [#94](https://github.com/FALK-BRAUER/kumo-qc/issues/94) | fpixpg96 (went idle) |
+| E44-v2 | ADX tiebreaker: sort (score desc, ADX desc) | ⏸ NEEDS RE-DISPATCH | [#95](https://github.com/FALK-BRAUER/kumo-qc/issues/95) | 2dfwm2xd (went idle) |
+| E53-v2 | Earnings avoidance ±2d | ⏸ NEEDS RE-DISPATCH | [#96](https://github.com/FALK-BRAUER/kumo-qc/issues/96) | — (dispatched, never started) |
 
 ### Priority Queue (dispatch order)
 | ID | Description | Hypothesis | Base | GH |
@@ -175,7 +176,7 @@ updated: 2026-05-28
 | E40g | Breadth gate: <50% S&P above 50MA | Filters bad + good entries equally; better than G3 but not E40d | E40d | [#108](https://github.com/FALK-BRAUER/kumo-qc/issues/108) — ➖ NEUTRAL 1.268 / −0.174 |
 | E40h | VVIX<100 (vol-of-vol) | VVIX data not available locally | E40d | [#107](https://github.com/FALK-BRAUER/kumo-qc/issues/107) — 🔒 BLOCKED (no VVIX data) |
 | E40-combo | VIX<25 AND SPY>200MA ≥3d | Over-filters: WR 49%↑ + DD 8.5%↓ but 26 fewer trades, return drops to +35% | E40d | [#98](https://github.com/FALK-BRAUER/kumo-qc/issues/98) — ❌ REJECTED 1.207 / −0.235 |
-| E53-v2 | Earnings avoidance ±2d | Shorter window preserves pre-earnings runup | E40d | [#96](https://github.com/FALK-BRAUER/kumo-qc/issues/96) |
+| E53-v2 | Earnings avoidance ±2d | Shorter window preserves pre-earnings runup | E40d | [#96](https://github.com/FALK-BRAUER/kumo-qc/issues/96) — ⏸ in Active above |
 | E53-v3 | Earnings avoidance ±1d (day-of only) | Minimal avoidance — only skip entry day itself | E40d | [#97](https://github.com/FALK-BRAUER/kumo-qc/issues/97) |
 | E36-v2 | ATR stop 1.5× multiplier | Tighter ATR may outperform Kijun stop at entry | E40d | [#99](https://github.com/FALK-BRAUER/kumo-qc/issues/99) |
 | E85 | Signal freshness gate (>2d = stale) | Blocks entries on stale signals | E40d | [#100](https://github.com/FALK-BRAUER/kumo-qc/issues/100) |
