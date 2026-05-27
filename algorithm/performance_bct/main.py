@@ -226,7 +226,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
     def initialize(self) -> None:
         self.set_time_zone("America/New_York")
-        self.log("VERSION_MARKER|cloud_static200_v15")
+        self.log("VERSION_MARKER|cloud_e40b_v2_v20")
         sy = int(self.get_parameter("start_year",  "2025"))
         sm = int(self.get_parameter("start_month", "1"))
         sd = int(self.get_parameter("start_day",   "1"))
@@ -245,6 +245,11 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # Exit condition parameter overrides
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
+
+        # E40b-v2: SPY regime gate using existing SPY subscription + SMA200
+        self.spy = self.add_equity("SPY", Resolution.DAILY).symbol
+        self.spy_sma200 = self.sma("SPY", 200)
+        self.spy_below_200d_count = 0  # consecutive days counter
 
         self.universe_settings.resolution = Resolution.DAILY
         self.universe_settings.data_normalization_mode = DataNormalizationMode.RAW
@@ -449,7 +454,22 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             1 for sym, h in self.portfolio.items()
             if h.invested and sym not in exiting
         )
-        slots = self.MAX_POSITIONS - open_count
+
+        # E40b-v2: SPY regime gate — block new entries after 3 consecutive days below 200d MA
+        if self.spy_sma200.is_ready:
+            spy_price = float(self.securities[self.spy].close)
+            spy_ma200 = float(self.spy_sma200.current.value)
+            if spy_price < spy_ma200:
+                self.spy_below_200d_count += 1
+            else:
+                self.spy_below_200d_count = 0
+            if self.spy_below_200d_count >= 3:
+                self.log(f"REGIME_BLOCK|{date_str}|SPY={spy_price:.2f}|MA200={spy_ma200:.2f}|consecutive={self.spy_below_200d_count}")
+                slots = 0  # Block new entries but allow exits above to process
+            else:
+                slots = self.MAX_POSITIONS - open_count
+        else:
+            slots = self.MAX_POSITIONS - open_count
         if slots <= 0:
             return
 
