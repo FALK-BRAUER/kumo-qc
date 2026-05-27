@@ -161,9 +161,9 @@ updated: 2026-05-28
 ### Active (Running)
 | ID | Description | Status | GH | Worker |
 |----|-------------|--------|:---:|--------|
-| E43-v2 | Pyramid add only — no breakeven stop | ⏸ NEEDS RE-DISPATCH | [#94](https://github.com/FALK-BRAUER/kumo-qc/issues/94) | fpixpg96 (went idle) |
-| E44-v2 | ADX tiebreaker: sort (score desc, ADX desc) | ⏸ NEEDS RE-DISPATCH | [#95](https://github.com/FALK-BRAUER/kumo-qc/issues/95) | 2dfwm2xd (went idle) |
-| E53-v2 | Earnings avoidance ±2d | ⏸ NEEDS RE-DISPATCH | [#96](https://github.com/FALK-BRAUER/kumo-qc/issues/96) | — (dispatched, never started) |
+| E43-v2 | Pyramid add only — no breakeven stop | ❌ 1.374 / −0.068 | [#94](https://github.com/FALK-BRAUER/kumo-qc/issues/94) | +11.2pp raw return but DD 16.1% vs 9.5% — 99 adds fired; risk-adjusted degrades; pyramid track CLOSED |
+| E44-v2 | ADX tiebreaker: sort (score desc, ADX desc) | 💀 −0.140 / −1.582 | [#95](https://github.com/FALK-BRAUER/kumo-qc/issues/95) | STX entered (hypothesis ✓) but high-ADX = parabolic/volatile = WR 31% DD 24.8% — ADX tiebreaker track CLOSED |
+| E53-v2 | Earnings avoidance ±2d | ❌ REJECTED 1.208 / −0.234 | [#96](https://github.com/FALK-BRAUER/kumo-qc/issues/96) | 7 skips hurt net result; earnings avoidance track closed |
 
 ### Priority Queue (dispatch order)
 | ID | Description | Hypothesis | Base | GH |
@@ -176,7 +176,7 @@ updated: 2026-05-28
 | E40g | Breadth gate: <50% S&P above 50MA | Filters bad + good entries equally; better than G3 but not E40d | E40d | [#108](https://github.com/FALK-BRAUER/kumo-qc/issues/108) — ➖ NEUTRAL 1.268 / −0.174 |
 | E40h | VVIX<100 (vol-of-vol) | VVIX data not available locally | E40d | [#107](https://github.com/FALK-BRAUER/kumo-qc/issues/107) — 🔒 BLOCKED (no VVIX data) |
 | E40-combo | VIX<25 AND SPY>200MA ≥3d | Over-filters: WR 49%↑ + DD 8.5%↓ but 26 fewer trades, return drops to +35% | E40d | [#98](https://github.com/FALK-BRAUER/kumo-qc/issues/98) — ❌ REJECTED 1.207 / −0.235 |
-| E53-v2 | Earnings avoidance ±2d | Shorter window preserves pre-earnings runup | E40d | [#96](https://github.com/FALK-BRAUER/kumo-qc/issues/96) — ⏸ in Active above |
+| E53-v2 | Earnings avoidance ±2d | Shorter window preserves pre-earnings runup | E40d | [#96](https://github.com/FALK-BRAUER/kumo-qc/issues/96) — ❌ REJECTED 1.208 / −0.234 |
 | E53-v3 | Earnings avoidance ±1d (day-of only) | Minimal avoidance — only skip entry day itself | E40d | [#97](https://github.com/FALK-BRAUER/kumo-qc/issues/97) |
 | E36-v2 | ATR stop 1.5× multiplier | Tighter ATR may outperform Kijun stop at entry | E40d | [#99](https://github.com/FALK-BRAUER/kumo-qc/issues/99) |
 | E85 | Signal freshness gate (>2d = stale) | Blocks entries on stale signals | E40d | [#100](https://github.com/FALK-BRAUER/kumo-qc/issues/100) |
@@ -193,7 +193,7 @@ updated: 2026-05-28
 3. **No additional entry gates.** BCT checklist is maximal. Every extra gate (E8, E38, E49, E53) created false negatives without reducing false positives.
 4. **Regime gates are the ONLY positive axis.** E40b-v2 (+0.427), E40d (+0.406), E40c (+0.326). All 6 experiments with Sharpe >1.0 are regime gates. Zero positive results from exit mods, sizing, entry gates, or universe changes. Root insight: BCT already selects good winners — the edge is avoiding MORE LOSERS (bad entries during weak markets), not picking better winners. Regime gates operate before the entry decision, reducing the noise denominator rather than optimizing the signal numerator.
 9. **Polygon-326 dollar-volume filter is a quality gate, not survivorship bias.** S&P 500 universe (500 names) Sharpe 0.304 vs polygon-326 1.442 (−1.138 delta). The 174 extra S&P names are illiquid noise that pollutes BCT scorer. E40d's 1.442 Sharpe is real, not inflated.
-5. **Slot gate blocks rocket ships.** MAX_POSITIONS=10 is the root cause of STX-type misses. STX scored 8/8 — slot competition blocked it. E44-v2 (ADX tiebreaker) is the active test.
+5. **Slot gate blocks rocket ships — but ranking fix is intractable.** STX scored 8/8 and E44-v2 confirmed slot competition is the root cause. ADX tiebreaker surfaced STX but catastrophically degraded overall quality (Sharpe −0.14, DD 24.8%, WR 31%). High ADX ≠ better trade — high-ADX names are often parabolic/volatile. The random ordering within score tier was actually optimal. STX miss is a known acceptable cost of a fixed MAX_POSITIONS=10 pool.
 6. **QC cloud validation is permanently blocked.** QC project 32034565 missing/permissions revoked. Universe injection also broken. Local LEAN is production target. Falk must check QC dashboard to restore if needed.
 7. **Kijun IS the trailing stop.** No explicit trail code needed. Kijun rises naturally with price trend; `close < kijun → exit` is the trail.
 8. **Intraday stop monitoring destroys edge.** All stops must be EOD-only to match George's methodology (proven in Run 8).
