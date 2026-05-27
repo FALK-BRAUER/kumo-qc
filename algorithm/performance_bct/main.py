@@ -252,7 +252,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
     def initialize(self) -> None:
         self.set_time_zone("America/New_York")
-        self.log("VERSION_MARKER|earnings_avoidance_v1")
+        self.log("VERSION_MARKER|inline_scanner_v19")
         sy = int(self.get_parameter("start_year",  "2025"))
         sm = int(self.get_parameter("start_month", "1"))
         sd = int(self.get_parameter("start_day",   "1"))
@@ -282,6 +282,10 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self._position_meta: dict = {}  # symbol → {entry_date, entry_price}
         self._earnings_skips: int = 0
         self._earnings_exits: int = 0
+        self._inline_scanner_v19: bool = True
+        self._qualified_pool_v19: dict = {}  # ticker → score; built during warmup union, refreshed daily
+        self._polygon_fallback_pool: set = set()  # all unique polygon tickers for padding
+        self._v19_warmup_score_start = _date(sy, sm, sd) - timedelta(days=90)
         self._earnings_calendar: dict = self._load_earnings_calendar()
         if self._earnings_calendar:
             self.log(f"EARNINGS_CAL|loaded|tickers={len(self._earnings_calendar)}")
@@ -296,6 +300,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 all_tickers: set[str] = set()
                 for tickers in poly.values():
                     all_tickers.update(tickers)
+                self._polygon_fallback_pool = all_tickers
                 self.log(f"LOCAL_UNIVERSE|polygon_equity|unique_tickers={len(all_tickers)}")
                 for ticker in sorted(all_tickers):
                     try:
@@ -456,8 +461,56 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
     def _rebalance(self) -> None:
         if self.is_warming_up:
+            if self._inline_scanner_v19 and self.time.date() >= self._v19_warmup_score_start:
+                added = 0
+                for symbol in sorted(self._active):
+                    try:
+                        result = score_symbol(self, symbol)
+                        if result is not None and result.get("score", 0) >= self.MIN_SCORE:
+                            self._qualified_pool_v19[symbol.value] = result["score"]
+                            added += 1
+                    except Exception:
+                        pass
+                self.log(f"V19_WARMUP_SCORE|date={self.time.strftime('%Y-%m-%d')}|pool={len(self._qualified_pool_v19)}|added={added}")
             return
         date_str = self.time.strftime("%Y-%m-%d")
+
+        # v19: daily pool refresh — score all active symbols, update qualified pool
+        if self._inline_scanner_v19:
+            prev_keys = set(self._qualified_pool_v19.keys())
+            new_pool: dict = {}
+            for symbol in sorted(self._active):
+                ind = self._indicators.get(symbol)
+                if ind is None:
+                    continue
+                sma200_ind = ind.get("sma200")
+                d_ichi_ind = ind.get("d_ichi")
+                if sma200_ind and sma200_ind.is_ready and d_ichi_ind and d_ichi_ind.is_ready:
+                    price = float(self.securities[symbol].price)
+                    if price <= 0:
+                        continue
+                    if price < sma200_ind.current.value:
+                        continue
+                    cloud_top_v = max(d_ichi_ind.senkou_a.current.value, d_ichi_ind.senkou_b.current.value)
+                    if price < cloud_top_v:
+                        continue
+                try:
+                    result = score_symbol(self, symbol)
+                    if result is not None and result.get("score", 0) >= self.MIN_SCORE:
+                        new_pool[symbol.value] = result["score"]
+                except Exception:
+                    pass
+            if len(new_pool) < 50 and self._polygon_fallback_pool:
+                self.log(f"V19_DAILY_PAD|date={date_str}|pool={len(new_pool)}|padding_to_50")
+                for ticker in sorted(self._polygon_fallback_pool - set(new_pool.keys())):
+                    new_pool[ticker] = 7
+                    if len(new_pool) >= 50:
+                        break
+            added_tickers = set(new_pool.keys()) - prev_keys
+            removed_tickers = prev_keys - set(new_pool.keys())
+            if added_tickers or removed_tickers:
+                self.log(f"V19_DAILY_RESCORE|date={date_str}|pool={len(new_pool)}|+{len(added_tickers)}|-{len(removed_tickers)}")
+            self._qualified_pool_v19 = new_pool
 
         for symbol, holding in list(self.portfolio.items()):
             if not holding.invested or self._has_open_orders(symbol):
@@ -526,9 +579,10 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         if slots <= 0:
             return
 
-        # When running locally with polygon universe, restrict candidates to today's snapshot
+        # When running locally with polygon universe, restrict candidates to today's snapshot.
+        # v19 bypasses this — qualified pool is the gate (already BCT-scored).
         today_poly: set[str] | None = None
-        if self._polygon_universe is not None:
+        if self._polygon_universe is not None and not self._inline_scanner_v19:
             today_poly = set(self._polygon_universe.get(date_str, []))
 
         candidates: list[tuple] = []
@@ -542,24 +596,29 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             ind = self._indicators.get(symbol)
             if ind is None:
                 continue
-            # === PRE-FILTER: skip symbols that cannot reach MIN_SCORE=7 ===
-            sma200_ind = ind.get("sma200")
-            d_ichi_ind = ind.get("d_ichi")
-            if (sma200_ind and sma200_ind.is_ready and d_ichi_ind and d_ichi_ind.is_ready):
-                price = float(self.securities[symbol].price)
-                if price <= 0:
+            if self._inline_scanner_v19:
+                # v19: pool already scored daily — just gate membership
+                if symbol.value not in self._qualified_pool_v19:
                     continue
-                # If below SMA200, condition 8 fails → max score 6 → skip (MIN_SCORE=7)
-                if price < sma200_ind.current.value:
+                score = self._qualified_pool_v19[symbol.value]
+            else:
+                # === PRE-FILTER: skip symbols that cannot reach MIN_SCORE=7 ===
+                sma200_ind = ind.get("sma200")
+                d_ichi_ind = ind.get("d_ichi")
+                if (sma200_ind and sma200_ind.is_ready and d_ichi_ind and d_ichi_ind.is_ready):
+                    price = float(self.securities[symbol].price)
+                    if price <= 0:
+                        continue
+                    if price < sma200_ind.current.value:
+                        continue
+                    cloud_top = max(d_ichi_ind.senkou_a.current.value, d_ichi_ind.senkou_b.current.value)
+                    if price < cloud_top:
+                        continue
+                # === END PRE-FILTER ===
+                result = score_symbol_native(self, symbol, ind)
+                if result is None or result["score"] < self.MIN_SCORE:
                     continue
-                # If below daily cloud, condition 5 fails → max score 6 → skip
-                cloud_top = max(d_ichi_ind.senkou_a.current.value, d_ichi_ind.senkou_b.current.value)
-                if price < cloud_top:
-                    continue
-            # === END PRE-FILTER ===
-            result = score_symbol_native(self, symbol, ind)
-            if result is None or result["score"] < self.MIN_SCORE:
-                continue
+                score = result["score"]
             if self.earnings_avoidance_enabled:
                 ned = self._get_next_earnings(symbol)
                 if ned is not None:
@@ -568,7 +627,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                         self._earnings_skips += 1
                         self.log(f"EARNINGS_SKIP|{date_str}|{symbol.value}|earnings_in={days_to}d")
                         continue
-            candidates.append((symbol, result["score"]))
+            candidates.append((symbol, score))
 
         candidates.sort(key=lambda x: x[1], reverse=True)
         for symbol, score in candidates[:slots]:
