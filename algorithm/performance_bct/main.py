@@ -237,7 +237,6 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
         self.regime_gate_enabled = self.get_parameter("regime_gate_enabled", "false") == "true"
-        self.vix = self.add_index("VIX", Resolution.DAILY).symbol
 
         self.universe_settings.resolution = Resolution.DAILY
         self._active: set = set()
@@ -430,11 +429,22 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     self._position_meta.pop(symbol, None)
                     self.log(f"WEEKLY_KIJUN_STOP|{date_str}|{symbol.value}|close={close:.2f}|w_kijun={w_kijun:.2f}")
 
-        if self.regime_gate_enabled and self.securities.contains_key(self.vix):
-            vix_price = float(self.securities[self.vix].price)
-            if vix_price >= 25.0:
-                self.log(f"REGIME_BLOCK|{date_str}|VIX={vix_price:.2f}|threshold=25|reason=fear_regime")
-                return
+        if self.regime_gate_enabled:
+            try:
+                vix_history = self.history(
+                    Symbol.create("VIX", SecurityType.INDEX, Market.USA),
+                    1,
+                    Resolution.DAILY
+                )
+                if len(vix_history) > 0:
+                    vix_price = float(vix_history["close"].iloc[-1])
+                    if vix_price >= 25.0:
+                        self.log(f"REGIME_BLOCK|{date_str}|VIX={vix_price:.2f}|threshold=25|method=History")
+                        return
+                else:
+                    self.log(f"REGIME_NOOP|{date_str}|VIX=unavailable|reason=no_history_data")
+            except Exception as e:
+                self.log(f"REGIME_NOOP|{date_str}|error={str(e)}|reason=exception_guard")
 
         exiting = {
             o.symbol
