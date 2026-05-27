@@ -21,8 +21,9 @@ AND unrealized PnL ≥ +15%, switch stop anchor from Kijun to cloud bottom
 (min(Senkou_A, Senkou_B)). Extends winners; implements methodology.md §5 Rule #13 Phase 3.
 """
 
+import csv
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from AlgorithmImports import *  # noqa: F401,F403
@@ -281,12 +282,28 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.regime_gate_enabled = self.get_parameter("regime_gate_enabled", "false") == "true"
         self.universe_type = self.get_parameter("universe_type", "polygon")
         self.vix = self.add_index("VIX", Resolution.DAILY).symbol
+        self.spy = self.add_equity("SPY", Resolution.DAILY).symbol
+        self.spy_sma200 = self.sma(self.spy, 200)
+        self.spy_above_200_history = RollingWindow[bool](3)
 
         self.universe_settings.resolution = Resolution.DAILY
         self._active: set = set()
         self._indicators: dict = {}
         self._polygon_universe: dict | None = None
         self._position_meta: dict = {}  # symbol → {entry_date, entry_price}
+        
+        # E53: Load earnings dates
+        self._earnings_dates: dict[str, list[str]] = {}
+        earnings_file = Path(__file__).parent.parent.parent / "data" / "earnings_dates.csv"
+        if earnings_file.exists():
+            with open(earnings_file) as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    ticker = row['ticker']
+                    date = row['report_date']
+                    if ticker not in self._earnings_dates:
+                        self._earnings_dates[ticker] = []
+                    self._earnings_dates[ticker].append(date)
 
         if self._find_local_data_dir() is not None:
             # Local: static universe from Polygon or S&P 500 daily snapshot
@@ -308,6 +325,11 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                         self.add_equity(ticker, Resolution.DAILY)
                     except Exception:
                         pass
+                # Always add SPY for benchmark/breadth calculations
+                try:
+                    self.add_equity("SPY", Resolution.DAILY)
+                except Exception:
+                    pass
             else:
                 # Fallback: ETFs only (no universe JSON found)
                 self.log(f"LOCAL_UNIVERSE|fallback_etf_only|{universe_name}_json_not_found")
@@ -488,9 +510,32 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
         if self.regime_gate_enabled and self.securities.contains_key(self.vix):
             vix_price = float(self.securities[self.vix].price)
-            if vix_price >= 25.0:
-                self.log(f"REGIME_BLOCK|{date_str}|VIX={vix_price:.2f}|threshold=25|reason=fear_regime")
+            vix_threshold = float(self.get_parameter("vix_threshold", "25.0"))
+            if vix_price >= vix_threshold:
+                self.log(f"REGIME_BLOCK|{date_str}|VIX={vix_price:.2f}|threshold={vix_threshold}|reason=fear_regime")
                 return
+
+        # E40-combo: SPY > 200MA for >=3 consecutive days
+        self.combo_gate_enabled = self.get_parameter("combo_gate", "false") == "true"
+        if self.combo_gate_enabled and self.spy_sma200.is_ready:
+            spy_price = float(self.securities[self.spy].price)
+            spy_200 = float(self.spy_sma200.current.value)
+            self.spy_above_200_history.add(spy_price > spy_200)
+            if len(self.spy_above_200_history) >= 3 and not all(self.spy_above_200_history):
+                self.log(f"REGIME_BLOCK|{date_str}|SPY={spy_price:.2f}|SMA200={spy_200:.2f}|history={list(self.spy_above_200_history)}|reason=spy_below_200ma")
+                return
+
+        # E40g: Market breadth regime gate (proxy: SPY > 50MA)
+        self.breadth_gate_enabled = self.get_parameter("breadth_gate", "false") == "true"
+        if self.breadth_gate_enabled:
+            spy_sym = self.symbol("SPY")
+            if self.securities.contains_key(spy_sym):
+                spy_price = float(self.securities[spy_sym].price)
+                # Use SPY 50-day SMA as breadth proxy
+                spy_sma50 = self.sma(spy_sym, 50)
+                if spy_sma50.is_ready and spy_price < float(spy_sma50.current.value):
+                    self.log(f"REGIME_BLOCK|{date_str}|SPY={spy_price:.2f}|SMA50={float(spy_sma50.current.value):.2f}|reason=weak_breadth")
+                    return
 
         exiting = {
             o.symbol
@@ -542,7 +587,29 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             candidates.append((symbol, result["score"]))
 
         candidates.sort(key=lambda x: x[1], reverse=True)
+        
+        # E53: Earnings avoidance gate
+        self.earnings_avoid_enabled = self.get_parameter("earnings_avoid", "false") == "true"
+        earnings_window = int(self.get_parameter("earnings_window", "2"))
+        
         for symbol, score in candidates[:slots]:
+            # E53: Skip if earnings within ±N days
+            skip_entry = False
+            if self.earnings_avoid_enabled:
+                ticker = symbol.value
+                if ticker in self._earnings_dates:
+                    today = self.time.date()
+                    for earnings_date_str in self._earnings_dates[ticker]:
+                        earnings_date = datetime.strptime(earnings_date_str, "%Y-%m-%d").date()
+                        days_diff = abs((today - earnings_date).days)
+                        if days_diff <= earnings_window:
+                            self.log(f"EARNINGS_SKIP|{date_str}|{ticker}|earnings={earnings_date_str}|days_diff={days_diff}|window={earnings_window}")
+                            skip_entry = True
+                            break
+            
+            if skip_entry:
+                continue
+                
             price = self.securities[symbol].price
             if price <= 0:
                 continue
