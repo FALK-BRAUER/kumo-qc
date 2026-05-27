@@ -27,6 +27,11 @@ from pathlib import Path
 
 from AlgorithmImports import *  # noqa: F401,F403
 
+try:
+    from universe import EQUITY_200  # Cloud static universe (uploaded with main.py)
+except ImportError:
+    EQUITY_200 = []  # Fallback if universe.py not available
+
 from typing import Any
 
 import numpy as np
@@ -264,18 +269,17 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                         pass
             # (dead code — outer check ensures poly is not None here)
         else:
-            # Cloud: read universe from ObjectStore (set by upload_universe.py)
-            if self.object_store.contains_key('bctuniverse.json'):
-                tickers = json.loads(self.object_store.read('bctuniverse.json'))
-                self.log(f"CLOUD_UNIVERSE|object_store|tickers={len(tickers)}")
-                for ticker in tickers:
+            # Cloud: static universe from universe.py (uploaded alongside main.py)
+            if EQUITY_200:
+                self.log(f"CLOUD_UNIVERSE|static_py|tickers={len(EQUITY_200)}")
+                for ticker in EQUITY_200:
                     try:
                         self.add_equity(ticker, Resolution.DAILY)
                     except Exception:
                         pass
             else:
                 # Fallback: CoarseFundamental top-200 (v12 approach)
-                self.log("CLOUD_UNIVERSE|object_store_missing|fallback_to_coarse")
+                self.log("CLOUD_UNIVERSE|universe_py_missing|fallback_to_coarse")
                 dv_max = int(self.get_parameter("coarse_max", "200"))
                 def _cloud_coarse(coarse):
                     sorted_coarse = sorted(coarse, key=lambda c: c.dollar_volume, reverse=True)
