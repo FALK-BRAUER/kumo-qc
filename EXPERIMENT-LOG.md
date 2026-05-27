@@ -209,6 +209,12 @@ updated: 2026-05-28
 6. **QC cloud validation is permanently blocked.** QC project 32034565 missing/permissions revoked. Universe injection also broken. Local LEAN is production target. Falk must check QC dashboard to restore if needed.
 7. **Kijun IS the trailing stop.** No explicit trail code needed. Kijun rises naturally with price trend; `close < kijun → exit` is the trail.
 8. **Intraday stop monitoring destroys edge.** All stops must be EOD-only to match George's methodology (proven in Run 8).
+10. **Position sizing additions are a leverage multiplier, not alpha.** E45 constant-R resizing: FY2025 Sharpe 1.582 (+0.140) but 4/6 windows negative. W3/W4 dominate the FY result. In choppy/crash windows, adds amplify losses. Any position-building approach needs regime gating on the ADD trigger (E45-v2 testing VIX<20 on adds).
+
+### Active Queue
+| ID | GH | Hypothesis |
+|----|-----|-----------|
+| E45-v2 | [#111](https://github.com/FALK-BRAUER/kumo-qc/issues/111) | Constant-R adds gated by VIX<20 — only build in calm markets; entry gate stays VIX<25 |
 
 ---
 
