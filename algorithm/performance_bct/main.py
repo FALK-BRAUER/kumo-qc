@@ -224,7 +224,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
     def initialize(self) -> None:
         self.set_time_zone("America/New_York")
-        self.log("VERSION_MARKER|cloud_inline_scanner_v17")
+        self.log("VERSION_MARKER|cloud_inline_scanner_v17b")
         sy = int(self.get_parameter("start_year",  "2025"))
         sm = int(self.get_parameter("start_month", "1"))
         sd = int(self.get_parameter("start_day",   "1"))
@@ -250,8 +250,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self._indicators: dict = {}
         self._polygon_universe: dict | None = None
         self._position_meta: dict = {}  # symbol → {entry_date, entry_price}
-        self._qualified_pool: set = set()  # symbols passing BCT score ≥7 at warmup end
+        self._qualified_pool: set = set()  # symbols passing BCT score ≥7 during warmup window
         self._inline_scanner: bool = False  # set True in cloud path
+        self._warmup_bar_count: int = 0
 
         poly = self._load_polygon_universe()
         if poly is not None:
@@ -310,22 +311,32 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 )
                 del self._indicators[sym]
 
+    def on_data(self, data: Slice) -> None:
+        if not self.is_warming_up or not self._inline_scanner:
+            return
+        self._warmup_bar_count += 1
+        if self._warmup_bar_count < 390 or self._warmup_bar_count > 460:
+            return
+        for symbol in list(self._active):
+            if symbol in self._qualified_pool:
+                continue
+            try:
+                result = score_symbol(self, symbol)
+                if result and result.get("score", 0) >= self.MIN_SCORE:
+                    self._qualified_pool.add(symbol)
+                    self.log(
+                        f"WARMUP_QUALIFY|bar={self._warmup_bar_count}"
+                        f"|{symbol.value}|score={result['score']}/8"
+                    )
+            except Exception:
+                pass
+
     def on_warmup_finished(self) -> None:
         if not self._inline_scanner:
             return
-        scored = 0
-        for symbol in list(self._active):
-            try:
-                result = score_symbol(self, symbol)
-                if result is not None:
-                    scored += 1
-                    if result["score"] >= self.MIN_SCORE:
-                        self._qualified_pool.add(symbol)
-            except Exception:
-                pass
         self.log(
             f"WARMUP_COMPLETE|qualified={len(self._qualified_pool)}"
-            f"|scored={scored}|active={len(self._active)}"
+            f"|warmup_bars={self._warmup_bar_count}"
         )
 
     def _register_indicators(self, sym) -> None:
