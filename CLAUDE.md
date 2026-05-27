@@ -80,6 +80,39 @@ QC_API_TOKEN=...
 QC_PROJECT_ID=32033824
 ```
 
+## Worktree Regime — Experiment Isolation
+
+Each experiment runs in its own git worktree. Never switch branches on the main tree.
+
+**Setup:**
+```bash
+# Main branch always at /Users/falk/projects/kumo-qc-main
+git worktree add /Users/falk/projects/kumo-qc-main main
+
+# New experiment
+git worktree add /Users/falk/projects/kumo-qc-<exp-id> -b feat/<exp-id>
+```
+
+**Workflow:**
+1. Create worktree for the experiment branch
+2. Do all work inside that worktree directory
+3. If **ACCEPTED** → PR to main, merge, remove worktree
+4. If **REJECTED** → record in bt-results.csv on main (cherry-pick or direct), remove worktree, leave branch as record
+
+**bt-results.csv lives on main.** Commit results there, not on the experiment branch.
+
+**Remove worktree when done:**
+```bash
+git worktree remove /Users/falk/projects/kumo-qc-<exp-id>
+# branch stays in git history; worktree dir is deleted
+```
+
+**Why:** eliminates wrong-branch commits from context compaction. Each directory = one branch, unambiguous.
+
+**Existing worktrees:** `git worktree list` to see all.
+
+---
+
 ## Commit + Push Policy
 
 **Commit:** after every logical unit of work. Never batch unrelated changes.
