@@ -221,7 +221,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
     def initialize(self) -> None:
         self.set_time_zone("America/New_York")
-        self.log("VERSION_MARKER|cloud_dv200_v11")
+        self.log("VERSION_MARKER|cloud_dv200_v12")
         sy = int(self.get_parameter("start_year",  "2025"))
         sm = int(self.get_parameter("start_month", "1"))
         sd = int(self.get_parameter("start_day",   "1"))
@@ -268,9 +268,8 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             dv_max = int(self.get_parameter("coarse_max", "200"))
 
             def _cloud_coarse(coarse):
-                filtered = [c for c in coarse if c.dollar_volume > 1_000_000 and c.price > 5]
-                filtered.sort(key=lambda c: c.dollar_volume, reverse=True)
-                return [c.symbol for c in filtered[:dv_max]]
+                sorted_coarse = sorted(coarse, key=lambda c: c.dollar_volume, reverse=True)
+                return [c.symbol for c in sorted_coarse[:dv_max]]
 
             self.add_universe(_cloud_coarse)
 
