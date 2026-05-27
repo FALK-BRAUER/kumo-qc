@@ -184,6 +184,27 @@ def score_symbol_native(algorithm: Any, symbol: Any, ind: Any) -> dict[str, Any]
     return score_symbol(algorithm, symbol)
 
 
+def _etf_weekly_cloud_status(algorithm: Any, etf_symbol: Any) -> bool | None:
+    """E47: Check if ETF weekly price is above cloud top. Returns True/False/None."""
+    from QuantConnect import Resolution  # noqa: PLC0415
+    daily = _fetch_ohlcv(algorithm, etf_symbol, _DAILY_BARS, Resolution.DAILY)
+    if len(daily) < 230:
+        return None
+    weekly = _resample_weekly(daily)
+    if len(weekly) < 78:
+        return None
+    w_tenkan = _mid(weekly["high"], weekly["low"], 9)
+    w_kijun  = _mid(weekly["high"], weekly["low"], 26)
+    w_cloud_a = ((w_tenkan + w_kijun) / 2).shift(26)
+    w_cloud_b = _mid(weekly["high"], weekly["low"], 52).shift(26)
+    w_price = weekly["close"].iloc[-1]
+    w_cloud_a_now = w_cloud_a.iloc[-1]
+    w_cloud_b_now = w_cloud_b.iloc[-1]
+    if pd.isna(w_cloud_a_now) or pd.isna(w_cloud_b_now):
+        return None
+    return bool(w_price > max(w_cloud_a_now, w_cloud_b_now))
+
+
 class BCTUniverseFilter:
     """
     Plug into the main algorithm:
@@ -305,6 +326,17 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                         self._earnings_dates[ticker] = []
                     self._earnings_dates[ticker].append(date)
 
+        # E47: Load sector mapping
+        self._sector_mapping: dict[str, dict[str, str]] = {}
+        sector_file = Path(__file__).parent / "sector_mapping.json"
+        if sector_file.exists():
+            with open(sector_file) as f:
+                sector_data = json.load(f)
+                self._sector_mapping = sector_data.get("mapping", {})
+            self.log(f"SECTOR_MAPPING|loaded={len(self._sector_mapping)}|path={sector_file}")
+        else:
+            self.log(f"SECTOR_MAPPING|missing|path={sector_file}")
+
         if self._find_local_data_dir() is not None:
             # Local: static universe from Polygon or S&P 500 daily snapshot
             if self.universe_type == "sp500":
@@ -330,6 +362,13 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     self.add_equity("SPY", Resolution.DAILY)
                 except Exception:
                     pass
+                # E47: Add sector ETFs for regime gate
+                etfs = ["XLK", "XLV", "XLF", "XLI", "XLY", "XLP", "XLE", "XLB", "XLRE", "XLU", "XLC"]
+                for etf in etfs:
+                    try:
+                        self.add_equity(etf, Resolution.DAILY)
+                    except Exception:
+                        pass
             else:
                 # Fallback: ETFs only (no universe JSON found)
                 self.log(f"LOCAL_UNIVERSE|fallback_etf_only|{universe_name}_json_not_found")
@@ -537,6 +576,23 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     self.log(f"REGIME_BLOCK|{date_str}|SPY={spy_price:.2f}|SMA50={float(spy_sma50.current.value):.2f}|reason=weak_breadth")
                     return
 
+        # E47: Sector regime gate — block entry if sector ETF weekly price is below cloud
+        self.sector_gate_enabled = self.get_parameter("sector_gate_enabled", "false") == "true"
+        self._sector_etf_status: dict[str, bool | None] = {}
+        if self.sector_gate_enabled and self._sector_mapping:
+            for ticker, info in self._sector_mapping.items():
+                etf = info["etf"]
+                if etf not in self._sector_etf_status:
+                    try:
+                        etf_sym = self.symbol(etf)
+                        if self.securities.contains_key(etf_sym):
+                            status = _etf_weekly_cloud_status(self, etf_sym)
+                            self._sector_etf_status[etf] = status
+                        else:
+                            self._sector_etf_status[etf] = None
+                    except Exception:
+                        self._sector_etf_status[etf] = None
+
         exiting = {
             o.symbol
             for o in self.transactions.get_open_orders()
@@ -609,6 +665,19 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             
             if skip_entry:
                 continue
+
+            # E47: Sector regime gate check
+            if self.sector_gate_enabled:
+                ticker = symbol.value
+                if ticker in self._sector_mapping:
+                    etf = self._sector_mapping[ticker]["etf"]
+                    etf_status = self._sector_etf_status.get(etf)
+                    if etf_status is False:
+                        self.log(f"SECTOR_SKIP|{date_str}|{ticker}|etf={etf}|reason=etf_below_weekly_cloud")
+                        continue
+                else:
+                    self.log(f"SECTOR_SKIP|{date_str}|{ticker}|reason=no_sector_mapping")
+                    continue
                 
             price = self.securities[symbol].price
             if price <= 0:

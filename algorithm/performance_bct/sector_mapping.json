@@ -1,0 +1,1339 @@
+{
+  "mapping": {
+    "AAL": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "AAPL": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "ABBV": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "ABNB": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "ABT": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "ACN": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "ADBE": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "ADI": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "ADP": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "ADSK": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "AEP": {
+      "sector": "Utilities",
+      "etf": "XLU"
+    },
+    "AIG": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "AJG": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "ALB": {
+      "sector": "Basic Materials",
+      "etf": "XLB"
+    },
+    "ALL": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "AMAT": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "AMCR": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "AMD": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "AMGN": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "AMT": {
+      "sector": "Real Estate",
+      "etf": "XLRE"
+    },
+    "AMZN": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "ANET": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "ANF": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "AON": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "APD": {
+      "sector": "Basic Materials",
+      "etf": "XLB"
+    },
+    "APH": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "APO": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "APP": {
+      "sector": "Communication Services",
+      "etf": "XLC"
+    },
+    "ARES": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "AVAV": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "AVGO": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "AXON": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "AXP": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "AZO": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "BA": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "BAC": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "BDX": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "BK": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "BKNG": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "BKR": {
+      "sector": "Energy",
+      "etf": "XLE"
+    },
+    "BLK": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "BMY": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "BRO": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "BSX": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "BX": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "C": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "CAH": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "CARR": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "CAT": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "CAVA": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "CB": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "CCI": {
+      "sector": "Real Estate",
+      "etf": "XLRE"
+    },
+    "CCL": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "CDNS": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "CEG": {
+      "sector": "Utilities",
+      "etf": "XLU"
+    },
+    "CELH": {
+      "sector": "Consumer Defensive",
+      "etf": "XLP"
+    },
+    "CHTR": {
+      "sector": "Communication Services",
+      "etf": "XLC"
+    },
+    "CHWY": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "CI": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "CIEN": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "CL": {
+      "sector": "Consumer Defensive",
+      "etf": "XLP"
+    },
+    "CLF": {
+      "sector": "Basic Materials",
+      "etf": "XLB"
+    },
+    "CLSK": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "CMCSA": {
+      "sector": "Communication Services",
+      "etf": "XLC"
+    },
+    "CME": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "CMG": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "CMI": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "CNC": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "COF": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "COHR": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "COIN": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "COP": {
+      "sector": "Energy",
+      "etf": "XLE"
+    },
+    "COR": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "COST": {
+      "sector": "Consumer Defensive",
+      "etf": "XLP"
+    },
+    "CPRT": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "CRH": {
+      "sector": "Basic Materials",
+      "etf": "XLB"
+    },
+    "CRM": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "CRWD": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "CSCO": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "CSX": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "CTAS": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "CVNA": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "CVS": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "CVX": {
+      "sector": "Energy",
+      "etf": "XLE"
+    },
+    "DAL": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "DASH": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "DDOG": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "DE": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "DECK": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "DELL": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "DG": {
+      "sector": "Consumer Defensive",
+      "etf": "XLP"
+    },
+    "DHI": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "DHR": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "DIS": {
+      "sector": "Communication Services",
+      "etf": "XLC"
+    },
+    "DKS": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "DLR": {
+      "sector": "Real Estate",
+      "etf": "XLRE"
+    },
+    "DLTR": {
+      "sector": "Consumer Defensive",
+      "etf": "XLP"
+    },
+    "DOCU": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "DOW": {
+      "sector": "Basic Materials",
+      "etf": "XLB"
+    },
+    "DUK": {
+      "sector": "Utilities",
+      "etf": "XLU"
+    },
+    "DUOL": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "DVN": {
+      "sector": "Energy",
+      "etf": "XLE"
+    },
+    "DXCM": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "EA": {
+      "sector": "Communication Services",
+      "etf": "XLC"
+    },
+    "EBAY": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "EIX": {
+      "sector": "Utilities",
+      "etf": "XLU"
+    },
+    "ELV": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "EME": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "EMR": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "ENPH": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "EOG": {
+      "sector": "Energy",
+      "etf": "XLE"
+    },
+    "EQIX": {
+      "sector": "Real Estate",
+      "etf": "XLRE"
+    },
+    "EQT": {
+      "sector": "Energy",
+      "etf": "XLE"
+    },
+    "ETN": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "ETR": {
+      "sector": "Utilities",
+      "etf": "XLU"
+    },
+    "ETSY": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "EW": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "EXC": {
+      "sector": "Utilities",
+      "etf": "XLU"
+    },
+    "EXE": {
+      "sector": "Energy",
+      "etf": "XLE"
+    },
+    "EXPE": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "F": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "FANG": {
+      "sector": "Energy",
+      "etf": "XLE"
+    },
+    "FCX": {
+      "sector": "Basic Materials",
+      "etf": "XLB"
+    },
+    "FDX": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "FICO": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "FITB": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "FIX": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "FLEX": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "FSLR": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "FTNT": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "GD": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "GE": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "GEHC": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "GEV": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "GILD": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "GIS": {
+      "sector": "Consumer Defensive",
+      "etf": "XLP"
+    },
+    "GLW": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "GM": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "GME": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "GOOG": {
+      "sector": "Communication Services",
+      "etf": "XLC"
+    },
+    "GOOGL": {
+      "sector": "Communication Services",
+      "etf": "XLC"
+    },
+    "GS": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "GTLS": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "HBAN": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "HCA": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "HD": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "HIMS": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "HL": {
+      "sector": "Basic Materials",
+      "etf": "XLB"
+    },
+    "HLT": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "HON": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "HOOD": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "HPE": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "HSY": {
+      "sector": "Consumer Defensive",
+      "etf": "XLP"
+    },
+    "HUM": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "HWM": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "IBKR": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "IBM": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "ICE": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "IDXX": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "INTC": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "INTU": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "IP": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "IQV": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "ISRG": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "IT": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "JBL": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "JCI": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "JNJ": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "JPM": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "KDP": {
+      "sector": "Consumer Defensive",
+      "etf": "XLP"
+    },
+    "KEY": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "KHC": {
+      "sector": "Consumer Defensive",
+      "etf": "XLP"
+    },
+    "KKR": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "KLAC": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "KMB": {
+      "sector": "Consumer Defensive",
+      "etf": "XLP"
+    },
+    "KMI": {
+      "sector": "Energy",
+      "etf": "XLE"
+    },
+    "KO": {
+      "sector": "Consumer Defensive",
+      "etf": "XLP"
+    },
+    "KR": {
+      "sector": "Consumer Defensive",
+      "etf": "XLP"
+    },
+    "KTOS": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "KVUE": {
+      "sector": "Consumer Defensive",
+      "etf": "XLP"
+    },
+    "LEN": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "LHX": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "LII": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "LIN": {
+      "sector": "Basic Materials",
+      "etf": "XLB"
+    },
+    "LITE": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "LLY": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "LMT": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "LOW": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "LRCX": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "LULU": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "LUV": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "LYFT": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "LYV": {
+      "sector": "Communication Services",
+      "etf": "XLC"
+    },
+    "MA": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "MAR": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "MARA": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "MCD": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "MCHP": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "MCK": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "MCO": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "MDLZ": {
+      "sector": "Consumer Defensive",
+      "etf": "XLP"
+    },
+    "MDT": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "META": {
+      "sector": "Communication Services",
+      "etf": "XLC"
+    },
+    "MMM": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "MO": {
+      "sector": "Consumer Defensive",
+      "etf": "XLP"
+    },
+    "MOH": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "MP": {
+      "sector": "Basic Materials",
+      "etf": "XLB"
+    },
+    "MPC": {
+      "sector": "Energy",
+      "etf": "XLE"
+    },
+    "MPWR": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "MRK": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "MRNA": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "MS": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "MSCI": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "MSFT": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "MSI": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "MU": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "NCLH": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "NEE": {
+      "sector": "Utilities",
+      "etf": "XLU"
+    },
+    "NEM": {
+      "sector": "Basic Materials",
+      "etf": "XLB"
+    },
+    "NFLX": {
+      "sector": "Communication Services",
+      "etf": "XLC"
+    },
+    "NKE": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "NOC": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "NOW": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "NRG": {
+      "sector": "Utilities",
+      "etf": "XLU"
+    },
+    "NSC": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "NTNX": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "NUE": {
+      "sector": "Basic Materials",
+      "etf": "XLB"
+    },
+    "NVDA": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "NXPI": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "OKE": {
+      "sector": "Energy",
+      "etf": "XLE"
+    },
+    "OKTA": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "OMC": {
+      "sector": "Communication Services",
+      "etf": "XLC"
+    },
+    "ON": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "ORCL": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "ORLY": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "OXY": {
+      "sector": "Energy",
+      "etf": "XLE"
+    },
+    "PANW": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "PATH": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "PAYX": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "PCG": {
+      "sector": "Utilities",
+      "etf": "XLU"
+    },
+    "PEP": {
+      "sector": "Consumer Defensive",
+      "etf": "XLP"
+    },
+    "PFE": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "PG": {
+      "sector": "Consumer Defensive",
+      "etf": "XLP"
+    },
+    "PGR": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "PH": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "PINS": {
+      "sector": "Communication Services",
+      "etf": "XLC"
+    },
+    "PLD": {
+      "sector": "Real Estate",
+      "etf": "XLRE"
+    },
+    "PLTR": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "PM": {
+      "sector": "Consumer Defensive",
+      "etf": "XLP"
+    },
+    "PNC": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "PSX": {
+      "sector": "Energy",
+      "etf": "XLE"
+    },
+    "PWR": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "PYPL": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "QCOM": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "RCL": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "REGN": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "RF": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "RH": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "ROK": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "ROP": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "ROST": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "RTX": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "SATS": {
+      "sector": "Communication Services",
+      "etf": "XLC"
+    },
+    "SBUX": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "SCHW": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "SFM": {
+      "sector": "Consumer Defensive",
+      "etf": "XLP"
+    },
+    "SHW": {
+      "sector": "Basic Materials",
+      "etf": "XLB"
+    },
+    "SLB": {
+      "sector": "Energy",
+      "etf": "XLE"
+    },
+    "SMCI": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "SNDK": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "SNPS": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "SO": {
+      "sector": "Utilities",
+      "etf": "XLU"
+    },
+    "SPGI": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "SRE": {
+      "sector": "Utilities",
+      "etf": "XLU"
+    },
+    "STX": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "STZ": {
+      "sector": "Consumer Defensive",
+      "etf": "XLP"
+    },
+    "SYK": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "T": {
+      "sector": "Communication Services",
+      "etf": "XLC"
+    },
+    "TDG": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "TEL": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "TER": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "TFC": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "TGT": {
+      "sector": "Consumer Defensive",
+      "etf": "XLP"
+    },
+    "TJX": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "TLN": {
+      "sector": "Utilities",
+      "etf": "XLU"
+    },
+    "TMO": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "TMUS": {
+      "sector": "Communication Services",
+      "etf": "XLC"
+    },
+    "TPR": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "TRGP": {
+      "sector": "Energy",
+      "etf": "XLE"
+    },
+    "TRU": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "TRV": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "TSLA": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "TT": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "TTD": {
+      "sector": "Communication Services",
+      "etf": "XLC"
+    },
+    "TTWO": {
+      "sector": "Communication Services",
+      "etf": "XLC"
+    },
+    "TWLO": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "TXN": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "UAL": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "UBER": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "ULTA": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "UNH": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "UNP": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "UPS": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "URI": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "USB": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "V": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "VEEV": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "VLO": {
+      "sector": "Energy",
+      "etf": "XLE"
+    },
+    "VRT": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "VRTX": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "VST": {
+      "sector": "Utilities",
+      "etf": "XLU"
+    },
+    "VZ": {
+      "sector": "Communication Services",
+      "etf": "XLC"
+    },
+    "WBD": {
+      "sector": "Communication Services",
+      "etf": "XLC"
+    },
+    "WDAY": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "WDC": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "WELL": {
+      "sector": "Real Estate",
+      "etf": "XLRE"
+    },
+    "WFC": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    },
+    "WM": {
+      "sector": "Industrials",
+      "etf": "XLI"
+    },
+    "WMB": {
+      "sector": "Energy",
+      "etf": "XLE"
+    },
+    "WMT": {
+      "sector": "Consumer Defensive",
+      "etf": "XLP"
+    },
+    "WSM": {
+      "sector": "Consumer Cyclical",
+      "etf": "XLY"
+    },
+    "XEL": {
+      "sector": "Utilities",
+      "etf": "XLU"
+    },
+    "XOM": {
+      "sector": "Energy",
+      "etf": "XLE"
+    },
+    "XYZ": {
+      "sector": "Technology",
+      "etf": "XLK"
+    },
+    "ZTS": {
+      "sector": "Healthcare",
+      "etf": "XLV"
+    },
+    "FISV": {
+      "sector": "Financial Services",
+      "etf": "XLF"
+    }
+  },
+  "summary": {
+    "sector_counts": {
+      "Industrials": 44,
+      "Technology": 67,
+      "Healthcare": 38,
+      "Consumer Cyclical": 41,
+      "Utilities": 14,
+      "Financial Services": 45,
+      "Basic Materials": 12,
+      "Real Estate": 6,
+      "Communication Services": 19,
+      "Energy": 18,
+      "Consumer Defensive": 22
+    },
+    "etf_counts": {
+      "XLI": 44,
+      "XLK": 67,
+      "XLV": 38,
+      "XLY": 41,
+      "XLU": 14,
+      "XLF": 45,
+      "XLB": 12,
+      "XLRE": 6,
+      "XLC": 19,
+      "XLE": 18,
+      "XLP": 22
+    },
+    "total_mapped": 326,
+    "total_failed": 0,
+    "failed_tickers": []
+  }
+}
