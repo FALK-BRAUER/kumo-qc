@@ -193,6 +193,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     # Phase 3 stop progression (methodology.md §5 Rule #13)
     PHASE3_DAYS: int = 56         # calendar days before Phase 3 eligible
     PHASE3_PNL: float = 0.15      # unrealized PnL threshold for Phase 3
+    # E43: pyramid add + breakeven stop (default off — P0 rule)
+    ENABLE_PYRAMID_ADD: bool = False
+    ENABLE_BREAKEVEN_STOP: bool = False
 
     @staticmethod
     def _find_local_data_dir() -> Path | None:
@@ -235,6 +238,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # Exit condition parameter overrides
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
+        self.pyramid_add_enabled = self.get_parameter("pyramid_add", str(self.ENABLE_PYRAMID_ADD)).lower() == "true"
+        self.breakeven_stop_enabled = self.get_parameter("breakeven_stop", str(self.ENABLE_BREAKEVEN_STOP)).lower() == "true"
+        self.log("VERSION_MARKER|e43_pyramid_breakeven")
 
         self.universe_settings.resolution = Resolution.DAILY
         self._active: set = set()
@@ -397,8 +403,27 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             w_ichi = self._indicators[symbol]["w_ichi"]
             w_kijun = w_ichi.kijun.current.value if w_ichi.is_ready else None
 
-            # Determine stop anchor: Phase 3 (≥56 days + ≥15% gain) → cloud bottom
             meta = self._position_meta.get(symbol)
+
+            # === BREAKEVEN STOP (before normal exits) ===
+            if self.breakeven_stop_enabled and meta:
+                if not meta.get("breakeven_set"):
+                    entry_price = meta["entry_price"]
+                    r_distance = meta.get("kijun_stop", entry_price * 0.97)
+                    r_pct = (entry_price - r_distance) / entry_price
+                    unrealized = (close - entry_price) / entry_price
+                    if unrealized >= r_pct:
+                        meta["breakeven_set"] = True
+                        meta["breakeven_price"] = entry_price
+                        self.log(f"BREAKEVEN_SET|{date_str}|{symbol.value}|close={close:.2f}|entry={entry_price:.2f}|unrealized={unrealized:.1%}")
+                if meta.get("breakeven_set") and close < meta["breakeven_price"]:
+                    self.market_on_open_order(symbol, -holding.quantity)
+                    self._position_meta.pop(symbol, None)
+                    self.log(f"BREAKEVEN_STOP|{date_str}|{symbol.value}|close={close:.2f}|breakeven={meta['breakeven_price']:.2f}")
+                    continue
+
+            # === NORMAL EXITS ===
+            # Determine stop anchor: Phase 3 (≥56 days + ≥15% gain) → cloud bottom
             in_phase3 = False
             if meta is not None:
                 days_held = (self.time - meta["entry_date"]).days
@@ -426,6 +451,20 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     self.market_on_open_order(symbol, -holding.quantity)
                     self._position_meta.pop(symbol, None)
                     self.log(f"WEEKLY_KIJUN_STOP|{date_str}|{symbol.value}|close={close:.2f}|w_kijun={w_kijun:.2f}")
+
+            # === PYRAMID ADD (after exits — only fires if still in position) ===
+            if self.pyramid_add_enabled and symbol in self._position_meta:
+                m = self._position_meta[symbol]
+                if m.get("add_count", 0) < 1:
+                    prev_close = m.get("prev_close", close)
+                    if close > cloud_top and prev_close <= cloud_top:
+                        add_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
+                        add_qty = int(add_value / close)
+                        if add_qty > 0 and not self._has_open_orders(symbol):
+                            self.market_on_open_order(symbol, add_qty)
+                            m["add_count"] = 1
+                            self.log(f"PYRAMID_ADD|{date_str}|{symbol.value}|qty={add_qty}|price~{close:.2f}|cloud_top={cloud_top:.2f}")
+                m["prev_close"] = close
 
         exiting = {
             o.symbol
@@ -485,8 +524,15 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             quantity = int(target_value / price)
             if quantity <= 0:
                 continue
+            entry_vals = self._daily_vals(symbol)
+            kijun_at_entry = entry_vals[1] if entry_vals else float(price) * 0.97
             self.market_on_open_order(symbol, quantity)
-            self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price)}
-            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
+            self._position_meta[symbol] = {
+                "entry_date": self.time,
+                "entry_price": float(price),
+                "kijun_stop": float(kijun_at_entry),
+                "prev_close": float(price),
+            }
+            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}|kijun~{kijun_at_entry:.2f}")
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
