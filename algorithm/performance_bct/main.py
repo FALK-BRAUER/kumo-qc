@@ -145,7 +145,13 @@ def score_symbol(algorithm: Any, symbol: Any) -> dict[str, Any] | None:
     elif score >= 4: rating = "+"
     elif score >= 2: rating = "="
     else:            rating = "--"
-    return {"score": score, "rating": rating, "conditions": conditions}
+    high_52w = float(daily["high"].rolling(252).max().iloc[-1])
+    return {
+        "score": score, "rating": rating, "conditions": conditions,
+        "adx_now": float(adx_now), "plus_di_now": float(plus_di_now),
+        "minus_di_now": float(minus_di_now), "high_52w": high_52w,
+        "d_price": float(d_price),
+    }
 
 
 def score_symbol_native(algorithm: Any, symbol: Any, ind: Any) -> dict[str, Any] | None:
@@ -216,6 +222,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         return None
 
     def initialize(self) -> None:
+        self.log("VERSION_MARKER|e41v3_rocket_override_v1")
         self.set_time_zone("America/New_York")
         sy = int(self.get_parameter("start_year",  "2025"))
         sm = int(self.get_parameter("start_month", "1"))
@@ -443,7 +450,10 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # When running locally with polygon universe, restrict candidates to today's snapshot
         today_poly: set[str] | None = None
         if self._polygon_universe is not None:
-            today_poly = set(self._polygon_universe.get(date_str, []))
+            poly_tickers = self._polygon_universe.get(date_str) or self._polygon_universe.get(
+                max(self._polygon_universe.keys()), []
+            )
+            today_poly = set(poly_tickers)
 
         candidates: list[tuple] = []
         for symbol in sorted(self._active):
@@ -472,12 +482,24 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     continue
             # === END PRE-FILTER ===
             result = score_symbol_native(self, symbol, ind)
-            if result is None or result["score"] < self.MIN_SCORE:
+            if result is None:
                 continue
-            candidates.append((symbol, result["score"]))
+            rscore = result["score"]
+            if rscore >= self.MIN_SCORE:
+                candidates.append((symbol, rscore, result.get("adx_now", 0.0)))
+            elif rscore == 6:
+                adx_r = result.get("adx_now", 0.0)
+                plus_di_r = result.get("plus_di_now", 0.0)
+                minus_di_r = result.get("minus_di_now", 0.0)
+                high_52w_r = result.get("high_52w", 0.0)
+                cur_price = float(self.securities[symbol].price)
+                if (adx_r > 55 and cur_price >= high_52w_r * 0.97
+                        and (plus_di_r - minus_di_r) >= 12):
+                    candidates.append((symbol, rscore, adx_r))
+                    self.log(f"ROCKET_SHIP|{date_str}|{symbol.value}|adx={adx_r:.1f}|di_spread={plus_di_r-minus_di_r:.1f}|pct_52wh={cur_price/high_52w_r:.3f}")
 
-        candidates.sort(key=lambda x: x[1], reverse=True)
-        for symbol, score in candidates[:slots]:
+        candidates.sort(key=lambda x: (x[1], x[2]), reverse=True)
+        for symbol, score, _adx in candidates[:slots]:
             price = self.securities[symbol].price
             if price <= 0:
                 continue
