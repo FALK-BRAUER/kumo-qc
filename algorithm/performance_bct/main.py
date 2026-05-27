@@ -431,11 +431,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
         if self.regime_gate_enabled:
             try:
-                vix_history = self.history(
-                    Symbol.create("VIX", SecurityType.INDEX, Market.USA),
-                    2,
-                    Resolution.DAILY
-                )
+                vix_history = self.history("VIX", 2, Resolution.DAILY)
                 if len(vix_history) >= 1:
                     vix_price = float(vix_history["close"].iloc[-1])
                     if vix_price >= 25.0:
