@@ -162,11 +162,20 @@ updated: 2026-05-28
 ## Queued Experiments
 
 ### Active (Running)
-| ID | Description | Status | GH | Worker |
-|----|-------------|--------|:---:|--------|
-| E43-v2 | Pyramid add only — no breakeven stop | ❌ 1.374 / −0.068 | [#94](https://github.com/FALK-BRAUER/kumo-qc/issues/94) | +11.2pp raw return but DD 16.1% vs 9.5% — 99 adds fired; risk-adjusted degrades; pyramid track CLOSED |
-| E44-v2 | ADX tiebreaker: sort (score desc, ADX desc) | 💀 −0.140 / −1.582 | [#95](https://github.com/FALK-BRAUER/kumo-qc/issues/95) | STX entered (hypothesis ✓) but high-ADX = parabolic/volatile = WR 31% DD 24.8% — ADX tiebreaker track CLOSED |
-| E53-v2 | Earnings avoidance ±2d | ❌ REJECTED 1.208 / −0.234 | [#96](https://github.com/FALK-BRAUER/kumo-qc/issues/96) | 7 skips hurt net result; earnings avoidance track closed |
+| ID | Description | Status | GH | Notes |
+|----|-------------|--------|:---:|-------|
+| E45 | Constant-R position resizing on Kijun step-up | 🔄 W1–W6 RUNNING | [#109](https://github.com/FALK-BRAUER/kumo-qc/issues/109) | FY2025: 1.582 Sharpe / +70.5% / DD 20.4% — POTENTIAL CHAMPION pending windows |
+
+### Completed This Session
+| ID | Description | Status | GH | Notes |
+|----|-------------|--------|:---:|-------|
+| E43-v2 | Pyramid add only — no breakeven stop | ❌ 1.374 / −0.068 | [#94](https://github.com/FALK-BRAUER/kumo-qc/issues/94) | +11.2pp raw return but DD 16.1%; pyramid track CLOSED |
+| E44-v2 | ADX tiebreaker: sort (score desc, ADX desc) | 💀 −0.140 / −1.582 | [#95](https://github.com/FALK-BRAUER/kumo-qc/issues/95) | STX surfaced but high-ADX = parabolic; track CLOSED |
+| E53-v2 | Earnings avoidance ±2d | ❌ 1.208 / −0.234 | [#96](https://github.com/FALK-BRAUER/kumo-qc/issues/96) | 7 skips; earnings avoidance track CLOSED |
+| E36-v2 | ATR stop 1.5× | ❌ 1.268 / −0.174 | [#99](https://github.com/FALK-BRAUER/kumo-qc/issues/99) | Kijun confirmed optimal; ATR track CLOSED |
+| E85 | Signal freshness gate | ❌ 1.268 / −0.174 | [#100](https://github.com/FALK-BRAUER/kumo-qc/issues/100) | 0 fires — conceptually incompatible with daily rebalance |
+| E51 | Parabolic entry block 13d >25% | ❌ 1.254 / −0.188 | [#101](https://github.com/FALK-BRAUER/kumo-qc/issues/101) | Blocks strongest-phase entries; entry gate track CLOSED |
+| E87 | Rotation quality gate RSI>50 + weekly>Tenkan | ❌ 1.129 / −0.313 | [#102](https://github.com/FALK-BRAUER/kumo-qc/issues/102) | BCT checklist confirmed maximal |
 
 ### Priority Queue (dispatch order)
 | ID | Description | Hypothesis | Base | GH |
