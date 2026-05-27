@@ -226,7 +226,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
     def initialize(self) -> None:
         self.set_time_zone("America/New_York")
-        self.log("VERSION_MARKER|cloud_static200_v15")
+        self.log("VERSION_MARKER|cloud_static200_v16")
         sy = int(self.get_parameter("start_year",  "2025"))
         sm = int(self.get_parameter("start_month", "1"))
         sd = int(self.get_parameter("start_day",   "1"))
@@ -269,22 +269,32 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                         pass
             # (dead code — outer check ensures poly is not None here)
         else:
-            # Cloud: static universe from universe.py (uploaded alongside main.py)
-            if EQUITY_200:
-                self.log(f"CLOUD_UNIVERSE|static_py|tickers={len(EQUITY_200)}")
-                for ticker in EQUITY_200:
-                    try:
-                        self.add_equity(ticker, Resolution.DAILY)
-                    except Exception:
-                        pass
-            else:
-                # Fallback: CoarseFundamental top-200 (v12 approach)
-                self.log("CLOUD_UNIVERSE|universe_py_missing|fallback_to_coarse")
-                dv_max = int(self.get_parameter("coarse_max", "200"))
-                def _cloud_coarse(coarse):
-                    sorted_coarse = sorted(coarse, key=lambda c: c.dollar_volume, reverse=True)
-                    return [c.symbol for c in sorted_coarse[:dv_max]]
-                self.add_universe(_cloud_coarse)
+            # Cloud: core 164 tickers present every day in polygon-200 (intersection 2025-01-02 & 2025-12-31)
+            STATIC_TICKERS = [
+                'AAL', 'AAPL', 'ABBV', 'ABNB', 'ABT', 'ACN', 'ADBE', 'ADI', 'ADP', 'AMAT',
+                'AMD', 'AMGN', 'AMT', 'AMZN', 'ANET', 'APH', 'APP', 'AVGO', 'AXON', 'AXP',
+                'AZO', 'BA', 'BAC', 'BKNG', 'BLK', 'BMY', 'BSX', 'BX', 'C', 'CAT',
+                'CB', 'CCL', 'CDNS', 'CEG', 'CL', 'CMCSA', 'CME', 'CMG', 'COF', 'COIN',
+                'COP', 'COST', 'CRM', 'CRWD', 'CSCO', 'CVNA', 'CVS', 'CVX', 'DAL', 'DASH',
+                'DDOG', 'DE', 'DELL', 'DHR', 'DIS', 'ELV', 'EQIX', 'ETN', 'F', 'FCX',
+                'FDX', 'FTNT', 'GE', 'GEV', 'GILD', 'GM', 'GOOG', 'GOOGL', 'GS', 'HCA',
+                'HD', 'HIMS', 'HON', 'HOOD', 'IBM', 'ICE', 'INTC', 'INTU', 'ISRG', 'JNJ',
+                'JPM', 'KKR', 'KLAC', 'KO', 'LEN', 'LIN', 'LLY', 'LMT', 'LOW', 'LRCX',
+                'LULU', 'MA', 'MCD', 'MCHP', 'MCK', 'MDLZ', 'MDT', 'META', 'MO', 'MPWR',
+                'MRK', 'MS', 'MSFT', 'MSI', 'MU', 'NEE', 'NEM', 'NFLX', 'NKE', 'NOW',
+                'NVDA', 'NXPI', 'ON', 'ORCL', 'ORLY', 'PANW', 'PEP', 'PFE', 'PG', 'PGR',
+                'PH', 'PLTR', 'PM', 'PYPL', 'QCOM', 'RCL', 'REGN', 'RTX', 'SBUX', 'SCHW',
+                'SHW', 'SLB', 'SMCI', 'SNPS', 'SPGI', 'SYK', 'T', 'TGT', 'TJX', 'TMO',
+                'TMUS', 'TSLA', 'TT', 'TTD', 'TXN', 'UAL', 'UBER', 'ULTA', 'UNH', 'UNP',
+                'UPS', 'URI', 'V', 'VLO', 'VRT', 'VRTX', 'VST', 'VZ', 'WDAY', 'WELL',
+                'WFC', 'WMT', 'XOM', 'ZTS',
+            ]
+            self.log(f"CLOUD_UNIVERSE|static_core164|tickers={len(STATIC_TICKERS)}")
+            for ticker in STATIC_TICKERS:
+                try:
+                    self.add_equity(ticker, Resolution.DAILY)
+                except Exception:
+                    pass
 
         self.schedule.on(
             self.date_rules.every_day(),
