@@ -246,7 +246,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # Exit condition parameter overrides
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
-        self.regime_gate_enabled = self.get_parameter("regime_gate_enabled", "false") == "true"
+        # E40d: gate on by default; override with regime_gate_enabled=false to disable
+        _regime_param = self.get_parameter("regime_gate_enabled", "")
+        self.regime_gate_enabled = _regime_param != "false"
         self.vix = self.add_index("VIX", Resolution.DAILY).symbol
 
         self.universe_settings.resolution = Resolution.DAILY
