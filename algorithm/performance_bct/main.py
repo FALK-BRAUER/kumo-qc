@@ -217,6 +217,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
     def initialize(self) -> None:
         self.set_time_zone("America/New_York")
+        self.log("VERSION_MARKER|ladder_exits_v1")
         sy = int(self.get_parameter("start_year",  "2025"))
         sm = int(self.get_parameter("start_month", "1"))
         sd = int(self.get_parameter("start_day",   "1"))
@@ -406,6 +407,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 if days_held >= self.PHASE3_DAYS and pnl_pct >= self.PHASE3_PNL:
                     in_phase3 = True
 
+            stop_fired = False
             if in_phase3:
                 if close < cloud_bottom:
                     self.market_on_open_order(symbol, -holding.quantity)
@@ -413,19 +415,42 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     days_h = (self.time - meta.get("entry_date", self.time)).days
                     pnl_h = close / meta.get("entry_price", close) - 1
                     self.log(f"PHASE3_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_bottom={cloud_bottom:.2f}|days={days_h}|pnl={pnl_h:.1%}")
+                    stop_fired = True
             else:
                 if close < kijun:
                     self.market_on_open_order(symbol, -holding.quantity)
                     self._position_meta.pop(symbol, None)
                     self.log(f"STOP|{date_str}|{symbol.value}|close={close:.2f}|kijun={kijun:.2f}")
+                    stop_fired = True
                 elif self.cloud_exit_enabled and close < cloud_top:
                     self.market_on_open_order(symbol, -holding.quantity)
                     self._position_meta.pop(symbol, None)
                     self.log(f"CLOUD_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_top={cloud_top:.2f}")
+                    stop_fired = True
                 elif self.weekly_kijun_exit_enabled and w_kijun is not None and close < w_kijun:
                     self.market_on_open_order(symbol, -holding.quantity)
                     self._position_meta.pop(symbol, None)
                     self.log(f"WEEKLY_KIJUN_STOP|{date_str}|{symbol.value}|close={close:.2f}|w_kijun={w_kijun:.2f}")
+                    stop_fired = True
+
+            # Ladder profit exits — only if not already stopped out this bar
+            if not stop_fired and meta is not None:
+                entry_price = meta.get("entry_price", 0.0)
+                if entry_price > 0:
+                    pnl_pct = (close - entry_price) / entry_price
+                    # 40% rung checked first to avoid double-firing same bar
+                    if pnl_pct >= 0.40 and meta.get("ladder_20_fired") and not meta.get("ladder_40_fired"):
+                        trim_qty = holding.quantity
+                        if trim_qty > 0:
+                            self.market_on_open_order(symbol, -trim_qty)
+                            meta["ladder_40_fired"] = True
+                            self.log(f"LADDER_40|{date_str}|{symbol.value}|trim={trim_qty}|pnl={pnl_pct:.1%}")
+                    elif pnl_pct >= 0.20 and not meta.get("ladder_20_fired"):
+                        trim_qty = int(holding.quantity * 0.5)
+                        if trim_qty > 0:
+                            self.market_on_open_order(symbol, -trim_qty)
+                            meta["ladder_20_fired"] = True
+                            self.log(f"LADDER_20|{date_str}|{symbol.value}|trim={trim_qty}|pnl={pnl_pct:.1%}")
 
         exiting = {
             o.symbol
