@@ -168,7 +168,7 @@ updated: 2026-05-28
 | ID | Description | Hypothesis | Base | GH |
 |----|-------------|------------|------|----|
 | W7/E40d | YTD-2026 window on E40d | Validate champion in 2026 conditions | E40d | — |
-| E40d-sp500 | S&P 500 universe BT | Broader universe removes polygon-326 momentum bias (survivorship confirmed) | E40d | [#103](https://github.com/FALK-BRAUER/kumo-qc/issues/103) |
+| E40d-sp500 | S&P 500 universe (500 names) | Polygon-326 dollar-volume filter IS the quality filter; S&P 500's extra 174 names are noise | E40d | [#103](https://github.com/FALK-BRAUER/kumo-qc/issues/103) — ❌ REJECTED 0.304 / −1.138 |
 | E40d-v2 | VIX<20 (stricter) | VIX<25 is sweet spot; <20 too strict, halves return to +22.4% | E40d | [#106](https://github.com/FALK-BRAUER/kumo-qc/issues/106) — ❌ REJECTED 0.687 Sharpe |
 | E40d-v3 | VIX<30 (looser) | VIX<25 still best; <30 adds 14 noise orders, -0.063 Sharpe | E40d | [#104](https://github.com/FALK-BRAUER/kumo-qc/issues/104) — ➖ NEUTRAL 1.379 Sharpe |
 | E40f | HY credit spread >4% entry block | JNK not in polygon-326 universe — requires separate data feed | E40d | [#105](https://github.com/FALK-BRAUER/kumo-qc/issues/105) — 🔒 BLOCKED (JNK data) |
@@ -191,6 +191,7 @@ updated: 2026-05-28
 2. **Flat 10% sizing is optimal.** Every risk-sizing variant (E26, E76 series, E42, QC-1) hurt performance. BCT equal-weight is correct.
 3. **No additional entry gates.** BCT checklist is maximal. Every extra gate (E8, E38, E49, E53) created false negatives without reducing false positives.
 4. **Regime gates are the ONLY positive axis.** E40b-v2 (+0.427), E40d (+0.406), E40c (+0.326). All 6 experiments with Sharpe >1.0 are regime gates. Zero positive results from exit mods, sizing, entry gates, or universe changes. Root insight: BCT already selects good winners — the edge is avoiding MORE LOSERS (bad entries during weak markets), not picking better winners. Regime gates operate before the entry decision, reducing the noise denominator rather than optimizing the signal numerator.
+9. **Polygon-326 dollar-volume filter is a quality gate, not survivorship bias.** S&P 500 universe (500 names) Sharpe 0.304 vs polygon-326 1.442 (−1.138 delta). The 174 extra S&P names are illiquid noise that pollutes BCT scorer. E40d's 1.442 Sharpe is real, not inflated.
 5. **Slot gate blocks rocket ships.** MAX_POSITIONS=10 is the root cause of STX-type misses. STX scored 8/8 — slot competition blocked it. E44-v2 (ADX tiebreaker) is the active test.
 6. **QC cloud validation is permanently blocked.** QC project 32034565 missing/permissions revoked. Universe injection also broken. Local LEAN is production target. Falk must check QC dashboard to restore if needed.
 7. **Kijun IS the trailing stop.** No explicit trail code needed. Kijun rises naturally with price trend; `close < kijun → exit` is the trail.
