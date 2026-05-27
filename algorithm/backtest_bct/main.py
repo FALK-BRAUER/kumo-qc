@@ -14,7 +14,10 @@ weekly via TradeBarConsolidator(Calendar.WEEKLY). Custom Wilder period-9
 ADX retained in score_symbol_native() — QC native ADX is period 14.
 
 Local mode: when LEAN data dir is detected, loads polygon_universe_equity200_fy2025.json
-(326 unique tickers, top-200 S&P equity by dollar volume) instead of Morningstar CoarseFundamental filter.
+(326 unique tickers, top-200 S&P equity by dollar volume) instead of CoarseFundamental filter.
+
+Cloud mode: inline warmup scanner — subscribes top-500 DV during warmup (460d), scores via
+score_symbol() at warmup end, restricts live universe to BCT-qualified pool (score ≥7).
 
 G3 experiment: Phase 3 cloud-bottom trailing stop — after ≥56 calendar days held
 AND unrealized PnL ≥ +15%, switch stop anchor from Kijun to cloud bottom
@@ -26,11 +29,6 @@ from datetime import timedelta
 from pathlib import Path
 
 from AlgorithmImports import *  # noqa: F401,F403
-
-try:
-    from universe import EQUITY_200  # Cloud static universe (uploaded with main.py)
-except ImportError:
-    EQUITY_200 = []  # Fallback if universe.py not available
 
 from typing import Any
 
@@ -226,7 +224,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
     def initialize(self) -> None:
         self.set_time_zone("America/New_York")
-        self.log("VERSION_MARKER|cloud_static200_v15")
+        self.log("VERSION_MARKER|cloud_inline_scanner_v17")
         sy = int(self.get_parameter("start_year",  "2025"))
         sm = int(self.get_parameter("start_month", "1"))
         sd = int(self.get_parameter("start_day",   "1"))
@@ -238,7 +236,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.set_cash(100_000)
         self.set_benchmark("SPY")
 
-        warmup_days = int(self.get_parameter("warmup_days", "750"))
+        warmup_days = int(self.get_parameter("warmup_days", "460"))
         self.set_warmup(timedelta(days=warmup_days))
         self.warmup_days = warmup_days
 
@@ -252,6 +250,8 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self._indicators: dict = {}
         self._polygon_universe: dict | None = None
         self._position_meta: dict = {}  # symbol → {entry_date, entry_price}
+        self._qualified_pool: set = set()  # symbols passing BCT score ≥7 at warmup end
+        self._inline_scanner: bool = False  # set True in cloud path
 
         poly = self._load_polygon_universe()
         if poly is not None:
@@ -269,22 +269,25 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                         pass
             # (dead code — outer check ensures poly is not None here)
         else:
-            # Cloud: static universe from universe.py (uploaded alongside main.py)
-            if EQUITY_200:
-                self.log(f"CLOUD_UNIVERSE|static_py|tickers={len(EQUITY_200)}")
-                for ticker in EQUITY_200:
-                    try:
-                        self.add_equity(ticker, Resolution.DAILY)
-                    except Exception:
-                        pass
-            else:
-                # Fallback: CoarseFundamental top-200 (v12 approach)
-                self.log("CLOUD_UNIVERSE|universe_py_missing|fallback_to_coarse")
-                dv_max = int(self.get_parameter("coarse_max", "200"))
-                def _cloud_coarse(coarse):
-                    sorted_coarse = sorted(coarse, key=lambda c: c.dollar_volume, reverse=True)
-                    return [c.symbol for c in sorted_coarse[:dv_max]]
-                self.add_universe(_cloud_coarse)
+            # Cloud: inline warmup scanner — top coarse_max by DV during warmup,
+            # then restrict to BCT-qualified pool (score ≥7) post-warmup.
+            self._inline_scanner = True
+            coarse_max = int(self.get_parameter("coarse_max", "500"))
+
+            def _cloud_coarse(coarse):
+                sorted_c = sorted(coarse, key=lambda c: c.dollar_volume, reverse=True)
+                if self.is_warming_up:
+                    return [c.symbol for c in sorted_c[:coarse_max]]
+                coarse_symbols = {c.symbol for c in sorted_c}
+                qualified = [s for s in self._qualified_pool if s in coarse_symbols]
+                if not qualified:
+                    self.log("CLOUD_UNIVERSE|qualified_pool_empty|fallback_top200")
+                    return [c.symbol for c in sorted_c[:200]]
+                self.log(f"CLOUD_UNIVERSE|qualified_pool|count={len(qualified)}")
+                return qualified
+
+            self.add_universe(_cloud_coarse)
+            self.log(f"CLOUD_UNIVERSE|inline_scanner_v17|warmup_days={warmup_days}|coarse_max={coarse_max}")
 
         self.schedule.on(
             self.date_rules.every_day(),
@@ -307,6 +310,24 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 )
                 del self._indicators[sym]
 
+    def on_warmup_finished(self) -> None:
+        if not self._inline_scanner:
+            return
+        scored = 0
+        for symbol in list(self._active):
+            try:
+                result = score_symbol(self, symbol)
+                if result is not None:
+                    scored += 1
+                    if result["score"] >= self.MIN_SCORE:
+                        self._qualified_pool.add(symbol)
+            except Exception:
+                pass
+        self.log(
+            f"WARMUP_COMPLETE|qualified={len(self._qualified_pool)}"
+            f"|scored={scored}|active={len(self._active)}"
+        )
+
     def _register_indicators(self, sym) -> None:
         d_ichi = self.ichimoku(sym, 9, 26, 26, 52, 26, 26)
         sma200 = self.sma(sym, 200)
@@ -323,8 +344,8 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         consolidator.data_consolidated += _on_weekly
         self.subscription_manager.add_consolidator(sym, consolidator)
 
-        # With 750-day warmup, consolidator receives sufficient weekly bars automatically.
-        # Skip manual seed during warmup to avoid 326× history() calls at init time.
+        # With 460-day warmup, consolidator receives ~92 weekly bars automatically (≥78 needed).
+        # Skip manual seed during warmup; on_warmup_finished scores via score_symbol() instead.
         if not self.is_warming_up:
             self._seed_weekly(sym, w_ichi, w_close)
 
