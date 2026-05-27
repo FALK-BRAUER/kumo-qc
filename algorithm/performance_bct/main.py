@@ -252,7 +252,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
     def initialize(self) -> None:
         self.set_time_zone("America/New_York")
-        self.log("VERSION_MARKER|inline_scanner_v19")
+        self.log("VERSION_MARKER|inline_scanner_v20")
         sy = int(self.get_parameter("start_year",  "2025"))
         sm = int(self.get_parameter("start_month", "1"))
         sd = int(self.get_parameter("start_day",   "1"))
@@ -286,6 +286,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self._qualified_pool_v19: dict = {}  # ticker → score; built during warmup union, refreshed daily
         self._polygon_fallback_pool: set = set()  # all unique polygon tickers for padding
         self._v19_warmup_score_start = _date(sy, sm, sd) - timedelta(days=90)
+        self._v20_dv_cache: tuple | None = None  # (date_str, set[Symbol]) — top-200 DV, cached per day
         self._earnings_calendar: dict = self._load_earnings_calendar()
         if self._earnings_calendar:
             self.log(f"EARNINGS_CAL|loaded|tickers={len(self._earnings_calendar)}")
@@ -459,11 +460,33 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         except Exception:
             return None
 
+    def _get_top_dv_set(self, limit: int = 200) -> set:
+        """Top-N active symbols by dollar volume, cached per calendar day."""
+        today_str = self.time.date().isoformat()
+        if self._v20_dv_cache is not None and self._v20_dv_cache[0] == today_str:
+            return self._v20_dv_cache[1]
+        dvs: list[tuple] = []
+        for sym in self._active:
+            try:
+                sec = self.securities[sym]
+                dv = float(sec.price) * float(sec.volume)
+                if dv > 0:
+                    dvs.append((sym, dv))
+            except Exception:
+                pass
+        dvs.sort(key=lambda x: x[1], reverse=True)
+        top: set = {sym for sym, _ in dvs[:limit]}
+        self._v20_dv_cache = (today_str, top)
+        return top
+
     def _rebalance(self) -> None:
         if self.is_warming_up:
             if self._inline_scanner_v19 and self.time.date() >= self._v19_warmup_score_start:
+                top_dv = self._get_top_dv_set(200)
                 added = 0
                 for symbol in sorted(self._active):
+                    if symbol not in top_dv:
+                        continue
                     try:
                         result = score_symbol(self, symbol)
                         if result is not None and result.get("score", 0) >= self.MIN_SCORE:
@@ -471,15 +494,18 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                             added += 1
                     except Exception:
                         pass
-                self.log(f"V19_WARMUP_SCORE|date={self.time.strftime('%Y-%m-%d')}|pool={len(self._qualified_pool_v19)}|added={added}")
+                self.log(f"V20_WARMUP_SCORE|date={self.time.strftime('%Y-%m-%d')}|top_dv={len(top_dv)}|pool={len(self._qualified_pool_v19)}|added={added}")
             return
         date_str = self.time.strftime("%Y-%m-%d")
 
-        # v19: daily pool refresh — score all active symbols, update qualified pool
+        # v20: daily pool refresh — top-200 DV filter + BCT score ≥7
         if self._inline_scanner_v19:
+            top_dv = self._get_top_dv_set(200)
             prev_keys = set(self._qualified_pool_v19.keys())
             new_pool: dict = {}
             for symbol in sorted(self._active):
+                if symbol not in top_dv:
+                    continue
                 ind = self._indicators.get(symbol)
                 if ind is None:
                     continue
@@ -501,7 +527,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 except Exception:
                     pass
             if len(new_pool) < 50 and self._polygon_fallback_pool:
-                self.log(f"V19_DAILY_PAD|date={date_str}|pool={len(new_pool)}|padding_to_50")
+                self.log(f"V20_DAILY_PAD|date={date_str}|pool={len(new_pool)}|padding_to_50")
                 for ticker in sorted(self._polygon_fallback_pool - set(new_pool.keys())):
                     new_pool[ticker] = 7
                     if len(new_pool) >= 50:
@@ -509,7 +535,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             added_tickers = set(new_pool.keys()) - prev_keys
             removed_tickers = prev_keys - set(new_pool.keys())
             if added_tickers or removed_tickers:
-                self.log(f"V19_DAILY_RESCORE|date={date_str}|pool={len(new_pool)}|+{len(added_tickers)}|-{len(removed_tickers)}")
+                self.log(f"V20_DAILY_RESCORE|date={date_str}|pool={len(new_pool)}|top_dv={len(top_dv)}|+{len(added_tickers)}|-{len(removed_tickers)}")
             self._qualified_pool_v19 = new_pool
 
         for symbol, holding in list(self.portfolio.items()):
