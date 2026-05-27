@@ -245,6 +245,18 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     return json.load(f)
         return None
 
+    @staticmethod
+    def _load_sp500_universe() -> dict | None:
+        candidates = [
+            Path(__file__).parent / "sp500_universe_fy2025.json",
+            Path("/Lean/Data/sp500_universe_fy2025.json"),
+        ]
+        for p in candidates:
+            if p.exists():
+                with open(p) as f:
+                    return json.load(f)
+        return None
+
     def initialize(self) -> None:
         self.log("VERSION_MARKER|e40d_vix25_regime_gate_v1")
         self.set_time_zone("America/New_York")
@@ -267,6 +279,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
         self.regime_gate_enabled = self.get_parameter("regime_gate_enabled", "false") == "true"
+        self.universe_type = self.get_parameter("universe_type", "polygon")
         self.vix = self.add_index("VIX", Resolution.DAILY).symbol
 
         self.universe_settings.resolution = Resolution.DAILY
@@ -276,22 +289,28 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self._position_meta: dict = {}  # symbol → {entry_date, entry_price}
 
         if self._find_local_data_dir() is not None:
-            # Local: static universe from Polygon daily snapshot (867 unique tickers, FY2025)
-            poly = self._load_polygon_universe()
-            if poly is not None:
-                self._polygon_universe = poly
+            # Local: static universe from Polygon or S&P 500 daily snapshot
+            if self.universe_type == "sp500":
+                universe_data = self._load_sp500_universe()
+                universe_name = "sp500"
+            else:
+                universe_data = self._load_polygon_universe()
+                universe_name = "polygon_equity"
+
+            if universe_data is not None:
+                self._polygon_universe = universe_data
                 all_tickers: set[str] = set()
-                for tickers in poly.values():
+                for tickers in universe_data.values():
                     all_tickers.update(tickers)
-                self.log(f"LOCAL_UNIVERSE|polygon_equity|unique_tickers={len(all_tickers)}")
+                self.log(f"LOCAL_UNIVERSE|{universe_name}|unique_tickers={len(all_tickers)}")
                 for ticker in sorted(all_tickers):
                     try:
                         self.add_equity(ticker, Resolution.DAILY)
                     except Exception:
                         pass
             else:
-                # Fallback: ETFs only (no polygon JSON found)
-                self.log("LOCAL_UNIVERSE|fallback_etf_only|polygon_json_not_found")
+                # Fallback: ETFs only (no universe JSON found)
+                self.log(f"LOCAL_UNIVERSE|fallback_etf_only|{universe_name}_json_not_found")
                 etfs = ["QQQ", "SMH", "XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLB", "XLU", "XLRE", "XLC", "SPY"]
                 for etf in etfs:
                     self.add_equity(etf, Resolution.DAILY)
