@@ -235,6 +235,10 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # Exit condition parameter overrides
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
+        self.log("VERSION_MARKER|regime_gate_v2_spy200_consecutive_3d")
+        self.spy = self.add_equity("SPY", Resolution.DAILY)
+        self.spy_sma200 = self.sma("SPY", 200)
+        self.spy_below_200d_count = 0
 
         self.universe_settings.resolution = Resolution.DAILY
         self._active: set = set()
@@ -439,6 +443,17 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         slots = self.MAX_POSITIONS - open_count
         if slots <= 0:
             return
+
+        if self.spy_sma200.is_ready:
+            spy_price = float(self.securities[self.spy].price)
+            spy_ma200 = float(self.spy_sma200.current.value)
+            if spy_price < spy_ma200:
+                self.spy_below_200d_count += 1
+            else:
+                self.spy_below_200d_count = 0
+            if self.spy_below_200d_count >= 3:
+                self.log(f"REGIME_BLOCK|{date_str}|SPY={spy_price:.2f}|MA200={spy_ma200:.2f}|consecutive_days={self.spy_below_200d_count}")
+                return
 
         # When running locally with polygon universe, restrict candidates to today's snapshot
         today_poly: set[str] | None = None
