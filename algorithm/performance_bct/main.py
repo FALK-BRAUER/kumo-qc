@@ -245,9 +245,10 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self._polygon_universe: dict | None = None
         self._position_meta: dict = {}  # symbol → {entry_date, entry_price}
 
-        # E40a: SPY regime tracking for 50-day MA gate
+        # E40e: Composite regime gate — SPY 50-day MA + VIX < 25
         self.spy = self.add_equity("SPY", Resolution.DAILY)
         self.spy_sma50 = self.sma("SPY", 50)
+        self.vix = self.add_equity("VIX", Resolution.DAILY)
 
         if self._find_local_data_dir() is not None:
             # Local: static universe from Polygon daily snapshot (867 unique tickers, FY2025)
@@ -393,9 +394,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             return
         date_str = self.time.strftime("%Y-%m-%d")
 
-        # E40a: Version marker for SPY 50-day MA regime gate
+        # E40e: Version marker for composite regime gate (SPY>50MA AND VIX<25)
         if not hasattr(self, '_version_marker_logged'):
-            self.log("VERSION_MARKER|regime_gate_v1_spy50")
+            self.log("VERSION_MARKER|regime_gate_v1_composite")
             self._version_marker_logged = True
 
         for symbol, holding in list(self.portfolio.items()):
@@ -452,13 +453,21 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         if slots <= 0:
             return
 
-        # E40a: Regime gate — block entries when SPY < 50-day MA
+        # E40e: Composite regime gate — require BOTH SPY > 50-day MA AND VIX < 25
+        spy_ok = False
+        vix_ok = False
+
         if self.spy_sma50.is_ready:
             spy_price = float(self.securities[self.spy].price)
             spy_ma50 = float(self.spy_sma50.current.value)
-            if spy_price < spy_ma50:
-                self.log(f"REGIME_BLOCK|{date_str}|SPY={spy_price:.2f}|MA50={spy_ma50:.2f}")
-                return
+            spy_ok = spy_price >= spy_ma50
+
+        vix_price = float(self.securities[self.vix].price)
+        vix_ok = vix_price < 25
+
+        if not (spy_ok and vix_ok):
+            self.log(f"REGIME_BLOCK|{date_str}|SPY_OK={spy_ok}|VIX_OK={vix_ok}|SPY={spy_price:.2f}|MA50={spy_ma50:.2f}|VIX={vix_price:.2f}")
+            return
 
         # When running locally with polygon universe, restrict candidates to today's snapshot
         today_poly: set[str] | None = None
