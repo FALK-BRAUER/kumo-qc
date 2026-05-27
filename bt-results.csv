@@ -113,3 +113,6 @@
 2026-05-28,W4-Q4-2025,2025-10-01,2025-12-31,cloud-e40d,E45-v2-W4,local,-0.503,0,0,0,0,0,0,E45-v2 W4 — POSITIVE +1.103 vs E40d -1.606.
 2026-05-28,W5-Feb-May-2025,2025-02-01,2025-05-31,cloud-e40d,E45-v2-W5,local,-0.980,0,0,0,0,0,0,E45-v2 W5 — REJECTED. -0.980 vs E40d -0.342 (delta -0.638).
 2026-05-28,W6-H1-2025,2025-01-01,2025-06-30,cloud-e40d,E45-v2-W6,local,0.788,0,0,0,0,0,0,E45-v2 W6 — REJECTED. 0.788 vs E40d 0.960 (delta -0.172).
+2026-05-28,FY2025,2025-01-01,2025-12-31,cloud-e40d,E46-baseline,local,1.268,37.867,37867,196,44,10.7,196,E46 baseline (no weekly filter) — same as E40d+regime
+2026-05-28,FY2025,2025-01-01,2025-12-31,cloud-e40d,E46-threshold-1-3,local,1.268,37.867,37867,196,44,10.7,196,E46 weekly_bct thresholds 1-3 — IDENTICAL to baseline. All 196 trades already satisfy weekly_score >= 3.
+2026-05-28,FY2025,2025-01-01,2025-12-31,cloud-e40d,E46-threshold-4,local,1.152,34.417,34417,202,45,11.6,202,E46 weekly_bct threshold 4 — REJECTED. Degrades Sharpe 1.268 -> 1.152. Weekly Ichimoku filter is redundant with daily BCT pipeline.

@@ -195,6 +195,7 @@ updated: 2026-05-28
 | E85 | Signal freshness gate (>2d = stale) | Blocks entries on stale signals | E40d | [#100](https://github.com/FALK-BRAUER/kumo-qc/issues/100) — ❌ REJECTED 1.268 / −0.174 (0 fires — daily rebalance makes signals always fresh) |
 | E51 | Parabolic entry block (13d move >25%) | Avoid buying exhaustion peaks | E40d | [#101](https://github.com/FALK-BRAUER/kumo-qc/issues/101) — ❌ REJECTED 1.254 / −0.188 (blocks strongest-phase entries = cuts winners) |
 | E87 | Rotation quality gate (RSI>50 + weekly>Tenkan) | Quality filter at entry | E40d | [#102](https://github.com/FALK-BRAUER/kumo-qc/issues/102) — ❌ REJECTED 1.129 / −0.313 (false negatives > false positive reduction; BCT checklist is maximal) |
+| E46 | Weekly BCT pre-filter (weekly_score ≥ threshold) | Multi-timeframe alignment — require strong weekly setup before daily entry | E40d | [#113](https://github.com/FALK-BRAUER/kumo-qc/issues/113) — ❌ REJECTED. Thresholds 1-3 identical to baseline (all 196 trades already pass). Threshold 4 degrades Sharpe 1.268 → 1.152. Weekly Ichimoku is redundant with daily BCT pipeline. |
 | Score fix | Scanner BUY threshold = score ≥ 7 | ✅ Done — b9634e9 kumo-trader | premarket brief | [#35](https://github.com/falkhansen/kumo-qc/issues/35) ✓ |
 
 ---
@@ -211,13 +212,15 @@ updated: 2026-05-28
 7. **Kijun IS the trailing stop.** No explicit trail code needed. Kijun rises naturally with price trend; `close < kijun → exit` is the trail.
 8. **Intraday stop monitoring destroys edge.** All stops must be EOD-only to match George's methodology (proven in Run 8).
 10. **Position sizing additions are a leverage multiplier, not alpha.** E45 constant-R resizing: FY2025 Sharpe 1.582 (+0.140) but 4/6 windows negative. W3/W4 dominate the FY result. In choppy/crash windows, adds amplify losses. Any position-building approach needs regime gating on the ADD trigger (E45-v2 testing VIX<20 on adds).
+11. **Weekly Ichimoku conditions are redundant with daily BCT pipeline.** E46 tested weekly_score thresholds 1-4. Thresholds 1-3 produced identical results to baseline (all 196 baseline trades already had weekly_score ≥ 3). Threshold 4 degraded Sharpe 1.268 → 1.152. The daily BCT score ≥ 7 + cloud pre-filter already implicitly requires strong weekly setups. Multi-timeframe alignment adds no independent information when the primary timeframe filter is already strict.
 
 ### Active Queue
-| ID | GH | Hypothesis |
-|----|-----|-----------|
-| Research | [#112](https://github.com/FALK-BRAUER/kumo-qc/issues/112) | Multi-timeframe BCT (weekly+daily alignment) + sector Ichimoku regime filter |
+| ID | GH | Hypothesis | Status |
+|----|-----|-----------|--------|
+| E47 | [#114](https://github.com/FALK-BRAUER/kumo-qc/issues/114) | Sector regime filter — only enter when sector ETF is in weekly BCT uptrend | ⏳ Queued after E46 |
+| Research | [#112](https://github.com/FALK-BRAUER/kumo-qc/issues/112) | Multi-timeframe BCT + sector mapping — feasibility confirmed, implementation queued | ✅ Feasible |
 
-> **Status 2026-05-28:** All planned experiment tracks exhausted. E40d (VIX<25) confirmed champion at 1.442 Sharpe. Proceeding to research phase per Falk mandate.
+> **Status 2026-05-28:** E46 REJECTED — weekly Ichimoku filter redundant with daily pipeline. E47 (sector regime) queued next. E40d remains champion at 1.442 Sharpe.
 
 ---
 
