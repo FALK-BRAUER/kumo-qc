@@ -97,10 +97,10 @@ updated: 2026-05-28
 | E40b | SPY > 200MA regime gate | ➖ | 1.048 | +0.012 | Near-neutral FY; brief Mar dip blocked Jan–Feb winners in W1 (−2.0 Sharpe) |
 | **E40b-v2** | **SPY > 200MA ≥3 consecutive days** | ✅ | **1.463** | **+0.427** | **BREAKTHROUGH** (#52, first positive in 52 experiments). 3-day lag filters noise while blocking crash entries |
 | **E40c** | **QQQ > 50MA regime gate** | ✅ | **1.362** | **+0.326** | ACCEPTED. Positive 5/6 windows. Blocked April tariff crash (W2: +2.194 delta) |
-| **E40d** | **VIX < 25 regime gate** | ✅ | **1.442** | **+0.406** | Third positive gate. 36 fewer trades. Most consistent window-by-window performance |
+| **E40d** | **VIX < 25 regime gate** | ✅ 🏆 | **1.442** | **+0.406** | **SELECTED AS NEW CHAMPION BASELINE** (2026-05-28). 36 fewer trades. Most consistent per-window. Fires on actual fear — readable daily |
 | E40e | Composite: SPY>50MA AND VIX<25 | 🔒 | 1.275 | +0.239 | FY2025 positive, but 0 trades on ALL 6 sub-windows. Gate too restrictive — invalid |
 
-> **Decision pending:** Three valid positive regime gates (E40b-v2, E40c, E40d). Falk to choose production target.  
+> **✅ DECIDED 2026-05-28:** E40d (VIX<25) selected as new champion. New baseline: **G3 + VIX<25 = 1.442 Sharpe / +42.4% FY2025**.  
 > Cloud validation blocked by universe injection bug — local LEAN only going forward.
 
 ### E40 Window-by-Window Summary
@@ -123,6 +123,8 @@ updated: 2026-05-28
 | E42 | Risk-based sizing ($200R) + heat cap + 3% Kijun tolerance | 💀 | −0.375 | −1.411 | `e613692` | [#76](https://github.com/falkhansen/kumo-qc/issues/76) | Kijun tolerance blocked STX breakout; WR 23%; risk sizing = noise entries |
 | ETF-1 (s1) | Two-pool system: 1 dedicated ETF slot | ❌ | 0.967 | −0.069 | `main` | [#93](https://github.com/falkhansen/kumo-qc/issues/93) | ETFs displace higher-quality stock signals; SMH/TAN/DBB/IYZ/HDV 0 trades |
 | ETF-1 (s2) | Two-pool system: 2 dedicated ETF slots | ❌ | 0.880 | −0.156 | `main` | [#93](https://github.com/falkhansen/kumo-qc/issues/93) | More slots = more displacement; 17 ETFs traded, all negative drag |
+| E43 | Pyramid add at cloud top + breakeven stop after +1R | ❌ | 0.493 | −0.586 | `c2b4f40` | [#36](https://github.com/falkhansen/kumo-qc/issues/36) | Only 8 adds in FY2025 (cloud-top cross rare post-entry); 26 breakeven fires cut winners — tested combination, not adds alone |
+| E44 | Slot gate → heat cap only (flat 10% × MAX_HEAT=0.95) | ❌ | 0.856 | −0.223 | `1ca0d37` | [#75](https://github.com/falkhansen/kumo-qc/issues/75) ✓ | Effective limit still ~9 positions; soft ceiling degrades entry timing vs discrete slot gate; WR 28% vs G3 40%; STX still blocked |
 
 > **E41 key finding:** STX miss in W7-YTD-2026 traced to **slot competition** (MAX_POSITIONS=10 fills with other score-8 names), not scoring. STX scored 8/8.
 
@@ -158,8 +160,8 @@ updated: 2026-05-28
 
 | ID | Description | Status | Hypothesis | Base | GH |
 |----|-------------|--------|------------|------|----|
-| E43 | Pyramid add + breakeven stop | ⏳ | One add at cloud top cross; stop to breakeven after 1R gain | G3 | [#36](https://github.com/falkhansen/kumo-qc/issues/36) |
-| E44 | Slot gate removal → heat cap only | ⏳ | Replace MAX_POSITIONS=10 with heat cap; STX miss traced to slot competition | G3 | [#75](https://github.com/falkhansen/kumo-qc/issues/75) ✓ |
+| E43-v2 | Pyramid add only — no breakeven stop | ⏳ | Isolate pyramid add contribution; Kijun stop throughout; cloud top cross trigger | E40d | [#94](https://github.com/FALK-BRAUER/kumo-qc/issues/94) |
+| E44-v2 | ADX tiebreaker in candidate ranking | ⏳ | Keep MAX_POSITIONS=10; sort (score desc, ADX desc) — score-8 priority maintained, STX (ADX 64) surfaces before plateau ADX=30 within tier | E40d | [#95](https://github.com/FALK-BRAUER/kumo-qc/issues/95) |
 | Score fix | Scanner BUY threshold = score ≥ 7 | ⏳ | George's actual threshold is 7/8; scanner requires 8/8 | premarket brief | [#35](https://github.com/falkhansen/kumo-qc/issues/35) ✓ |
 
 ---
