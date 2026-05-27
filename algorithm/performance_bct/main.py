@@ -277,7 +277,16 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 all_tickers: set[str] = set()
                 for tickers in poly.values():
                     all_tickers.update(tickers)
-                self.log(f"LOCAL_UNIVERSE|polygon_equity|unique_tickers={len(all_tickers)}")
+                # ETF-1: Add ETFs to local universe if two-pool enabled
+                if self.max_etf_positions > 0:
+                    etf_added = 0
+                    for etf in ETF_TICKERS:
+                        if etf not in all_tickers:
+                            all_tickers.add(etf)
+                            etf_added += 1
+                    self.log(f"LOCAL_UNIVERSE|polygon_equity|tickers={len(all_tickers)-etf_added}|etfs_added={etf_added}")
+                else:
+                    self.log(f"LOCAL_UNIVERSE|polygon_equity|unique_tickers={len(all_tickers)}")
                 for ticker in sorted(all_tickers):
                     try:
                         self.add_equity(ticker, Resolution.DAILY)
@@ -501,6 +510,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         today_poly: set[str] | None = None
         if self._polygon_universe is not None:
             today_poly = set(self._polygon_universe.get(date_str, []))
+            # ETF-1: Include ETFs in today_poly so they pass the filter
+            if self.max_etf_positions > 0:
+                today_poly.update(self.etf_set)
 
         # ETF-1: Two-pool system — separate ETF and stock candidates
         etf_candidates: list[tuple] = []  # (symbol, score, adx)
@@ -547,6 +559,12 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 if score >= self.MIN_SCORE:
                     stock_candidates.append((symbol, score))
 
+        if self.time.day == 1 and self.time.month == 1:
+            # Count ETFs in _active set with indicators
+            etf_with_ind = sum(1 for s in self._active if s.value in self.etf_set and s in self._indicators)
+            etf_total = sum(1 for s in self._active if s.value in self.etf_set)
+            self.log(f"ETF1_DIAG|{date_str}|etf_in_active={etf_total}|etf_with_indicators={etf_with_ind}")
+        
         # ETF-1: Sort ETFs by (score DESC, ADX DESC), stocks by score DESC
         etf_candidates.sort(key=lambda x: (x[1], x[2]), reverse=True)
         stock_candidates.sort(key=lambda x: x[1], reverse=True)

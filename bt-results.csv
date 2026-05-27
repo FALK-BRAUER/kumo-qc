@@ -166,3 +166,9 @@ date_run,window,period_start,period_end,commit,branch,environment,sharpe,net_pro
 2026-05-27,W5,2025-02-01,2025-05-31,6da9ddc,feat/e40b-v2-consecutive,local,-0.897,-2.650%,-2650,66,21%,9.6%,66.00,E40b-v2 W5 Feb-May. Delta +0.269 vs -1.166 baseline. Positive but -0.481 vs E40b (-0.416). 53 blocks — 2-day lag allowed early April crash entries.
 2026-05-27,W6,2025-01-01,2025-06-30,6da9ddc,feat/e40b-v2-consecutive,local,0.760,11.094%,11094,118,37%,10.5%,118.00,E40b-v2 W6 H1. Delta +0.574 vs 0.186 baseline. Delta +0.717 vs E40b 0.043. STRONG improvement — 3-day threshold superior to E40b in H1 context.
 2026-05-27,W7-YTD-2026,2026-01-01,2026-04-30,8048c29,feat/g3-ytd-baseline,local,2.418,25.251,25251,118,30,11.8,124.28,G3 baseline YTD-2026 (Jan-Apr). Polygon fallback: uses 2025-12-31 universe for 2026 dates. STX in universe but no entry (scored <7). SMH not in polygon universe. Top winner: MU +30.8% / $3073. 10 open positions at Apr-30.
+
+# ETF-1 Two-Pool System Results (2025-05-28)
+experiment,window,orders,sharpe,return,drawdown,vs_g3_delta,status,notes
+etf1-s1,FY2025,208,0.967,+27.7%,13.7%,-0.112,REJECTED,13 ETFs traded (SMH,XLE,DBB present)
+etf1-s2,FY2025,220,0.880,+25.4%,14.2%,-0.199,REJECTED,17 ETFs traded (more slots=worse)
+
