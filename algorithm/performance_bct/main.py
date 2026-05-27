@@ -21,6 +21,7 @@ AND unrealized PnL ≥ +15%, switch stop anchor from Kijun to cloud bottom
 (min(Senkou_A, Senkou_B)). Extends winners; implements methodology.md §5 Rule #13 Phase 3.
 """
 
+import csv
 import json
 from datetime import date as _date
 from datetime import timedelta
@@ -214,6 +215,30 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         return next((d for d in candidates if d.exists()), None)
 
     @staticmethod
+    def _load_earnings_calendar() -> "dict[str, list[_date]]":
+        """Load data/earnings_dates.csv → {ticker: [sorted dates]}."""
+        candidates = [
+            Path(__file__).parent / "earnings_dates.csv",           # /LeanCLI/ (Docker)
+            Path(__file__).parent.parent.parent / "data/earnings_dates.csv",  # repo root (local dev)
+        ]
+        cal: dict[str, list[_date]] = {}
+        for p in candidates:
+            if not p.exists():
+                continue
+            with open(p, newline="") as f:
+                for row in csv.DictReader(f):
+                    ticker = row["ticker"].strip()
+                    try:
+                        d = _date.fromisoformat(row["report_date"].strip())
+                    except ValueError:
+                        continue
+                    cal.setdefault(ticker, []).append(d)
+            for v in cal.values():
+                v.sort()
+            return cal
+        return {}
+
+    @staticmethod
     def _load_polygon_universe() -> dict | None:
         candidates = [
             Path(__file__).parent / "polygon_universe_equity200_fy2025.json",
@@ -257,6 +282,11 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self._position_meta: dict = {}  # symbol → {entry_date, entry_price}
         self._earnings_skips: int = 0
         self._earnings_exits: int = 0
+        self._earnings_calendar: dict = self._load_earnings_calendar()
+        if self._earnings_calendar:
+            self.log(f"EARNINGS_CAL|loaded|tickers={len(self._earnings_calendar)}")
+        else:
+            self.log("EARNINGS_CAL|not_found|morningstar_fallback")
 
         poly = self._load_polygon_universe()
         if poly is not None:
@@ -400,7 +430,16 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         return bool(self.transactions.get_open_orders(symbol))
 
     def _get_next_earnings(self, symbol) -> "_date | None":
-        """Returns next earnings date from QC Morningstar data. None if unavailable."""
+        """Next earnings date: CSV calendar first, QC Morningstar fallback."""
+        today = self.time.date()
+        ticker = symbol.value
+        # Local CSV calendar
+        dates = self._earnings_calendar.get(ticker)
+        if dates:
+            for d in dates:
+                if d >= today:
+                    return d
+        # QC Morningstar fallback (cloud only)
         try:
             fund = getattr(self.securities[symbol], "fundamentals", None)
             if fund is None:
