@@ -179,7 +179,7 @@ updated: 2026-05-28
 | E53-v2 | Earnings avoidance ±2d | Shorter window preserves pre-earnings runup | E40d | [#96](https://github.com/FALK-BRAUER/kumo-qc/issues/96) — ❌ REJECTED 1.208 / −0.234 |
 | E53-v3 | Earnings avoidance ±1d (day-of only) | Minimal avoidance — only skip entry day itself | E40d | [#97](https://github.com/FALK-BRAUER/kumo-qc/issues/97) |
 | E36-v2 | ATR stop 1.5× multiplier | Tighter ATR may outperform Kijun stop at entry | E40d | [#99](https://github.com/FALK-BRAUER/kumo-qc/issues/99) — ❌ REJECTED 1.268 / −0.174 |
-| E85 | Signal freshness gate (>2d = stale) | Blocks entries on stale signals | E40d | [#100](https://github.com/FALK-BRAUER/kumo-qc/issues/100) |
+| E85 | Signal freshness gate (>2d = stale) | Blocks entries on stale signals | E40d | [#100](https://github.com/FALK-BRAUER/kumo-qc/issues/100) — ❌ REJECTED 1.268 / −0.174 (0 fires — daily rebalance makes signals always fresh) |
 | E51 | Parabolic entry block (13d move >25%) | Avoid buying exhaustion peaks | E40d | [#101](https://github.com/FALK-BRAUER/kumo-qc/issues/101) |
 | E87 | Rotation quality gate (RSI>50 + weekly>Tenkan) | Quality filter at entry | E40d | [#102](https://github.com/FALK-BRAUER/kumo-qc/issues/102) |
 | Score fix | Scanner BUY threshold = score ≥ 7 | ✅ Done — b9634e9 kumo-trader | premarket brief | [#35](https://github.com/falkhansen/kumo-qc/issues/35) ✓ |
