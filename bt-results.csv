@@ -198,3 +198,10 @@ date_run,window,period_start,period_end,commit,branch,environment,sharpe,net_pro
 2026-05-28,W5-FebMay-2025,2025-02-01,2025-05-31,c1aee89,feat/e42-heat-cap,local,-0.335,-0.739,-739,137,28,10.1,,E42v2 W5. G3 -1.171. Delta +0.836.
 2026-05-28,W6-H1-2025,2025-01-01,2025-06-30,c1aee89,feat/e42-heat-cap,local,-0.647,-6.347,-6347,249,24,18.9,,E42v2 W6. G3 0.186. Delta -0.833.
 2026-05-28,W7-YTD-2026,2026-01-01,2026-04-30,c1aee89,feat/e42-heat-cap,local,-0.221,-0.667,-667,168,19,15.9,,E42v2 W7. G3 2.418. Delta -2.639. STX 1 entry 2026-03-18@406.06 stopped 2026-03-26@378.79.
+2026-05-28,FY2025,2025-01-01,2025-12-31,cd1ad92,feat/e43-pyramid-add,local,0.493,18.618,18618,266,37,15.9,,E43 pyramid add + breakeven stop FY2025 — REJECTED. Sharpe 0.493 vs G3 1.079 (delta -0.586). 8 pyramid adds, 26 breakeven stops fired (cut winners early). STX 0 entries (not in universe FY2025 until May-16, BCT conditions not met). W1 delta -0.542 >0.2 threshold.
+2026-05-28,W1-Q1-2025,2025-01-01,2025-03-31,cd1ad92,feat/e43-pyramid-add,local,0.952,8.310,8310,84,47,10.7,,E43 W1. G3 1.494. Delta -0.542. 2 pyr adds, 9 BE stops.
+2026-05-28,W2-Q2-2025,2025-04-01,2025-06-30,cd1ad92,feat/e43-pyramid-add,local,-0.729,-2.546,-2546,107,23,8.9,,E43 W2. G3 -0.608. Delta -0.121. 3 pyr adds, 11 BE stops.
+2026-05-28,W3-Q3-2025,2025-07-01,2025-09-30,cd1ad92,feat/e43-pyramid-add,local,4.052,17.120,17120,48,32,3.2,,E43 W3. G3 4.427. Delta -0.375. 0 pyr adds, 2 BE stops.
+2026-05-28,W4-Q4-2025,2025-10-01,2025-12-31,cd1ad92,feat/e43-pyramid-add,local,-1.780,-6.568,-6568,77,24,8.1,,E43 W4. G3 -1.765. Delta -0.015. 1 pyr add, 3 BE stops.
+2026-05-28,W5-FebMay-2025,2025-02-01,2025-05-31,cd1ad92,feat/e43-pyramid-add,local,-1.128,-5.648,-5648,119,25,11.2,,E43 W5. G3 -1.171. Delta +0.043. 3 pyr adds, 15 BE stops.
+2026-05-28,W6-H1-2025,2025-01-01,2025-06-30,cd1ad92,feat/e43-pyramid-add,local,0.210,5.277,5277,179,34,15.9,,E43 W6. G3 0.186. Delta +0.024. 5 pyr adds, 22 BE stops.
