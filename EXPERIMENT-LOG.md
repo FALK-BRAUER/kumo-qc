@@ -171,9 +171,9 @@ updated: 2026-05-28
 1. **G3 is the global optimum for exit logic.** Phase 3 cloud-bottom at 56d/15% is the sweet spot. G3-v2 (42d/10%) and G3-v3 (28d/5%) both hurt.
 2. **Flat 10% sizing is optimal.** Every risk-sizing variant (E26, E76 series, E42, QC-1) hurt performance. BCT equal-weight is correct.
 3. **No additional entry gates.** BCT checklist is maximal. Every extra gate (E8, E38, E49, E53) created false negatives without reducing false positives.
-4. **Regime gates are the only positive axis.** E40b-v2 (+0.427), E40d (+0.406), E40c (+0.326). All gate on market regime, not individual stock conditions.
-5. **Slot gate blocks rocket ships.** MAX_POSITIONS=10 is the root cause of STX-type misses. STX scored 8/8 — slot competition blocked it.
-6. **QC cloud validation is broken.** Universe injection bug reduces orders from 230 to 30-34. Local LEAN is the production target.
+4. **Regime gates are the ONLY positive axis.** E40b-v2 (+0.427), E40d (+0.406), E40c (+0.326). All 6 experiments with Sharpe >1.0 are regime gates. Zero positive results from exit mods, sizing, entry gates, or universe changes. Root insight: BCT already selects good winners — the edge is avoiding MORE LOSERS (bad entries during weak markets), not picking better winners. Regime gates operate before the entry decision, reducing the noise denominator rather than optimizing the signal numerator.
+5. **Slot gate blocks rocket ships.** MAX_POSITIONS=10 is the root cause of STX-type misses. STX scored 8/8 — slot competition blocked it. E44-v2 (ADX tiebreaker) is the active test.
+6. **QC cloud validation is permanently blocked.** QC project 32034565 missing/permissions revoked. Universe injection also broken. Local LEAN is production target. Falk must check QC dashboard to restore if needed.
 7. **Kijun IS the trailing stop.** No explicit trail code needed. Kijun rises naturally with price trend; `close < kijun → exit` is the trail.
 8. **Intraday stop monitoring destroys edge.** All stops must be EOD-only to match George's methodology (proven in Run 8).
 
