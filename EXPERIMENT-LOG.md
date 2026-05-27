@@ -169,12 +169,12 @@ updated: 2026-05-28
 |----|-------------|------------|------|----|
 | W7/E40d | YTD-2026 window on E40d | Validate champion in 2026 conditions | E40d | — |
 | E40d-sp500 | S&P 500 universe BT | Broader universe removes polygon-326 momentum bias (survivorship confirmed) | E40d | [#103](https://github.com/FALK-BRAUER/kumo-qc/issues/103) |
-| E40d-v2 | VIX<20 (stricter) | Tighter fear filter = fewer but higher-quality entries | E40d | [#106](https://github.com/FALK-BRAUER/kumo-qc/issues/106) |
-| E40d-v3 | VIX<30 (looser) | Recovers some blocked winners at cost of more noise | E40d | [#104](https://github.com/FALK-BRAUER/kumo-qc/issues/104) |
-| E40f | HY credit spread >4% entry block | Correct application of credit stress as REGIME gate (not sizing like rejected E56) | E40d | [#105](https://github.com/FALK-BRAUER/kumo-qc/issues/105) |
-| E40g | Breadth gate: <50% S&P above 50MA | Distribution phase detection — individual signals less reliable in weak breadth | E40d | [#108](https://github.com/FALK-BRAUER/kumo-qc/issues/108) |
-| E40h | VVIX<100 (vol-of-vol) | VIX itself unstable when VVIX high = avoid | E40d | [#107](https://github.com/FALK-BRAUER/kumo-qc/issues/107) |
-| E40-combo | VIX<25 AND SPY>200MA ≥3d | Stacking two gates: does double-filter reduce crashes further or over-filter? | E40d | [#98](https://github.com/FALK-BRAUER/kumo-qc/issues/98) |
+| E40d-v2 | VIX<20 (stricter) | VIX<25 is sweet spot; <20 too strict, halves return to +22.4% | E40d | [#106](https://github.com/FALK-BRAUER/kumo-qc/issues/106) — ❌ REJECTED 0.687 Sharpe |
+| E40d-v3 | VIX<30 (looser) | VIX<25 still best; <30 adds 14 noise orders, -0.063 Sharpe | E40d | [#104](https://github.com/FALK-BRAUER/kumo-qc/issues/104) — ➖ NEUTRAL 1.379 Sharpe |
+| E40f | HY credit spread >4% entry block | JNK not in polygon-326 universe — requires separate data feed | E40d | [#105](https://github.com/FALK-BRAUER/kumo-qc/issues/105) — 🔒 BLOCKED (JNK data) |
+| E40g | Breadth gate: <50% S&P above 50MA | Filters bad + good entries equally; better than G3 but not E40d | E40d | [#108](https://github.com/FALK-BRAUER/kumo-qc/issues/108) — ➖ NEUTRAL 1.268 / −0.174 |
+| E40h | VVIX<100 (vol-of-vol) | VVIX data not available locally | E40d | [#107](https://github.com/FALK-BRAUER/kumo-qc/issues/107) — 🔒 BLOCKED (no VVIX data) |
+| E40-combo | VIX<25 AND SPY>200MA ≥3d | Over-filters: WR 49%↑ + DD 8.5%↓ but 26 fewer trades, return drops to +35% | E40d | [#98](https://github.com/FALK-BRAUER/kumo-qc/issues/98) — ❌ REJECTED 1.207 / −0.235 |
 | E53-v2 | Earnings avoidance ±2d | Shorter window preserves pre-earnings runup | E40d | [#96](https://github.com/FALK-BRAUER/kumo-qc/issues/96) |
 | E53-v3 | Earnings avoidance ±1d (day-of only) | Minimal avoidance — only skip entry day itself | E40d | [#97](https://github.com/FALK-BRAUER/kumo-qc/issues/97) |
 | E36-v2 | ATR stop 1.5× multiplier | Tighter ATR may outperform Kijun stop at entry | E40d | [#99](https://github.com/FALK-BRAUER/kumo-qc/issues/99) |
