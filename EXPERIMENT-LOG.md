@@ -164,7 +164,8 @@ updated: 2026-05-28
 ### Active (Running)
 | ID | Description | Status | GH | Notes |
 |----|-------------|--------|:---:|-------|
-| E45 | Constant-R position resizing on Kijun step-up | ❌ 1.582 FY / 2/6 windows | [#109](https://github.com/FALK-BRAUER/kumo-qc/issues/109) | FY2025 1.582 (+0.140) but 4/6 windows negative delta — leverage amplifier not alpha; W3/W4 dominate FY result |
+| E45 | Constant-R position resizing on Kijun step-up | ❌ 1.582 FY / 2/6 windows | [#109](https://github.com/FALK-BRAUER/kumo-qc/issues/109) | FY2025 1.582 (+0.140) but 4/6 windows negative — leverage amplifier; W3/W4 dominate |
+| E45-v2 | Constant-R adds gated by VIX<20 | ❌ 1.811 FY / 3/6 windows / DD 17% | [#111](https://github.com/FALK-BRAUER/kumo-qc/issues/111) | VIX gate fixed W2 (+0.664) but W1/W5/W6 still negative; DD 17% > 15% limit. **Position-add track EXHAUSTED.** |
 
 ### Completed This Session
 | ID | Description | Status | GH | Notes |
@@ -214,7 +215,9 @@ updated: 2026-05-28
 ### Active Queue
 | ID | GH | Hypothesis |
 |----|-----|-----------|
-| E45-v2 | [#111](https://github.com/FALK-BRAUER/kumo-qc/issues/111) | Constant-R adds gated by VIX<20 — only build in calm markets; entry gate stays VIX<25 |
+| Research | [#112](https://github.com/FALK-BRAUER/kumo-qc/issues/112) | Multi-timeframe BCT (weekly+daily alignment) + sector Ichimoku regime filter |
+
+> **Status 2026-05-28:** All planned experiment tracks exhausted. E40d (VIX<25) confirmed champion at 1.442 Sharpe. Proceeding to research phase per Falk mandate.
 
 ---
 
