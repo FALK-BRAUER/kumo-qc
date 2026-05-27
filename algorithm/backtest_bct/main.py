@@ -27,11 +27,6 @@ from pathlib import Path
 
 from AlgorithmImports import *  # noqa: F401,F403
 
-try:
-    from universe import EQUITY_200  # Cloud static universe (uploaded with main.py)
-except ImportError:
-    EQUITY_200 = []  # Fallback if universe.py not available
-
 from typing import Any
 
 import numpy as np
@@ -226,7 +221,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
     def initialize(self) -> None:
         self.set_time_zone("America/New_York")
-        self.log("VERSION_MARKER|cloud_static200_v16")
+        self.log("VERSION_MARKER|cloud_static200_v15")
         sy = int(self.get_parameter("start_year",  "2025"))
         sm = int(self.get_parameter("start_month", "1"))
         sd = int(self.get_parameter("start_day",   "1"))
@@ -269,27 +264,42 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                         pass
             # (dead code — outer check ensures poly is not None here)
         else:
-            # Cloud: core 164 tickers present every day in polygon-200 (intersection 2025-01-02 & 2025-12-31)
+            # Cloud: static universe mirroring local polygon-200 (326 unique tickers FY2025)
             STATIC_TICKERS = [
-                'AAL', 'AAPL', 'ABBV', 'ABNB', 'ABT', 'ACN', 'ADBE', 'ADI', 'ADP', 'AMAT',
-                'AMD', 'AMGN', 'AMT', 'AMZN', 'ANET', 'APH', 'APP', 'AVGO', 'AXON', 'AXP',
-                'AZO', 'BA', 'BAC', 'BKNG', 'BLK', 'BMY', 'BSX', 'BX', 'C', 'CAT',
-                'CB', 'CCL', 'CDNS', 'CEG', 'CL', 'CMCSA', 'CME', 'CMG', 'COF', 'COIN',
-                'COP', 'COST', 'CRM', 'CRWD', 'CSCO', 'CVNA', 'CVS', 'CVX', 'DAL', 'DASH',
-                'DDOG', 'DE', 'DELL', 'DHR', 'DIS', 'ELV', 'EQIX', 'ETN', 'F', 'FCX',
-                'FDX', 'FTNT', 'GE', 'GEV', 'GILD', 'GM', 'GOOG', 'GOOGL', 'GS', 'HCA',
-                'HD', 'HIMS', 'HON', 'HOOD', 'IBM', 'ICE', 'INTC', 'INTU', 'ISRG', 'JNJ',
-                'JPM', 'KKR', 'KLAC', 'KO', 'LEN', 'LIN', 'LLY', 'LMT', 'LOW', 'LRCX',
-                'LULU', 'MA', 'MCD', 'MCHP', 'MCK', 'MDLZ', 'MDT', 'META', 'MO', 'MPWR',
-                'MRK', 'MS', 'MSFT', 'MSI', 'MU', 'NEE', 'NEM', 'NFLX', 'NKE', 'NOW',
-                'NVDA', 'NXPI', 'ON', 'ORCL', 'ORLY', 'PANW', 'PEP', 'PFE', 'PG', 'PGR',
-                'PH', 'PLTR', 'PM', 'PYPL', 'QCOM', 'RCL', 'REGN', 'RTX', 'SBUX', 'SCHW',
-                'SHW', 'SLB', 'SMCI', 'SNPS', 'SPGI', 'SYK', 'T', 'TGT', 'TJX', 'TMO',
-                'TMUS', 'TSLA', 'TT', 'TTD', 'TXN', 'UAL', 'UBER', 'ULTA', 'UNH', 'UNP',
-                'UPS', 'URI', 'V', 'VLO', 'VRT', 'VRTX', 'VST', 'VZ', 'WDAY', 'WELL',
-                'WFC', 'WMT', 'XOM', 'ZTS',
+                'AAL', 'AAPL', 'ABBV', 'ABNB', 'ABT', 'ACN', 'ADBE', 'ADI', 'ADP', 'ADSK',
+                'AEP', 'AIG', 'AJG', 'ALB', 'ALL', 'AMAT', 'AMCR', 'AMD', 'AMGN', 'AMT',
+                'AMZN', 'ANET', 'ANF', 'AON', 'APD', 'APH', 'APO', 'APP', 'ARES', 'AVAV',
+                'AVGO', 'AXON', 'AXP', 'AZO', 'BA', 'BAC', 'BDX', 'BK', 'BKNG', 'BKR',
+                'BLK', 'BMY', 'BRO', 'BSX', 'BX', 'C', 'CAH', 'CARR', 'CAT', 'CAVA',
+                'CB', 'CCI', 'CCL', 'CDNS', 'CEG', 'CELH', 'CHTR', 'CHWY', 'CI', 'CIEN',
+                'CL', 'CLF', 'CLSK', 'CMCSA', 'CME', 'CMG', 'CMI', 'CNC', 'COF', 'COHR',
+                'COIN', 'COP', 'COR', 'COST', 'CPRT', 'CRH', 'CRM', 'CRWD', 'CSCO', 'CSX',
+                'CTAS', 'CVNA', 'CVS', 'CVX', 'DAL', 'DASH', 'DDOG', 'DE', 'DECK', 'DELL',
+                'DG', 'DHI', 'DHR', 'DIS', 'DKS', 'DLR', 'DLTR', 'DOCU', 'DOW', 'DUK',
+                'DUOL', 'DVN', 'DXCM', 'EA', 'EBAY', 'EIX', 'ELV', 'EME', 'EMR', 'ENPH',
+                'EOG', 'EQIX', 'EQT', 'ETN', 'ETR', 'ETSY', 'EW', 'EXC', 'EXE', 'EXPE',
+                'F', 'FANG', 'FCX', 'FDX', 'FICO', 'FISV', 'FITB', 'FIX', 'FLEX', 'FSLR',
+                'FTNT', 'GD', 'GE', 'GEHC', 'GEV', 'GILD', 'GIS', 'GLW', 'GM', 'GME',
+                'GOOG', 'GOOGL', 'GS', 'GTLS', 'HBAN', 'HCA', 'HD', 'HIMS', 'HL', 'HLT',
+                'HON', 'HOOD', 'HPE', 'HSY', 'HUM', 'HWM', 'IBKR', 'IBM', 'ICE', 'IDXX',
+                'INTC', 'INTU', 'IP', 'IQV', 'ISRG', 'IT', 'JBL', 'JCI', 'JNJ', 'JPM',
+                'KDP', 'KEY', 'KHC', 'KKR', 'KLAC', 'KMB', 'KMI', 'KO', 'KR', 'KTOS',
+                'KVUE', 'LEN', 'LHX', 'LII', 'LIN', 'LITE', 'LLY', 'LMT', 'LOW', 'LRCX',
+                'LULU', 'LUV', 'LYFT', 'LYV', 'MA', 'MAR', 'MARA', 'MCD', 'MCHP', 'MCK',
+                'MCO', 'MDLZ', 'MDT', 'META', 'MMM', 'MO', 'MOH', 'MP', 'MPC', 'MPWR',
+                'MRK', 'MRNA', 'MS', 'MSCI', 'MSFT', 'MSI', 'MU', 'NCLH', 'NEE', 'NEM',
+                'NFLX', 'NKE', 'NOC', 'NOW', 'NRG', 'NSC', 'NTNX', 'NUE', 'NVDA', 'NXPI',
+                'OKE', 'OKTA', 'OMC', 'ON', 'ORCL', 'ORLY', 'OXY', 'PANW', 'PATH', 'PAYX',
+                'PCG', 'PEP', 'PFE', 'PG', 'PGR', 'PH', 'PINS', 'PLD', 'PLTR', 'PM',
+                'PNC', 'PSX', 'PWR', 'PYPL', 'QCOM', 'RCL', 'REGN', 'RF', 'RH', 'ROK',
+                'ROP', 'ROST', 'RTX', 'SATS', 'SBUX', 'SCHW', 'SFM', 'SHW', 'SLB', 'SMCI',
+                'SNDK', 'SNPS', 'SO', 'SPGI', 'SRE', 'STX', 'STZ', 'SYK', 'T', 'TDG',
+                'TEL', 'TER', 'TFC', 'TGT', 'TJX', 'TLN', 'TMO', 'TMUS', 'TPR', 'TRGP',
+                'TRU', 'TRV', 'TSLA', 'TT', 'TTD', 'TTWO', 'TWLO', 'TXN', 'UAL', 'UBER',
+                'ULTA', 'UNH', 'UNP', 'UPS', 'URI', 'USB', 'V', 'VEEV', 'VLO', 'VRT',
+                'VRTX', 'VST', 'VZ', 'WBD', 'WDAY', 'WDC', 'WELL', 'WFC', 'WM', 'WMB',
+                'WMT', 'WSM', 'XEL', 'XOM', 'XYZ', 'ZTS',
             ]
-            self.log(f"CLOUD_UNIVERSE|static_core164|tickers={len(STATIC_TICKERS)}")
             for ticker in STATIC_TICKERS:
                 try:
                     self.add_equity(ticker, Resolution.DAILY)
