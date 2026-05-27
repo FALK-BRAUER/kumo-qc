@@ -217,6 +217,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
     def initialize(self) -> None:
         self.set_time_zone("America/New_York")
+        self.log("VERSION_MARKER|regime_gate_v1_qqq50")
         sy = int(self.get_parameter("start_year",  "2025"))
         sm = int(self.get_parameter("start_month", "1"))
         sd = int(self.get_parameter("start_day",   "1"))
@@ -235,6 +236,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # Exit condition parameter overrides
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
+
+        self.qqq = self.add_equity("QQQ", Resolution.DAILY)
+        self.qqq_sma50 = self.sma("QQQ", 50)
 
         self.universe_settings.resolution = Resolution.DAILY
         self._active: set = set()
@@ -426,6 +430,14 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     self.market_on_open_order(symbol, -holding.quantity)
                     self._position_meta.pop(symbol, None)
                     self.log(f"WEEKLY_KIJUN_STOP|{date_str}|{symbol.value}|close={close:.2f}|w_kijun={w_kijun:.2f}")
+
+        # Regime gate: block entries when QQQ < 50-day MA
+        if self.qqq_sma50.is_ready:
+            qqq_price = float(self.securities[self.qqq].price)
+            qqq_ma50 = float(self.qqq_sma50.current.value)
+            if qqq_price < qqq_ma50:
+                self.log(f"REGIME_BLOCK|{date_str}|QQQ={qqq_price:.2f}|MA50={qqq_ma50:.2f}")
+                return
 
         exiting = {
             o.symbol
