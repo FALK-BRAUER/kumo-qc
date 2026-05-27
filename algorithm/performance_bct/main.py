@@ -433,10 +433,10 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             try:
                 vix_history = self.history(
                     Symbol.create("VIX", SecurityType.INDEX, Market.USA),
-                    1,
+                    2,
                     Resolution.DAILY
                 )
-                if len(vix_history) > 0:
+                if len(vix_history) >= 1:
                     vix_price = float(vix_history["close"].iloc[-1])
                     if vix_price >= 25.0:
                         self.log(f"REGIME_BLOCK|{date_str}|VIX={vix_price:.2f}|threshold=25|method=History")
