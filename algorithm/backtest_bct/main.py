@@ -221,7 +221,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
     def initialize(self) -> None:
         self.set_time_zone("America/New_York")
-        self.log("VERSION_MARKER|cloud_dv200_v12")
+        self.log("VERSION_MARKER|cloud_etf_dvfilter_v13")
         sy = int(self.get_parameter("start_year",  "2025"))
         sm = int(self.get_parameter("start_month", "1"))
         sd = int(self.get_parameter("start_day",   "1"))
@@ -264,14 +264,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                         pass
             # (dead code — outer check ensures poly is not None here)
         else:
-            # Cloud: top-200 by dollar volume (matches local Polygon universe)
-            dv_max = int(self.get_parameter("coarse_max", "200"))
-
-            def _cloud_coarse(coarse):
-                sorted_coarse = sorted(coarse, key=lambda c: c.dollar_volume, reverse=True)
-                return [c.symbol for c in sorted_coarse[:dv_max]]
-
-            self.add_universe(_cloud_coarse)
+            # Cloud: SPY ETF universe — all ~500 get warmup history, DV filter at rebalance
+            spy = Symbol.create("SPY", SecurityType.EQUITY, Market.USA)
+            self.add_universe(self.universe.etf(spy, self.universe_settings))
 
         self.schedule.on(
             self.date_rules.every_day(),
@@ -446,7 +441,17 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             today_poly = set(self._polygon_universe.get(date_str, []))
 
         candidates: list[tuple] = []
-        for symbol in sorted(self._active):
+        dv_max = int(self.get_parameter("coarse_max", "200"))
+        if self._polygon_universe is None:  # cloud mode only
+            def _dv(sym):
+                sec = self.securities.get(sym)
+                if sec is None:
+                    return 0.0
+                return float(sec.price) * float(sec.volume) if sec.volume else 0.0
+            symbols_to_score = sorted(self._active, key=_dv, reverse=True)[:dv_max]
+        else:
+            symbols_to_score = sorted(self._active)
+        for symbol in symbols_to_score:
             if today_poly is not None and symbol.value not in today_poly:
                 continue
             if self.portfolio[symbol].invested:
