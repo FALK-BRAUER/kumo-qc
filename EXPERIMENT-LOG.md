@@ -6,6 +6,9 @@ updated: 2026-05-28
 
 # kumo-qc Experiment Log
 
+> **Fleet state:** [GH #110](https://github.com/FALK-BRAUER/kumo-qc/issues/110) — champion, queue, closed tracks, worker protocol. Single source of truth for cold pickup.
+
+
 **Baseline — G3** (Phase 3 cloud-bottom stop at 56d/15% unrealized PnL)
 
 | Metric | Value | Commit |
