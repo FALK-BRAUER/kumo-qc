@@ -190,6 +190,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     # Exit condition flags — False = reference bct‑perf‑2020‑2026 (daily Kijun only)
     ENABLE_CLOUD_BREACH_EXIT: bool = False
     ENABLE_WEEKLY_KIJUN_EXIT: bool = False
+    # Entry condition flags
+    ENABLE_BUY_STOP_ENTRY: bool = False
+    BUY_STOP_BUFFER_PCT: float = 0.005  # 0.5% above current price
     # Phase 3 stop progression (methodology.md §5 Rule #13)
     PHASE3_DAYS: int = 56         # calendar days before Phase 3 eligible
     PHASE3_PNL: float = 0.15      # unrealized PnL threshold for Phase 3
@@ -235,6 +238,11 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # Exit condition parameter overrides
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
+        # Entry condition parameter overrides
+        self.buy_stop_entry_enabled = self.get_parameter("buy_stop_entry", str(self.ENABLE_BUY_STOP_ENTRY)).lower() == "true"
+        self.buy_stop_buffer_pct = float(self.get_parameter("buy_stop_buffer_pct", str(self.BUY_STOP_BUFFER_PCT)))
+        if self.buy_stop_entry_enabled:
+            self.log("VERSION_MARKER|buy_stop_entry_v1")
 
         self.universe_settings.resolution = Resolution.DAILY
         self._active: set = set()
@@ -485,8 +493,14 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             quantity = int(target_value / price)
             if quantity <= 0:
                 continue
-            self.market_on_open_order(symbol, quantity)
-            self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price)}
-            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
+            if self.buy_stop_entry_enabled:
+                stop_price = price * (1 + self.buy_stop_buffer_pct)
+                self.stop_market_order(symbol, quantity, stop_price)
+                self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(stop_price)}
+                self.log(f"BUY_STOP|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|stop={stop_price:.2f}|buffer={self.buy_stop_buffer_pct:.1%}")
+            else:
+                self.market_on_open_order(symbol, quantity)
+                self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price)}
+                self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
