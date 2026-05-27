@@ -393,6 +393,11 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             return
         date_str = self.time.strftime("%Y-%m-%d")
 
+        # E40a: Version marker for SPY 50-day MA regime gate
+        if not hasattr(self, '_version_marker_logged'):
+            self.log("VERSION_MARKER|regime_gate_v1_spy50")
+            self._version_marker_logged = True
+
         for symbol, holding in list(self.portfolio.items()):
             if not holding.invested or self._has_open_orders(symbol):
                 continue
@@ -447,11 +452,12 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         if slots <= 0:
             return
 
-        if self.spy_sma200.is_ready:
+        # E40a: Regime gate — block entries when SPY < 50-day MA
+        if self.spy_sma50.is_ready:
             spy_price = float(self.securities[self.spy].price)
-            spy_ma200 = float(self.spy_sma200.current.value)
-            if spy_price < spy_ma200:
-                self.log(f"REGIME_BLOCK|{date_str}|SPY={spy_price:.2f}|MA200={spy_ma200:.2f}")
+            spy_ma50 = float(self.spy_sma50.current.value)
+            if spy_price < spy_ma50:
+                self.log(f"REGIME_BLOCK|{date_str}|SPY={spy_price:.2f}|MA50={spy_ma50:.2f}")
                 return
 
         # When running locally with polygon universe, restrict candidates to today's snapshot
