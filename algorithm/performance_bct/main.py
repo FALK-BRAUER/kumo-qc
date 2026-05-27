@@ -191,7 +191,6 @@ class BCTUniverseFilter:
 
 class BCTPerformanceAlgorithm(QCAlgorithm):
 
-    MAX_POSITIONS: int = 10
     POSITION_PCT: float = 0.10
     MIN_SCORE: int = 7
     # Exit condition flags — False = reference bct‑perf‑2020‑2026 (daily Kijun only)
@@ -224,7 +223,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
     def initialize(self) -> None:
         self.set_time_zone("America/New_York")
-        self.log("VERSION_MARKER|cloud_inline_scanner_v17b")
+        self.log("VERSION_MARKER|remove_slot_gate_v18")
         sy = int(self.get_parameter("start_year",  "2025"))
         sm = int(self.get_parameter("start_month", "1"))
         sd = int(self.get_parameter("start_day",   "1"))
@@ -477,13 +476,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             for o in self.transactions.get_open_orders()
             if o.quantity < 0
         }
-        open_count = sum(
-            1 for sym, h in self.portfolio.items()
-            if h.invested and sym not in exiting
-        )
-        slots = self.MAX_POSITIONS - open_count
-        if slots <= 0:
-            return
+        open_count = sum(1 for sym, h in self.portfolio.items() if h.invested and sym not in exiting)
 
         # When running locally with polygon universe, restrict candidates to today's snapshot
         today_poly: set[str] | None = None
@@ -522,7 +515,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             candidates.append((symbol, result["score"]))
 
         candidates.sort(key=lambda x: x[1], reverse=True)
-        for symbol, score in candidates[:slots]:
+        for symbol, score in candidates:
             price = self.securities[symbol].price
             if price <= 0:
                 continue
@@ -534,4 +527,4 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price)}
             self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
 
-        self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
+        self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={len(candidates)}")
