@@ -1,0 +1,124 @@
+date_run,window,period_start,period_end,commit,branch,environment,sharpe,net_profit_pct,net_profit_usd,total_orders,win_rate_pct,max_drawdown_pct,total_fees_usd,notes
+2026-05-27,FY2025,2025-01-01,2025-12-31,7f2f9c2,main,cloud,-0.001,6.74,6740,318,39,13.5,,G3 CLOUD v9: S&P500 ETF universe. Universe too large (318 trades vs 232 local). BT 7bc659b6
+2026-05-27,FY2025,2025-01-01,2025-12-31,d81d93b,main,cloud,0.303,13.256,13256,38,50,24.9,,G3 CLOUD v10: DV-200 coarse filter with has_fundamental_data. Only 38 trades — filter too aggressive. BT 40fc0e7c
+2026-05-27,Q2-2025,2025-04-01,2025-06-30,feat/e32-dd-circuit-breaker,feat/e32-dd-circuit-breaker,local,-0.608,-1.73,-1730,0,0,0,98.40,E32 DD circuit breaker Q2-2025 — REJECTED (0 trips, circuit never fires). Individual Kijun stops exit positions within 1-5d before portfolio DD accumulates
+2026-05-27,Q2-2025,2025-04-01,2025-06-30,c077e95,feat/e32-dd-circuit-breaker,local,-0.608,-1.73,-1730,,,,98.40,E32 Q2 4% DD circuit breaker — REJECTED (0 circuit trips; BCT Kijun stops exit before portfolio DD reaches 4%)
+2026-05-27,FY2025,2025-01-01,2025-12-31,feat/e82-three-phase-stop,feat/e82-three-phase-stop,local,0.562,19.22,19220,202,0,0,0,E82 three-phase stop progression — UNVERIFIED (result source unknown/contradictory, NEEDS BT-capable worker verification. If valid: -0.474 Sharpe vs 1.036)
+2026-05-27,FY2025,2025-01-01,2025-12-31,feat/e78-active-return-gate,feat/e78-active-return-gate,local,1.036,30.08,30080,238,40,11.6,0,E22 active return gate (10d vs SPY > 0) — NEUTRAL (0 delta vs 1.036, no value-add beyond BCT checklist)
+2026-05-27,FY2025,2025-01-01,2025-12-31,feat/e18-time-based-exit,feat/e18-time-based-exit,local,1.079,33.33,33330,232,0,0,0,E18 time-based exit (90d + close < Tenkan) — NEUTRAL (+0.043 vs 1.036 baseline, time exit never fired or didn't help)
+2026-05-27,FY2025,2025-01-01,2025-12-31,feat/e32-three-phase-stop,feat/e32-three-phase-stop,local,-0.021,5.6,5600,578,0,15.7,0,E32 three-phase stop — CATASTROPHICALLY REJECTED (-1.057 Sharpe delta vs 1.036). Phase 1 Tenkan stop fires at days 1-3, same failure mode as E54
+2026-05-27,FY2025,2025-01-01,2025-12-31,feat/e32-dd-circuit-breaker,feat/e32-dd-circuit-breaker,local,1.079,33.33,33330,232,0,0,236.91,E32 4% trailing DD circuit breaker — NEUTRAL (0 delta vs 1.036, circuit never fired in FY2025)
+
+2026-05-27,FY2025,2025-01-01,2025-12-31,feat/e76-risk-sizing,feat/e76-risk-sizing,local,-0.361,-8.32,-8320,483,24,32.7,0,E76 combo 3: heat=6% risk=1.5% — CATASTROPHICALLY REJECTED (-1.397 Sharpe delta vs 1.036). SWEEP HALTED.
+2026-05-27,FY2025,2025-01-01,2025-12-31,feat/e76-risk-sizing,feat/e76-risk-sizing,local,-0.327,-6.69,-6690,538,30,30.7,0,E76 combo 2: heat=6% risk=1.0% — CATASTROPHICALLY REJECTED (-1.363 Sharpe delta vs 1.036)
+2026-05-27,FY2025,2025-01-01,2025-12-31,feat/e76-risk-sizing,feat/e76-risk-sizing,local,-0.291,-3.23,-3230,748,28,24.8,0,E76 combo 1: heat=6% risk=0.5% — CATASTROPHICALLY REJECTED (-1.327 Sharpe delta vs 1.036)
+2026-05-27,FY2025,2025-01-01,2025-12-31,feat/e49-iwm-breadth-canary,feat/e49-iwm-breadth-canary,local,0.933,22.42,22420,144,39,7.1,0,E49 IWM breadth canary (IWM < 50D SMA blocks entries) — REJECTED (-0.103 Sharpe vs 1.036)
+2026-05-27,FY2025,2025-01-01,2025-12-31,feat/e58-cloud-thickness-sizing,feat/e58-cloud-thickness-sizing,local,1.036,30.08,30080,238,40,11.6,0,E58 cloud thickness sizing — NEUTRAL (0 delta vs 1.036 baseline, initial 2.497 report was incorrect window)
+2026-05-27,FY2025,2025-01-01,2025-12-31,feat/e55-weekly-kijun-exit,feat/e55-weekly-kijun-exit,local,-0.289,-0.67,-670,70,20,26.6,0,E55 weekly kijun exit (26-week as stop) — CATASTROPHICALLY REJECTED (-1.325 Sharpe delta vs 1.036)
+2026-05-27,FY2025,2025-01-01,2025-12-31,feat/e54-tenkan-exit,feat/e54-tenkan-exit,local,0.0,-5.86,-5860,100,0,0,0,E54 tenkan-exit (first 28d) — CATASTROPHICALLY REJECTED (-1.0 Sharpe delta vs 1.036)
+
+2026-05-27,FY2025,2025-01-01,2025-12-31,feat/c2-resistance-proximity,feat/c2-resistance-proximity,local,1.036,30.08,30049,238,40,11.6,,C2 resistance proximity gate (2% of 52w high) — NEUTRAL (0 delta vs 1.036)
+2026-05-27,FY2025,2025-01-01,2025-12-31,feat/earnings-avoidance,feat/earnings-avoidance,local,0.908,26.67,26667,246,38,11.9,250,E53 earnings avoidance gate (5d) — REJECTED (-0.128 Sharpe vs 1.036)
+2026-05-27,Q1-2025,2025-01-01,2025-03-31,feat/earnings-avoidance,feat/earnings-avoidance,local,1.196,8.08,8075,78,41,6.7,81,E53 Q1
+2026-05-27,Q2-2025,2025-04-01,2025-06-30,feat/earnings-avoidance,feat/earnings-avoidance,local,-0.752,-2.49,-2490,104,30,9.0,104,E53 Q2
+2026-05-27,Q3-2025,2025-07-01,2025-09-30,feat/earnings-avoidance,feat/earnings-avoidance,local,3.832,15.80,15803,46,33,3.3,46,E53 Q3
+2026-05-27,Q4-2025,2025-10-01,2025-12-31,feat/earnings-avoidance,feat/earnings-avoidance,local,-2.211,-7.67,-7670,78,21,9.1,78,E53 Q4
+2026-05-27,FY2025,2025-01-01,2025-12-31,1c1d81a,feat/e49-chikou-span-gate,local,0.977,28.8,28800,224,42,11.9,,C3 chikou span gate ENABLED — REJECTED (-0.102 Sharpe vs 1.036 baseline)
+2026-05-27,FY2025,2025-01-01,2025-12-31,8048c29,main,local,1.036,30.05,30050,240,40,11,,P0 fix verified — new local baseline (post-#81 manual weekly aggregation)
+2026-05-14,FY2025,2025-01-01,2025-12-31,pre-gates,main,cloud,0.461,,,,,,gates-OFF baseline (cloud)
+2026-05-14,FY2025,2025-01-01,2025-12-31,56c3b07,main,cloud,0.733,,,,48,,gates-ON cloud baseline
+2026-05-24,W4,2026-04-28,2026-05-02,,main,local,16.118,,,,,,,exits-ON validation — W4
+2026-05-24,W5,2026-05-05,2026-05-09,,main,local,-2.922,,,,,,,exits-ON validation — W5
+2026-05-25,FY2025,2025-01-01,2025-12-31,44bebea,main,local,-0.852,+2.58%,,270,44,,,HEAD baseline — ATR fix + warmup + earnings + 607-ticker universe
+2026-05-25,FY2025,2025-01-01,2025-12-31,26de323,main,local,-0.855,,,,41,,,2gcusmho validation run — confirms baseline
+2026-05-26,FY2025,2025-01-01,2025-12-31,e4df2ee,feat/score-threshold-34,local,-0.800,+0.899%,,566,41,5.8,862.66,#34 — MIN_SCORE 7 + removed RESISTANCE_PROXIMITY/CHIKOU_WEEKLY/ADX_TOO_LOW/DI_NOT_POSITIVE
+2026-05-25,FY2025,2025-01-01,2025-12-31,,main,nautilus,0.555,+26.9%,,3640,,,,[NAUTILUS] minimal gates only (kijun_ext + cloud_exit) — 50-ticker subset; framework=NautilusTrader 1.227.0
+2026-05-25,FY2025,2025-01-01,2025-12-31,,main,nautilus,-1.213,-2.4%,,43,,,,,[NAUTILUS] full 8-gate stack — 50-ticker subset; weekly bar proxy + ADX approximation issues
+2026-05-26,FY2025,2025-01-01,2025-12-31,44bebea,main,cloud,,,,,,,,[CLOUD FAIL] node fbc72276 — Initialize() timeout 3/3. Node dead. QC support ticket required.
+2026-05-26,W1,2026-04-07,2026-04-11,44bebea,main,local,0,0,,0,0,0,0,exits-ON (cloud+weekly_kijun) — W1 no trades (SPY gate closed)
+2026-05-26,W2,2026-04-14,2026-04-18,44bebea,main,local,0,0,,0,0,0,0,exits-ON (cloud+weekly_kijun) — W2 no trades (SPY gate closed)
+2026-05-26,W3,2026-04-22,2026-04-25,44bebea,main,local,0,0,,0,0,0,0,exits-ON (cloud+weekly_kijun) — W3 no trades (SPY gate closed)
+2026-05-26,W6,2026-05-12,2026-05-16,44bebea,main,local,0,0,,0,0,0,0,exits-ON (cloud+weekly_kijun) — W6 no trades (SPY gate closed; score=8 signals blocked)
+2026-05-26,FY2025,2025-01-01,2025-12-31,a66fcb7,main,nautilus,-1.06,-2.29%,,39,20.5%,,,[NAUTILUS] #30 parity — weekly bars + Wilder ADX + rotation; 7x trade gap vs QC local (Yahoo Finance data calibration issue)
+2026-05-26,FY2025,2025-01-01,2025-12-31,d10dbd4,feat/g3-phase3-cloud-stop,local,1.079,+33.3%,25888.66,232,41,11,,Phase 3 cloud-bottom stop — FIRST POSITIVE EXPERIMENT (+0.261 Sharpe delta)
+2026-05-26,FY2025,2025-01-01,2025-12-31,1206139251,feat/qc2-hy-credit-overlay,local,0.763,+21.8%,21842,268,38,9.4,,QC-2 HY credit overlay — REJECTED (vs 1.079 baseline)
+2026-05-26,FY2025,2025-01-01,2025-12-31,feat/qc1-inverse-vol-sizing,local,0.708,+21.06%,21060,264,39,,,QC-1 inverse vol sizing — REJECTED (vs 1.079 baseline)
+2026-05-26,FY2025,2025-01-01,2025-12-31,feat/h7-kijun-priority,local,-0.336,-0.536%,-536,378,28,15.9,,H7 Kijun priority — CATASTROPHICALLY REJECTED (vs 1.079 baseline)
+2026-05-26,FY2025,2025-01-01,2025-12-31,feat/c1-doji-timing,local,0.751,+22.8%,22800,266,39,10.8,,C1 doji pullback timing — REJECTED (vs 1.079 baseline)
+2026-05-26,FY2025,2025-01-01,2025-12-31,feat/g3-v2-lower-threshold,local,0.738,+24.5%,24500,206,40,17.2,,G3-v2 lower threshold — REJECTED (vs 1.079 baseline)
+2026-05-26,FY2025,2025-01-01,2025-12-31,feat/h5-relative-strength,local,0.682,+19.35%,19350,376,39,23.0,,H5 relative strength ranking — CATASTROPHICALLY REJECTED (vs 1.079 baseline)
+2026-05-26,FY2025,2025-01-01,2025-12-31,feat/g3-v3-phase2-extension,local,0.516,+18.1%,18100,188,37,16.9,,G3-v3 Phase 2 extension — REJECTED (vs 1.079 baseline)
+2026-05-26,FY2025,2025-01-01,2025-12-31,feat/e8-adx-hard-gate,local,1.026,+23.7%,23700,202,40,14.1,,E8 ADX hard gate — results vs 1.079 baseline
+2026-05-26,FY2025,2025-01-01,2025-12-31,2b5b4ef,main,local,1.079,+33.3%,,232,41,11,,G3 restored + packaging fix confirmed (HEAD after revert)
+2026-05-26,FY2026YTD,2026-01-01,2026-04-30,2b5b4ef,main,local,1.536,+17.0%,,108,33,,,FY2026 YTD — higher Sharpe than FY2025
+2026-05-26,W1,2026-04-07,2026-04-11,2b5b4ef,main,local,0,+2.9%,,12,0,,,Weekly window — trades still open at close
+2026-05-26,W2,2026-04-14,2026-04-18,2b5b4ef,main,local,0,+4.0%,,10,0,,,Weekly window — trades still open at close
+2026-05-26,W3,2026-04-22,2026-04-25,2b5b4ef,main,local,0,+0.8%,,10,0,,,Weekly window — trades still open at close
+2026-05-26,W4,2026-04-28,2026-05-02,2b5b4ef,main,local,0,+5.5%,,10,0,,,Weekly window — trades still open at close
+2026-05-26,W5,2026-05-05,2026-05-09,2b5b4ef,main,local,0,+1.0%,,10,0,,,Weekly window — trades still open at close
+2026-05-26,W6,2026-05-12,2026-05-16,2b5b4ef,main,local,0,+1.5%,,10,0,,,Weekly window — trades still open at close
+2026-05-26,Q3-2025,2025-07-01,2025-09-30,2b5b4ef,main,local,4.427,+18.48%,,42,44,3.2,,Q3-2025 quarterly window — high Sharpe, low DD, quiet entry period
+2026-05-26,Q1-2025,2025-01-01,2025-03-31,2b5b4ef,main,local,1.494,+11.3%,,74,50,8.5,,Q1-2025 quarterly window — strong trending market
+2026-05-26,Q2-2025,2025-04-01,2025-06-30,2b5b4ef,main,local,-0.608,-1.7%,,98,25,8.3,,Q2-2025 quarterly window — choppy/bear tape
+2026-05-26,Q4-2025,2025-10-01,2025-12-31,2b5b4ef,main,local,-1.765,-6.2%,,74,22,7.8,,Q4-2025 quarterly window — bear tape
+2026-05-26,Cross-H2H1,2025-10-01,2026-03-31,2b5b4ef,main,local,-0.389,-1.9%,,136,32,11.6,,Cross window H2-25/H1-26 — weak transition period
+2026-05-26,Q2-2025,2025-04-01,2025-06-30,2b5b4ef,main,local,-0.75,-2.5%,,102,33,9.0,,Q2-2025 quarterly window — April tariff crash caused heavy stop-outs
+2026-05-26,FY2026-YTD,2026-01-01,2026-04-30,2b5b4ef,main,local,1.559,+17.27%,,110,32,12.0,,FY2026 YTD — strong performance, consistent with c1wkel9n 1.536 result
+2026-05-26,Cross-H2H1-rkt7stqk,2025-10-01,2026-03-31,2b5b4ef,main,local,-0.845,-7.04%,,152,27,10.5,,Cross window H2-25/H1-26 — rkt7stqk run (different from c1wkel9n -0.389, possible config diff)
+2026-05-26,FY2025-E16,2025-01-01,2025-12-31,feat/e16-kijun-atr-trail,local,0.633,+20.33%,,264,37,11.6,,E16 Kijun-1ATR Phase 3 stop — REJECTED (-0.446 Sharpe delta vs G3). Kijun-ATR always tighter than cloud_bottom, over-tightens winners
+2026-05-26,FY2025-E17,2025-01-01,2025-12-31,feat/e17-vol-adjusted-cloud,local,1.031,+29.93%,,236,,11.6,,E17 vol-adjusted cloud bottom Phase 3 stop — REJECTED (-0.048 Sharpe delta vs G3). Widening stop below cloud_bottom = net negative
+2026-05-26,ETF-FY2025,2025-01-01,2025-12-31,etf_bct,main,local,0.448,+14.6%,,228,45,9.8,,ETF-only BCT backtest — BCT works better on individual equities than ETFs
+2026-05-26,ETF-FY2026YTD,2026-01-01,2026-04-30,etf_bct,main,local,0.148,+2.98%,,70,13,9.1,,ETF-only BCT — very weak in tariff shock period (13% WR)
+2026-05-26,ETF-Q1,2025-01-01,2025-03-31,etf_bct,main,local,-1.331,-2.3%,,82,36,6.5,,ETF-only Q1-2025 — negative quarter
+2026-05-26,ETF-Q2,2025-04-01,2025-06-30,etf_bct,main,local,0.434,+3.1%,,38,29,4.5,,ETF-only Q2-2025 — weak positive
+2026-05-26,ETF-Q3,2025-07-01,2025-09-30,etf_bct,main,local,2.591,+8.4%,,56,30,2.9,,ETF-only Q3-2025 — best ETF quarter
+2026-05-26,ETF-Q4,2025-10-01,2025-12-31,etf_bct,main,local,0.047,+1.8%,,96,30,7.4,,ETF-only Q4-2025 — near flat
+2026-05-26,ETF-Cross,2025-10-01,2026-03-31,etf_bct,main,local,-0.098,+2.1%,,151,35,10.7,,ETF-only Cross H2-25/H1-26 — slightly negative
+2026-05-26,Mixed-FY2025,2025-01-01,2025-12-31,feat/mixed-universe,local,0.694,+22.55%,,234,38,12.5,,Mixed universe equity-200+ETFs — REJECTED vs G3 (-0.385 Sharpe). ETFs only 7% of entries but add drag
+2026-05-26,Mixed-Q1,2025-01-01,2025-03-31,feat/mixed-universe,local,1.232,+8.25%,,76,39,6.8,,Mixed universe Q1
+2026-05-26,Mixed-Q2,2025-04-01,2025-06-30,feat/mixed-universe,local,-0.892,-3.58%,,100,29,9.2,,Mixed universe Q2
+2026-05-26,Mixed-Q3,2025-07-01,2025-09-30,feat/mixed-universe,local,3.673,+16.53%,,50,35,3.9,,Mixed universe Q3
+2026-05-26,Mixed-Q4,2025-10-01,2025-12-31,feat/mixed-universe,local,-1.613,-6.10%,,76,18,7.3,,Mixed universe Q4
+2026-05-26,Mixed-Cross,2025-10-01,2026-03-31,feat/mixed-universe,local,-1.924,-12.06%,,139,21,12.7,,Mixed universe Cross
+2026-05-26,Mixed-FY2026YTD,2026-01-01,2026-04-30,feat/mixed-universe,local,-0.275,+1.23%,,84,19,9.0,,Mixed universe FY2026YTD — pure ETF window (no equity data)
+2026-05-26,LevETF-FY2025,2025-01-01,2025-12-31,lev_etf_bct,local,-0.857,-4.98%,,75,28,7.3,,Leveraged ETF universe FY2025 — REJECTED decisively
+2026-05-26,LevETF-Q1,2025-01-01,2025-03-31,lev_etf_bct,local,-2.312,-5.13%,,30,13,5.5,,Leveraged ETF Q1
+2026-05-26,LevETF-Q2,2025-04-01,2025-06-30,lev_etf_bct,local,-4.229,+0.59%,,4,0,0.0,,Leveraged ETF Q2 — only 4 trades
+2026-05-26,LevETF-Q3,2025-07-01,2025-09-30,lev_etf_bct,local,1.027,+5.04%,,26,36,4.5,,Leveraged ETF Q3 — only positive window
+2026-05-26,LevETF-Q4,2025-10-01,2025-12-31,lev_etf_bct,local,-1.313,-5.53%,,23,0,7.1,,Leveraged ETF Q4 — 0% WR
+2026-05-26,LevETF-Cross,2025-10-01,2026-03-31,lev_etf_bct,local,-1.269,-6.17%,,28,0,8.1,,Leveraged ETF Cross — 0% WR
+2026-05-26,LevETF-FY2026YTD,2026-01-01,2026-04-30,lev_etf_bct,local,2.098,+10.72%,,5,0,3.3,,Leveraged ETF FY2026YTD — all 5 positions open
+2026-05-26,TheOmniscient-FY2022,2022-01-01,2022-12-31,the_omniscient_paradox,local,-0.829,-7.271%,,19,56,14.3,,TheOmniscientParadox OOS — caught in SOXL Q1 2022 crash, negative OOS
+2026-05-26,TheOmniscient-FY2025,2025-01-01,2025-12-31,the_omniscient_paradox,local,0.033,-3.941%,,96,65,51.5,,TheOmniscientParadox OOS — 51.5% DD despite 65% WR, REJECTED
+2026-05-27,FY2025,2025-01-01,2025-12-31,2b5b4ef,feat/sp500-universe,local,0.652,19.677%,19677.0,260,40%,8.8%,265.56,S&P500-universe (500 tickers) G3-code BCT
+2026-05-27,Q1-2025,2025-01-01,2025-03-31,2b5b4ef,feat/sp500-universe,local,1.213,7.575%,7575.0,78,41%,6.0%,80.69,S&P500-universe (500 tickers) G3-code BCT
+2026-05-27,Q2-2025,2025-04-01,2025-06-30,2b5b4ef,feat/sp500-universe,local,-0.489,-1.189%,-1189.0,106,33%,8.3%,106.21,S&P500-universe (500 tickers) G3-code BCT
+2026-05-27,Q3-2025,2025-07-01,2025-09-30,2b5b4ef,feat/sp500-universe,local,3.426,15.297%,15297.0,50,30%,3.1%,50.2,S&P500-universe (500 tickers) G3-code BCT
+2026-05-27,Q4-2025,2025-10-01,2025-12-31,2b5b4ef,feat/sp500-universe,local,-0.672,-0.515%,-515.0,68,28%,3.6%,68.49,S&P500-universe (500 tickers) G3-code BCT
+2026-05-27,FY2026-YTD,2026-01-01,2026-04-30,2b5b4ef,feat/sp500-universe,local,-0.148,0.958%,958.0,64,19%,9.4%,68.89,S&P500-universe (500 tickers) G3-code BCT
+2026-05-27,W1,2025-01-01,2025-06-30,aa29954,feat/e26-inverse-vol-sizing,local,-0.429,-6.812%,-6812.0,827,21%,26.8%,278.78,E26 inverse-vol+risk-sizing: 827 orders = extreme churn in volatile H1
+2026-05-27,W2,2025-02-01,2025-07-31,aa29954,feat/e26-inverse-vol-sizing,local,-1.067,-15.906%,-15906.0,714,24%,25.2%,265.88,E26 inverse-vol+risk-sizing: 714 orders churn
+2026-05-27,W3,2025-03-01,2025-08-31,aa29954,feat/e26-inverse-vol-sizing,local,-0.670,-8.532%,-8532.0,939,21%,16.3%,254.14,E26 inverse-vol+risk-sizing: 939 orders — worst churn window
+2026-05-27,W4,2025-04-01,2025-09-30,aa29954,feat/e26-inverse-vol-sizing,local,,,,,,,,,E26 CRASH — no STATISTICS output (LEAN error during Apr crash period)
+2026-05-27,W5,2025-05-01,2025-10-31,aa29954,feat/e26-inverse-vol-sizing,local,2.612,27.302%,27302.0,90,38%,6.1%,90.70,E26 inverse-vol+risk-sizing: excellent in recovery period
+2026-05-27,W6,2025-06-01,2025-11-30,aa29954,feat/e26-inverse-vol-sizing,local,2.497,25.213%,25213.0,86,32%,6.3%,86.58,E26 inverse-vol+risk-sizing: excellent in recovery period
+2026-05-27,FY2025,2025-01-01,2025-12-31,aa29954,feat/e26-inverse-vol-sizing,local,1.036,30.049%,30049.0,238,40%,11.6%,242.47,E26 REJECTED: 1.036 < champion 1.079; bimodal H1 churn kills H1 windows
+
+2026-05-27,FY2025,2025-01-01,2025-12-31,8048c29,feat/earnings-avoidance,local,0.908,26.667%,26667.0,246,38%,11.9%,250.24,"#53 earnings-avoidance 5d gate, G3 code. vs 8048c29 baseline 1.036 Sharpe / +30.05%"
+2026-05-27,Q1-2025,2025-01-01,2025-03-31,8048c29,feat/earnings-avoidance,local,1.196,8.075%,8075.0,78,41%,6.7%,80.73,"#53 earnings-avoidance 5d gate, G3 code. vs 8048c29 baseline 1.036 Sharpe / +30.05%"
+2026-05-27,Q2-2025,2025-04-01,2025-06-30,8048c29,feat/earnings-avoidance,local,-0.752,-2.490%,-2490.0,104,30%,9.0%,104.42,"#53 earnings-avoidance 5d gate, G3 code. vs 8048c29 baseline 1.036 Sharpe / +30.05%"
+2026-05-27,Q3-2025,2025-07-01,2025-09-30,8048c29,feat/earnings-avoidance,local,3.832,15.803%,15803.0,46,33%,3.3%,46.22,"#53 earnings-avoidance 5d gate, G3 code. vs 8048c29 baseline 1.036 Sharpe / +30.05%"
+2026-05-27,Q4-2025,2025-10-01,2025-12-31,8048c29,feat/earnings-avoidance,local,-2.211,-7.670%,-7670.0,78,21%,9.1%,78.0,"#53 earnings-avoidance 5d gate, G3 code. vs 8048c29 baseline 1.036 Sharpe / +30.05%"
+2026-05-27,FY2026-YTD,2026-01-01,2026-04-30,8048c29,feat/earnings-avoidance,local,0.0,0.000%,0.0,0,0%,0.0%,0.0,"#53 earnings-avoidance 5d gate, G3 code. vs 8048c29 baseline 1.036 Sharpe / +30.05% [0 entries: polygon universe ends 2025-12-31]"
+2026-05-27,feat/resistance-proximity,FY2025,1.036,30.08,238,40,11.6,30049,C2 - 2% resistance gate,NEUTRAL,1.036
+2026-05-27,FY2025,2025-01-01,2025-12-31,970c626,feat/e32-three-phase-clean,local,-0.021,5.591%,5591.0,578,40%,15.7%,589.55,E32 three-phase stop (P1: Tenkan/cloud exit 0-28d; P2: Kijun 28-56d; P3: cloud_bottom 56d+15%) — CATASTROPHICALLY REJECTED (-1.057 Sharpe delta vs 1.036; 578 orders = 2.4x churn)
+2026-05-27,FY2025,2025-01-01,2025-12-31,d0ddd38,feat/e55-weekly-kijun-exit-v2,local,-0.289,-0.670%,-670.0,70,20%,26.6%,0,"#55 REJECTED: weekly Kijun (26w) as primary stop — far too loose, positions bleed for months"
+2026-05-27,FY2025,2025-01-01,2025-12-31,d0ddd38,feat/e49-iwm-breadth-canary,local,0.933,22.415%,22415.0,144,39%,7.1%,0,"#49 REJECTED: IWM < 50D SMA blocks entries during ~40% of days, blocks recovery-phase entries"
+2026-05-27,FY2025,2025-01-01,2025-12-31,6dfcd5c,feat/e18-time-based-exit,local,1.079,33.330%,33330.0,232,41%,11.0%,0,"E18 NEUTRAL: time-based exit (90d+ profit, close < Tenkan) — never fired or no impact vs G3 baseline"
+2026-05-27,FY2025,2025-01-01,2025-12-31,cb0c9aa,feat/e82-three-phase-stop,local,0.562,19.219%,19219.0,202,36%,15.1%,0,"#82 REJECTED: 3-phase graduated stop (P1 kijun, P2 cloud_top 28d, P3 cloud_bottom 56d) — Phase 2 prematurely exits winners"
+2026-05-27,FY2025,2025-01-01,2025-12-31,5776bcc,feat/e33-sue-boost,local,1.079,33.326,33326,232,41,11.0,236.91,E33 SUE Boost — NEUTRAL (implementation correct, zero EPS data in local mode prevents SUE calculation)
+2026-05-27,FY2025,2025-01-01,2025-12-31,8048c29,main,cloud,-0.771,0.459%,459.0,240,29%,6.9%,251.93,G3 CLOUD FIRST RUN: -0.771 Sharpe — universe mismatch (QC CoarseFundamental 9999 names vs Polygon equity-200 local). Cloud now unblocked. backtest_bct project 32033824. BT 70d0edb6
+2026-05-27T07:40:23,E34,FY2025-baseline,1.079,33.326,33326,232,41,11.0,baseline no heat_per_slot (flat 10%)
+2026-05-27T07:40:23,E34,FY2025-heat0.01,0.525,22.439,22439,388,32,30.3,heat_per_slot=0.01 MAX_POSITIONS=10 REJECTED
+2026-05-27,FY2025,2025-01-01,2025-12-31,8048c29,main,cloud,-0.53,2.918%,2918.0,218,28%,,,G3 cloud raw+coarse_max=200: -0.53 Sharpe (vs -0.771 adjusted). Still far from local 1.079. Root cause: QC top-200 != Polygon equity-200 (S&P500 composition) + data provider diff
+2026-05-27,FY2025,2025-01-01,2025-12-31,8048c29,main,cloud,-0.001,6.742%,6742.0,318,39%,,,G3 CLOUD FIXED: S&P500 ETF universe + polygon-gate fix. -0.001 Sharpe / +6.7% / 39% WR. Root cause was _find_local_data_dir() finding QC /Lean/Data/ and triggering ETF fallback. Fix: gate on polygon JSON existence. BT 2c183cb0
