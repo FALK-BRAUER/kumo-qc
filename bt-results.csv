@@ -106,3 +106,4 @@
 2026-05-28,W4-Q4-2025,2025-10-01,2025-12-31,cloud-e40d,E45-constant-R-resizing-W4,local,0.137,0,0,0,0,0,0,E45 W4 — POSITIVE +1.743 delta vs E40d -1.606. Resizing turns loser into near-flat.
 2026-05-28,W5-Feb-May-2025,2025-02-01,2025-05-31,cloud-e40d,E45-constant-R-resizing-W5,local,-1.062,0,0,0,0,0,0,E45 W5 — REJECTED. -1.062 Sharpe vs E40d -0.342 (delta -0.720). Crash window amplified.
 2026-05-28,W6-H1-2025,2025-01-01,2025-06-30,cloud-e40d,E45-constant-R-resizing-W6,local,0.548,0,0,0,0,0,0,E45 W6 — REJECTED. 0.548 Sharpe vs E40d 0.960 (delta -0.412). Mixed window — resizing amplifies bad periods.
+2026-05-28,FY2025,2025-01-01,2025-12-31,cloud-e40d,E45-v2-VIX-gated-adds-FY2025-prelim,local,1.811,79.200,79200,598,43,17.0,598.00,E45-v2 VIX<20 gated adds FY2025 PRELIMINARY — STRONG CANDIDATE. 1.811 Sharpe vs E40d 1.442 (+0.369 delta). 352 adds fired, 100 blocked by VIX>=20. DD 17.0% vs E45 20.4% (VIX gate working). W1-W6 running to confirm window criterion.
