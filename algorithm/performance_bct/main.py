@@ -136,7 +136,7 @@ def score_symbol(algorithm: Any, symbol: Any) -> dict[str, Any] | None:
         bool(w_cloud_a_now > w_cloud_b_now),                                       # 4. weekly cloud green
         bool(d_price > max(d_cloud_a_now, d_cloud_b_now)),                        # 5. daily above cloud top
         bool(d_price > d_tenkan_now),                                              # 6. daily above tenkan
-        bool(adx_rising and plus_di_now > minus_di_now and adx_now >= 20),        # 7. ADX
+        bool((adx_rising or adx_now > 50) and plus_di_now > minus_di_now and adx_now >= 20),  # 7. ADX (plateau ok if >50)
         bool(d_price > ma200),                                                     # 8. 200MA
     ]
     score = sum(conditions)
@@ -145,7 +145,7 @@ def score_symbol(algorithm: Any, symbol: Any) -> dict[str, Any] | None:
     elif score >= 4: rating = "+"
     elif score >= 2: rating = "="
     else:            rating = "--"
-    return {"score": score, "rating": rating, "conditions": conditions}
+    return {"score": score, "rating": rating, "conditions": conditions, "adx_now": float(adx_now)}
 
 
 def score_symbol_native(algorithm: Any, symbol: Any, ind: Any) -> dict[str, Any] | None:
@@ -216,6 +216,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         return None
 
     def initialize(self) -> None:
+        self.log("VERSION_MARKER|e41_adx_plateau_v1")
         self.set_time_zone("America/New_York")
         sy = int(self.get_parameter("start_year",  "2025"))
         sm = int(self.get_parameter("start_month", "1"))
@@ -474,10 +475,10 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             result = score_symbol_native(self, symbol, ind)
             if result is None or result["score"] < self.MIN_SCORE:
                 continue
-            candidates.append((symbol, result["score"]))
+            candidates.append((symbol, result["score"], result.get("adx_now", 0.0)))
 
-        candidates.sort(key=lambda x: x[1], reverse=True)
-        for symbol, score in candidates[:slots]:
+        candidates.sort(key=lambda x: (x[1], x[2]), reverse=True)
+        for symbol, score, _adx in candidates[:slots]:
             price = self.securities[symbol].price
             if price <= 0:
                 continue
