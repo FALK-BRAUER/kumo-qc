@@ -27,11 +27,6 @@ from pathlib import Path
 
 from AlgorithmImports import *  # noqa: F401,F403
 
-try:
-    from universe import EQUITY_200  # Cloud static universe (uploaded with main.py)
-except ImportError:
-    EQUITY_200 = []  # Fallback if universe.py not available
-
 from typing import Any
 
 import numpy as np
@@ -226,7 +221,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
     def initialize(self) -> None:
         self.set_time_zone("America/New_York")
-        self.log("VERSION_MARKER|cloud_static200_v15")
+        self.log("VERSION_MARKER|cloud_etf_filtered_v18")
         sy = int(self.get_parameter("start_year",  "2025"))
         sm = int(self.get_parameter("start_month", "1"))
         sd = int(self.get_parameter("start_day",   "1"))
@@ -269,22 +264,16 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                         pass
             # (dead code — outer check ensures poly is not None here)
         else:
-            # Cloud: static universe from universe.py (uploaded alongside main.py)
-            if EQUITY_200:
-                self.log(f"CLOUD_UNIVERSE|static_py|tickers={len(EQUITY_200)}")
-                for ticker in EQUITY_200:
-                    try:
-                        self.add_equity(ticker, Resolution.DAILY)
-                    except Exception:
-                        pass
-            else:
-                # Fallback: CoarseFundamental top-200 (v12 approach)
-                self.log("CLOUD_UNIVERSE|universe_py_missing|fallback_to_coarse")
-                dv_max = int(self.get_parameter("coarse_max", "200"))
-                def _cloud_coarse(coarse):
-                    sorted_coarse = sorted(coarse, key=lambda c: c.dollar_volume, reverse=True)
-                    return [c.symbol for c in sorted_coarse[:dv_max]]
-                self.add_universe(_cloud_coarse)
+            # Cloud: has_fundamental_data filter excludes ETFs; top-N by dollar volume.
+            dv_max = int(self.get_parameter("coarse_max", "500"))
+
+            def _cloud_coarse(coarse):
+                filtered = [c for c in coarse if c.has_fundamental_data]
+                filtered.sort(key=lambda c: c.dollar_volume, reverse=True)
+                return [c.symbol for c in filtered[:dv_max]]
+
+            self.add_universe(_cloud_coarse)
+            self.log(f"CLOUD_UNIVERSE|etf_filtered_v18|coarse_max={dv_max}")
 
         self.schedule.on(
             self.date_rules.every_day(),
