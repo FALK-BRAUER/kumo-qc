@@ -171,12 +171,13 @@ def score_symbol(algorithm: Any, symbol: Any) -> dict[str, Any] | None:
         bool(d_price > ma200),                                                     # 8. 200MA
     ]
     score = sum(conditions)
+    weekly_score = sum(conditions[:4])  # E46: weekly sub-score (conditions 1-4)
     if score == 8:   rating = "+++"
     elif score >= 6: rating = "++"
     elif score >= 4: rating = "+"
     elif score >= 2: rating = "="
     else:            rating = "--"
-    return {"score": score, "rating": rating, "conditions": conditions}
+    return {"score": score, "rating": rating, "conditions": conditions, "weekly_score": weekly_score}
 
 
 def score_symbol_native(algorithm: Any, symbol: Any, ind: Any) -> dict[str, Any] | None:
@@ -466,6 +467,8 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         if self.is_warming_up:
             return
         date_str = self.time.strftime("%Y-%m-%d")
+        self.weekly_bct_enabled = self.get_parameter("weekly_bct", "false") == "true"
+        self.weekly_min_score = int(self.get_parameter("weekly_min_score", "6"))
 
         for symbol, holding in list(self.portfolio.items()):
             if not holding.invested or self._has_open_orders(symbol):
@@ -584,7 +587,16 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             result = score_symbol_native(self, symbol, ind)
             if result is None or result["score"] < self.MIN_SCORE:
                 continue
-            candidates.append((symbol, result["score"]))
+            
+            # E46: Weekly BCT pre-filter
+            if self.weekly_bct_enabled:
+                weekly_score = result.get("weekly_score", 0)
+                if weekly_score < self.weekly_min_score:
+                    self.log(f"WEEKLY_SKIP|{date_str}|{symbol.value}|weekly_score={weekly_score}|threshold={self.weekly_min_score}")
+                    continue
+                candidates.append((symbol, result["score"], weekly_score))
+            else:
+                candidates.append((symbol, result["score"], 0))
 
         candidates.sort(key=lambda x: x[1], reverse=True)
         
@@ -592,7 +604,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.earnings_avoid_enabled = self.get_parameter("earnings_avoid", "false") == "true"
         earnings_window = int(self.get_parameter("earnings_window", "2"))
         
-        for symbol, score in candidates[:slots]:
+        for symbol, score, _ in candidates[:slots]:
             # E53: Skip if earnings within ±N days
             skip_entry = False
             if self.earnings_avoid_enabled:
