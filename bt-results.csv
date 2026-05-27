@@ -190,3 +190,11 @@ date_run,window,period_start,period_end,commit,branch,environment,sharpe,net_pro
 2026-05-28,W5-FebMay,2025-02-01,2025-05-31,0252721,feat/e42-heat-cap,local,-0.785,-9.116,-9116,306,24,28.1,,E42 v1 W5. G3 -1.166. Delta +0.381.
 2026-05-28,W6-H1,2025-01-01,2025-06-30,0252721,feat/e42-heat-cap,local,-0.168,-0.557,-557,433,25,21.8,,E42 v1 W6. G3 0.186. Delta -0.354.
 2026-05-28,W7-YTD-2026,2026-01-01,2026-04-30,0252721,feat/e42-heat-cap,local,2.130,26.713,26713,266,38,11.7,,E42 v1 W7. G3 2.418. Delta -0.288. STX 5 entries in FY2025.
+2026-05-28,FY2025,2025-01-01,2025-12-31,c1aee89,feat/e42-heat-cap,local,-0.375,-3.640,-3640,465,23,20.9,,E42v2 risk-based sizing — REJECTED. Sharpe -0.375 vs G3 1.036 (delta -1.411). Avg pos 11.9% NLV, avg 5.4 open, max 9 open. STX 0 entries FY2025 (blocked by 1.03x tolerance Jun-10). Low WR 23% structural flaw.
+2026-05-28,W1-Q1-2025,2025-01-01,2025-03-31,c1aee89,feat/e42-heat-cap,local,0.248,2.842,2842,111,27,9.8,,E42v2 W1. G3 1.494. Delta -1.246.
+2026-05-28,W2-Q2-2025,2025-04-01,2025-06-30,c1aee89,feat/e42-heat-cap,local,-1.418,-9.255,-9255,133,17,13.2,,E42v2 W2. G3 -0.608. Delta -0.810.
+2026-05-28,W3-Q3-2025,2025-07-01,2025-09-30,c1aee89,feat/e42-heat-cap,local,-0.075,1.376,1376,158,27,3.5,,E42v2 W3. G3 4.427. Delta -4.502.
+2026-05-28,W4-Q4-2025,2025-10-01,2025-12-31,c1aee89,feat/e42-heat-cap,local,0.575,3.971,3971,113,22,4.6,,E42v2 W4. G3 -1.765. Delta +2.340.
+2026-05-28,W5-FebMay-2025,2025-02-01,2025-05-31,c1aee89,feat/e42-heat-cap,local,-0.335,-0.739,-739,137,28,10.1,,E42v2 W5. G3 -1.171. Delta +0.836.
+2026-05-28,W6-H1-2025,2025-01-01,2025-06-30,c1aee89,feat/e42-heat-cap,local,-0.647,-6.347,-6347,249,24,18.9,,E42v2 W6. G3 0.186. Delta -0.833.
+2026-05-28,W7-YTD-2026,2026-01-01,2026-04-30,c1aee89,feat/e42-heat-cap,local,-0.221,-0.667,-667,168,19,15.9,,E42v2 W7. G3 2.418. Delta -2.639. STX 1 entry 2026-03-18@406.06 stopped 2026-03-26@378.79.
