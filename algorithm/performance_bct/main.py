@@ -168,6 +168,10 @@ class BCTUniverseFilter:
     MIN_DOLLAR_VOLUME: float = 5_000_000
     COARSE_MAX: int = 9999
 
+    def __init__(self, algorithm=None) -> None:
+        if algorithm is not None:
+            self.COARSE_MAX = int(algorithm.get_parameter("coarse_max", "9999"))
+
     def coarse_selection(self, coarse: List[CoarseFundamental]) -> List[Symbol]:
         candidates = [
             c for c in coarse
@@ -217,6 +221,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
     def initialize(self) -> None:
         self.set_time_zone("America/New_York")
+        self.log("VERSION_MARKER|sp500_etf_polygon_gate_v8")
         sy = int(self.get_parameter("start_year",  "2025"))
         sm = int(self.get_parameter("start_month", "1"))
         sd = int(self.get_parameter("start_day",   "1"))
@@ -237,15 +242,16 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
 
         self.universe_settings.resolution = Resolution.DAILY
+        self.universe_settings.data_normalization_mode = DataNormalizationMode.RAW
         self._active: set = set()
         self._indicators: dict = {}
         self._polygon_universe: dict | None = None
         self._position_meta: dict = {}  # symbol → {entry_date, entry_price}
 
-        if self._find_local_data_dir() is not None:
+        poly = self._load_polygon_universe()
+        if poly is not None:
             # Local: static universe from Polygon daily snapshot (867 unique tickers, FY2025)
-            poly = self._load_polygon_universe()
-            if poly is not None:
+            if True:  # scope block
                 self._polygon_universe = poly
                 all_tickers: set[str] = set()
                 for tickers in poly.values():
@@ -256,22 +262,12 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                         self.add_equity(ticker, Resolution.DAILY)
                     except Exception:
                         pass
-            else:
-                # Fallback: ETFs only (no polygon JSON found)
-                self.log("LOCAL_UNIVERSE|fallback_etf_only|polygon_json_not_found")
-                etfs = ["QQQ", "SMH", "XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLB", "XLU", "XLRE", "XLC", "SPY"]
-                for etf in etfs:
-                    self.add_equity(etf, Resolution.DAILY)
+            # (dead code — outer check ensures poly is not None here)
         else:
-            # Cloud: dynamic universe via Morningstar CoarseFundamental + ETFs
-            etfs = ["QQQ", "SMH", "XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLB", "XLU", "XLRE", "XLC"]
-            for etf in etfs:
-                self.add_equity(etf, Resolution.DAILY)
-            self._filter = BCTUniverseFilter()
-            self.add_universe(
-                self._filter.coarse_selection,
-                self._filter.fine_selection,
-            )
+            # Cloud: S&P 500 constituents via SPY ETF universe (individual stocks only)
+            # Matches BCT methodology — George's system designed for large-cap S&P 500 equities
+            spy = Symbol.create("SPY", SecurityType.EQUITY, Market.USA)
+            self.add_universe(self.universe.etf(spy, self.universe_settings))
 
         self.schedule.on(
             self.date_rules.every_day(),
