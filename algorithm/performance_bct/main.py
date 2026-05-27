@@ -29,6 +29,36 @@ from AlgorithmImports import *  # noqa: F401,F403
 
 from typing import Any
 
+# Cloud fix: embed polygon-326 universe directly to avoid CoarseFundamental fallback
+# Previous cloud BTs failed because polygon_universe JSON file was not accessible in QC cloud
+# All 326 tickers added as equity subscriptions; BCT scoring filters to ~5-10 signals
+POLYGON_UNIVERSE_TICKERS = ['AAL', 'AAPL', 'ABBV', 'ABNB', 'ABT', 'ACN', 'ADBE', 'ADI', 'ADP',
+    'ADSK', 'AEP', 'AIG', 'AJG', 'ALB', 'ALL', 'AMAT', 'AMCR', 'AMD', 'AMGN', 'AMT', 'AMZN', 'ANET',
+    'ANF', 'AON', 'APD', 'APH', 'APO', 'APP', 'ARES', 'AVAV', 'AVGO', 'AXON', 'AXP', 'AZO', 'BA',
+    'BAC', 'BDX', 'BK', 'BKNG', 'BKR', 'BLK', 'BMY', 'BRO', 'BSX', 'BX', 'C', 'CAH', 'CARR', 'CAT',
+    'CAVA', 'CB', 'CCI', 'CCL', 'CDNS', 'CEG', 'CELH', 'CHTR', 'CHWY', 'CI', 'CIEN', 'CL', 'CLF',
+    'CLSK', 'CMCSA', 'CME', 'CMG', 'CMI', 'CNC', 'COF', 'COHR', 'COIN', 'COP', 'COR', 'COST', 'CPRT',
+    'CRH', 'CRM', 'CRWD', 'CSCO', 'CSX', 'CTAS', 'CVNA', 'CVS', 'CVX', 'DAL', 'DASH', 'DDOG', 'DE',
+    'DECK', 'DELL', 'DG', 'DHI', 'DHR', 'DIS', 'DKS', 'DLR', 'DLTR', 'DOCU', 'DOW', 'DUK', 'DUOL',
+    'DVN', 'DXCM', 'EA', 'EBAY', 'EIX', 'ELV', 'EME', 'EMR', 'ENPH', 'EOG', 'EQIX', 'EQT', 'ETN',
+    'ETR', 'ETSY', 'EW', 'EXC', 'EXE', 'EXPE', 'F', 'FANG', 'FCX', 'FDX', 'FICO', 'FISV', 'FITB',
+    'FIX', 'FLEX', 'FSLR', 'FTNT', 'GD', 'GE', 'GEHC', 'GEV', 'GILD', 'GIS', 'GLW', 'GM', 'GME',
+    'GOOG', 'GOOGL', 'GS', 'GTLS', 'HBAN', 'HCA', 'HD', 'HIMS', 'HL', 'HLT', 'HON', 'HOOD', 'HPE',
+    'HSY', 'HUM', 'HWM', 'IBKR', 'IBM', 'ICE', 'IDXX', 'INTC', 'INTU', 'IP', 'IQV', 'ISRG', 'IT',
+    'JBL', 'JCI', 'JNJ', 'JPM', 'KDP', 'KEY', 'KHC', 'KKR', 'KLAC', 'KMB', 'KMI', 'KO', 'KR', 'KTOS',
+    'KVUE', 'LEN', 'LHX', 'LII', 'LIN', 'LITE', 'LLY', 'LMT', 'LOW', 'LRCX', 'LULU', 'LUV', 'LYFT',
+    'LYV', 'MA', 'MAR', 'MARA', 'MCD', 'MCHP', 'MCK', 'MCO', 'MDLZ', 'MDT', 'META', 'MMM', 'MO',
+    'MOH', 'MP', 'MPC', 'MPWR', 'MRK', 'MRNA', 'MS', 'MSCI', 'MSFT', 'MSI', 'MU', 'NCLH', 'NEE',
+    'NEM', 'NFLX', 'NKE', 'NOC', 'NOW', 'NRG', 'NSC', 'NTNX', 'NUE', 'NVDA', 'NXPI', 'OKE', 'OKTA',
+    'OMC', 'ON', 'ORCL', 'ORLY', 'OXY', 'PANW', 'PATH', 'PAYX', 'PCG', 'PEP', 'PFE', 'PG', 'PGR',
+    'PH', 'PINS', 'PLD', 'PLTR', 'PM', 'PNC', 'PSX', 'PWR', 'PYPL', 'QCOM', 'RCL', 'REGN', 'RF',
+    'RH', 'ROK', 'ROP', 'ROST', 'RTX', 'SATS', 'SBUX', 'SCHW', 'SFM', 'SHW', 'SLB', 'SMCI', 'SNDK',
+    'SNPS', 'SO', 'SPGI', 'SRE', 'STX', 'STZ', 'SYK', 'T', 'TDG', 'TEL', 'TER', 'TFC', 'TGT', 'TJX',
+    'TLN', 'TMO', 'TMUS', 'TPR', 'TRGP', 'TRU', 'TRV', 'TSLA', 'TT', 'TTD', 'TTWO', 'TWLO', 'TXN',
+    'UAL', 'UBER', 'ULTA', 'UNH', 'UNP', 'UPS', 'URI', 'USB', 'V', 'VEEV', 'VLO', 'VRT', 'VRTX',
+    'VST', 'VZ', 'WBD', 'WDAY', 'WDC', 'WELL', 'WFC', 'WM', 'WMB', 'WMT', 'WSM', 'XEL', 'XOM', 'XYZ',
+    'ZTS']
+
 import numpy as np
 import pandas as pd
 
@@ -266,15 +296,22 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 for etf in etfs:
                     self.add_equity(etf, Resolution.DAILY)
         else:
-            # Cloud: dynamic universe via Morningstar CoarseFundamental + ETFs
-            etfs = ["QQQ", "SMH", "XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLB", "XLU", "XLRE", "XLC"]
+            # Cloud: embedded polygon-326 universe (fix for CoarseFundamental fallback bug)
+            # Previous cloud BTs got ~30 orders because CoarseFundamental didn't inject polygon universe
+            # Fix: add all 326 tickers directly as equity subscriptions, same as local mode
+            self.log(f"CLOUD_UNIVERSE|embedded_polygon|tickers={len(POLYGON_UNIVERSE_TICKERS)}")
+            for ticker in POLYGON_UNIVERSE_TICKERS:
+                try:
+                    self.add_equity(ticker, Resolution.DAILY)
+                except Exception:
+                    pass
+            # ETFs still added for benchmark/comparison
+            etfs = ["QQQ", "SMH", "XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLB", "XLU", "XLRE", "XLC", "SPY"]
             for etf in etfs:
-                self.add_equity(etf, Resolution.DAILY)
-            self._filter = BCTUniverseFilter()
-            self.add_universe(
-                self._filter.coarse_selection,
-                self._filter.fine_selection,
-            )
+                try:
+                    self.add_equity(etf, Resolution.DAILY)
+                except Exception:
+                    pass
 
         self.schedule.on(
             self.date_rules.every_day(),
