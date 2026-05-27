@@ -196,6 +196,7 @@ updated: 2026-05-28
 | E51 | Parabolic entry block (13d move >25%) | Avoid buying exhaustion peaks | E40d | [#101](https://github.com/FALK-BRAUER/kumo-qc/issues/101) — ❌ REJECTED 1.254 / −0.188 (blocks strongest-phase entries = cuts winners) |
 | E87 | Rotation quality gate (RSI>50 + weekly>Tenkan) | Quality filter at entry | E40d | [#102](https://github.com/FALK-BRAUER/kumo-qc/issues/102) — ❌ REJECTED 1.129 / −0.313 (false negatives > false positive reduction; BCT checklist is maximal) |
 | E46 | Weekly BCT pre-filter (weekly_score ≥ threshold) | Multi-timeframe alignment — require strong weekly setup before daily entry | E40d | [#113](https://github.com/FALK-BRAUER/kumo-qc/issues/113) — ❌ REJECTED. Thresholds 1-3 identical to baseline (all 196 trades already pass). Threshold 4 degrades Sharpe 1.268 → 1.152. Weekly Ichimoku is redundant with daily BCT pipeline. |
+| E47 | Sector regime gate (block if sector ETF weekly price below cloud) | Avoid entries when entire sector is in weekly downtrend | E40d | [#114](https://github.com/FALK-BRAUER/kumo-qc/issues/114) — 💀 CATASTROPHIC 0.583 / −0.685. 59 sector skips (42 XLV Healthcare). Sharpe collapses from 1.268 → 0.583. Sector-level filtering removes too many good entries; BCT stock selection is already sector-agnostic and superior. |
 | Score fix | Scanner BUY threshold = score ≥ 7 | ✅ Done — b9634e9 kumo-trader | premarket brief | [#35](https://github.com/falkhansen/kumo-qc/issues/35) ✓ |
 
 ---
@@ -213,14 +214,14 @@ updated: 2026-05-28
 8. **Intraday stop monitoring destroys edge.** All stops must be EOD-only to match George's methodology (proven in Run 8).
 10. **Position sizing additions are a leverage multiplier, not alpha.** E45 constant-R resizing: FY2025 Sharpe 1.582 (+0.140) but 4/6 windows negative. W3/W4 dominate the FY result. In choppy/crash windows, adds amplify losses. Any position-building approach needs regime gating on the ADD trigger (E45-v2 testing VIX<20 on adds).
 11. **Weekly Ichimoku conditions are redundant with daily BCT pipeline.** E46 tested weekly_score thresholds 1-4. Thresholds 1-3 produced identical results to baseline (all 196 baseline trades already had weekly_score ≥ 3). Threshold 4 degraded Sharpe 1.268 → 1.152. The daily BCT score ≥ 7 + cloud pre-filter already implicitly requires strong weekly setups. Multi-timeframe alignment adds no independent information when the primary timeframe filter is already strict.
+12. **Sector-level regime gates are catastrophic.** E47 blocked entries when sector ETF weekly price was below cloud. 59 skips (42 XLV Healthcare). Result: Sharpe collapsed 1.268 → 0.583 (−0.685), DD worsened 10.7% → 16.2%, WR dropped 44% → 39%. BCT stock selection is already sector-agnostic and superior — it finds strong individual setups even in weak sectors. Sector gates create false negatives that dominate any false positive reduction.
 
 ### Active Queue
 | ID | GH | Hypothesis | Status |
 |----|-----|-----------|--------|
-| E47 | [#114](https://github.com/FALK-BRAUER/kumo-qc/issues/114) | Sector regime filter — only enter when sector ETF is in weekly BCT uptrend | ⏳ Queued after E46 |
-| Research | [#112](https://github.com/FALK-BRAUER/kumo-qc/issues/112) | Multi-timeframe BCT + sector mapping — feasibility confirmed, implementation queued | ✅ Feasible |
+| Research | [#112](https://github.com/FALK-BRAUER/kumo-qc/issues/112) | Multi-timeframe BCT + sector mapping — feasibility confirmed, both axes exhausted | ✅ All axes tested |
 
-> **Status 2026-05-28:** E46 REJECTED — weekly Ichimoku filter redundant with daily pipeline. E47 (sector regime) queued next. E40d remains champion at 1.442 Sharpe.
+> **Status 2026-05-28:** E46 REJECTED (weekly redundant). E47 REJECTED (sector catastrophic). **All experiment tracks exhausted.** E40d remains champion at 1.442 Sharpe. No further modification axes identified. Awaiting Falk directive on next phase (paper live, new research direction, or champion acceptance).
 
 ---
 
