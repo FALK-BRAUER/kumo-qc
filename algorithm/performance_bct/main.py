@@ -145,7 +145,8 @@ def score_symbol(algorithm: Any, symbol: Any) -> dict[str, Any] | None:
     elif score >= 4: rating = "+"
     elif score >= 2: rating = "="
     else:            rating = "--"
-    return {"score": score, "rating": rating, "conditions": conditions}
+    return {"score": score, "rating": rating, "conditions": conditions,
+            "kijun": float(d_kijun.iloc[-1])}
 
 
 def score_symbol_native(algorithm: Any, symbol: Any, ind: Any) -> dict[str, Any] | None:
@@ -185,8 +186,10 @@ class BCTUniverseFilter:
 class BCTPerformanceAlgorithm(QCAlgorithm):
 
     MAX_POSITIONS: int = 9999
-    POSITION_PCT: float = 0.10
+    RISK_PER_TRADE: float = 200.0
     MAX_HEAT: float = 0.95
+    MAX_POSITION_PCT: float = 0.15
+    MIN_POSITION_PCT: float = 0.01
     MIN_SCORE: int = 7
     # Exit condition flags — False = reference bct‑perf‑2020‑2026 (daily Kijun only)
     ENABLE_CLOUD_BREACH_EXIT: bool = False
@@ -217,7 +220,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         return None
 
     def initialize(self) -> None:
-        self.log("VERSION_MARKER|e42_heat_cap_v1")
+        self.log("VERSION_MARKER|e42_risk_sizing_v2")
         self.set_time_zone("America/New_York")
         sy = int(self.get_parameter("start_year",  "2025"))
         sm = int(self.get_parameter("start_month", "1"))
@@ -438,8 +441,15 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             1 for sym, h in self.portfolio.items()
             if h.invested and sym not in exiting
         )
-        heat_deployed = open_count * self.POSITION_PCT
-        if heat_deployed >= self.MAX_HEAT:
+        total_value = self.portfolio.total_portfolio_value
+        if total_value <= 0:
+            return
+        deployed = sum(
+            self.securities[s].holdings.quantity * float(self.securities[s].price)
+            for s in self.portfolio.securities
+            if self.securities[s].holdings.quantity > 0
+        ) / total_value
+        if deployed >= self.MAX_HEAT:
             return
 
         # When running locally with polygon universe, restrict candidates to today's snapshot
@@ -479,21 +489,37 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             result = score_symbol_native(self, symbol, ind)
             if result is None or result["score"] < self.MIN_SCORE:
                 continue
-            candidates.append((symbol, result["score"]))
+            candidates.append((symbol, result["score"], result.get("kijun", 0.0)))
 
         candidates.sort(key=lambda x: x[1], reverse=True)
         new_entries = 0
-        for symbol, score in candidates:
-            price = self.securities[symbol].price
+        skipped_tolerance = 0
+        for symbol, score, kijun_price in candidates:
+            price = float(self.securities[symbol].price)
             if price <= 0:
                 continue
-            target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
-            quantity = int(target_value / price)
+            # Entry tolerance: skip if price ran >3% above Kijun (stale signal)
+            if kijun_price > 0 and price > kijun_price * 1.03:
+                skipped_tolerance += 1
+                continue
+            # Risk-based sizing: RISK_PER_TRADE / stop_pct
+            stop_distance = price - kijun_price if kijun_price > 0 else price * 0.03
+            if stop_distance <= 0:
+                continue
+            stop_pct = stop_distance / price
+            position_value = self.RISK_PER_TRADE / stop_pct
+            position_pct = position_value / total_value
+            if position_pct > self.MAX_POSITION_PCT:
+                position_value = total_value * self.MAX_POSITION_PCT
+                position_pct = self.MAX_POSITION_PCT
+            if position_pct < self.MIN_POSITION_PCT:
+                continue
+            quantity = int(position_value / price)
             if quantity <= 0:
                 continue
             self.market_on_open_order(symbol, quantity)
             self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price)}
-            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
+            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}|kijun~{kijun_price:.2f}|pos_pct~{position_pct*100:.1f}%")
             new_entries += 1
 
-        self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={new_entries}|heat={heat_deployed:.2f}")
+        self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={new_entries}|deployed={deployed:.2f}|skipped_tol={skipped_tolerance}")
