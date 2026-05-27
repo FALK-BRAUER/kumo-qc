@@ -27,6 +27,11 @@ from pathlib import Path
 
 from AlgorithmImports import *  # noqa: F401,F403
 
+try:
+    from universe import EQUITY_200  # Cloud static universe (uploaded with main.py)
+except ImportError:
+    EQUITY_200 = []  # Fallback if universe.py not available
+
 from typing import Any
 
 import numpy as np
@@ -264,47 +269,22 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                         pass
             # (dead code — outer check ensures poly is not None here)
         else:
-            # Cloud: static universe mirroring local polygon-200 (326 unique tickers FY2025)
-            STATIC_TICKERS = [
-                'AAL', 'AAPL', 'ABBV', 'ABNB', 'ABT', 'ACN', 'ADBE', 'ADI', 'ADP', 'ADSK',
-                'AEP', 'AIG', 'AJG', 'ALB', 'ALL', 'AMAT', 'AMCR', 'AMD', 'AMGN', 'AMT',
-                'AMZN', 'ANET', 'ANF', 'AON', 'APD', 'APH', 'APO', 'APP', 'ARES', 'AVAV',
-                'AVGO', 'AXON', 'AXP', 'AZO', 'BA', 'BAC', 'BDX', 'BK', 'BKNG', 'BKR',
-                'BLK', 'BMY', 'BRO', 'BSX', 'BX', 'C', 'CAH', 'CARR', 'CAT', 'CAVA',
-                'CB', 'CCI', 'CCL', 'CDNS', 'CEG', 'CELH', 'CHTR', 'CHWY', 'CI', 'CIEN',
-                'CL', 'CLF', 'CLSK', 'CMCSA', 'CME', 'CMG', 'CMI', 'CNC', 'COF', 'COHR',
-                'COIN', 'COP', 'COR', 'COST', 'CPRT', 'CRH', 'CRM', 'CRWD', 'CSCO', 'CSX',
-                'CTAS', 'CVNA', 'CVS', 'CVX', 'DAL', 'DASH', 'DDOG', 'DE', 'DECK', 'DELL',
-                'DG', 'DHI', 'DHR', 'DIS', 'DKS', 'DLR', 'DLTR', 'DOCU', 'DOW', 'DUK',
-                'DUOL', 'DVN', 'DXCM', 'EA', 'EBAY', 'EIX', 'ELV', 'EME', 'EMR', 'ENPH',
-                'EOG', 'EQIX', 'EQT', 'ETN', 'ETR', 'ETSY', 'EW', 'EXC', 'EXE', 'EXPE',
-                'F', 'FANG', 'FCX', 'FDX', 'FICO', 'FISV', 'FITB', 'FIX', 'FLEX', 'FSLR',
-                'FTNT', 'GD', 'GE', 'GEHC', 'GEV', 'GILD', 'GIS', 'GLW', 'GM', 'GME',
-                'GOOG', 'GOOGL', 'GS', 'GTLS', 'HBAN', 'HCA', 'HD', 'HIMS', 'HL', 'HLT',
-                'HON', 'HOOD', 'HPE', 'HSY', 'HUM', 'HWM', 'IBKR', 'IBM', 'ICE', 'IDXX',
-                'INTC', 'INTU', 'IP', 'IQV', 'ISRG', 'IT', 'JBL', 'JCI', 'JNJ', 'JPM',
-                'KDP', 'KEY', 'KHC', 'KKR', 'KLAC', 'KMB', 'KMI', 'KO', 'KR', 'KTOS',
-                'KVUE', 'LEN', 'LHX', 'LII', 'LIN', 'LITE', 'LLY', 'LMT', 'LOW', 'LRCX',
-                'LULU', 'LUV', 'LYFT', 'LYV', 'MA', 'MAR', 'MARA', 'MCD', 'MCHP', 'MCK',
-                'MCO', 'MDLZ', 'MDT', 'META', 'MMM', 'MO', 'MOH', 'MP', 'MPC', 'MPWR',
-                'MRK', 'MRNA', 'MS', 'MSCI', 'MSFT', 'MSI', 'MU', 'NCLH', 'NEE', 'NEM',
-                'NFLX', 'NKE', 'NOC', 'NOW', 'NRG', 'NSC', 'NTNX', 'NUE', 'NVDA', 'NXPI',
-                'OKE', 'OKTA', 'OMC', 'ON', 'ORCL', 'ORLY', 'OXY', 'PANW', 'PATH', 'PAYX',
-                'PCG', 'PEP', 'PFE', 'PG', 'PGR', 'PH', 'PINS', 'PLD', 'PLTR', 'PM',
-                'PNC', 'PSX', 'PWR', 'PYPL', 'QCOM', 'RCL', 'REGN', 'RF', 'RH', 'ROK',
-                'ROP', 'ROST', 'RTX', 'SATS', 'SBUX', 'SCHW', 'SFM', 'SHW', 'SLB', 'SMCI',
-                'SNDK', 'SNPS', 'SO', 'SPGI', 'SRE', 'STX', 'STZ', 'SYK', 'T', 'TDG',
-                'TEL', 'TER', 'TFC', 'TGT', 'TJX', 'TLN', 'TMO', 'TMUS', 'TPR', 'TRGP',
-                'TRU', 'TRV', 'TSLA', 'TT', 'TTD', 'TTWO', 'TWLO', 'TXN', 'UAL', 'UBER',
-                'ULTA', 'UNH', 'UNP', 'UPS', 'URI', 'USB', 'V', 'VEEV', 'VLO', 'VRT',
-                'VRTX', 'VST', 'VZ', 'WBD', 'WDAY', 'WDC', 'WELL', 'WFC', 'WM', 'WMB',
-                'WMT', 'WSM', 'XEL', 'XOM', 'XYZ', 'ZTS',
-            ]
-            for ticker in STATIC_TICKERS:
-                try:
-                    self.add_equity(ticker, Resolution.DAILY)
-                except Exception:
-                    pass
+            # Cloud: static universe from universe.py (uploaded alongside main.py)
+            if EQUITY_200:
+                self.log(f"CLOUD_UNIVERSE|static_py|tickers={len(EQUITY_200)}")
+                for ticker in EQUITY_200:
+                    try:
+                        self.add_equity(ticker, Resolution.DAILY)
+                    except Exception:
+                        pass
+            else:
+                # Fallback: CoarseFundamental top-200 (v12 approach)
+                self.log("CLOUD_UNIVERSE|universe_py_missing|fallback_to_coarse")
+                dv_max = int(self.get_parameter("coarse_max", "200"))
+                def _cloud_coarse(coarse):
+                    sorted_coarse = sorted(coarse, key=lambda c: c.dollar_volume, reverse=True)
+                    return [c.symbol for c in sorted_coarse[:dv_max]]
+                self.add_universe(_cloud_coarse)
 
         self.schedule.on(
             self.date_rules.every_day(),
