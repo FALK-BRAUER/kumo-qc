@@ -184,8 +184,9 @@ class BCTUniverseFilter:
 
 class BCTPerformanceAlgorithm(QCAlgorithm):
 
-    MAX_POSITIONS: int = 10
+    MAX_POSITIONS: int = 9999
     POSITION_PCT: float = 0.10
+    MAX_HEAT: float = 0.95
     MIN_SCORE: int = 7
     # Exit condition flags — False = reference bct‑perf‑2020‑2026 (daily Kijun only)
     ENABLE_CLOUD_BREACH_EXIT: bool = False
@@ -216,6 +217,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         return None
 
     def initialize(self) -> None:
+        self.log("VERSION_MARKER|e42_heat_cap_v1")
         self.set_time_zone("America/New_York")
         sy = int(self.get_parameter("start_year",  "2025"))
         sm = int(self.get_parameter("start_month", "1"))
@@ -436,14 +438,17 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             1 for sym, h in self.portfolio.items()
             if h.invested and sym not in exiting
         )
-        slots = self.MAX_POSITIONS - open_count
-        if slots <= 0:
+        heat_deployed = open_count * self.POSITION_PCT
+        if heat_deployed >= self.MAX_HEAT:
             return
 
         # When running locally with polygon universe, restrict candidates to today's snapshot
         today_poly: set[str] | None = None
         if self._polygon_universe is not None:
-            today_poly = set(self._polygon_universe.get(date_str, []))
+            poly_tickers = self._polygon_universe.get(date_str) or self._polygon_universe.get(
+                max(self._polygon_universe.keys()), []
+            )
+            today_poly = set(poly_tickers)
 
         candidates: list[tuple] = []
         for symbol in sorted(self._active):
@@ -477,7 +482,8 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             candidates.append((symbol, result["score"]))
 
         candidates.sort(key=lambda x: x[1], reverse=True)
-        for symbol, score in candidates[:slots]:
+        new_entries = 0
+        for symbol, score in candidates:
             price = self.securities[symbol].price
             if price <= 0:
                 continue
@@ -488,5 +494,6 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             self.market_on_open_order(symbol, quantity)
             self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price)}
             self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
+            new_entries += 1
 
-        self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
+        self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={new_entries}|heat={heat_deployed:.2f}")
