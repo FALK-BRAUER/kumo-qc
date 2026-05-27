@@ -445,9 +445,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         if total_value <= 0:
             return
         deployed = sum(
-            self.securities[s].holdings.quantity * float(self.securities[s].price)
-            for s in self.portfolio.securities
-            if self.securities[s].holdings.quantity > 0
+            abs(float(h.holdings_value))
+            for _, h in self.portfolio.items()
+            if h.invested
         ) / total_value
         if deployed >= self.MAX_HEAT:
             return
