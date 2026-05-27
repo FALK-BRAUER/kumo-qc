@@ -190,6 +190,10 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     # Exit condition flags — False = reference bct‑perf‑2020‑2026 (daily Kijun only)
     ENABLE_CLOUD_BREACH_EXIT: bool = False
     ENABLE_WEEKLY_KIJUN_EXIT: bool = False
+    # Entry condition flags
+    ENABLE_RESISTANCE_GATE: bool = False
+    RESISTANCE_PROXIMITY_PCT: float = 0.03  # 3% below 52-week high blocks entry
+    RESISTANCE_LOOKBACK_DAYS: int = 260      # ~52 weeks
     # Phase 3 stop progression (methodology.md §5 Rule #13)
     PHASE3_DAYS: int = 56         # calendar days before Phase 3 eligible
     PHASE3_PNL: float = 0.15      # unrealized PnL threshold for Phase 3
@@ -235,6 +239,10 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # Exit condition parameter overrides
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
+        # Entry condition parameter overrides
+        self.resistance_gate_enabled = self.get_parameter("resistance_gate", str(self.ENABLE_RESISTANCE_GATE)).lower() == "true"
+        if self.resistance_gate_enabled:
+            self.log("VERSION_MARKER|resistance_gate_v1")
 
         self.universe_settings.resolution = Resolution.DAILY
         self._active: set = set()
@@ -381,6 +389,18 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     def _has_open_orders(self, symbol) -> bool:
         return bool(self.transactions.get_open_orders(symbol))
 
+    def _get_resistance_level(self, symbol) -> float | None:
+        """52-week high as resistance level."""
+        try:
+            hist = self.history(symbol, self.RESISTANCE_LOOKBACK_DAYS, Resolution.DAILY)
+            if hist is not None and len(hist) > 0:
+                if isinstance(hist.index, pd.MultiIndex):
+                    hist = hist.droplevel(0)
+                return float(hist["high"].max())
+        except Exception:
+            pass
+        return None
+
     def _rebalance(self) -> None:
         if self.is_warming_up:
             return
@@ -481,6 +501,13 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             price = self.securities[symbol].price
             if price <= 0:
                 continue
+            if self.resistance_gate_enabled:
+                resistance_level = self._get_resistance_level(symbol)
+                if resistance_level and resistance_level > 0:
+                    proximity_pct = (resistance_level - price) / price
+                    if 0 < proximity_pct < self.RESISTANCE_PROXIMITY_PCT:
+                        self.log(f"RESISTANCE_BLOCK|{date_str}|{symbol.value}|price={price:.2f}|resistance={resistance_level:.2f}|proximity={proximity_pct:.1%}")
+                        continue
             target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
             quantity = int(target_value / price)
             if quantity <= 0:
