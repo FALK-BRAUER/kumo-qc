@@ -260,6 +260,14 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # E121: VIX Ichimoku 2-tier gate — VIX cloud for dynamic slot sizing
         self.vix_ichi = self.ichimoku(self.vix, 9, 26, 26, 52, 26, 26)
         self.log("VERSION_MARKER|e121_vix_ichimoku_2tier_v1")
+        # E29: Credit/bond composite risk-off gate
+        _credit_param = self.get_parameter("credit_gate_enabled", "")
+        self.credit_gate_enabled = _credit_param != "false"
+        self.credit_momentum_period = int(self.get_parameter("credit_momentum_period", "63"))
+        self._hyg = self.add_equity("HYG", Resolution.DAILY).symbol
+        self._lqd = self.add_equity("LQD", Resolution.DAILY).symbol
+        self._tlt = self.add_equity("TLT", Resolution.DAILY).symbol
+        self.log("VERSION_MARKER|e29_credit_risk_off_v1")
 
         self.universe_settings.resolution = Resolution.DAILY
         self.universe_settings.data_normalization_mode = DataNormalizationMode.RAW
@@ -467,6 +475,35 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 tier = 1
             self.log(f"VIX_TIER|{date_str}|VIX={vix_price:.2f}|cloud_top={vix_cloud_top:.2f}|tier={tier}|max_positions={max_positions}")
 
+        # E29: Credit composite risk-off gate
+        credit_risk_off = False
+        if self.credit_gate_enabled:
+            period = self.credit_momentum_period
+            moms: dict[str, float] = {}
+            for sym, name in [(self._hyg, "HYG"), (self._lqd, "LQD"), (self._tlt, "TLT")]:
+                try:
+                    hist = self.history([sym], period + 1, Resolution.DAILY)
+                    if hist is not None and len(hist) >= period + 1:
+                        if isinstance(hist.index, pd.MultiIndex):
+                            hist = hist.droplevel(0)
+                        closes = hist["close"].values
+                        moms[name] = float(closes[-1] / closes[0] - 1)
+                    else:
+                        moms[name] = 0.0
+                except Exception:
+                    moms[name] = 0.0
+            composite = sum(moms.values()) / 3
+            credit_risk_off = composite < 0
+            self.log(
+                f"CREDIT_GATE|{date_str}|HYG={moms.get('HYG',0):.4f}|LQD={moms.get('LQD',0):.4f}"
+                f"|TLT={moms.get('TLT',0):.4f}|composite={composite:.4f}|risk_off={credit_risk_off}"
+            )
+            if credit_risk_off:
+                self.log(
+                    f"CREDIT_BLOCK|{date_str}|HYG_momentum={moms.get('HYG',0):.4f}"
+                    f"|TLT_momentum={moms.get('TLT',0):.4f}|composite={composite:.4f}|blocked=True"
+                )
+
         exiting = {
             o.symbol
             for o in self.transactions.get_open_orders()
@@ -477,7 +514,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             if h.invested and sym not in exiting
         )
         slots = max_positions - open_count
-        if slots <= 0:
+        if slots <= 0 or credit_risk_off:
             return
 
         # When running locally with polygon universe, restrict candidates to today's snapshot
