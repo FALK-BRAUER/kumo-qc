@@ -233,3 +233,10 @@ date_run,window,period_start,period_end,commit,branch,environment,sharpe,net_pro
 2026-05-28,W4-Q4-2025,2025-10-01,2025-12-31,9cf6ad0,feat/e104-vix30,local,-1.765,-6.242,-6242,74,22,7.8,,E104 W4. E40d -1.606. Delta -0.159.
 2026-05-28,W5-FebMay-2025,2025-02-01,2025-05-31,9cf6ad0,feat/e104-vix30,local,-0.573,-1.449,-1449,92,22,10.2,,E104 W5. E40d -0.342. Delta -0.231.
 2026-05-28,W6-H1-2025,2025-01-01,2025-06-30,9cf6ad0,feat/e104-vix30,local,0.848,13.416,13416,140,40,9.7,,E104 W6. E40d 0.960. Delta -0.112.
+2026-05-28,FY2025,2025-01-01,2025-12-31,7ac9c5f,feat/e86-breakout-carveout,local,1.135,33.641,33641,200,40,11.7,,E86 breakout proximity carve-out FY2025 — REJECTED. Sharpe 1.135 vs E40d 1.442 (delta -0.307). 61 PROX_BLOCKs. Proximity gate conflicts with trend-following — BCT entries naturally near highs. Only W4 improved.
+2026-05-28,W1-Q1-2025,2025-01-01,2025-03-31,7ac9c5f,feat/e86-breakout-carveout,local,1.096,8.702,8702,74,44,8.6,,E86 W1. E40d 1.509. Delta -0.413. 14 PROX_BLOCKs.
+2026-05-28,W2-Q2-2025,2025-04-01,2025-06-30,7ac9c5f,feat/e86-breakout-carveout,local,-0.642,-1.253,-1253,68,24,7.7,,E86 W2. E40d 0.329. Delta -0.971. 36 PROX_BLOCKs.
+2026-05-28,W3-Q3-2025,2025-07-01,2025-09-30,7ac9c5f,feat/e86-breakout-carveout,local,4.052,16.955,16955,42,44,3.7,,E86 W3. E40d 4.427. Delta -0.375. 36 PROX_BLOCKs.
+2026-05-28,W4-Q4-2025,2025-10-01,2025-12-31,7ac9c5f,feat/e86-breakout-carveout,local,-1.162,-3.320,-3320,68,28,4.9,,E86 W4. E40d -1.606. Delta +0.444. 18 PROX_BLOCKs. Only improved window.
+2026-05-28,W5-FebMay-2025,2025-02-01,2025-05-31,7ac9c5f,feat/e86-breakout-carveout,local,-1.118,-5.632,-5632,85,21,12.8,,E86 W5. E40d -0.342. Delta -0.776. 49 PROX_BLOCKs.
+2026-05-28,W6-H1-2025,2025-01-01,2025-06-30,7ac9c5f,feat/e86-breakout-carveout,local,0.310,6.570,6570,132,38,11.7,,E86 W6. E40d 0.960. Delta -0.650. 42 PROX_BLOCKs.
