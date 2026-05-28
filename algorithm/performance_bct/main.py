@@ -193,8 +193,10 @@ class BCTUniverseFilter:
 
 class BCTPerformanceAlgorithm(QCAlgorithm):
 
-    MAX_POSITIONS: int = 10
-    POSITION_PCT: float = 0.10
+    # E89: Risk-based sizing with heat cap - removed MAX_POSITIONS=10
+    RISK_AMOUNT: float = 200.0     # $200 risk per position
+    MAX_POSITION_PCT: float = 0.15  # 15% NLV cap per position
+    HEAT_CAP: float = 0.90         # 90% NLV heat cap
     MIN_SCORE: int = 7
     # Exit condition flags — False = reference bct‑perf‑2020‑2026 (daily Kijun only)
     ENABLE_CLOUD_BREACH_EXIT: bool = False
@@ -202,6 +204,10 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     # Phase 3 stop progression (methodology.md §5 Rule #13)
     PHASE3_DAYS: int = 56         # calendar days before Phase 3 eligible
     PHASE3_PNL: float = 0.15      # unrealized PnL threshold for Phase 3
+    
+    # E89: Tracking for metrics
+    _daily_positions: list = []    # Track position count daily
+    _daily_heat: list = []         # Track heat utilization daily
 
     @staticmethod
     def _find_local_data_dir() -> Path | None:
@@ -225,9 +231,8 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         return None
 
     def initialize(self) -> None:
-        self.log("VERSION_MARKER|e40d_vix25_regime_gate_v1")
         self.set_time_zone("America/New_York")
-        self.log("VERSION_MARKER|cloud_static200_v15")
+        self.log("VERSION_MARKER|e89_unlimited_slots_risk_sizing_v1")
         sy = int(self.get_parameter("start_year",  "2025"))
         sm = int(self.get_parameter("start_month", "1"))
         sd = int(self.get_parameter("start_day",   "1"))
@@ -256,7 +261,11 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self._active: set = set()
         self._indicators: dict = {}
         self._polygon_universe: dict | None = None
-        self._position_meta: dict = {}  # symbol → {entry_date, entry_price}
+        self._position_meta: dict = {}  # symbol → {entry_date, entry_price, entry_kijun}
+        
+        # E89: Initialize tracking for metrics
+        self._daily_positions: list = []
+        self._daily_heat: list = []
 
         poly = self._load_polygon_universe()
         if poly is not None:
@@ -456,12 +465,26 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             for o in self.transactions.get_open_orders()
             if o.quantity < 0
         }
+        
+        # E89: Calculate current heat (deployed capital)
+        total_value = self.portfolio.total_portfolio_value
         open_count = sum(
             1 for sym, h in self.portfolio.items()
             if h.invested and sym not in exiting
         )
-        slots = self.MAX_POSITIONS - open_count
-        if slots <= 0:
+        current_heat = sum(
+            h.quantity * self.securities[sym].price
+            for sym, h in self.portfolio.items()
+            if h.invested and sym not in exiting
+        ) / total_value if total_value > 0 else 0.0
+        
+        # E89: Track metrics
+        self._daily_positions.append(open_count)
+        self._daily_heat.append(current_heat)
+        
+        # E89: Heat cap check - stop if at 90% NLV
+        if current_heat >= self.HEAT_CAP:
+            self.log(f"HEAT_CAP|{date_str}|heat={current_heat:.1%}|max={self.HEAT_CAP:.0%}|reason=heat_limit_reached")
             return
 
         # When running locally with polygon universe, restrict candidates to today's snapshot
@@ -498,19 +521,80 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             result = score_symbol_native(self, symbol, ind)
             if result is None or result["score"] < self.MIN_SCORE:
                 continue
-            candidates.append((symbol, result["score"]))
+            
+            # E89: Get kijun for risk sizing calculation
+            kijun = None
+            if d_ichi_ind and d_ichi_ind.is_ready:
+                kijun = d_ichi_ind.kijun.current.value
+            
+            candidates.append((symbol, result["score"], kijun))
 
+        # E89: Sort by score descending, then by kijun distance for sizing
         candidates.sort(key=lambda x: x[1], reverse=True)
-        for symbol, score in candidates[:slots]:
+        
+        entries_made = 0
+        running_heat = current_heat
+        
+        for symbol, score, kijun in candidates:
             price = self.securities[symbol].price
             if price <= 0:
                 continue
-            target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
+                
+            # E89: Calculate position size based on $200 risk ÷ kijun_distance
+            if kijun is not None and kijun > 0:
+                kijun_distance = abs(price - kijun)
+                if kijun_distance <= 0:
+                    continue
+                risk_based_value = self.RISK_AMOUNT / kijun_distance * price
+            else:
+                # Fallback: use max position percentage if kijun unavailable
+                risk_based_value = total_value * self.MAX_POSITION_PCT
+            
+            # E89: Cap at 15% NLV per position
+            max_position_value = total_value * self.MAX_POSITION_PCT
+            target_value = min(risk_based_value, max_position_value)
+            
+            # E89: Check if adding this position would exceed heat cap
+            position_cost = target_value
+            projected_heat = running_heat + (position_cost / total_value)
+            
+            if projected_heat > self.HEAT_CAP:
+                # Skip if would exceed heat cap
+                continue
+            
             quantity = int(target_value / price)
             if quantity <= 0:
                 continue
+                
             self.market_on_open_order(symbol, quantity)
-            self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price)}
-            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
+            self._position_meta[symbol] = {
+                "entry_date": self.time, 
+                "entry_price": float(price),
+                "entry_kijun": kijun
+            }
+            running_heat = projected_heat
+            entries_made += 1
+            kijun_str = f"{kijun:.2f}" if kijun is not None else "N/A"
+            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}|kijun={kijun_str}|sizing=risk")
+            
+            # E89: Stop if we've reached heat cap
+            if running_heat >= self.HEAT_CAP:
+                self.log(f"HEAT_CAP|{date_str}|heat={running_heat:.1%}|reason=heat_cap_filled_during_entries")
+                break
 
-        self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
+        # E89: Calculate and log average metrics
+        avg_positions = sum(self._daily_positions) / len(self._daily_positions) if self._daily_positions else 0
+        avg_heat = sum(self._daily_heat) / len(self._daily_heat) if self._daily_heat else 0
+        max_positions = max(self._daily_positions) if self._daily_positions else 0
+        max_heat = max(self._daily_heat) if self._daily_heat else 0
+        
+        self.log(f"REBALANCE|{date_str}|open={open_count}|entries={entries_made}|heat={current_heat:.1%}|avg_pos={avg_positions:.1f}|avg_heat={avg_heat:.1%}|max_pos={max_positions}|max_heat={max_heat:.1%}")
+
+    def on_end_of_algorithm(self) -> None:
+        """E89: Output final heat and position metrics at end of backtest."""
+        if self._daily_positions and self._daily_heat:
+            avg_positions = sum(self._daily_positions) / len(self._daily_positions)
+            avg_heat = sum(self._daily_heat) / len(self._daily_heat)
+            max_positions = max(self._daily_positions)
+            max_heat = max(self._daily_heat)
+            self.log(f"E89_METRICS|FINAL|avg_positions={avg_positions:.2f}|avg_heat={avg_heat:.2%}|max_positions={max_positions}|max_heat={max_heat:.2%}|days_tracked={len(self._daily_positions)}")
