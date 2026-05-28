@@ -225,9 +225,8 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         return None
 
     def initialize(self) -> None:
-        self.log("VERSION_MARKER|e40d_vix25_regime_gate_v1")
         self.set_time_zone("America/New_York")
-        self.log("VERSION_MARKER|cloud_static200_v15")
+        self.log("VERSION_MARKER|e40d_v3_vix30_regime_gate_v1")
         sy = int(self.get_parameter("start_year",  "2025"))
         sm = int(self.get_parameter("start_month", "1"))
         sd = int(self.get_parameter("start_day",   "1"))
@@ -246,9 +245,12 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # Exit condition parameter overrides
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
-        # E40d: gate on by default; override with regime_gate_enabled=false to disable
+        # E40d-v3: gate on by default; override with regime_gate_enabled=false to disable
         _regime_param = self.get_parameter("regime_gate_enabled", "")
         self.regime_gate_enabled = _regime_param != "false"
+        # E40d-v3: parameterized VIX threshold (default 30, was 25 in E40d)
+        _vix_threshold_param = self.get_parameter("vix_threshold", "")
+        self.vix_threshold = float(_vix_threshold_param) if _vix_threshold_param else 30.0
         self.vix = self.add_index("VIX", Resolution.DAILY).symbol
 
         self.universe_settings.resolution = Resolution.DAILY
@@ -445,10 +447,11 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     self._position_meta.pop(symbol, None)
                     self.log(f"WEEKLY_KIJUN_STOP|{date_str}|{symbol.value}|close={close:.2f}|w_kijun={w_kijun:.2f}")
 
+        # E40d-v3: VIX regime gate with parameterized threshold (default 30)
         if self.regime_gate_enabled and self.securities.contains_key(self.vix):
             vix_price = float(self.securities[self.vix].price)
-            if vix_price >= 25.0:
-                self.log(f"REGIME_BLOCK|{date_str}|VIX={vix_price:.2f}|threshold=25|reason=fear_regime")
+            if vix_price >= self.vix_threshold:
+                self.log(f"REGIME_BLOCK|{date_str}|VIX={vix_price:.2f}|threshold={self.vix_threshold:.0f}|reason=fear_regime")
                 return
 
         exiting = {
