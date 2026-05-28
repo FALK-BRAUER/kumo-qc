@@ -225,7 +225,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         return None
 
     def initialize(self) -> None:
-        self.log("VERSION_MARKER|e40d_vix25_regime_gate_v1")
+        self.log("VERSION_MARKER|e121_vix_ichimoku_2tier_v1")
         self.set_time_zone("America/New_York")
         self.log("VERSION_MARKER|cloud_static200_v15")
         sy = int(self.get_parameter("start_year",  "2025"))
@@ -250,6 +250,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         _regime_param = self.get_parameter("regime_gate_enabled", "")
         self.regime_gate_enabled = _regime_param != "false"
         self.vix = self.add_index("VIX", Resolution.DAILY).symbol
+        # E121: VIX Ichimoku 2-tier gate — VIX cloud for dynamic slot sizing
+        self.vix_ichi = self.ichimoku(self.vix, 9, 26, 26, 52, 26, 26)
+        self.log("VERSION_MARKER|e121_vix_ichimoku_2tier_v1")
 
         self.universe_settings.resolution = Resolution.DAILY
         self.universe_settings.data_normalization_mode = DataNormalizationMode.RAW
@@ -445,11 +448,17 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     self._position_meta.pop(symbol, None)
                     self.log(f"WEEKLY_KIJUN_STOP|{date_str}|{symbol.value}|close={close:.2f}|w_kijun={w_kijun:.2f}")
 
-        if self.regime_gate_enabled and self.securities.contains_key(self.vix):
+        # E121: VIX Ichimoku 2-tier slot gate — no full block, only capacity reduction
+        max_positions = self.MAX_POSITIONS
+        if self.regime_gate_enabled and self.securities.contains_key(self.vix) and self.vix_ichi.is_ready:
             vix_price = float(self.securities[self.vix].price)
-            if vix_price >= 25.0:
-                self.log(f"REGIME_BLOCK|{date_str}|VIX={vix_price:.2f}|threshold=25|reason=fear_regime")
-                return
+            vix_cloud_top = max(self.vix_ichi.senkou_a.current.value, self.vix_ichi.senkou_b.current.value)
+            if vix_price > vix_cloud_top:
+                max_positions = 5  # Tier 2: fear regime — half capacity
+                tier = 2
+            else:
+                tier = 1
+            self.log(f"VIX_TIER|{date_str}|VIX={vix_price:.2f}|cloud_top={vix_cloud_top:.2f}|tier={tier}|max_positions={max_positions}")
 
         exiting = {
             o.symbol
@@ -460,7 +469,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             1 for sym, h in self.portfolio.items()
             if h.invested and sym not in exiting
         )
-        slots = self.MAX_POSITIONS - open_count
+        slots = max_positions - open_count
         if slots <= 0:
             return
 
