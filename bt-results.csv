@@ -268,3 +268,10 @@ date_run,window,period_start,period_end,commit,branch,environment,sharpe,net_pro
 2026-05-28,W4-Q4,2025-10-01,2025-12-31,849262d,feat/e53v3-earnings-1d,local,-1.641,-5.380,-5380,74,22,6.8,75.07,E53-v3 W4-Q4. E40d -1.606. Delta -0.035. 101 blocks.
 2026-05-28,W5-FebMay,2025-02-01,2025-05-31,849262d,feat/e53v3-earnings-1d,local,-1.031,-4.455,-4455,84,14,12.7,85.96,E53-v3 W5-FebMay. E40d -0.342. Delta -0.689. 32 blocks.
 2026-05-28,W6-H1,2025-01-01,2025-06-30,849262d,feat/e53v3-earnings-1d,local,0.467,8.072,8072,130,37,9.9,132.92,E53-v3 W6-H1. E40d 0.96. Delta -0.493. 97 blocks.
+2026-05-28,FY2025,2025-01-01,2025-12-31,cf337e1,feat/e51-parabolic-block-40pct,local,1.000,30.449,30449,212,42,12.0,216.53,E51 parabolic block 40% threshold — NEUTRAL. 26 blocks, 0 performance delta vs E40d baseline 1.000. 40% threshold too high — blocked entries replaced by equivalent candidates. Track closed.
+2026-05-28,W1-Q1-2025,2025-01-01,2025-03-31,cf337e1,feat/e51-parabolic-block-40pct,local,1.378,11.111,11111,70,52,8.5,70.88,E51 W1. Baseline 1.378. Delta 0.000.
+2026-05-28,W2-Q2-2025,2025-04-01,2025-06-30,cf337e1,feat/e51-parabolic-block-40pct,local,-0.598,-0.513,-513,78,26,6.1,78.06,E51 W2. Baseline -0.598. Delta 0.000.
+2026-05-28,W3-Q3-2025,2025-07-01,2025-09-30,cf337e1,feat/e51-parabolic-block-40pct,local,4.427,18.479,18479,42,44,3.2,42.25,E51 W3. Baseline 4.427. Delta 0.000.
+2026-05-28,W4-Q4-2025,2025-10-01,2025-12-31,cf337e1,feat/e51-parabolic-block-40pct,local,-2.331,-8.779,-8779,68,21,10.0,68.00,E51 W4. Baseline -2.331. Delta 0.000.
+2026-05-28,W5-FebMay-2025,2025-02-01,2025-05-31,cf337e1,feat/e51-parabolic-block-40pct,local,-1.578,-6.252,-6252,88,26,10.5,88.00,E51 W5. Baseline -1.578. Delta 0.000.
+2026-05-28,W6-H1-2025,2025-01-01,2025-06-30,cf337e1,feat/e51-parabolic-block-40pct,local,0.346,6.972,6972,140,38,12.0,143.06,E51 W6. Baseline 0.346. Delta 0.000.
