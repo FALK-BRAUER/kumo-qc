@@ -227,3 +227,10 @@ e89,FY2025,local,587,0.222,+11.0%,13.5%,REJECTED,Unlimited slots+ risk sizing+90
 2026-05-28,W4-Q4-2025,2025-10-01,2025-12-31,b57c7f6,feat/e90-resistance-tiebreak,qc-cloud-polygon,-0.085,1.393,,70,29,,70,E90 W4. BT 9a768214549306293e1758c8b2667c0d. vs E40d -1.316 — marginal improvement.
 2026-05-28,W5-FebMay-2025,2025-02-01,2025-05-31,b57c7f6,feat/e90-resistance-tiebreak,qc-cloud-polygon,0.402,5.286,,128,29,,128,E90 W5. BT ab4e66149c2c5215f1d6b660c823056e. vs E40d 1.164 (delta -0.762).
 2026-05-28,W6-H1-2025,2025-01-01,2025-06-30,b57c7f6,feat/e90-resistance-tiebreak,qc-cloud-polygon,1.129,18.383,,185,43,,185,E90 W6. BT 079d0d4389e823ac44d8c79634f8ca24. vs E40d 1.509.
+2026-05-28,FY2025,2025-01-01,2025-12-31,7b95fc1,feat/e80-sp500-universe,qc-cloud-sp500,0.363,14.117,,308,39,,308,E80 S&P500 universe (500 tickers) vs polygon-326. BT 2410f0f6b0f1fa33544bf9e740c88676. Delta -0.952 vs polygon-326 1.315. DV screening in polygon-326 removes low-momentum tail.
+2026-05-28,W1-Q1-2025,2025-01-01,2025-03-31,7b95fc1,feat/e80-sp500-universe,qc-cloud-sp500,1.651,11.071,,107,37,,107,E80 W1. BT 6ce93d79f3116b4ed61685373855cfaa. NEUTRAL vs poly 1.661.
+2026-05-28,W2-Q2-2025,2025-04-01,2025-06-30,7b95fc1,feat/e80-sp500-universe,qc-cloud-sp500,0.190,2.495,,84,39,,84,E80 W2. BT cba37d0ac17d400e829d1115639a0ee3. vs poly 1.940 (delta -1.750).
+2026-05-28,W3-Q3-2025,2025-07-01,2025-09-30,7b95fc1,feat/e80-sp500-universe,qc-cloud-sp500,2.153,9.299,,70,43,,70,E80 W3. BT e3764ef7b1e54cf6a4d7b7dcc099a487.
+2026-05-28,W4-Q4-2025,2025-10-01,2025-12-31,7b95fc1,feat/e80-sp500-universe,qc-cloud-sp500,-0.573,-0.214,,72,28,,72,E80 W4. BT ab3f151f379d77c4648d130c7816d828. Better than poly -1.316.
+2026-05-28,W5-FebMay-2025,2025-02-01,2025-05-31,7b95fc1,feat/e80-sp500-universe,qc-cloud-sp500,-0.169,0.235,,128,31,,128,E80 W5. BT 22b610bbe65ad75ac79e56998a01fc3e. vs poly 1.164 (delta -1.333).
+2026-05-28,W6-H1-2025,2025-01-01,2025-06-30,7b95fc1,feat/e80-sp500-universe,qc-cloud-sp500,0.668,10.683,,178,39,,178,E80 W6. BT e48b522b763cb12ca211c2cd69615539. vs poly 1.509.
