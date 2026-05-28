@@ -233,3 +233,5 @@ date_run,window,period_start,period_end,commit,branch,environment,sharpe,net_pro
 2026-05-28,W4-Q4-2025,2025-10-01,2025-12-31,9cf6ad0,feat/e104-vix30,local,-1.765,-6.242,-6242,74,22,7.8,,E104 W4. E40d -1.606. Delta -0.159.
 2026-05-28,W5-FebMay-2025,2025-02-01,2025-05-31,9cf6ad0,feat/e104-vix30,local,-0.573,-1.449,-1449,92,22,10.2,,E104 W5. E40d -0.342. Delta -0.231.
 2026-05-28,W6-H1-2025,2025-01-01,2025-06-30,9cf6ad0,feat/e104-vix30,local,0.848,13.416,13416,140,40,9.7,,E104 W6. E40d 0.960. Delta -0.112.
+2026-05-28,FY2025,2025-01-01,2025-12-31,b881282,feat/gh79-universe-analysis,local,1.268,37.907,37907,196,44,10.7,,GH79 equity-200 baseline FY2025 — 326 tickers, 1.268 Sharpe, +37.9%
+2026-05-28,FY2025,2025-01-01,2025-12-31,b881282,feat/gh79-universe-analysis,local,0.254,11.738,11738,222,37,14.8,,GH79 S&P 500 universe FY2025 — 503 tickers, 0.254 Sharpe, +11.7%. REJECTED vs equity-200 (-1.014 Sharpe delta). 68 data request failures (BNY missing from local data)
