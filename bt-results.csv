@@ -219,3 +219,10 @@ date_run,window,period_start,period_end,commit,branch,environment,sharpe,net_pro
 2026-05-28,W4-Q4-2025,2025-10-01,2025-12-31,e9294bd,feat/e40-combo-regime,local,-0.904,-1.829,-1829,62,27,4.4,,E40-combo W4. E40d -1.606. Delta +0.702.
 2026-05-28,W5-FebMay-2025,2025-02-01,2025-05-31,e9294bd,feat/e40-combo-regime,local,-1.203,-2.413,-2413,48,32,6.6,,E40-combo W5. E40d -0.342. Delta -0.861.
 2026-05-28,W6-H1-2025,2025-01-01,2025-06-30,e9294bd,feat/e40-combo-regime,local,0.262,5.771,5771,100,42,9.5,,E40-combo W6. E40d 0.960. Delta -0.698.
+2026-05-28,FY2025,2025-01-01,2025-12-31,0db308e,feat/e88-priority-fill,local,1.268,37.867,37867,196,44,10.7,,E88 7/8 priority fill FY2025 — REJECTED. Sharpe 1.268 vs E40d 1.442 (delta -0.174). 7/8 signals add noise in bearish quarters. W2 delta -0.706 W5 delta -0.615 W6 delta -0.305 all exceed 0.2 regression threshold.
+2026-05-28,W1-Q1-2025,2025-01-01,2025-03-31,0db308e,feat/e88-priority-fill,local,1.503,11.362,11362,72,52,8.5,,E88 W1. E40d 1.509. Delta -0.006.
+2026-05-28,W2-Q2-2025,2025-04-01,2025-06-30,0db308e,feat/e88-priority-fill,local,-0.377,-0.240,-240,66,21,8.3,,E88 W2. E40d 0.329. Delta -0.706.
+2026-05-28,W3-Q3-2025,2025-07-01,2025-09-30,0db308e,feat/e88-priority-fill,local,4.427,18.479,18479,42,44,3.2,,E88 W3. E40d 4.427. Delta 0.000.
+2026-05-28,W4-Q4-2025,2025-10-01,2025-12-31,0db308e,feat/e88-priority-fill,local,-1.765,-6.242,-6242,74,22,7.8,,E88 W4. E40d -1.606. Delta -0.159.
+2026-05-28,W5-FebMay-2025,2025-02-01,2025-05-31,0db308e,feat/e88-priority-fill,local,-0.957,-3.798,-3798,80,20,11.3,,E88 W5. E40d -0.342. Delta -0.615.
+2026-05-28,W6-H1-2025,2025-01-01,2025-06-30,0db308e,feat/e88-priority-fill,local,0.655,10.966,10966,126,41,10.7,,E88 W6. E40d 0.960. Delta -0.305.
