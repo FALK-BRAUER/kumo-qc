@@ -256,6 +256,15 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         else:
             self.parabolic_threshold = 0.25  # default 25%
         self.log(f"VERSION_MARKER|e51_parabolic_entry_block_v1|threshold={self.parabolic_threshold}")
+        # E28: VIX percentile gate — block entries when VIX is in top X% of 2-year distribution
+        _vix_pct_param = self.get_parameter("vix_percentile_enabled", "false")
+        self.vix_percentile_enabled = _vix_pct_param.lower() == "true"
+        if self.vix_percentile_enabled:
+            _vix_pct_threshold = self.get_parameter("vix_percentile_threshold", "75.0")
+            self.vix_percentile_threshold = float(_vix_pct_threshold)
+            _vix_pct_lookback = self.get_parameter("vix_percentile_lookback", "504")
+            self.vix_percentile_lookback = int(_vix_pct_lookback)
+            self.log(f"VERSION_MARKER|e28_vix_percentile_gate_v1|threshold={self.vix_percentile_threshold}|lookback={self.vix_percentile_lookback}")
         self.vix = self.add_index("VIX", Resolution.DAILY).symbol
         # E121: VIX Ichimoku 2-tier gate — VIX cloud for dynamic slot sizing
         self.vix_ichi = self.ichimoku(self.vix, 9, 26, 26, 52, 26, 26)
@@ -466,6 +475,25 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             else:
                 tier = 1
             self.log(f"VIX_TIER|{date_str}|VIX={vix_price:.2f}|cloud_top={vix_cloud_top:.2f}|tier={tier}|max_positions={max_positions}")
+
+        # E28: VIX percentile gate — block entries when VIX is in top X% of 2-year distribution
+        if self.vix_percentile_enabled and self.securities.contains_key(self.vix):
+            try:
+                vix_hist = self.history(self.vix, self.vix_percentile_lookback, Resolution.DAILY)
+                if vix_hist is not None and len(vix_hist) >= int(self.vix_percentile_lookback * 0.8):
+                    if isinstance(vix_hist.index, pd.MultiIndex):
+                        vix_hist = vix_hist.droplevel(0)
+                    close_col = "close" if "close" in vix_hist.columns else "Close"
+                    vix_series = vix_hist[close_col].dropna()
+                    if len(vix_series) > 0:
+                        vix_price_now = float(self.securities[self.vix].price)
+                        vix_pct = (vix_series < vix_price_now).mean() * 100.0
+                        blocked = vix_pct > self.vix_percentile_threshold
+                        self.log(f"VIX_PERCENTILE|{date_str}|VIX={vix_price_now:.2f}|2yr_pct={vix_pct:.1f}|threshold={self.vix_percentile_threshold}|blocked={blocked}")
+                        if blocked:
+                            return
+            except Exception:
+                pass
 
         exiting = {
             o.symbol
