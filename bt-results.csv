@@ -240,3 +240,10 @@ date_run,window,period_start,period_end,commit,branch,environment,sharpe,net_pro
 2026-05-28,W4-Q4-2025,2025-10-01,2025-12-31,7ac9c5f,feat/e86-breakout-carveout,local,-1.162,-3.320,-3320,68,28,4.9,,E86 W4. E40d -1.606. Delta +0.444. 18 PROX_BLOCKs. Only improved window.
 2026-05-28,W5-FebMay-2025,2025-02-01,2025-05-31,7ac9c5f,feat/e86-breakout-carveout,local,-1.118,-5.632,-5632,85,21,12.8,,E86 W5. E40d -0.342. Delta -0.776. 49 PROX_BLOCKs.
 2026-05-28,W6-H1-2025,2025-01-01,2025-06-30,7ac9c5f,feat/e86-breakout-carveout,local,0.310,6.570,6570,132,38,11.7,,E86 W6. E40d 0.960. Delta -0.650. 42 PROX_BLOCKs.
+2026-05-28,FY2025,2025-01-01,2025-12-31,3ffe004,feat/e45-vix-cloud-gate,local,-0.076,5.449,5449,170,40,13.4,,E45 VIX cloud gate 3-tier FY2025 — REJECTED. Sharpe -0.076 vs E40d 1.442 (delta -1.518). Tier3 (VIX>=SMA200) fired 135 days (54% of year) — VIX SMA200~15-16 too low, blocks normal market. Tier2=32 days. W2 only window improved (+0.807).
+2026-05-28,W1-Q1-2025,2025-01-01,2025-03-31,3ffe004,feat/e45-vix-cloud-gate,local,-1.580,-4.531,-4531,54,39,8.5,,E45 W1. E40d 1.509. Delta -3.089. T2=9 T3=56 (86% of days Tier3 blocked).
+2026-05-28,W2-Q2-2025,2025-04-01,2025-06-30,3ffe004,feat/e45-vix-cloud-gate,local,1.136,5.216,5216,30,30,4.5,,E45 W2. E40d 0.329. Delta +0.807. T2=0 T3=59 — but Q2 late entry when VIX cleared.
+2026-05-28,W3-Q3-2025,2025-07-01,2025-09-30,3ffe004,feat/e45-vix-cloud-gate,local,4.427,18.479,18479,42,44,3.2,,E45 W3. E40d 4.427. Delta 0.000. T2=0 T3=0 — VIX below cloud all Q3.
+2026-05-28,W4-Q4-2025,2025-10-01,2025-12-31,3ffe004,feat/e45-vix-cloud-gate,local,-2.250,-7.792,-7792,60,20,9.0,,E45 W4. E40d -1.606. Delta -0.644. T2=23 T3=20.
+2026-05-28,W5-FebMay-2025,2025-02-01,2025-05-31,3ffe004,feat/e45-vix-cloud-gate,local,-1.836,-6.090,-6090,58,21,11.0,,E45 W5. E40d -0.342. Delta -1.494. T2=0 T3=86.
+2026-05-28,W6-H1-2025,2025-01-01,2025-06-30,3ffe004,feat/e45-vix-cloud-gate,local,-0.965,-4.235,-4235,92,32,13.4,,E45 W6. E40d 0.960. Delta -1.925. T2=9 T3=115.
