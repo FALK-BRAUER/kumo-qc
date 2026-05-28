@@ -225,7 +225,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         return None
 
     def initialize(self) -> None:
-        self.log("VERSION_MARKER|e40d_vix25_regime_gate_v1")
+        self.log("VERSION_MARKER|e86_breakout_proximity_carveout")
         self.set_time_zone("America/New_York")
         self.log("VERSION_MARKER|cloud_static200_v15")
         sy = int(self.get_parameter("start_year",  "2025"))
@@ -315,6 +315,8 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     def _register_indicators(self, sym) -> None:
         d_ichi = self.ichimoku(sym, 9, 26, 26, 52, 26, 26)
         sma200 = self.sma(sym, 200)
+        high_20d = self.max(sym, 20, Resolution.DAILY, Field.HIGH)
+        high_52w = self.max(sym, 252, Resolution.DAILY, Field.HIGH)
 
         w_ichi = IchimokuKinkoHyo(9, 26, 26, 52, 26, 26)
         w_close = RollingWindow[float](28)
@@ -338,6 +340,8 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             "w_ichi": w_ichi,
             "w_close": w_close,
             "sma200": sma200,
+            "high_20d": high_20d,
+            "high_52w": high_52w,
             "consolidator": consolidator,
         }
 
@@ -505,6 +509,20 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             price = self.securities[symbol].price
             if price <= 0:
                 continue
+            # Proximity block with breakout carve-out (E86)
+            entry_ind = self._indicators.get(symbol)
+            if entry_ind:
+                h20_ind = entry_ind.get("high_20d")
+                h52w_ind = entry_ind.get("high_52w")
+                if h20_ind and h20_ind.is_ready and h52w_ind and h52w_ind.is_ready:
+                    h20 = float(h20_ind.current.value)
+                    h52w = float(h52w_ind.current.value)
+                    p = float(price)
+                    in_breakout = p > h52w
+                    near_resistance = h20 > 0 and h20 * 0.99 <= p < h20
+                    if near_resistance and not in_breakout:
+                        self.log(f"PROX_BLOCK|{date_str}|{symbol.value}|price={p:.2f}|h20={h20:.2f}|h52w={h52w:.2f}")
+                        continue
             target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
             quantity = int(target_value / price)
             if quantity <= 0:
