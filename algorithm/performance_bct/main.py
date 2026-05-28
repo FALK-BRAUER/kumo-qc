@@ -249,6 +249,13 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # E40d: gate on by default; override with regime_gate_enabled=false to disable
         _regime_param = self.get_parameter("regime_gate_enabled", "")
         self.regime_gate_enabled = _regime_param != "false"
+        # E51: Parabolic entry block — skip entries on names with extreme 13-day run
+        _parabolic_param = self.get_parameter("parabolic_threshold", "")
+        if _parabolic_param != "":
+            self.parabolic_threshold = float(_parabolic_param)
+        else:
+            self.parabolic_threshold = 0.25  # default 25%
+        self.log(f"VERSION_MARKER|e51_parabolic_entry_block_v1|threshold={self.parabolic_threshold}")
         self.vix = self.add_index("VIX", Resolution.DAILY).symbol
         # E121: VIX Ichimoku 2-tier gate — VIX cloud for dynamic slot sizing
         self.vix_ichi = self.ichimoku(self.vix, 9, 26, 26, 52, 26, 26)
@@ -507,6 +514,22 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             result = score_symbol_native(self, symbol, ind)
             if result is None or result["score"] < self.MIN_SCORE:
                 continue
+            # E51: Parabolic entry block — skip if 13-day return exceeds threshold
+            try:
+                hist = self.history(symbol, 14, Resolution.DAILY)
+                if hist is not None and len(hist) >= 14:
+                    if isinstance(hist.index, pd.MultiIndex):
+                        hist = hist.droplevel(0)
+                    close_col = "close" if "close" in hist.columns else "Close"
+                    price_13d_ago = float(hist.iloc[0][close_col])
+                    current_price = float(hist.iloc[-1][close_col])
+                    if price_13d_ago > 0:
+                        return_13d = current_price / price_13d_ago - 1
+                        if return_13d > self.parabolic_threshold:
+                            self.log(f"PARABOLIC_BLOCK|{date_str}|{symbol.value}|13d_return={return_13d:.2%}|threshold={self.parabolic_threshold:.2%}")
+                            continue
+            except Exception:
+                pass
             candidates.append((symbol, result["score"]))
 
         candidates.sort(key=lambda x: x[1], reverse=True)
