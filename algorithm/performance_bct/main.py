@@ -230,6 +230,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.set_end_date(ey, em, ed)
         self.set_cash(100_000)
         self.set_benchmark("SPY")
+        self._spy_sym = self.add_equity("SPY", Resolution.DAILY).symbol  # E22: SPY needed for active return calc
 
         warmup_days = int(self.get_parameter("warmup_days", "750"))
         self.set_warmup(timedelta(days=warmup_days))
