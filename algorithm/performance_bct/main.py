@@ -225,7 +225,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         return None
 
     def initialize(self) -> None:
-        self.log("VERSION_MARKER|e40d_vix25_regime_gate_v1")
+        self.log("VERSION_MARKER|e88_priority_fill_7_8")
         self.set_time_zone("America/New_York")
         self.log("VERSION_MARKER|cloud_static200_v15")
         sy = int(self.get_parameter("start_year",  "2025"))
@@ -487,12 +487,11 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 price = float(self.securities[symbol].price)
                 if price <= 0:
                     continue
-                # If below SMA200, condition 8 fails → max score 6 → skip (MIN_SCORE=7)
-                if price < sma200_ind.current.value:
-                    continue
-                # If below daily cloud, condition 5 fails → max score 6 → skip
+                # Only skip if BOTH cond5 (above cloud) AND cond8 (above SMA200) fail → max score 6
+                below_sma200 = price < sma200_ind.current.value
                 cloud_top = max(d_ichi_ind.senkou_a.current.value, d_ichi_ind.senkou_b.current.value)
-                if price < cloud_top:
+                below_cloud = price < cloud_top
+                if below_sma200 and below_cloud:
                     continue
             # === END PRE-FILTER ===
             result = score_symbol_native(self, symbol, ind)
@@ -511,6 +510,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 continue
             self.market_on_open_order(symbol, quantity)
             self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price)}
-            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
+            tier = "t1" if score == 8 else "t2"
+            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|tier={tier}|qty={quantity}|price~{price:.2f}")
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
