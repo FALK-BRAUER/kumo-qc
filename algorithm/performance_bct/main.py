@@ -213,10 +213,10 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         return next((d for d in candidates if d.exists()), None)
 
     @staticmethod
-    def _load_polygon_universe() -> dict | None:
+    def _load_polygon_universe(universe_file: str = "polygon_universe_equity200_fy2025.json") -> dict | None:
         candidates = [
-            Path(__file__).parent / "polygon_universe_equity200_fy2025.json",
-            Path("/Lean/Data/polygon_universe_equity200_fy2025.json"),
+            Path(__file__).parent / universe_file,
+            Path(f"/Lean/Data/{universe_file}"),
         ]
         for p in candidates:
             if p.exists():
@@ -258,7 +258,11 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self._polygon_universe: dict | None = None
         self._position_meta: dict = {}  # symbol → {entry_date, entry_price}
 
-        poly = self._load_polygon_universe()
+        # GH #79: Universe selection parameter
+        universe_file = self.get_parameter("universe_file", "polygon_universe_equity200_fy2025.json")
+        self.log(f"UNIVERSE_CONFIG|file={universe_file}")
+        
+        poly = self._load_polygon_universe(universe_file)
         if poly is not None:
             # Local: static universe from Polygon daily snapshot (867 unique tickers, FY2025)
             if True:  # scope block
@@ -266,7 +270,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 all_tickers: set[str] = set()
                 for tickers in poly.values():
                     all_tickers.update(tickers)
-                self.log(f"LOCAL_UNIVERSE|polygon_equity|unique_tickers={len(all_tickers)}")
+                self.log(f"LOCAL_UNIVERSE|{universe_file}|unique_tickers={len(all_tickers)}")
                 for ticker in sorted(all_tickers):
                     try:
                         self.add_equity(ticker, Resolution.DAILY)
