@@ -1,5 +1,6 @@
 {
     "local-id": 679828420,
+    "cloud-id": 32033824,
     "parameters": {
         "warmup_days": "750",
         "weekly_kijun_exit": "True",
