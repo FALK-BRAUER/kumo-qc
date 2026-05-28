@@ -1,0 +1,7 @@
+2026-05-28,FY2025,2025-01-01,2025-12-31,a9209c2,feat/e78-active-return-gate,local,0.831,25.790,25790,228,39,12.1,,E22 active return gate (10d vs SPY > 0) FY2025 — REJECTED (-0.248 Sharpe delta vs baseline 1.079)
+2026-05-28,W1-Q1-2025,2025-01-01,2025-03-31,a9209c2,feat/e78-active-return-gate,local,1.015,34.081,34081,76,48,3.0,,E22 W1 Q1 2025 — REJECTED vs baseline (1.494 Sharpe, -0.479 delta)
+2026-05-28,W2-Q2-2025,2025-04-01,2025-06-30,a9209c2,feat/e78-active-return-gate,local,-0.510,-4.638,-4638,92,27,0.0,,E22 W2 Q2 2025 — NEUTRAL vs baseline (-0.608 Sharpe, +0.098 delta)
+2026-05-28,W3-Q3-2025,2025-07-01,2025-09-30,a9209c2,feat/e78-active-return-gate,local,3.711,81.147,81147,50,40,15.0,,E22 W3 Q3 2025 — REJECTED vs baseline (4.427 Sharpe, -0.716 delta)
+2026-05-28,W4-Q4-2025,2025-10-01,2025-12-31,a9209c2,feat/e78-active-return-gate,local,-1.638,-20.342,-20342,70,23,1.0,,E22 W4 Q4 2025 — NEUTRAL vs baseline (-1.765 Sharpe, +0.127 delta)
+2026-05-28,W5-FebMay-2025,2025-02-01,2025-05-31,a9209c2,feat/e78-active-return-gate,local,-1.050,-14.780,-14780,108,24,7.0,,E22 W5 Feb-May 2025 — NEUTRAL vs baseline (-1.171 Sharpe, +0.121 delta)
+2026-05-28,W6-H1-2025,2025-01-01,2025-06-30,a9209c2,feat/e78-active-return-gate,local,0.195,10.605,10605,158,38,3.0,,E22 W6 H1 2025 — REJECTED vs baseline (0.478 Sharpe, -0.283 delta)
