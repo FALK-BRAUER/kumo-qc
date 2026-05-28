@@ -225,7 +225,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         return None
 
     def initialize(self) -> None:
-        self.log("VERSION_MARKER|e40d_vix25_regime_gate_v1")
+        self.log("VERSION_MARKER|e45_vix_cloud_gate_3tier")
         self.set_time_zone("America/New_York")
         self.log("VERSION_MARKER|cloud_static200_v15")
         sy = int(self.get_parameter("start_year",  "2025"))
@@ -246,10 +246,10 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # Exit condition parameter overrides
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
-        # E40d: gate on by default; override with regime_gate_enabled=false to disable
-        _regime_param = self.get_parameter("regime_gate_enabled", "")
-        self.regime_gate_enabled = _regime_param != "false"
         self.vix = self.add_index("VIX", Resolution.DAILY).symbol
+        # E45: VIX Ichimoku cloud gate (3-tier, replaces fixed VIX<25)
+        self._vix_ichi = self.ichimoku(self.vix, 9, 26, 26, 52, 26, 26)
+        self._vix_sma200 = self.sma(self.vix, 200)
 
         self.universe_settings.resolution = Resolution.DAILY
         self.universe_settings.data_normalization_mode = DataNormalizationMode.RAW
@@ -399,6 +399,22 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     def _has_open_orders(self, symbol) -> bool:
         return bool(self.transactions.get_open_orders(symbol))
 
+    def _vix_regime_cap(self, date_str: str) -> int:
+        """3-tier VIX cloud gate. Returns max allowed open positions."""
+        if not self.securities.contains_key(self.vix):
+            return self.MAX_POSITIONS
+        vix_price = float(self.securities[self.vix].price)
+        if self._vix_sma200.is_ready and vix_price >= self._vix_sma200.current.value:
+            self.log(f"VIX_TIER3|{date_str}|VIX={vix_price:.2f}|sma200={self._vix_sma200.current.value:.2f}|cap=0")
+            return 0
+        if self._vix_ichi.is_ready:
+            cloud_bottom = min(float(self._vix_ichi.senkou_a.current.value),
+                               float(self._vix_ichi.senkou_b.current.value))
+            if vix_price >= cloud_bottom:
+                self.log(f"VIX_TIER2|{date_str}|VIX={vix_price:.2f}|cloud_bot={cloud_bottom:.2f}|cap=5")
+                return 5
+        return self.MAX_POSITIONS
+
     def _rebalance(self) -> None:
         if self.is_warming_up:
             return
@@ -445,12 +461,6 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     self._position_meta.pop(symbol, None)
                     self.log(f"WEEKLY_KIJUN_STOP|{date_str}|{symbol.value}|close={close:.2f}|w_kijun={w_kijun:.2f}")
 
-        if self.regime_gate_enabled and self.securities.contains_key(self.vix):
-            vix_price = float(self.securities[self.vix].price)
-            if vix_price >= 25.0:
-                self.log(f"REGIME_BLOCK|{date_str}|VIX={vix_price:.2f}|threshold=25|reason=fear_regime")
-                return
-
         exiting = {
             o.symbol
             for o in self.transactions.get_open_orders()
@@ -460,7 +470,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             1 for sym, h in self.portfolio.items()
             if h.invested and sym not in exiting
         )
-        slots = self.MAX_POSITIONS - open_count
+        slots = self._vix_regime_cap(date_str) - open_count
         if slots <= 0:
             return
 
