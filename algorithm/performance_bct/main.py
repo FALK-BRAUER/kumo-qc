@@ -283,7 +283,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 self.log(f"CLOUD_UNIVERSE|object_store|unique_tickers={len(all_tickers)}")
                 for ticker in all_tickers:
                     try:
-                        self.add_equity(ticker, Resolution.DAILY, data_normalization_mode=DataNormalizationMode.RAW)
+                        self.add_equity(ticker, Resolution.DAILY)
                     except Exception:
                         pass
             else:
