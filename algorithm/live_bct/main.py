@@ -94,7 +94,9 @@ class LiveBCT(QCAlgorithm):
                 self.Log(f"EXIT|{date_str}|{sym}|reason=signal_lost")
 
         # Enter new signals (equal weight, max 10 positions)
-        target_symbols = list(self._signals.keys())[:10]
+        # Sort by BCT score DESC for deterministic, highest-score-first selection
+        ranked = sorted(self._signals.items(), key=lambda x: x[1][0], reverse=True)
+        target_symbols = [sym for sym, _ in ranked[:10]]
         weight = 1.0 / max(len(target_symbols), 1)
 
         for symbol in target_symbols:
