@@ -27,11 +27,6 @@ from pathlib import Path
 
 from AlgorithmImports import *  # noqa: F401,F403
 
-try:
-    from universe import EQUITY_200  # Cloud static universe (uploaded with main.py)
-except ImportError:
-    EQUITY_200 = []  # Fallback if universe.py not available
-
 from typing import Any
 
 import numpy as np
@@ -274,22 +269,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                         pass
             # (dead code — outer check ensures poly is not None here)
         else:
-            # Cloud: static universe from universe.py (uploaded alongside main.py)
-            if EQUITY_200:
-                self.log(f"CLOUD_UNIVERSE|static_py|tickers={len(EQUITY_200)}")
-                for ticker in EQUITY_200:
-                    try:
-                        self.add_equity(ticker, Resolution.DAILY)
-                    except Exception:
-                        pass
-            else:
-                # Fallback: CoarseFundamental top-200 (v12 approach)
-                self.log("CLOUD_UNIVERSE|universe_py_missing|fallback_to_coarse")
-                dv_max = int(self.get_parameter("coarse_max", "200"))
-                def _cloud_coarse(coarse):
-                    sorted_coarse = sorted(coarse, key=lambda c: c.dollar_volume, reverse=True)
-                    return [c.symbol for c in sorted_coarse[:dv_max]]
-                self.add_universe(_cloud_coarse)
+            # Cloud: S&P 500 constituents via SPY ETF universe
+            spy = Symbol.create("SPY", SecurityType.EQUITY, Market.USA)
+            self.add_universe(self.universe.etf(spy, self.universe_settings))
 
         self.schedule.on(
             self.date_rules.every_day(),
