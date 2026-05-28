@@ -505,6 +505,14 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             price = self.securities[symbol].price
             if price <= 0:
                 continue
+            # === PARABOLIC ENTRY BLOCK ===
+            hist = self.history(symbol, 14, Resolution.DAILY)
+            if len(hist) >= 14:
+                ret_13d = (price / hist.iloc[0].close) - 1
+                if ret_13d > 0.40:
+                    self.log(f"PARABOLIC_BLOCK|{date_str}|{symbol.value}|13d_return={ret_13d:.4f}|threshold=0.40")
+                    continue
+            # === END PARABOLIC ENTRY BLOCK ===
             target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
             quantity = int(target_value / price)
             if quantity <= 0:
