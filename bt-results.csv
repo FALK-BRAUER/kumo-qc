@@ -119,3 +119,5 @@
 2026-05-28,FY2025,2025-01-01,2025-12-31,cloud-e40d,E47-sector-regime-FY2025,local,0.583,19.522,19522,200,39,16.2,200,E47 sector regime gate FY2025 — REJECTED. Sharpe 1.268 -> 0.583 (-0.685). 59 sector skips (42 XLV). Sector ETF cloud gate removes too many good entries.
 2026-05-28,W1-Q1-2025,2025-01-01,2025-03-31,cloud-e40d,E47-sector-regime-W1,local,0.298,3.174,3174,74,0,10.8,74,E47 W1 — REJECTED. 0.298 vs baseline 1.494.
 2026-05-28,W2-Q2-2025,2025-04-01,2025-06-30,cloud-e40d,E47-sector-regime-W2,local,-0.66,-1.484,-1484,62,0,8.9,62,E47 W2 — REJECTED. -0.66 vs baseline -0.608.
+2026-05-28,FY2025,2025-01-01,2025-12-31,cloud-e40d,E40d-v3-vix30-FY2025,local,1.379,40.900,40900,210,0,9.7,210,E40d-v3 FY2025 — REJECTED. 1.379 Sharpe vs E40d 1.442 (-0.063). VIX<30 looser than VIX<25. 38 regime blocks. VIX<25 is the sweet spot.
+2026-05-28,FY2025,2025-01-01,2025-12-31,cloud-e40d,E89-unlimited-slots-risk-sizing-FY2025,local,0.222,11.000,11000,587,0,13.5,587,E89 FY2025 — CATASTROPHIC REJECTED. 0.222 Sharpe vs E40d 1.442 (-1.220). 44 max concurrent positions, 84% avg heat. Over-diversification destroys returns.
