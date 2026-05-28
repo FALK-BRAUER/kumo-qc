@@ -278,6 +278,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             obj_key = "polygon_universe_equity200_fy2025.json"
             if self.object_store.contains_key(obj_key):
                 cloud_poly = json.loads(self.object_store.read(obj_key))
+                self._polygon_universe = cloud_poly  # per-day filter applied at rebalance via today_poly
                 all_tickers = sorted({t for tickers in cloud_poly.values() for t in tickers})
                 self.log(f"CLOUD_UNIVERSE|object_store|unique_tickers={len(all_tickers)}")
                 for ticker in all_tickers:
