@@ -204,7 +204,7 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         self.warmup_days = warmup_days
 
         # Exit condition parameters (default: disabled for reference baseline)
-        self.cloud_exit_enabled = self.get_parameter("cloud_exit", "true").lower() == "true"
+        self.cloud_exit_enabled = self.get_parameter("cloud_exit", "false").lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", "false").lower() == "true"
 
         # Rotation engine parameters (Item 2: sT10e+R-B-v3)
@@ -245,7 +245,9 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         # Track SPY gate state (4-day confirmation)
         self._spy_above_cloud_days: int = 0
         self._spy_gate_open: bool = False
-        self._vix_size_mult: float = 1.0  # GH #28: cached daily VIX percentile multiplier
+        self._vix_size_mult: float = 1.0  # GH #28: cached VIX percentile multiplier
+        self._vix_cache_date: object = None  # GH #42: date of last VIX history fetch
+        self._vix_cached_closes: list[float] = []  # GH #42: cached VIX closes array
 
         self.universe_settings.resolution = Resolution.DAILY
         self._indicators: dict = {}
@@ -569,26 +571,37 @@ class BCTMinimalAlgorithm(QCAlgorithm):
         self._spy_gate_open = self._spy_above_cloud_days >= self.spy_gate_confirm_days
 
     def _update_vix_percentile(self) -> None:
-        """GH #28: Update cached VIX size multiplier using 2-year percentile rank.
+        """GH #28 + #42: Update cached VIX size multiplier using 2-year percentile rank.
 
-        Fetches 504-day VIX history daily. If current VIX is above the 90th
+        Fetches 504-day VIX history at most once per week (GH #42 perf fix).
+        Caches the closes array and refetch date. If current VIX is above the 90th
         percentile of that distribution, sets _vix_size_mult to 0.5 (half-size).
         Falls back to 1.0 (full size) on any data error.
         """
         try:
             vix_sym = self.symbol("VIX")
-            hist = self.history(vix_sym, 504, Resolution.DAILY)
-            if hist is None or hist.empty:
-                return
-            if isinstance(hist.index, pd.MultiIndex):
-                hist = hist.droplevel(0)
-            closes = hist["close"].dropna().values
-            if len(closes) < 10:
-                return
+            today = self.time.date()
+
+            # GH #42: only refetch 504-day history if cache is empty or > 7 days old
+            if (self._vix_cache_date is None or
+                (today - self._vix_cache_date).days > 7 or
+                len(self._vix_cached_closes) < 10):
+                hist = self.history(vix_sym, 504, Resolution.DAILY)
+                if hist is None or hist.empty:
+                    return
+                if isinstance(hist.index, pd.MultiIndex):
+                    hist = hist.droplevel(0)
+                closes = hist["close"].dropna().values
+                if len(closes) < 10:
+                    return
+                self._vix_cached_closes = closes.tolist()
+                self._vix_cache_date = today
+
             current = float(self.securities[vix_sym].price)
             if current <= 0:
                 return
-            pct_rank = float((closes < current).sum()) / len(closes) * 100
+            import numpy as np  # noqa: PLC0415
+            pct_rank = float(np.sum(np.array(self._vix_cached_closes) < current)) / len(self._vix_cached_closes) * 100
             self._vix_size_mult = (
                 self.vix_size_multiplier if pct_rank >= self.vix_percentile_threshold else 1.0
             )
