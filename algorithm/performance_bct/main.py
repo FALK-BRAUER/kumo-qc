@@ -249,6 +249,11 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # E40d: gate on by default; override with regime_gate_enabled=false to disable
         _regime_param = self.get_parameter("regime_gate_enabled", "")
         self.regime_gate_enabled = _regime_param != "false"
+        # E90: resistance breakout tiebreaker (default off)
+        self.resistance_tiebreak_enabled = self.get_parameter("resistance_tiebreak_enabled", "") != "false"
+        self.resistance_lookback = int(self.get_parameter("resistance_lookback", "20"))
+        self.resistance_buffer = float(self.get_parameter("resistance_buffer", "0.002"))
+        self.resistance_max_ext = float(self.get_parameter("resistance_max_ext", "0.05"))
         self.vix = self.add_index("VIX", Resolution.DAILY).symbol
 
         self.universe_settings.resolution = Resolution.DAILY
@@ -501,6 +506,36 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             candidates.append((symbol, result["score"]))
 
         candidates.sort(key=lambda x: x[1], reverse=True)
+
+        if self.resistance_tiebreak_enabled and candidates:
+            def _resistance_flag(symbol: Any) -> tuple[bool, float]:
+                try:
+                    hist = self.history([symbol], self.resistance_lookback + 1, Resolution.DAILY)
+                    if hist is None or hist.empty or len(hist) < self.resistance_lookback:
+                        return False, 0.0
+                    closes = hist["close"].values
+                    resistance = float(max(closes[:-1]))
+                    if resistance <= 0:
+                        return False, 0.0
+                    price = float(self.securities[symbol].price)
+                    lo = resistance * (1 + self.resistance_buffer)
+                    hi = resistance * (1 + self.resistance_max_ext)
+                    if lo <= price <= hi:
+                        return True, price / resistance - 1
+                    return False, 0.0
+                except Exception:
+                    return False, 0.0
+
+            enriched: list[tuple] = []
+            for sym, sc in candidates:
+                has_break, pct_above = _resistance_flag(sym)
+                if has_break:
+                    resistance = float(self.securities[sym].price) / (1 + pct_above)
+                    self.log(f"RESISTANCE_BREAK|{date_str}|{sym.value}|resistance={resistance:.2f}|price={float(self.securities[sym].price):.2f}|pct_above={pct_above:.3f}")
+                enriched.append((sym, sc, has_break))
+            enriched.sort(key=lambda x: (x[1], x[2]), reverse=True)
+            candidates = [(sym, sc) for sym, sc, _ in enriched]
+
         for symbol, score in candidates[:slots]:
             price = self.securities[symbol].price
             if price <= 0:
