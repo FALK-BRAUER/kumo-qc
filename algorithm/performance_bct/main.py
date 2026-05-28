@@ -225,7 +225,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         return None
 
     def initialize(self) -> None:
-        self.log("VERSION_MARKER|e40d_vix25_regime_gate_v1")
+        self.log("VERSION_MARKER|e40combo_vix25_spy200ma_3d")
         self.set_time_zone("America/New_York")
         self.log("VERSION_MARKER|cloud_static200_v15")
         sy = int(self.get_parameter("start_year",  "2025"))
@@ -246,10 +246,13 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # Exit condition parameter overrides
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
-        # E40d: gate on by default; override with regime_gate_enabled=false to disable
+        # E40-combo: VIX<25 AND SPY>200MA ≥3 consecutive days; gate on by default
         _regime_param = self.get_parameter("regime_gate_enabled", "")
         self.regime_gate_enabled = _regime_param != "false"
         self.vix = self.add_index("VIX", Resolution.DAILY).symbol
+        self._spy_sym = self.add_equity("SPY", Resolution.DAILY).symbol
+        self._spy_sma200 = self.sma(self._spy_sym, 200)
+        self._spy_above_streak: int = 0
 
         self.universe_settings.resolution = Resolution.DAILY
         self.universe_settings.data_normalization_mode = DataNormalizationMode.RAW
@@ -404,6 +407,14 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             return
         date_str = self.time.strftime("%Y-%m-%d")
 
+        # Update SPY>200MA consecutive-day streak
+        if self._spy_sma200.is_ready and self.securities.contains_key(self._spy_sym):
+            spy_close = float(self.securities[self._spy_sym].price)
+            if spy_close > self._spy_sma200.current.value:
+                self._spy_above_streak += 1
+            else:
+                self._spy_above_streak = 0
+
         for symbol, holding in list(self.portfolio.items()):
             if not holding.invested or self._has_open_orders(symbol):
                 continue
@@ -445,10 +456,15 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     self._position_meta.pop(symbol, None)
                     self.log(f"WEEKLY_KIJUN_STOP|{date_str}|{symbol.value}|close={close:.2f}|w_kijun={w_kijun:.2f}")
 
-        if self.regime_gate_enabled and self.securities.contains_key(self.vix):
-            vix_price = float(self.securities[self.vix].price)
-            if vix_price >= 25.0:
-                self.log(f"REGIME_BLOCK|{date_str}|VIX={vix_price:.2f}|threshold=25|reason=fear_regime")
+        if self.regime_gate_enabled:
+            if self.securities.contains_key(self.vix):
+                vix_price = float(self.securities[self.vix].price)
+                if vix_price >= 25.0:
+                    self.log(f"REGIME_BLOCK|{date_str}|VIX={vix_price:.2f}|SPY_STREAK={self._spy_above_streak}|reason=vix_fear")
+                    return
+            if self._spy_above_streak < 3:
+                spy_ma = self._spy_sma200.current.value if self._spy_sma200.is_ready else 0
+                self.log(f"REGIME_BLOCK|{date_str}|SPY_STREAK={self._spy_above_streak}|SPY_MA={spy_ma:.2f}|reason=spy_below_ma200_3d")
                 return
 
         exiting = {
