@@ -22,7 +22,7 @@ AND unrealized PnL ≥ +15%, switch stop anchor from Kijun to cloud bottom
 """
 
 import json
-from datetime import timedelta
+from datetime import date, timedelta
 from pathlib import Path
 
 from AlgorithmImports import *  # noqa: F401,F403
@@ -213,6 +213,18 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         return next((d for d in candidates if d.exists()), None)
 
     @staticmethod
+    def _load_earnings_calendar() -> dict:
+        candidates = [
+            Path(__file__).parent / "earnings_calendar_2025.json",
+            Path("/Lean/Data/earnings_calendar_2025.json"),
+        ]
+        for p in candidates:
+            if p.exists():
+                with open(p) as f:
+                    return json.load(f)
+        return {}
+
+    @staticmethod
     def _load_polygon_universe() -> dict | None:
         candidates = [
             Path(__file__).parent / "polygon_universe_equity200_fy2025.json",
@@ -249,6 +261,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # E40d: gate on by default; override with regime_gate_enabled=false to disable
         _regime_param = self.get_parameter("regime_gate_enabled", "")
         self.regime_gate_enabled = _regime_param != "false"
+        # E53-v3: earnings avoidance ±1d (default off)
+        self.earnings_avoid_enabled = self.get_parameter("earnings_avoid_enabled", "") != "false"
+        self._earnings_calendar: dict = self._load_earnings_calendar()
         self.vix = self.add_index("VIX", Resolution.DAILY).symbol
 
         self.universe_settings.resolution = Resolution.DAILY
@@ -495,6 +510,17 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 if price < cloud_top:
                     continue
             # === END PRE-FILTER ===
+            if self.earnings_avoid_enabled and self._earnings_calendar:
+                today_date = self.time.date()
+                _blocked = False
+                for edate_str in self._earnings_calendar.get(symbol.value, []):
+                    days_delta = (date.fromisoformat(edate_str) - today_date).days
+                    if -1 <= days_delta <= 1:
+                        self.log(f"EARNINGS_BLOCK|{date_str}|{symbol.value}|earnings_date={edate_str}|days_to_earnings={days_delta}")
+                        _blocked = True
+                        break
+                if _blocked:
+                    continue
             result = score_symbol_native(self, symbol, ind)
             if result is None or result["score"] < self.MIN_SCORE:
                 continue
