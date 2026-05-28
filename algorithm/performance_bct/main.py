@@ -225,7 +225,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         return None
 
     def initialize(self) -> None:
-        self.log("VERSION_MARKER|e40d_vix25_regime_gate_v1")
+        self.log("VERSION_MARKER|e40dv3_vix30_looser_gate")
         self.set_time_zone("America/New_York")
         self.log("VERSION_MARKER|cloud_static200_v15")
         sy = int(self.get_parameter("start_year",  "2025"))
@@ -249,6 +249,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # E40d: gate on by default; override with regime_gate_enabled=false to disable
         _regime_param = self.get_parameter("regime_gate_enabled", "")
         self.regime_gate_enabled = _regime_param != "false"
+        self.vix_threshold = float(self.get_parameter("vix_threshold", "30.0"))
         self.vix = self.add_index("VIX", Resolution.DAILY).symbol
 
         self.universe_settings.resolution = Resolution.DAILY
@@ -447,8 +448,8 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
         if self.regime_gate_enabled and self.securities.contains_key(self.vix):
             vix_price = float(self.securities[self.vix].price)
-            if vix_price >= 25.0:
-                self.log(f"REGIME_BLOCK|{date_str}|VIX={vix_price:.2f}|threshold=25|reason=fear_regime")
+            if vix_price >= self.vix_threshold:
+                self.log(f"REGIME_BLOCK|{date_str}|VIX={vix_price:.2f}|threshold={self.vix_threshold:.0f}|reason=fear_regime")
                 return
 
         exiting = {
