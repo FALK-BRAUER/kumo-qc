@@ -247,3 +247,10 @@ date_run,window,period_start,period_end,commit,branch,environment,sharpe,net_pro
 2026-05-28,W4-Q4-2025,2025-10-01,2025-12-31,3ffe004,feat/e45-vix-cloud-gate,local,-2.250,-7.792,-7792,60,20,9.0,,E45 W4. E40d -1.606. Delta -0.644. T2=23 T3=20.
 2026-05-28,W5-FebMay-2025,2025-02-01,2025-05-31,3ffe004,feat/e45-vix-cloud-gate,local,-1.836,-6.090,-6090,58,21,11.0,,E45 W5. E40d -0.342. Delta -1.494. T2=0 T3=86.
 2026-05-28,W6-H1-2025,2025-01-01,2025-06-30,3ffe004,feat/e45-vix-cloud-gate,local,-0.965,-4.235,-4235,92,32,13.4,,E45 W6. E40d 0.960. Delta -1.925. T2=9 T3=115.
+2026-05-28,FY2025,2025-01-01,2025-12-31,7184a65,feat/e45v2-vix-cloud-2tier,local,1.000,30.418,30418,212,42,12.0,,E45v2 VIX cloud 2-tier FY2025 — REJECTED. Sharpe 1.000 vs E40d 1.442 (delta -0.442). 95 T2 events. cloud_top~16-18 triggers cap too early vs E40d VIX<25. 5-slot cap admits noisy entries E40d blocks.
+2026-05-28,W1-Q1-2025,2025-01-01,2025-03-31,7184a65,feat/e45v2-vix-cloud-2tier,local,1.378,10.464,10464,68,52,8.5,,E45v2 W1. E40d 1.509. Delta -0.131. T2=24.
+2026-05-28,W2-Q2-2025,2025-04-01,2025-06-30,7184a65,feat/e45v2-vix-cloud-2tier,local,-0.598,-0.513,-513,78,26,6.1,,E45v2 W2. E40d 0.329. Delta -0.927. T2=42.
+2026-05-28,W3-Q3-2025,2025-07-01,2025-09-30,7184a65,feat/e45v2-vix-cloud-2tier,local,4.427,18.479,18479,42,44,3.2,,E45v2 W3. E40d 4.427. Delta 0.000. T2=0. VIX below cloud all Q3.
+2026-05-28,W4-Q4-2025,2025-10-01,2025-12-31,7184a65,feat/e45v2-vix-cloud-2tier,local,-2.331,-8.779,-8779,68,21,10.0,,E45v2 W4. E40d -1.606. Delta -0.725. T2=29.
+2026-05-28,W5-FebMay-2025,2025-02-01,2025-05-31,7184a65,feat/e45v2-vix-cloud-2tier,local,-1.578,-6.252,-6252,88,26,10.5,,E45v2 W5. E40d -0.342. Delta -1.236. T2=61.
+2026-05-28,W6-H1-2025,2025-01-01,2025-06-30,7184a65,feat/e45v2-vix-cloud-2tier,local,0.346,6.972,6972,140,38,12.0,,E45v2 W6. E40d 0.960. Delta -0.614. T2=66.
