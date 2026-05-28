@@ -291,6 +291,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     return [c.symbol for c in sorted_coarse[:dv_max]]
                 self.add_universe(_cloud_coarse)
 
+        # GH #119 diagnostic: log universe size
+        self.log(f"UNIVERSE_LOADED|total_subscribed={len(self.active_securities)}")
+
         self.schedule.on(
             self.date_rules.every_day(),
             self.time_rules.at(16, 5),
@@ -426,24 +429,31 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
             if in_phase3:
                 if close < cloud_bottom:
+                    entry_price = meta.get("entry_price", close) if meta else close
+                    pnl = close / entry_price - 1 if entry_price > 0 else 0.0
                     self.market_on_open_order(symbol, -holding.quantity)
                     meta = self._position_meta.pop(symbol, {})
                     days_h = (self.time - meta.get("entry_date", self.time)).days
-                    pnl_h = close / meta.get("entry_price", close) - 1
-                    self.log(f"PHASE3_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_bottom={cloud_bottom:.2f}|days={days_h}|pnl={pnl_h:.1%}")
+                    self.log(f"EXIT|{date_str}|{symbol.value}|reason=PHASE3|entry={entry_price:.2f}|exit={close:.2f}|pnl_pct={pnl:.3f}")
             else:
                 if close < kijun:
+                    entry_price = meta.get("entry_price", close) if meta else close
+                    pnl = close / entry_price - 1 if entry_price > 0 else 0.0
                     self.market_on_open_order(symbol, -holding.quantity)
                     self._position_meta.pop(symbol, None)
-                    self.log(f"STOP|{date_str}|{symbol.value}|close={close:.2f}|kijun={kijun:.2f}")
+                    self.log(f"EXIT|{date_str}|{symbol.value}|reason=STOP_KIJUN|entry={entry_price:.2f}|exit={close:.2f}|pnl_pct={pnl:.3f}")
                 elif self.cloud_exit_enabled and close < cloud_top:
+                    entry_price = meta.get("entry_price", close) if meta else close
+                    pnl = close / entry_price - 1 if entry_price > 0 else 0.0
                     self.market_on_open_order(symbol, -holding.quantity)
                     self._position_meta.pop(symbol, None)
-                    self.log(f"CLOUD_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_top={cloud_top:.2f}")
+                    self.log(f"EXIT|{date_str}|{symbol.value}|reason=CLOUD_BREACH|entry={entry_price:.2f}|exit={close:.2f}|pnl_pct={pnl:.3f}")
                 elif self.weekly_kijun_exit_enabled and w_kijun is not None and close < w_kijun:
+                    entry_price = meta.get("entry_price", close) if meta else close
+                    pnl = close / entry_price - 1 if entry_price > 0 else 0.0
                     self.market_on_open_order(symbol, -holding.quantity)
                     self._position_meta.pop(symbol, None)
-                    self.log(f"WEEKLY_KIJUN_STOP|{date_str}|{symbol.value}|close={close:.2f}|w_kijun={w_kijun:.2f}")
+                    self.log(f"EXIT|{date_str}|{symbol.value}|reason=WEEKLY_KIJUN|entry={entry_price:.2f}|exit={close:.2f}|pnl_pct={pnl:.3f}")
 
         if self.regime_gate_enabled and self.securities.contains_key(self.vix):
             vix_price = float(self.securities[self.vix].price)
@@ -509,8 +519,14 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             quantity = int(target_value / price)
             if quantity <= 0:
                 continue
+            # GH #119 diagnostic: enhanced entry logging with stop info
+            vals = self._daily_vals(symbol)
+            kijun = vals[1] if vals else 0.0
+            stop_dist_pct = (price - kijun) / price * 100 if kijun > 0 else 0.0
+            tier = "A" if score == 8 else "B" if score >= 6 else "C"
+            
             self.market_on_open_order(symbol, quantity)
             self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price)}
-            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
+            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}|price={price:.2f}|kijun={kijun:.2f}|stop_dist_pct={stop_dist_pct:.2f}|qty={quantity}|tier={tier}")
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
