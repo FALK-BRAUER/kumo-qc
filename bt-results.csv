@@ -205,3 +205,10 @@ date_run,window,period_start,period_end,commit,branch,environment,sharpe,net_pro
 2026-05-28,W4-Q4-2025,2025-10-01,2025-12-31,cd1ad92,feat/e43-pyramid-add,local,-1.780,-6.568,-6568,77,24,8.1,,E43 W4. G3 -1.765. Delta -0.015. 1 pyr add, 3 BE stops.
 2026-05-28,W5-FebMay-2025,2025-02-01,2025-05-31,cd1ad92,feat/e43-pyramid-add,local,-1.128,-5.648,-5648,119,25,11.2,,E43 W5. G3 -1.171. Delta +0.043. 3 pyr adds, 15 BE stops.
 2026-05-28,W6-H1-2025,2025-01-01,2025-06-30,cd1ad92,feat/e43-pyramid-add,local,0.210,5.277,5277,179,34,15.9,,E43 W6. G3 0.186. Delta +0.024. 5 pyr adds, 22 BE stops.
+2026-05-28,FY2025,2025-01-01,2025-12-31,c47384f,feat/e40d-cloud-validation,cloud,0.284,12.106,12106,270,41,11.0,,E40d cloud GH#115. BTId=5c0459d4cb910c39. Universe=SPY ETF. Local baseline 1.442. Delta -1.158 — FAILS ±0.3 threshold. 270 orders vs 196 local (VIX gate status unknown — universe divergence likely cause).
+2026-05-28,W1-Q1-2025,2025-01-01,2025-03-31,c47384f,feat/e40d-cloud-validation,cloud,1.340,7.744,7744,92,46,7.5,,E40d cloud GH#115 W1. BTId=f0b0c0b496d0a8f0. Universe=SPY ETF.
+2026-05-28,W2-Q2-2025,2025-04-01,2025-06-30,c47384f,feat/e40d-cloud-validation,cloud,-0.831,-2.816,-2816,84,19,7.4,,E40d cloud GH#115 W2. BTId=af229ed719981c67. Universe=SPY ETF.
+2026-05-28,W3-Q3-2025,2025-07-01,2025-09-30,c47384f,feat/e40d-cloud-validation,cloud,1.060,5.228,5228,64,36,2.0,,E40d cloud GH#115 W3. BTId=e2a49224acfba0d7. Universe=SPY ETF.
+2026-05-28,W4-Q4-2025,2025-10-01,2025-12-31,c47384f,feat/e40d-cloud-validation,cloud,0.608,3.707,3707,54,27,3.3,,E40d cloud GH#115 W4. BTId=7ab4cc826f302f02. Universe=SPY ETF.
+2026-05-28,W5-FebMay-2025,2025-02-01,2025-05-31,c47384f,feat/e40d-cloud-validation,cloud,-0.769,-3.783,-3783,122,21,12.4,,E40d cloud GH#115 W5. BTId=8d07963b7e3bac1c. Universe=SPY ETF.
+2026-05-28,W6-H1-2025,2025-01-01,2025-06-30,c47384f,feat/e40d-cloud-validation,cloud,0.160,4.734,4734,164,36,11.0,,E40d cloud GH#115 W6. BTId=ac54eb72680bb6a0. Universe=SPY ETF.
