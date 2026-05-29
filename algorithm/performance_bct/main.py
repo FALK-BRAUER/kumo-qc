@@ -265,6 +265,32 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.qqq = self.add_equity("QQQ", Resolution.DAILY).symbol
         self.qqq_sma50 = self.sma("QQQ", 50)
         self.log("VERSION_MARKER|regime_gate_v1_qqq50")
+        # V9: Sector rotation — only trade top-3 sectors by 3-month RS (GH #136)
+        _sector_rot_param = self.get_parameter("sector_rotation_enabled", "false")
+        self.sector_rotation_enabled = _sector_rot_param.lower() == "true"
+        if self.sector_rotation_enabled:
+            self.sector_etfs = ["XLK", "XLI", "XLF", "XLY", "XLV", "XLP", "XLC", "XLE", "XLU", "XLB", "XLRE"]
+            self.sector_etf_symbols = {}
+            for etf in self.sector_etfs:
+                try:
+                    sym = self.add_equity(etf, Resolution.DAILY).symbol
+                    self.sector_etf_symbols[etf] = sym
+                except Exception:
+                    pass
+            # Load sector mapping
+            import os as _os
+            _map_paths = [
+                _os.path.join(_os.path.dirname(__file__), "sector_etf_mapping.json"),
+                "/Lean/Data/sector_etf_mapping.json",
+            ]
+            self._sector_etf_map = {}
+            for _mp in _map_paths:
+                if _os.path.exists(_mp):
+                    with open(_mp, 'r') as _mf:
+                        self._sector_etf_map = json.load(_mf)
+                    self.log(f"SECTOR_MAP|loaded|tickers={len(self._sector_etf_map)}")
+                    break
+            self.log("VERSION_MARKER|v9_sector_rotation")
 
         self.universe_settings.resolution = Resolution.DAILY
         self.universe_settings.data_normalization_mode = DataNormalizationMode.RAW
@@ -559,6 +585,35 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             except Exception:
                 dollar_volume = 0.0
             candidates.append((symbol, result["score"], dollar_volume))
+
+        # V9: Sector rotation filter — keep only top-3 sectors by 3-month RS
+        if self.sector_rotation_enabled and self._sector_etf_map:
+            sector_returns = {}
+            for etf_name, etf_sym in self.sector_etf_symbols.items():
+                try:
+                    hist = self.history(etf_sym, 63, Resolution.DAILY)
+                    if hist is not None and len(hist) >= 2:
+                        if isinstance(hist.index, pd.MultiIndex):
+                            hist = hist.droplevel(0)
+                        close_col = "close" if "close" in hist.columns else "Close"
+                        start_price = float(hist.iloc[0][close_col])
+                        end_price = float(hist.iloc[-1][close_col])
+                        if start_price > 0:
+                            sector_returns[etf_name] = end_price / start_price - 1
+                except Exception:
+                    pass
+            if sector_returns:
+                ranked_sectors = sorted(sector_returns.items(), key=lambda x: x[1], reverse=True)
+                top3_sectors = {s for s, _ in ranked_sectors[:3]}
+                filtered_candidates = []
+                for symbol, score, dv in candidates:
+                    etf = self._sector_etf_map.get(symbol.value)
+                    if etf in top3_sectors:
+                        filtered_candidates.append((symbol, score, dv))
+                    else:
+                        self.log(f"SECTOR_SKIP|{date_str}|{symbol.value}|sector={etf}|score={score}")
+                self.log(f"SECTOR_FILTER|{date_str}|top3={[s for s,_ in ranked_sectors[:3]]}|returns={[(s,f'{r:.1%}') for s,r in ranked_sectors[:3]]}|before={len(candidates)}|after={len(filtered_candidates)}")
+                candidates = filtered_candidates
 
         # Primary: score DESC. Tiebreak: dollar-volume DESC. NEVER alphabetical.
         candidates.sort(key=lambda x: (x[1], x[2]), reverse=True)
