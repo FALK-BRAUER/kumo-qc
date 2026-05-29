@@ -249,6 +249,11 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # E40b Phase2: SPY > 200-day MA regime gate
         self.spy = self.add_equity("SPY", Resolution.DAILY)
         self.spy_sma200 = self.sma("SPY", 200)
+        # V2: QQQ > 50MA AND > 200MA dual confirmation gate (GH #129)
+        self.qqq = self.add_equity("QQQ", Resolution.DAILY)
+        self.qqq_sma50 = self.sma("QQQ", 50)
+        self.qqq_sma200 = self.sma("QQQ", 200)
+        self.log("VERSION_MARKER|v2_qqq_50_200")
         # E40d: gate on by default; override with regime_gate_enabled=false to disable
         _regime_param = self.get_parameter("regime_gate_enabled", "")
         self.regime_gate_enabled = _regime_param != "false"
@@ -517,6 +522,15 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             spy_ma200 = float(self.spy_sma200.current.value)
             if spy_price < spy_ma200:
                 self.log(f"REGIME_BLOCK|{date_str}|SPY={spy_price:.2f}|MA200={spy_ma200:.2f}")
+                return
+
+        # V2: QQQ dual MA confirmation — both > 50MA AND > 200MA required (GH #129)
+        if self.qqq_sma50.is_ready and self.qqq_sma200.is_ready:
+            qqq_price = float(self.securities[self.qqq].price)
+            qqq_ma50 = float(self.qqq_sma50.current.value)
+            qqq_ma200 = float(self.qqq_sma200.current.value)
+            if qqq_price < qqq_ma50 or qqq_price < qqq_ma200:
+                self.log(f"QQQ_MA_BLOCK|{date_str}|QQQ={qqq_price:.2f}|MA50={qqq_ma50:.2f}|MA200={qqq_ma200:.2f}")
                 return
 
         # When running locally with polygon universe, restrict candidates to today's snapshot
