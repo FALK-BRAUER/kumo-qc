@@ -193,7 +193,7 @@ class BCTUniverseFilter:
 
 class BCTPerformanceAlgorithm(QCAlgorithm):
 
-    MAX_POSITIONS: int = 9999  # no slot cap — capital (POSITION_PCT heat cap) governs exposure
+    MAX_POSITIONS: int = 10
     POSITION_PCT: float = 0.10
     MIN_SCORE: int = 7
     # Exit condition flags — False = reference bct‑perf‑2020‑2026 (daily Kijun only)
@@ -461,7 +461,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             vix_price = float(self.securities[self.vix].price)
             vix_cloud_top = max(self.vix_ichi.senkou_a.current.value, self.vix_ichi.senkou_b.current.value)
             if vix_price > vix_cloud_top:
-                max_positions = 9999  # Tier 2: fear regime — no slot cap, capital governs
+                max_positions = 5  # Tier 2: fear regime — half capacity
                 tier = 2
             else:
                 tier = 1
