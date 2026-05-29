@@ -214,11 +214,6 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
     @staticmethod
     def _load_polygon_universe() -> dict | None:
-        try:
-            from polygon_universe import UNIVERSE  # deployed as .py on QC cloud
-            return UNIVERSE
-        except ImportError:
-            pass
         candidates = [
             Path(__file__).parent / "polygon_universe_equity200_fy2025.json",
             Path("/Lean/Data/polygon_universe_equity200_fy2025.json"),
@@ -232,7 +227,6 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     def initialize(self) -> None:
         self.log("VERSION_MARKER|e40d_vix25_regime_gate_v1")
         self.set_time_zone("America/New_York")
-        self.set_security_initializer(lambda s: s.set_data_normalization_mode(DataNormalizationMode.RAW))
         self.log("VERSION_MARKER|cloud_static200_v15")
         sy = int(self.get_parameter("start_year",  "2025"))
         sm = int(self.get_parameter("start_month", "1"))
@@ -275,7 +269,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 self.log(f"LOCAL_UNIVERSE|polygon_equity|unique_tickers={len(all_tickers)}")
                 for ticker in sorted(all_tickers):
                     try:
-                        self.add_equity(ticker, Resolution.DAILY, data_normalization_mode=DataNormalizationMode.RAW)
+                        self.add_equity(ticker, Resolution.DAILY)
                     except Exception:
                         pass
             # (dead code — outer check ensures poly is not None here)
@@ -284,12 +278,11 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             obj_key = "polygon_universe_equity200_fy2025.json"
             if self.object_store.contains_key(obj_key):
                 cloud_poly = json.loads(self.object_store.read(obj_key))
-                self._polygon_universe = cloud_poly  # per-day filter applied at rebalance via today_poly
                 all_tickers = sorted({t for tickers in cloud_poly.values() for t in tickers})
                 self.log(f"CLOUD_UNIVERSE|object_store|unique_tickers={len(all_tickers)}")
                 for ticker in all_tickers:
                     try:
-                        self.add_equity(ticker, Resolution.DAILY, data_normalization_mode=DataNormalizationMode.RAW)
+                        self.add_equity(ticker, Resolution.DAILY)
                     except Exception:
                         pass
             else:
