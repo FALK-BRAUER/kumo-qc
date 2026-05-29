@@ -232,6 +232,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     def initialize(self) -> None:
         self.log("VERSION_MARKER|e40d_vix25_regime_gate_v1")
         self.set_time_zone("America/New_York")
+        self.set_security_initializer(lambda s: s.set_data_normalization_mode(DataNormalizationMode.RAW))
         self.log("VERSION_MARKER|cloud_static200_v15")
         sy = int(self.get_parameter("start_year",  "2025"))
         sm = int(self.get_parameter("start_month", "1"))
