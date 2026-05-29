@@ -274,7 +274,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 self.log(f"LOCAL_UNIVERSE|polygon_equity|unique_tickers={len(all_tickers)}")
                 for ticker in sorted(all_tickers):
                     try:
-                        self.add_equity(ticker, Resolution.DAILY)
+                        self.add_equity(ticker, Resolution.DAILY, data_normalization_mode=DataNormalizationMode.RAW)
                     except Exception:
                         pass
             # (dead code — outer check ensures poly is not None here)
@@ -288,7 +288,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 self.log(f"CLOUD_UNIVERSE|object_store|unique_tickers={len(all_tickers)}")
                 for ticker in all_tickers:
                     try:
-                        self.add_equity(ticker, Resolution.DAILY)
+                        self.add_equity(ticker, Resolution.DAILY, data_normalization_mode=DataNormalizationMode.RAW)
                     except Exception:
                         pass
             else:
