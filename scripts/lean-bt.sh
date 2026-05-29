@@ -33,10 +33,15 @@ PY
   echo "[lean-bt] set unique local-id=$UID_NUM for $(pwd)"
 fi
 
-exec 9>"$LOCK"
-echo "[lean-bt] $(date +%T) waiting for machine-wide lean lock..."
-flock 9
-echo "[lean-bt] $(date +%T) lock acquired in $(pwd) — running: lean backtest $*"
+# Concurrency: unique local-id (above) fully isolates worktrees — proven safe by
+# the 2026-05-29 parallel-safety test (2 concurrent distinct-code runs, no cross-
+# contamination). So the flock is OPT-IN now (LEAN_LOCK=1), default OFF = parallel.
+if [[ "${LEAN_LOCK:-0}" == "1" ]]; then
+  exec 9>"$LOCK"
+  echo "[lean-bt] $(date +%T) LEAN_LOCK=1 — waiting for serial lock..."
+  flock 9
+fi
+echo "[lean-bt] $(date +%T) running in $(pwd): lean backtest $*"
 
 lean backtest "$@"
 rc=$?
