@@ -18,6 +18,21 @@ MARKER="${MARKER:-}"
 DOCKER_HOST="${DOCKER_HOST:-unix:///Users/falk/.docker/run/docker.sock}"
 export DOCKER_HOST
 
+# ROOT FIX: all worktrees share config.json local-id (git-tracked) → lean resolves
+# them as the SAME project and runs one canonical copy regardless of cwd (2026-05-29
+# contamination root cause). Assign a unique local-id per worktree so lean keeps
+# them distinct. This alone prevents cross-worktree code mix-ups.
+CFG="algorithm/performance_bct/config.json"
+if [[ -f "$CFG" ]]; then
+  UID_NUM=$(( ( $(pwd | cksum | cut -d' ' -f1) % 800000000 ) + 100000000 ))
+  python3 - "$CFG" "$UID_NUM" <<'PY'
+import json,sys
+cfg,uid=sys.argv[1],int(sys.argv[2])
+c=json.load(open(cfg)); c['local-id']=uid; json.dump(c,open(cfg,'w'),indent=2)
+PY
+  echo "[lean-bt] set unique local-id=$UID_NUM for $(pwd)"
+fi
+
 exec 9>"$LOCK"
 echo "[lean-bt] $(date +%T) waiting for machine-wide lean lock..."
 flock 9
