@@ -62,9 +62,11 @@ API credentials: User ID + API Token from QC account settings → macOS keychain
 ## QC Project IDs
 | Project | ID | Purpose |
 |---------|----|---------|
-| backtest_bct | 32033824 | Signal audit only (no orders) |
-| performance_bct | 32034565 | Full return simulation |
+| performance_bct | 32033824 | All experiment BTs — signals + orders + returns (QC name: "algorithm/performance_bct") |
+| minimal_bct | 32099988 | ObjectStore data uploads target (QC name: "algorithm/minimal_bct") |
 | live_bct | not deployed | Awaiting Falk gate.py unlock |
+
+Note: project 32034565 does NOT exist. Was incorrectly documented. All cloud BTs run on 32033824.
 
 ## Credentials (keychain only)
 ```
