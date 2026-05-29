@@ -214,6 +214,11 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
     @staticmethod
     def _load_polygon_universe() -> dict | None:
+        try:
+            from polygon_universe import UNIVERSE  # deployed as .py on QC cloud
+            return UNIVERSE
+        except ImportError:
+            pass
         candidates = [
             Path(__file__).parent / "polygon_universe_equity200_fy2025.json",
             Path("/Lean/Data/polygon_universe_equity200_fy2025.json"),
