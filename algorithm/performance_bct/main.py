@@ -249,6 +249,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # E40b Phase2: SPY > 200-day MA regime gate
         self.spy = self.add_equity("SPY", Resolution.DAILY)
         self.spy_sma200 = self.sma("SPY", 200)
+        # E40c: QQQ > 50-day MA regime gate (base for V12)
+        self.qqq = self.add_equity("QQQ", Resolution.DAILY)
+        self.qqq_sma50 = self.sma("QQQ", 50)
         # E40d: gate on by default; override with regime_gate_enabled=false to disable
         _regime_param = self.get_parameter("regime_gate_enabled", "")
         self.regime_gate_enabled = _regime_param != "false"
@@ -258,7 +261,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             self.parabolic_threshold = float(_parabolic_param)
         else:
             self.parabolic_threshold = 0.25  # default 25%
-        self.log(f"VERSION_MARKER|e51_parabolic_entry_block_v1|threshold={self.parabolic_threshold}")
+        self.log("VERSION_MARKER|v12_no_stop_first5d")
         # E28: VIX percentile gate — block entries when VIX is in top X% of 2-year distribution
         _vix_pct_param = self.get_parameter("vix_percentile_enabled", "false")
         self.vix_percentile_enabled = _vix_pct_param.lower() == "true"
@@ -439,9 +442,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
             # Determine stop anchor: Phase 3 (≥56 days + ≥15% gain) → cloud bottom
             meta = self._position_meta.get(symbol)
+            days_held = (self.time - meta["entry_date"]).days if meta is not None else 0
             in_phase3 = False
             if meta is not None:
-                days_held = (self.time - meta["entry_date"]).days
                 pnl_pct = close / meta["entry_price"] - 1
                 if days_held >= self.PHASE3_DAYS and pnl_pct >= self.PHASE3_PNL:
                     in_phase3 = True
@@ -454,10 +457,11 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     pnl_h = close / meta.get("entry_price", close) - 1
                     self.log(f"PHASE3_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_bottom={cloud_bottom:.2f}|days={days_h}|pnl={pnl_h:.1%}")
             else:
-                if close < kijun:
+                # V12: skip Kijun stop if position held < 5 trading days (anti-whipsaw)
+                if close < kijun and days_held >= 5:
                     self.market_on_open_order(symbol, -holding.quantity)
                     self._position_meta.pop(symbol, None)
-                    self.log(f"STOP|{date_str}|{symbol.value}|close={close:.2f}|kijun={kijun:.2f}")
+                    self.log(f"STOP|{date_str}|{symbol.value}|close={close:.2f}|kijun={kijun:.2f}|days={days_held}")
                 elif self.cloud_exit_enabled and close < cloud_top:
                     self.market_on_open_order(symbol, -holding.quantity)
                     self._position_meta.pop(symbol, None)
@@ -517,6 +521,14 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             spy_ma200 = float(self.spy_sma200.current.value)
             if spy_price < spy_ma200:
                 self.log(f"REGIME_BLOCK|{date_str}|SPY={spy_price:.2f}|MA200={spy_ma200:.2f}")
+                return
+
+        # E40c: QQQ regime gate — block entries when QQQ below 50-day MA
+        if self.qqq_sma50.is_ready:
+            qqq_price = float(self.securities[self.qqq].price)
+            qqq_ma50 = float(self.qqq_sma50.current.value)
+            if qqq_price < qqq_ma50:
+                self.log(f"REGIME_BLOCK|{date_str}|QQQ={qqq_price:.2f}|MA50={qqq_ma50:.2f}")
                 return
 
         # When running locally with polygon universe, restrict candidates to today's snapshot
