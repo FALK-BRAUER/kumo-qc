@@ -265,6 +265,12 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.qqq = self.add_equity("QQQ", Resolution.DAILY).symbol
         self.qqq_sma50 = self.sma("QQQ", 50)
         self.log("VERSION_MARKER|regime_gate_v1_qqq50")
+        # V10: Regime-scaled position sizing — half size when QQQ < 50MA (GH #137)
+        _scaled_param = self.get_parameter("regime_scaled_enabled", "false")
+        self.regime_scaled_enabled = _scaled_param.lower() == "true"
+        self.current_position_pct = self.POSITION_PCT  # default, may be overridden per-rebalance
+        if self.regime_scaled_enabled:
+            self.log("VERSION_MARKER|v10_regime_scaled")
 
         self.universe_settings.resolution = Resolution.DAILY
         self.universe_settings.data_normalization_mode = DataNormalizationMode.RAW
@@ -473,12 +479,19 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             self.log(f"VIX_TIER|{date_str}|VIX={vix_price:.2f}|cloud_top={vix_cloud_top:.2f}|tier={tier}|max_positions={max_positions}")
 
         # E40c: Regime gate — block entries when QQQ < 50-day MA
+        # V10: When regime_scaled_enabled, use half position size instead of blocking
         if self.qqq_sma50.is_ready:
             qqq_price = float(self.securities[self.qqq].price)
             qqq_ma50 = float(self.qqq_sma50.current.value)
             if qqq_price < qqq_ma50:
-                self.log(f"REGIME_BLOCK|{date_str}|QQQ={qqq_price:.2f}|MA50={qqq_ma50:.2f}")
-                return
+                if self.regime_scaled_enabled:
+                    self.current_position_pct = self.POSITION_PCT / 2.0
+                    self.log(f"REGIME_SCALE|{date_str}|QQQ={qqq_price:.2f}|MA50={qqq_ma50:.2f}|pct={self.current_position_pct:.2%}")
+                else:
+                    self.log(f"REGIME_BLOCK|{date_str}|QQQ={qqq_price:.2f}|MA50={qqq_ma50:.2f}")
+                    return
+            else:
+                self.current_position_pct = self.POSITION_PCT
 
         exiting = {
             o.symbol
@@ -568,7 +581,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             price = self.securities[symbol].price
             if price <= 0:
                 continue
-            target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
+            target_value = self.portfolio.total_portfolio_value * self.current_position_pct
             if available_cash - committed_cash < target_value:  # heat cap — stop when cash exhausted
                 self.log(f"SKIP|{date_str}|{symbol.value}|cash_exhausted|remaining={available_cash - committed_cash:.2f}")
                 break
