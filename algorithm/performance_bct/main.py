@@ -261,10 +261,113 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.vix_ichi = self.ichimoku(self.vix, 9, 26, 26, 52, 26, 26)
         self.log("VERSION_MARKER|e121_vix_ichimoku_2tier_v1")
 
-        # E40c: QQQ > 50-day MA regime gate
-        self.qqq = self.add_equity("QQQ", Resolution.DAILY).symbol
-        self.qqq_sma50 = self.sma("QQQ", 50)
-        self.log("VERSION_MARKER|regime_gate_v1_qqq50")
+        # V8: Sector-specific regime gates — each symbol gated by its sector ETF > 50MA
+        self.sector_etfs = {
+            "XLK": self.add_equity("XLK", Resolution.DAILY).symbol,
+            "XLF": self.add_equity("XLF", Resolution.DAILY).symbol,
+            "XLE": self.add_equity("XLE", Resolution.DAILY).symbol,
+            "XLV": self.add_equity("XLV", Resolution.DAILY).symbol,
+            "XLY": self.add_equity("XLY", Resolution.DAILY).symbol,
+            "XLP": self.add_equity("XLP", Resolution.DAILY).symbol,
+            "XLI": self.add_equity("XLI", Resolution.DAILY).symbol,
+            "XLB": self.add_equity("XLB", Resolution.DAILY).symbol,
+            "XLU": self.add_equity("XLU", Resolution.DAILY).symbol,
+            "XLRE": self.add_equity("XLRE", Resolution.DAILY).symbol,
+            "XLC": self.add_equity("XLC", Resolution.DAILY).symbol,
+        }
+        self.sector_sma50 = {
+            "XLK": self.sma("XLK", 50),
+            "XLF": self.sma("XLF", 50),
+            "XLE": self.sma("XLE", 50),
+            "XLV": self.sma("XLV", 50),
+            "XLY": self.sma("XLY", 50),
+            "XLP": self.sma("XLP", 50),
+            "XLI": self.sma("XLI", 50),
+            "XLB": self.sma("XLB", 50),
+            "XLU": self.sma("XLU", 50),
+            "XLRE": self.sma("XLRE", 50),
+            "XLC": self.sma("XLC", 50),
+        }
+        # Symbol-to-sector mapping (top liquid names by GICS sector)
+        self.symbol_to_sector = {
+            # Technology (XLK)
+            "AAPL": "XLK", "MSFT": "XLK", "NVDA": "XLK", "AVGO": "XLK", "AMD": "XLK",
+            "ORCL": "XLK", "CRM": "XLK", "ACN": "XLK", "ADBE": "XLK", "TXN": "XLK",
+            "INTC": "XLK", "INTU": "XLK", "QCOM": "XLK", "AMAT": "XLK", "PANW": "XLK",
+            "MU": "XLK", "LRCX": "XLK", "KLAC": "XLK", "SNPS": "XLK", "CDNS": "XLK",
+            "NXPI": "XLK", "MCHP": "XLK", "ADSK": "XLK", "ANET": "XLK", "APH": "XLK",
+            "ADI": "XLK", "MPWR": "XLK", "FTNT": "XLK", "NOW": "XLK", "WDAY": "XLK",
+            "DDOG": "XLK", "OKTA": "XLK", "TTWO": "XLK", "EA": "XLK",
+            "SMCI": "XLK", "DELL": "XLK", "IBM": "XLK", "PYPL": "XLK",
+            "FICO": "XLK", "ON": "XLK", "CSCO": "XLK", "PLTR": "XLK", "COIN": "XLK",
+            "HOOD": "XLK", "APP": "XLK", "HIMS": "XLK", "TTD": "XLK", "VRSN": "XLK",
+            # Healthcare (XLV)
+            "UNH": "XLV", "LLY": "XLV", "JNJ": "XLV", "ABBV": "XLV", "MRK": "XLV",
+            "PFE": "XLV", "TMO": "XLV", "ABT": "XLV", "DHR": "XLV", "BMY": "XLV",
+            "AMGN": "XLV", "GILD": "XLV", "VRTX": "XLV", "REGN": "XLV", "ISRG": "XLV",
+            "ZTS": "XLV", "CI": "XLV", "HUM": "XLV", "ELV": "XLV", "BSX": "XLV",
+            "SYK": "XLV", "BDX": "XLV", "MCK": "XLV", "CAH": "XLV", "WAT": "XLV",
+            "VTRS": "XLV", "CRL": "XLV", "DVA": "XLV", "UHS": "XLV", "HCA": "XLV",
+            # Financials (XLF)
+            "BRK.B": "XLF", "JPM": "XLF", "V": "XLF", "MA": "XLF", "BAC": "XLF",
+            "WFC": "XLF", "GS": "XLF", "MS": "XLF", "BLK": "XLF", "C": "XLF",
+            "AXP": "XLF", "SPGI": "XLF", "SCHW": "XLF", "PGR": "XLF", "CB": "XLF",
+            "CME": "XLF", "MMC": "XLF", "ICE": "XLF", "BK": "XLF", "TFC": "XLF",
+            "USB": "XLF", "PNC": "XLF", "COF": "XLF", "AON": "XLF", "AJG": "XLF",
+            "WRB": "XLF", "FICO": "XLF", "KMX": "XLF", "RJF": "XLF",
+            # Energy (XLE)
+            "XOM": "XLE", "CVX": "XLE", "COP": "XLE", "EOG": "XLE", "SLB": "XLE",
+            "MPC": "XLE", "VLO": "XLE", "PSX": "XLE", "WMB": "XLE", "OXY": "XLE",
+            "HES": "XLE", "FANG": "XLE", "DVN": "XLE", "MRO": "XLE", "EQT": "XLE",
+            "CTRA": "XLE", "KMI": "XLE", "TRGP": "XLE", "OKE": "XLE",
+            # Consumer Discretionary (XLY)
+            "AMZN": "XLY", "TSLA": "XLY", "HD": "XLY", "MCD": "XLY", "NKE": "XLY",
+            "LOW": "XLY", "SBUX": "XLY", "TJX": "XLY", "ABNB": "XLY", "BKNG": "XLY",
+            "MAR": "XLY", "HLT": "XLY", "RCL": "XLY", "CCL": "XLY", "NCLH": "XLY",
+            "LULU": "XLY", "ORLY": "XLY", "AZO": "XLY", "DG": "XLY", "DLTR": "XLY",
+            "TGT": "XLY", "F": "XLY", "GM": "XLY", "RIVN": "XLY", "ETSY": "XLY",
+            "GRMN": "XLY", "DHI": "XLY", "LEN": "XLY", "PHM": "XLY", "ULTA": "XLY",
+            "DPZ": "XLY", "YUM": "XLY", "CMG": "XLY", "DASH": "XLY", "CVNA": "XLY",
+            "UBER": "XLY", "LYFT": "XLY", "EXPE": "XLY", "CZR": "XLY", "MGM": "XLY",
+            "WYNN": "XLY", "LYV": "XLY", "CHTR": "XLY", "DIS": "XLY",
+            "NFLX": "XLY", "WBD": "XLY", "FOXA": "XLY", "PARA": "XLY",
+            # Consumer Staples (XLP)
+            "WMT": "XLP", "PG": "XLP", "KO": "XLP", "PEP": "XLP", "COST": "XLP",
+            "PM": "XLP", "MO": "XLP", "MDLZ": "XLP", "GIS": "XLP", "K": "XLP",
+            "HSY": "XLP", "KHC": "XLP", "SJM": "XLP", "MKC": "XLP", "CPB": "XLP",
+            "CAG": "XLP", "HRL": "XLP", "LW": "XLP", "TAP": "XLP", "BF.B": "XLP",
+            "STZ": "XLP", "MNST": "XLP", "KDP": "XLP", "SAM": "XLP",
+            # Industrials (XLI)
+            "CAT": "XLI", "BA": "XLI", "GE": "XLI", "HON": "XLI", "UPS": "XLI",
+            "UNP": "XLI", "RTX": "XLI", "LMT": "XLI", "FDX": "XLI", "CSX": "XLI",
+            "NSC": "XLI", "DE": "XLI", "ITW": "XLI", "EMR": "XLI", "ETN": "XLI",
+            "PH": "XLI", "CMI": "XLI", "WM": "XLI", "RSG": "XLI", "PCAR": "XLI",
+            "URI": "XLI", "FAST": "XLI", "GWW": "XLI", "PWR": "XLI", "JCI": "XLI",
+            "DAL": "XLI", "UAL": "XLI", "AAL": "XLI", "LUV": "XLI", "ALK": "XLI",
+            # Materials (XLB)
+            "LIN": "XLB", "SHW": "XLB", "APD": "XLB", "ECL": "XLB", "NEM": "XLB",
+            "FCX": "XLB", "DOW": "XLB", "DD": "XLB", "PPG": "XLB", "IFF": "XLB",
+            "LYB": "XLB", "PKG": "XLB", "BLL": "XLB", "IP": "XLB", "CF": "XLB",
+            "MOS": "XLB", "NUE": "XLB", "STLD": "XLB", "RS": "XLB", "CLF": "XLB",
+            "VMC": "XLB", "MLM": "XLB", "NVR": "XLB", "PHM": "XLB",
+            # Utilities (XLU)
+            "NEE": "XLU", "SO": "XLU", "DUK": "XLU", "AEP": "XLU", "EXC": "XLU",
+            "XEL": "XLU", "SRE": "XLU", "PEG": "XLU", "ES": "XLU", "WEC": "XLU",
+            "PCG": "XLU", "ED": "XLU", "FE": "XLU", "ETR": "XLU", "AES": "XLU",
+            "NRG": "XLU", "VST": "XLU", "CEG": "XLU",
+            # Real Estate (XLRE)
+            "PLD": "XLRE", "AMT": "XLRE", "CCI": "XLRE", "EQIX": "XLRE", "PSA": "XLRE",
+            "O": "XLRE", "WELL": "XLRE", "SPG": "XLRE", "AVB": "XLRE", "EQR": "XLRE",
+            "VTR": "XLRE", "BXP": "XLRE", "UDR": "XLRE", "ESS": "XLRE", "ARE": "XLRE",
+            "DLR": "XLRE", "EXR": "XLRE", "MAA": "XLRE", "CPT": "XLRE", "IRM": "XLRE",
+            # Communication Services (XLC)
+            "GOOGL": "XLC", "GOOG": "XLC", "META": "XLC", "T": "XLC", "VZ": "XLC",
+            "CHTR": "XLC", "TMUS": "XLC", "EA": "XLC", "TTWO": "XLC", "ATVI": "XLC",
+            "DIS": "XLC", "NFLX": "XLC", "WBD": "XLC", "FOXA": "XLC", "PARA": "XLC",
+            "ROKU": "XLC", "ZM": "XLC", "SPOT": "XLC", "PINS": "XLC", "SNAP": "XLC",
+            "MTCH": "XLC", "IAC": "XLC", "TTD": "XLC",
+        }
+        self.log("VERSION_MARKER|v8_sector_gates")
 
         self.universe_settings.resolution = Resolution.DAILY
         self.universe_settings.data_normalization_mode = DataNormalizationMode.RAW
@@ -472,13 +575,19 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 tier = 1
             self.log(f"VIX_TIER|{date_str}|VIX={vix_price:.2f}|cloud_top={vix_cloud_top:.2f}|tier={tier}|max_positions={max_positions}")
 
-        # E40c: Regime gate — block entries when QQQ < 50-day MA
-        if self.qqq_sma50.is_ready:
-            qqq_price = float(self.securities[self.qqq].price)
-            qqq_ma50 = float(self.qqq_sma50.current.value)
-            if qqq_price < qqq_ma50:
-                self.log(f"REGIME_BLOCK|{date_str}|QQQ={qqq_price:.2f}|MA50={qqq_ma50:.2f}")
-                return
+        # V8: Sector-specific regime gates — block entries when symbol's sector ETF < 50-day MA
+        if self.regime_gate_enabled:
+            blocked_sectors = []
+            for sector_etf, sma in self.sector_sma50.items():
+                if sma.is_ready:
+                    etf_symbol = self.sector_etfs[sector_etf]
+                    etf_price = float(self.securities[etf_symbol].price)
+                    etf_ma50 = float(sma.current.value)
+                    if etf_price < etf_ma50:
+                        blocked_sectors.append(sector_etf)
+            if blocked_sectors:
+                self.log(f"SECTOR_BLOCK|{date_str}|sectors={','.join(blocked_sectors)}")
+                # Don't return here — per-symbol gate below will handle individual entries
 
         exiting = {
             o.symbol
@@ -543,6 +652,19 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                             continue
             except Exception:
                 pass
+            # V8: Sector-specific regime gate — skip if symbol's sector ETF < 50-day MA
+            if self.regime_gate_enabled:
+                ticker = symbol.value
+                sector_etf = self.symbol_to_sector.get(ticker, "SPY")  # Default to SPY for unknown
+                if sector_etf in self.sector_sma50:
+                    sma = self.sector_sma50[sector_etf]
+                    if sma.is_ready:
+                        etf_symbol = self.sector_etfs[sector_etf]
+                        etf_price = float(self.securities[etf_symbol].price)
+                        etf_ma50 = float(sma.current.value)
+                        if etf_price < etf_ma50:
+                            self.log(f"SECTOR_ENTRY_BLOCK|{date_str}|{ticker}|sector={sector_etf}|etf_price={etf_price:.2f}|ma50={etf_ma50:.2f}")
+                            continue
             # Tiebreak metric: dollar-volume proxy = mean(close*volume) over 20 daily bars.
             # Deterministic + liquidity-based. Fixes prior bug where score ties broke
             # ALPHABETICALLY (stable sort on A-Z candidate order) → only first 10 names bought.
