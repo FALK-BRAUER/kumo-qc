@@ -485,10 +485,6 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         if self._polygon_universe is not None:
             today_poly = set(self._polygon_universe.get(date_str, []))
 
-        eligible = today_poly if today_poly is not None else {s.value for s in self._active}
-        vix_now = float(self.securities[self.vix].price) if self.securities.contains_key(self.vix) else -1.0
-        self.log(f"UNIVERSE|{date_str}|count={len(eligible)}|tickers={','.join(sorted(eligible)[:20])}")
-
         candidates: list[tuple] = []
         for symbol in sorted(self._active):
             if today_poly is not None and symbol.value not in today_poly:
@@ -516,10 +512,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     continue
             # === END PRE-FILTER ===
             result = score_symbol_native(self, symbol, ind)
-            if result is None:
-                continue
-            self.log(f"SIGNAL|{date_str}|{symbol.value}|score={result['score']}|vix={vix_now:.1f}|gate={'PASS' if result['score'] >= self.MIN_SCORE else 'BLOCK'}")
-            if result["score"] < self.MIN_SCORE:
+            if result is None or result["score"] < self.MIN_SCORE:
                 continue
             # E51: Parabolic entry block — skip if 13-day return exceeds threshold
             try:
@@ -540,8 +533,6 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             candidates.append((symbol, result["score"]))
 
         candidates.sort(key=lambda x: x[1], reverse=True)
-        for n, (sym, sc) in enumerate(candidates[:slots], 1):
-            self.log(f"RANK|{date_str}|position={n}|ticker={sym.value}|score={sc}")
         committed_cash = 0.0  # track cash committed this rebalance before fills execute
         available_cash = float(self.portfolio.cash)
         for symbol, score in candidates[:slots]:
