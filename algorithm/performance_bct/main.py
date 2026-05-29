@@ -249,6 +249,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # E40b Phase2: SPY > 200-day MA regime gate
         self.spy = self.add_equity("SPY", Resolution.DAILY)
         self.spy_sma200 = self.sma("SPY", 200)
+        # E40c: QQQ > 50-day MA regime gate
+        self.qqq = self.add_equity("QQQ", Resolution.DAILY)
+        self.qqq_sma50 = self.sma("QQQ", 50)
         # E40d: gate on by default; override with regime_gate_enabled=false to disable
         _regime_param = self.get_parameter("regime_gate_enabled", "")
         self.regime_gate_enabled = _regime_param != "false"
@@ -511,12 +514,23 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         if slots <= 0:
             return
 
+        # V1: e40c+e28 stacked — QQQ > 50-day MA gate + VIX percentile gate
+        self.log("VERSION_MARKER|v1_e40c_e28_stack")
+        
+        # E40c: QQQ > 50-day MA regime gate
+        if self.qqq_sma50.is_ready:
+            qqq_price = float(self.securities[self.qqq].price)
+            qqq_ma50 = float(self.qqq_sma50.current.value)
+            if qqq_price < qqq_ma50:
+                self.log(f"REGIME_BLOCK|{date_str}|QQQ={qqq_price:.2f}|MA50={qqq_ma50:.2f}|reason=e40c_qqq")
+                return
+        
         # E40b Phase2: SPY regime gate — block entries when SPY below 200d SMA
         if self.spy_sma200.is_ready:
             spy_price = float(self.securities[self.spy].price)
             spy_ma200 = float(self.spy_sma200.current.value)
             if spy_price < spy_ma200:
-                self.log(f"REGIME_BLOCK|{date_str}|SPY={spy_price:.2f}|MA200={spy_ma200:.2f}")
+                self.log(f"REGIME_BLOCK|{date_str}|SPY={spy_price:.2f}|MA200={spy_ma200:.2f}|reason=e40b_spy")
                 return
 
         # When running locally with polygon universe, restrict candidates to today's snapshot
