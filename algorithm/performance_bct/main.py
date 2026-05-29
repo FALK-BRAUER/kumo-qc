@@ -261,6 +261,11 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.vix_ichi = self.ichimoku(self.vix, 9, 26, 26, 52, 26, 26)
         self.log("VERSION_MARKER|e121_vix_ichimoku_2tier_v1")
 
+        # E40c: QQQ > 50-day MA regime gate
+        self.qqq = self.add_equity("QQQ", Resolution.DAILY).symbol
+        self.qqq_sma50 = self.sma("QQQ", 50)
+        self.log("VERSION_MARKER|regime_gate_v1_qqq50")
+
         self.universe_settings.resolution = Resolution.DAILY
         self.universe_settings.data_normalization_mode = DataNormalizationMode.RAW
         self._active: set = set()
@@ -466,6 +471,14 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             else:
                 tier = 1
             self.log(f"VIX_TIER|{date_str}|VIX={vix_price:.2f}|cloud_top={vix_cloud_top:.2f}|tier={tier}|max_positions={max_positions}")
+
+        # E40c: Regime gate — block entries when QQQ < 50-day MA
+        if self.qqq_sma50.is_ready:
+            qqq_price = float(self.securities[self.qqq].price)
+            qqq_ma50 = float(self.qqq_sma50.current.value)
+            if qqq_price < qqq_ma50:
+                self.log(f"REGIME_BLOCK|{date_str}|QQQ={qqq_price:.2f}|MA50={qqq_ma50:.2f}")
+                return
 
         exiting = {
             o.symbol
