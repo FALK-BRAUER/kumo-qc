@@ -284,22 +284,22 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                         pass
             # (dead code — outer check ensures poly is not None here)
         else:
-            # Cloud: static universe from universe.py (uploaded alongside main.py)
-            if EQUITY_200:
-                self.log(f"CLOUD_UNIVERSE|static_py|tickers={len(EQUITY_200)}")
-                for ticker in EQUITY_200:
+            # Cloud: load polygon-326 universe from ObjectStore (same as local)
+            obj_key = "polygon_universe_equity200_fy2025.json"
+            if self.object_store.contains_key(obj_key):
+                cloud_poly = json.loads(self.object_store.read(obj_key))
+                all_tickers = sorted({t for tickers in cloud_poly.values() for t in tickers})
+                self.log(f"CLOUD_UNIVERSE|object_store|unique_tickers={len(all_tickers)}")
+                for ticker in all_tickers:
                     try:
                         self.add_equity(ticker, Resolution.DAILY)
                     except Exception:
                         pass
             else:
-                # Fallback: CoarseFundamental top-200 (v12 approach)
-                self.log("CLOUD_UNIVERSE|universe_py_missing|fallback_to_coarse")
-                dv_max = int(self.get_parameter("coarse_max", "200"))
-                def _cloud_coarse(coarse):
-                    sorted_coarse = sorted(coarse, key=lambda c: c.dollar_volume, reverse=True)
-                    return [c.symbol for c in sorted_coarse[:dv_max]]
-                self.add_universe(_cloud_coarse)
+                # Fallback if ObjectStore upload not done
+                self.log("CLOUD_UNIVERSE|object_store_missing|fallback_SPY_ETF")
+                spy = Symbol.create("SPY", SecurityType.EQUITY, Market.USA)
+                self.add_universe(self.universe.etf(spy, self.universe_settings))
 
         self.schedule.on(
             self.date_rules.every_day(),
