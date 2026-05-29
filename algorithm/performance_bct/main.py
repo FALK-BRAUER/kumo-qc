@@ -193,7 +193,7 @@ class BCTUniverseFilter:
 
 class BCTPerformanceAlgorithm(QCAlgorithm):
 
-    MAX_POSITIONS: int = 10
+    MAX_POSITIONS: int = 9999  # unlimited — heat cap (POSITION_PCT) + cash check governs exposure
     POSITION_PCT: float = 0.10
     MIN_SCORE: int = 7
     # Exit condition flags — False = reference bct‑perf‑2020‑2026 (daily Kijun only)
@@ -461,7 +461,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             vix_price = float(self.securities[self.vix].price)
             vix_cloud_top = max(self.vix_ichi.senkou_a.current.value, self.vix_ichi.senkou_b.current.value)
             if vix_price > vix_cloud_top:
-                max_positions = 5  # Tier 2: fear regime — half capacity
+                max_positions = 9999  # Tier 2: no slot cap, cash governs
                 tier = 2
             else:
                 tier = 1
@@ -533,14 +533,20 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             candidates.append((symbol, result["score"]))
 
         candidates.sort(key=lambda x: x[1], reverse=True)
+        committed_cash = 0.0  # track cash committed this rebalance before fills execute
+        available_cash = float(self.portfolio.cash)
         for symbol, score in candidates[:slots]:
             price = self.securities[symbol].price
             if price <= 0:
                 continue
             target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
+            if available_cash - committed_cash < target_value:  # heat cap — stop when cash exhausted
+                self.log(f"SKIP|{date_str}|{symbol.value}|cash_exhausted|remaining={available_cash - committed_cash:.2f}")
+                break
             quantity = int(target_value / price)
             if quantity <= 0:
                 continue
+            committed_cash += target_value
             self.market_on_open_order(symbol, quantity)
             self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price)}
             self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
