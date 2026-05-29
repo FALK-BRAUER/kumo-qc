@@ -260,11 +260,14 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # E121: VIX Ichimoku 2-tier gate — VIX cloud for dynamic slot sizing
         self.vix_ichi = self.ichimoku(self.vix, 9, 26, 26, 52, 26, 26)
         self.log("VERSION_MARKER|e121_vix_ichimoku_2tier_v1")
+        # V11: VIX trend rolling window for volatility-scaled sizing
+        self.vix_window = RollingWindow[float](6)  # 6 days to compare today vs 5d ago
 
         # E40c: QQQ > 50-day MA regime gate
         self.qqq = self.add_equity("QQQ", Resolution.DAILY).symbol
         self.qqq_sma50 = self.sma("QQQ", 50)
         self.log("VERSION_MARKER|regime_gate_v1_qqq50")
+        self.log("VERSION_MARKER|v11_vol_scaled")
 
         self.universe_settings.resolution = Resolution.DAILY
         self.universe_settings.data_normalization_mode = DataNormalizationMode.RAW
@@ -418,6 +421,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         if self.is_warming_up:
             return
         date_str = self.time.strftime("%Y-%m-%d")
+        # V11: Update VIX rolling window for volatility-scaled sizing
+        if self.securities.contains_key(self.vix):
+            self.vix_window.add(float(self.securities[self.vix].price))
 
         for symbol, holding in list(self.portfolio.items()):
             if not holding.invested or self._has_open_orders(symbol):
@@ -564,11 +570,19 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         candidates.sort(key=lambda x: (x[1], x[2]), reverse=True)
         committed_cash = 0.0  # track cash committed this rebalance before fills execute
         available_cash = float(self.portfolio.cash)
+        # V11: Volatility-scaled sizing — reduce position size when VIX is rising
+        vix_scale = 1.0
+        if self.vix_window.is_ready and len(self.vix_window) >= 6:
+            vix_today = float(self.vix_window[0])
+            vix_5d_ago = float(self.vix_window[5])
+            if vix_today > vix_5d_ago:
+                vix_scale = 0.5  # VIX rising → half size
+                self.log(f"VIX_SCALE|{date_str}|vix_today={vix_today:.2f}|vix_5d_ago={vix_5d_ago:.2f}|scale=0.5")
         for symbol, score, _dv in candidates[:slots]:
             price = self.securities[symbol].price
             if price <= 0:
                 continue
-            target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
+            target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT * vix_scale
             if available_cash - committed_cash < target_value:  # heat cap — stop when cash exhausted
                 self.log(f"SKIP|{date_str}|{symbol.value}|cash_exhausted|remaining={available_cash - committed_cash:.2f}")
                 break
@@ -578,6 +592,6 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             committed_cash += target_value
             self.market_on_open_order(symbol, quantity)
             self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price)}
-            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
+            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}|vix_scale={vix_scale}")
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
