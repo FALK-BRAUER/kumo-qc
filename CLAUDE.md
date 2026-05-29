@@ -126,6 +126,22 @@ git worktree remove /Users/falk/projects/kumo-qc-<exp-id>
 
 **Existing worktrees:** `git worktree list` to see all.
 
+### ENFORCEMENT (mandatory — added 2026-05-29 after shared-tree incident)
+
+The 2026-05-29 P0 incident proved the regime above is ignored without enforcement: 3 workers ran BTs + edited `main.py` in the shared main tree simultaneously → duplicate cloud pushes, contradictory results, and a **fabricated diff** (a worker reported cloud orders it never actually fetched). Root cause: workers don't read this section at session start, and orchestrators dispatched BT work without requiring isolation.
+
+**Three-layer enforcement — all mandatory:**
+
+1. **Preflight gate (worker side).** Before ANY local backtest or `main.py` edit, the worker MUST run:
+   ```bash
+   bash scripts/worker-preflight.sh <worker_id>
+   ```
+   It exits 1 (abort) if the worker is in the shared main tree, with the exact worktree-creation commands. Exit 0 only inside an isolated worktree.
+
+2. **Dispatch template (orchestrator side).** Every BT/main.py task dispatch MUST embed the worktree setup and require an ack. Use `docs/worker-dispatch-protocol.md`. No BT task is dispatched without it; no worker starts BT work until it has replied "PREFLIGHT OK in worktree <path>".
+
+3. **Data-integrity rule (worker side).** Any reported result (orders, fills, diffs, Sharpe) MUST come from a real artifact — a backtest output dir, an order-events file, or a verified API response. NEVER infer/assume parity or fill in expected values. If a fetch returns empty, report "no data retrieved", never fabricate. Orchestrators spot-check critical findings against ground truth (e.g. QC API `/backtests/orders/read`).
+
 ---
 
 ## Commit + Push Policy
