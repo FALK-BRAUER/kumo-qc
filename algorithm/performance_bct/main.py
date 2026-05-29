@@ -246,6 +246,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # Exit condition parameter overrides
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
+        # (d): Risk-based position sizing — RISK_AMOUNT per trade (0 = off, use flat POSITION_PCT)
+        self.risk_amount = float(self.get_parameter("risk_amount", "0"))
+        self.log(f"VERSION_MARKER|risk_amount_sizing_v1|risk={self.risk_amount}")
         # E40d: gate on by default; override with regime_gate_enabled=false to disable
         _regime_param = self.get_parameter("regime_gate_enabled", "")
         self.regime_gate_enabled = _regime_param != "false"
@@ -568,16 +571,28 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             price = self.securities[symbol].price
             if price <= 0:
                 continue
-            target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
+            if self.risk_amount > 0:
+                # (d): Risk-based sizing — RISK_AMOUNT / Kijun stop distance, with 2% floor and 15% position cap
+                kijun = self._indicators[symbol]["d_ichi"].kijun.current.value
+                stop_dist = max(price - kijun, price * 0.02)   # Kijun stop distance, 2% floor
+                risk_qty = int(self.risk_amount / stop_dist)
+                cap_qty = int(self.portfolio.total_portfolio_value * 0.15 / price)  # 15% NLV cap
+                quantity = max(0, min(risk_qty, cap_qty))
+                target_value = quantity * price
+                sizing_tag = "risk"
+            else:
+                # Flat 10% allocation (default)
+                target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
+                quantity = int(target_value / price)
+                sizing_tag = "flat"
             if available_cash - committed_cash < target_value:  # heat cap — stop when cash exhausted
                 self.log(f"SKIP|{date_str}|{symbol.value}|cash_exhausted|remaining={available_cash - committed_cash:.2f}")
                 break
-            quantity = int(target_value / price)
             if quantity <= 0:
                 continue
             committed_cash += target_value
             self.market_on_open_order(symbol, quantity)
             self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price)}
-            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
+            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}|sizing={sizing_tag}")
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
