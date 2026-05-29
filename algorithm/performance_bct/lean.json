@@ -1,5 +1,5 @@
 {
-    "project-id": "32034565",
+    "project-id": "32033824",
     "description": "BCT full performance backtest — 2025-01-01 to present. Orders + returns + Sharpe. Uses score ≥7, Kijun stop.",
     "parameters": {
         "warmup_days": "750",
