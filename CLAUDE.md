@@ -68,6 +68,13 @@ API credentials: User ID + API Token from QC account settings → macOS keychain
 
 Note: project 32034565 does NOT exist. Was incorrectly documented. All cloud BTs run on 32033824.
 
+## E40d Cloud Parity (GH#116)
+- **Local:** 1.442 Sharpe / 196 orders / +42.4% / 9.5% DD (commit a03e7a9, raw prices)
+- **Cloud:** 1.315 Sharpe / 274 orders / +39.4% / 11.8% DD (ObjectStore polygon-326, QC adjusted prices)
+- **Delta:** -0.127 Sharpe — within ±0.3 tolerance. **PASS.**
+- **Structural divergence:** QC cloud uses different data vendor than local LEAN data files. Order count differs (274 vs 196) because cloud loads full 326-ticker polygon union (no per-day filter). Sharpe is the primary parity metric.
+- **ObjectStore key:** `polygon_universe_equity200_fy2025.json` must be present in project 32033824 ObjectStore. Currently populated (2026-05-29). If cleared, re-upload via QC web interface or object/set API. File: `algorithm/performance_bct/polygon_universe_equity200_fy2025.json`.
+
 ## Credentials (keychain only)
 ```
 security find-generic-password -s "qc-user-id" -a "kumo-qc" -w     → QC user ID
