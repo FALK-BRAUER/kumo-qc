@@ -530,12 +530,28 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                             continue
             except Exception:
                 pass
-            candidates.append((symbol, result["score"]))
+            # Tiebreak metric: dollar-volume proxy = mean(close*volume) over 20 daily bars.
+            # Deterministic + liquidity-based. Fixes prior bug where score ties broke
+            # ALPHABETICALLY (stable sort on A-Z candidate order) → only first 10 names bought.
+            dollar_volume = 0.0
+            try:
+                dv_hist = self.history(symbol, 20, Resolution.DAILY)
+                if dv_hist is not None and len(dv_hist) >= 1:
+                    if isinstance(dv_hist.index, pd.MultiIndex):
+                        dv_hist = dv_hist.droplevel(0)
+                    _cc = "close" if "close" in dv_hist.columns else "Close"
+                    _vc = "volume" if "volume" in dv_hist.columns else "Volume"
+                    if _vc in dv_hist.columns:
+                        dollar_volume = float((dv_hist[_cc] * dv_hist[_vc]).mean())
+            except Exception:
+                dollar_volume = 0.0
+            candidates.append((symbol, result["score"], dollar_volume))
 
-        candidates.sort(key=lambda x: x[1], reverse=True)
+        # Primary: score DESC. Tiebreak: dollar-volume DESC. NEVER alphabetical.
+        candidates.sort(key=lambda x: (x[1], x[2]), reverse=True)
         committed_cash = 0.0  # track cash committed this rebalance before fills execute
         available_cash = float(self.portfolio.cash)
-        for symbol, score in candidates[:slots]:
+        for symbol, score, _dv in candidates[:slots]:
             price = self.securities[symbol].price
             if price <= 0:
                 continue
