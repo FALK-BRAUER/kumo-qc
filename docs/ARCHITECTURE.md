@@ -38,9 +38,10 @@ dist/            GENERATED, tracked, NOT linted — flat artifact LEAN runs (loc
 sweeps/          driver.py + grids/ + runs/[ignored] + reports/   (config-permutation research)
 results/         bt-results.csv + schema.md   (master ledger, provenance-pinned)
 cli/             Typer operator CLI (data|build|bt|deploy|sweep|lib) — dev tooling, NOT in dist/
+research/        catalog/ experiments/ trade-analysis/ parity/ methodology/ ideas/ sources/  (analysis layer; no code)
 backtests/[ignored]  data/[ignored]  lean.json(→dist/)
-scripts/ research/ docs/ ui/ archive/ zz_handoffs/   CLAUDE.md README.md CONVENTIONS.md
-# scripts/ being consolidated INTO cli/ (ARCH2-CLI) — most fold into subcommands.
+scripts/ docs/ ui/ archive/ zz_handoffs/   CLAUDE.md README.md CONVENTIONS.md
+# scripts/ consolidates INTO cli/ (ARCH2-CLI); research/ flat files → categorized (ARCH2-R).
 ```
 
 ## 4. The engine
