@@ -175,6 +175,30 @@ def test_on_securities_changed_registers_active_and_disposes():
     assert algo.subscription_manager.removed == [(aapl, "cons_AAPL")]
 
 
+def test_on_data_skips_engine_during_warmup():
+    # WARMUP GUARD (#213d): the engine must NOT run while warming up — LEAN rejects orders
+    # during warm-up, and running the pipeline over the 750d warmup is wrong + far too slow.
+    from datetime import datetime as _dt
+
+    from runtime.lean_entry import BctEngineAlgorithm
+
+    class FakeEngine:
+        def __init__(self): self.calls = 0
+        def on_data_with_ctx(self, ctx): self.calls += 1
+
+    algo = BctEngineAlgorithm()  # QCAlgorithm == object locally
+    algo.engine = FakeEngine()
+    algo.time = _dt(2025, 6, 2)
+
+    algo.is_warming_up = True
+    algo.on_data(None)
+    assert algo.engine.calls == 0  # skipped during warmup
+
+    algo.is_warming_up = False
+    algo.on_data(None)
+    assert algo.engine.calls == 1  # runs once warmup finishes
+
+
 def test_active_set_hash_deterministic_order_independent():
     c1, h1 = active_set_hash(["GOOG", "AAPL", "MSFT"])
     c2, h2 = active_set_hash(["MSFT", "GOOG", "AAPL"])  # different order, same set

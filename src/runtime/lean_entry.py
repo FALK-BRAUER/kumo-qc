@@ -299,6 +299,14 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
 
     def on_data(self, data: Any) -> None:
         """Per-bar entry: build the PhaseContext and run the engine. The engine fires on the
-        QC trading calendar (on_data only ticks on trading days → closed days never read)."""
+        QC trading calendar (on_data only ticks on trading days → closed days never read).
+
+        WARMUP GUARD (exact legacy _rebalance pattern): skip the engine while warming up.
+        Orders can't be submitted during warm-up (LEAN rejects OrderRequest.submit), and
+        running the full pipeline over the 750d warmup × the dynamic universe is both wrong
+        (no trading) and prohibitively slow. QC auto-warms the registered indicators during
+        warm-up independently of on_data, so they are ready when real bars start."""
+        if self.is_warming_up:
+            return
         ctx = PhaseContext(qc=self, time=self.time, data=data)
         self.engine.on_data_with_ctx(ctx)
