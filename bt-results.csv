@@ -350,3 +350,4 @@ date_run,window,period_start,period_end,commit,branch,environment,sharpe,net_pro
 2026-05-30,FY2025,2025-01-01,2025-12-31,5313b80,feat/ftrack-F2,local,-0.092,6.087,,340,,6.7,,F-track F2 risk+trail+me154 regime (QQQ|IWM) — REJECT vs base 0.536. gate REGIME_OR 83x
 2026-05-30,FY2025,2025-01-01,2025-12-31,5313b80,feat/ftrack-F3,local,-1.04,1.215,,52,,5.3,,F-track F3 risk+trail+4% portfolio circuit breaker — REJECT, halts too aggressively (52 ord). gate CIRCUIT_BREAKER 304x
 2026-05-30,FY2025,2025-01-01,2025-12-31,5313b80,feat/ftrack-F5,local,-0.721,-2.178,,341,,5.9,,F-track F5 risk+trail+ADX>=30 gate — REJECT vs base 0.536. gate ADX_GATE 3756x
+2026-05-30,FY2025,2025-01-01,2025-12-31,fcbb3f2,feat/x7a,local,0.637,18.847,,236,,7.9,,X7a composite ranking score×ADX×log(dvol) — BEATS risk base 0.536. Worker o5v0qcb1 code (reviewed+approved), I ran+verified (marker OK, RANK_COMPOSITE 185x). Windows pending
