@@ -1,11 +1,6 @@
 """
 v2-delta: constructor is FlatPctHeatcap(FlatPctHeatcap.Params(...), logger=None).
-
-NOTE: the source `test_no_slots_returns_empty` passed params={"max_positions": 1} to
-force a 0-slot state. `max_positions` is a FORBIDDEN charter count-cap param and is NOT
-a Params field in v2 — the slot cap comes from the vix_tier output at runtime. The test
-now injects the cap via phase_outputs["vix_tier"] (the real runtime path), exercising the
-identical no-slots branch.
+Slot mechanic removed (charter: no fixed slots) — exposure is cash-heat-capped only.
 """
 from datetime import datetime
 from engine.context import PhaseContext, OrderIntent
@@ -89,20 +84,6 @@ def test_heat_cap_stops_on_cash_exhaustion():
     assert len(ctx.bar_state.sized_orders) == 1  # only AAPL fits
 
 
-def test_no_slots_returns_empty():
-    qc = FakeQC()
-    aapl = _add_symbol(qc, "AAPL", 100.0)
-    qc.portfolio[aapl] = FakeHolding(invested=True)  # already open
-    phase = FlatPctHeatcap(FlatPctHeatcap.Params(position_pct=0.10), logger=None)
-    ctx = make_ctx(qc, ["MSFT"])
-    # slot cap of 1 supplied via vix_tier runtime output (max_positions param removed in v2)
-    ctx.bar_state.phase_outputs["vix_tier"] = [{"max_positions": 1, "tier": 1}]
-    _add_symbol(qc, "MSFT", 100.0)
-    result = phase.evaluate(ctx)
-    assert result.decision == "no_slots"
-    assert ctx.bar_state.sized_orders == []
-
-
 def test_zero_price_skipped():
     qc = FakeQC(cash=100_000.0, total=100_000.0)
     _add_symbol(qc, "AAPL", 0.0)  # price=0 → qty=0 → skip
@@ -120,13 +101,12 @@ def test_sizing_never_blocks():
     assert result.blocked is False
 
 
-def test_vix_tier_slot_cap_respected():
+def test_all_candidates_filled_when_cash_ample():
+    # No slot cap: cash-ample → all ranked candidates fill (slot mechanic gone)
     qc = FakeQC(cash=1_000_000.0, total=1_000_000.0)
     for name in ["AAPL", "MSFT", "GOOG"]:
         _add_symbol(qc, name, 100.0)
     phase = FlatPctHeatcap(FlatPctHeatcap.Params(position_pct=0.10), logger=None)
     ctx = make_ctx(qc, ["AAPL", "MSFT", "GOOG"])
-    # Inject vix_tier cap of 2 slots (0 open → only 2 can be filled)
-    ctx.bar_state.phase_outputs["vix_tier"] = [{"max_positions": 2, "tier": 1}]
     phase.evaluate(ctx)
-    assert len(ctx.bar_state.sized_orders) == 2
+    assert len(ctx.bar_state.sized_orders) == 3

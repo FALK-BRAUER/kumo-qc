@@ -54,7 +54,6 @@ class FakeSymbol:
 
 class FakeQC:
     def __init__(self):
-        self._polygon_universe = None
         self._indicators = {}
         self._active = set()
         self.portfolio = FakePortfolio()
