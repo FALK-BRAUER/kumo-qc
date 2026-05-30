@@ -266,6 +266,11 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.qqq_sma50 = self.sma("QQQ", 50)
         self.log("VERSION_MARKER|regime_gate_v1_qqq50")
 
+        # me153 (V14): Multi-ETF AND gate — require BOTH QQQ>50MA AND SPY>50MA
+        self.spy_sym = self.add_equity("SPY", Resolution.DAILY).symbol   # SPY may already be benchmark; add_equity is idempotent
+        self.spy_sma50 = self.sma("SPY", 50)
+        self.log("VERSION_MARKER|me153_qqq_and_spy_v1")
+
         self.universe_settings.resolution = Resolution.DAILY
         self.universe_settings.data_normalization_mode = DataNormalizationMode.RAW
         self._active: set = set()
@@ -472,12 +477,15 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 tier = 1
             self.log(f"VIX_TIER|{date_str}|VIX={vix_price:.2f}|cloud_top={vix_cloud_top:.2f}|tier={tier}|max_positions={max_positions}")
 
-        # E40c: Regime gate — block entries when QQQ < 50-day MA
-        if self.qqq_sma50.is_ready:
+        # me153 (V14): Multi-ETF AND regime gate — block entries UNLESS (QQQ>50MA AND SPY>50MA)
+        if self.qqq_sma50.is_ready and self.spy_sma50.is_ready:
             qqq_price = float(self.securities[self.qqq].price)
             qqq_ma50 = float(self.qqq_sma50.current.value)
-            if qqq_price < qqq_ma50:
-                self.log(f"REGIME_BLOCK|{date_str}|QQQ={qqq_price:.2f}|MA50={qqq_ma50:.2f}")
+            spy_price = float(self.securities[self.spy_sym].price)
+            spy_ma50 = float(self.spy_sma50.current.value)
+            block = (qqq_price < qqq_ma50) or (spy_price < spy_ma50)
+            if block:
+                self.log(f"REGIME_AND|{date_str}|QQQ={qqq_price:.2f}|QQQ_MA50={qqq_ma50:.2f}|SPY={spy_price:.2f}|SPY_MA50={spy_ma50:.2f}")
                 return
 
         exiting = {
