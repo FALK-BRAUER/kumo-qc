@@ -32,6 +32,12 @@ try:
 except ImportError:
     EQUITY_200 = []  # Fallback if universe.py not available
 
+# RS149: post-breakout buy-stop entry — nearest-resistance computation (R/S #146 module)
+try:
+    from resistance_support import compute_levels  # bundled in project dir
+except ImportError:
+    compute_levels = None  # Fallback if module not available
+
 from typing import Any
 
 import numpy as np
@@ -265,6 +271,8 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.qqq = self.add_equity("QQQ", Resolution.DAILY).symbol
         self.qqq_sma50 = self.sma("QQQ", 50)
         self.log("VERSION_MARKER|regime_gate_v1_qqq50")
+
+        self.log("VERSION_MARKER|rs149_buystop_v1")
 
         self.universe_settings.resolution = Resolution.DAILY
         self.universe_settings.data_normalization_mode = DataNormalizationMode.RAW
@@ -575,9 +583,38 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             quantity = int(target_value / price)
             if quantity <= 0:
                 continue
+
+            # RS149: post-breakout BUY-STOP entry. Replace market-on-open with a
+            # stop-market BUY above nearest resistance — fills only on a confirmed
+            # breakout. Expect FEWER orders than champion (many stops never trigger).
+            if compute_levels is None:
+                continue  # module unavailable — no entry rather than fall back silently
+            rs_hist = self.history(symbol, 252, Resolution.DAILY)
+            if rs_hist is None or len(rs_hist) < 1:
+                continue
+            if isinstance(rs_hist.index, pd.MultiIndex):
+                rs_hist = rs_hist.droplevel(0)
+            rs_hist = rs_hist.rename(columns=str.lower)
+            needed = ("open", "high", "low", "close", "volume")
+            if not all(c in rs_hist.columns for c in needed):
+                continue
+            rs_df = rs_hist[list(needed)].copy()
+            levels = compute_levels(rs_df, ref_price=float(price))
+            nearest_resistance = levels.nearest_resistance
+            if nearest_resistance is None:
+                continue
+            # Confirmation: only arm the buy-stop when price is within 5% BELOW
+            # resistance (0 <= r/price-1 <= 0.05). Otherwise skip the candidate.
+            r_over_p = nearest_resistance / price - 1.0
+            if not (0.0 <= r_over_p <= 0.05):
+                continue
+            trigger_price = round(nearest_resistance * 1.001, 4)
             committed_cash += target_value
-            self.market_on_open_order(symbol, quantity)
+            self.stop_market_order(symbol, quantity, trigger_price)
             self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price)}
-            self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
+            self.log(
+                f"BUYSTOP|{date_str}|{symbol.value}|score={score}/8|qty={quantity}"
+                f"|price~{price:.2f}|resistance={nearest_resistance:.2f}|trigger={trigger_price:.2f}"
+            )
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
