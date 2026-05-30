@@ -196,6 +196,10 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     MAX_POSITIONS: int = 9999  # unlimited — heat cap (POSITION_PCT) + cash check governs exposure
     POSITION_PCT: float = 0.10
     MIN_SCORE: int = 7
+    # Pyramid adds (v1): add a $RISK lot to a winning position when its trailing
+    # stop (Kijun) has reached breakeven, up to MAX_LOTS. Adds preferred over new entries.
+    PYRAMID_RISK: float = 200.0
+    MAX_LOTS: int = 3
     # Exit condition flags — False = reference bct‑perf‑2020‑2026 (daily Kijun only)
     ENABLE_CLOUD_BREACH_EXIT: bool = False
     ENABLE_WEEKLY_KIJUN_EXIT: bool = False
@@ -228,6 +232,12 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.log("VERSION_MARKER|e121_vix_ichimoku_2tier_v1")
         self.set_time_zone("America/New_York")
         self.log("VERSION_MARKER|cloud_static200_v15")
+        # Pyramid v1 params
+        self.pyramid_enabled = self.get_parameter("pyramid_enabled", "true").lower() == "true"
+        self.PYRAMID_RISK = float(self.get_parameter("pyramid_risk", "200"))
+        self.MAX_LOTS = int(self.get_parameter("max_lots", "3"))
+        self.ENTRY_RISK = float(self.get_parameter("entry_risk", "0"))  # 0=flat-10%, >0=risk-based initial (Variant B)
+        self.log(f"VERSION_MARKER|pyramid_v1|risk={self.PYRAMID_RISK}|max_lots={self.MAX_LOTS}|enabled={self.pyramid_enabled}")
         sy = int(self.get_parameter("start_year",  "2025"))
         sm = int(self.get_parameter("start_month", "1"))
         sd = int(self.get_parameter("start_day",   "1"))
@@ -480,6 +490,41 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 self.log(f"REGIME_BLOCK|{date_str}|QQQ={qqq_price:.2f}|MA50={qqq_ma50:.2f}")
                 return
 
+        # === PYRAMID ADDS (preferred over new entries; consumes cash first) ===
+        committed_cash = 0.0  # threaded into the new-entry loop below
+        available_cash = float(self.portfolio.cash)
+        if getattr(self, "pyramid_enabled", False):
+            for symbol, holding in list(self.portfolio.items()):
+                if not holding.invested or self._has_open_orders(symbol):
+                    continue
+                meta = self._position_meta.get(symbol)
+                if not meta or meta.get("lots", 1) >= self.MAX_LOTS:
+                    continue
+                vals = self._daily_vals(symbol)
+                if vals is None:
+                    continue
+                close_p, kijun_p, _, _ = vals
+                # trail at breakeven+: trailing stop (Kijun) has reached original entry
+                if kijun_p < meta["entry_price"]:
+                    continue
+                ind = self._indicators.get(symbol)
+                if ind is None:
+                    continue
+                res = score_symbol_native(self, symbol, ind)
+                if res is None or res["score"] < self.MIN_SCORE:
+                    continue
+                stop_dist = close_p - kijun_p  # risk per share from CURRENT trail
+                if stop_dist <= 0:
+                    continue
+                add_qty = int(self.PYRAMID_RISK / stop_dist)
+                cost = add_qty * close_p
+                if add_qty <= 0 or (available_cash - committed_cash) < cost:
+                    continue
+                committed_cash += cost
+                self.market_on_open_order(symbol, add_qty)
+                meta["lots"] = meta.get("lots", 1) + 1
+                self.log(f"PYRAMID_ADD|{date_str}|{symbol.value}|lot={meta['lots']}|qty={add_qty}|price~{close_p:.2f}|trail={kijun_p:.2f}")
+
         exiting = {
             o.symbol
             for o in self.transactions.get_open_orders()
@@ -562,22 +607,30 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
         # Primary: score DESC. Tiebreak: dollar-volume DESC. NEVER alphabetical.
         candidates.sort(key=lambda x: (x[1], x[2]), reverse=True)
-        committed_cash = 0.0  # track cash committed this rebalance before fills execute
-        available_cash = float(self.portfolio.cash)
+        # committed_cash / available_cash already initialized + reduced by pyramid adds above
         for symbol, score, _dv in candidates[:slots]:
             price = self.securities[symbol].price
             if price <= 0:
                 continue
-            target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
+            if getattr(self, "ENTRY_RISK", 0) > 0:
+                # Variant B: risk-based initial sizing (shares = ENTRY_RISK / Kijun-stop-distance)
+                _kj = self._indicators[symbol]["d_ichi"].kijun.current.value
+                _sd = price - _kj
+                if _sd <= 0:
+                    continue
+                quantity = int(self.ENTRY_RISK / _sd)
+                target_value = quantity * price
+            else:
+                target_value = self.portfolio.total_portfolio_value * self.POSITION_PCT
+                quantity = int(target_value / price)
+            if quantity <= 0:
+                continue
             if available_cash - committed_cash < target_value:  # heat cap — stop when cash exhausted
                 self.log(f"SKIP|{date_str}|{symbol.value}|cash_exhausted|remaining={available_cash - committed_cash:.2f}")
                 break
-            quantity = int(target_value / price)
-            if quantity <= 0:
-                continue
             committed_cash += target_value
             self.market_on_open_order(symbol, quantity)
-            self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price)}
+            self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price), "lots": 1}
             self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}")
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
