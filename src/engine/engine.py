@@ -47,7 +47,7 @@ FIRE_ADDS = FireSentinel("FIRE_ADDS")
 FIRE_TRIMS = FireSentinel("FIRE_TRIMS")
 
 PHASE_ORDER: list[str | FireSentinel] = [
-    "rebalance", "universe", "signal", "regime", "ranking",
+    "rebalance", "filter", "universe", "signal", "regime", "ranking",
     "entry_selection", "entry_timing", "sizing",
     "reentry", "eligibility", "portfolio_risk", "cash",
     FIRE_ENTRIES,
@@ -81,6 +81,14 @@ FORBIDDEN_PARAMS: frozenset[str] = frozenset({
 })
 
 REQUIRED_PHASES: tuple[str, ...] = ("universe", "signal", "sizing")
+
+# Every schedulable phase kind = the string items of PHASE_ORDER. A config keyed by any
+# kind NOT in here would instantiate but never be scheduled in the per-bar loop (it reads
+# self.phases.get(item) only for items IN PHASE_ORDER) → a SILENT no-op. The engine refuses
+# such a config at init instead (fail-loud charter). Sentinels (FireSentinel) are not kinds.
+KNOWN_KINDS: frozenset[str] = frozenset(
+    item for item in PHASE_ORDER if isinstance(item, str)
+)
 
 
 def _slots(value: Slot[object] | list[Slot[object]]) -> list[Slot[object]]:
@@ -129,6 +137,7 @@ class StrategyEngine:
         self._fired_adds = 0
 
         validate_invariants(config)
+        self._validate_known_kinds(config)
         self.phases: dict[str, list[PhaseInterface]] = self._instantiate(config)
         self._validate_required_phases()
         self._validate_single_adds()
@@ -150,6 +159,16 @@ class StrategyEngine:
         return out
 
     # ---- init validations (fail loud) ----
+    def _validate_known_kinds(self, config: StrategyConfig) -> None:
+        """Every configured kind must be schedulable (present in PHASE_ORDER). A kind absent
+        from PHASE_ORDER would instantiate but never run (silent no-op) — refuse it loudly."""
+        unknown = sorted(k for k in config.phases if k not in KNOWN_KINDS)
+        if unknown:
+            raise ConfigError(
+                f"unknown phase kind(s) {unknown} not in PHASE_ORDER — would never be "
+                f"scheduled (silent no-op). Known kinds: {sorted(KNOWN_KINDS)}"
+            )
+
     def _validate_required_phases(self) -> None:
         for kind in REQUIRED_PHASES:
             if not self.phases.get(kind):

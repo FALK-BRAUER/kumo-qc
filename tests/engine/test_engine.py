@@ -3,11 +3,12 @@ from typing import Any
 
 import pytest
 
+from engine.base import ConfigError
 from engine.config import StrategyConfig
 from engine.context import PhaseContext
 from engine.engine import (
     FIRE_ADDS, FIRE_ENTRIES, FIRE_EXITS, FIRE_TRIMS,
-    PHASE_ORDER, FireSentinel, StrategyEngine,
+    KNOWN_KINDS, PHASE_ORDER, FireSentinel, StrategyEngine,
 )
 from tests.harness.stub_phases import slot
 
@@ -103,3 +104,59 @@ def test_unblocked_bar_runs_entry_phases() -> None:
     eng = make_engine(qc)
     eng.on_data_with_ctx(ctx())
     assert eng.phases["sizing"][0].called  # type: ignore[attr-defined]
+
+
+# ---- #234: filter kind wiring + fail-loud on unknown kinds ----
+
+def test_filter_kind_in_phase_order_before_universe() -> None:
+    order = [p for p in PHASE_ORDER if isinstance(p, str)]
+    assert "filter" in order
+    assert order.index("filter") < order.index("universe")
+    assert "filter" in KNOWN_KINDS
+
+
+def test_unknown_kind_raises_configerror() -> None:
+    # A configured kind absent from PHASE_ORDER would instantiate but never be scheduled
+    # (silent no-op). Engine must refuse it at init — fail-loud charter (#234 finding 2).
+    qc = FakeQC()
+    with pytest.raises(ConfigError, match="unknown phase kind"):
+        make_engine(qc, bogus_kind=slot("bogus_kind"))
+
+
+def test_filter_phase_scheduled_and_runs() -> None:
+    # With "filter" now in PHASE_ORDER, a configured filter phase actually executes
+    # (the #234 finding 1 fix — previously a silent no-op).
+    qc = FakeQC()
+    eng = make_engine(qc, filter=slot("filter"))
+    eng.on_data_with_ctx(ctx())
+    assert eng.phases["filter"][0].called  # type: ignore[attr-defined]
+
+
+def test_filter_runs_before_universe_at_runtime() -> None:
+    # Filter must execute before universe in the per-bar loop, not just in the constant.
+    qc = FakeQC()
+    seen: list[str] = []
+    eng = make_engine(qc, filter=slot("filter"))
+    for kind in ("filter", "universe"):
+        eng.phases[kind][0].evaluate = _recorder(eng.phases[kind][0], kind, seen)  # type: ignore[attr-defined]
+    eng.on_data_with_ctx(ctx())
+    assert seen == ["filter", "universe"]
+
+
+def test_filter_runs_on_blocked_bar_not_entry_only() -> None:
+    # Filter gates tradeability (like universe) — it runs regardless of an entry block.
+    qc = FakeQC()
+    eng = make_engine(qc, filter=slot("filter"), regime=slot("regime", blocked=True))
+    eng.on_data_with_ctx(ctx())
+    assert eng.phases["filter"][0].called  # type: ignore[attr-defined]
+    assert eng.phases["sizing"][0].called is False  # type: ignore[attr-defined] entry-side suppressed
+
+
+def _recorder(phase: object, kind: str, sink: list[str]):
+    orig = phase.evaluate  # type: ignore[attr-defined]
+
+    def wrapped(ctx: PhaseContext):
+        sink.append(kind)
+        return orig(ctx)
+
+    return wrapped
