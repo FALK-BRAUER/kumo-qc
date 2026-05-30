@@ -37,6 +37,16 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+try:
+    from resistance_support import compute_levels  # R/S #146 module
+except ImportError:
+    try:
+        import sys as _sys
+        _sys.path.append(str(Path(__file__).parent.parent))
+        from resistance_support import compute_levels
+    except Exception:
+        compute_levels = None  # type: ignore
+
 
 _WEEKLY_BARS = 130
 _DAILY_BARS = 700
@@ -265,6 +275,8 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.qqq = self.add_equity("QQQ", Resolution.DAILY).symbol
         self.qqq_sma50 = self.sma("QQQ", 50)
         self.log("VERSION_MARKER|regime_gate_v1_qqq50")
+        # RS151: polarity-flip structural trail (broken resistance → support)
+        self.log("VERSION_MARKER|rs151_polarity_v1")
 
         self.universe_settings.resolution = Resolution.DAILY
         self.universe_settings.data_normalization_mode = DataNormalizationMode.RAW
@@ -414,6 +426,30 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     def _has_open_orders(self, symbol) -> bool:
         return bool(self.transactions.get_open_orders(symbol))
 
+    def _update_polarity_trail(self, symbol, close: float, meta: dict | None) -> float | None:
+        """RS151 polarity-flip trail.
+
+        Compute R/S levels from 252d daily history. The highest prior resistance
+        that price now sits ABOVE has flipped to support — that becomes the trailing
+        stop. Ratchet the stored trail UP only (never down). Returns the current
+        trail level (or None if not yet establishable / meta missing).
+        """
+        if meta is None or compute_levels is None:
+            return None
+        try:
+            df = _fetch_ohlcv(self, symbol, 252, Resolution.DAILY)
+            if df is None or df.empty or len(df) < 30:
+                return meta.get("trail")
+            lv = compute_levels(df, ref_price=close)
+            # Levels below current close that were formerly resistance = flipped support.
+            flipped = max((lvl for lvl in lv.support if lvl < close), default=None)
+            if flipped is not None:
+                existing = meta.get("trail")
+                meta["trail"] = flipped if existing is None else max(existing, flipped)
+        except Exception:
+            return meta.get("trail")
+        return meta.get("trail")
+
     def _rebalance(self) -> None:
         if self.is_warming_up:
             return
@@ -439,6 +475,11 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 if days_held >= self.PHASE3_DAYS and pnl_pct >= self.PHASE3_PNL:
                     in_phase3 = True
 
+            # RS151: polarity-flip structural trail.
+            # A prior resistance that price has broken ABOVE flips to support; the
+            # highest such flipped level becomes the trailing stop. Ratchet up only.
+            trail = self._update_polarity_trail(symbol, close, meta)
+
             if in_phase3:
                 if close < cloud_bottom:
                     self.market_on_open_order(symbol, -holding.quantity)
@@ -447,7 +488,13 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     pnl_h = close / meta.get("entry_price", close) - 1
                     self.log(f"PHASE3_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_bottom={cloud_bottom:.2f}|days={days_h}|pnl={pnl_h:.1%}")
             else:
-                if close < kijun:
+                # RS151: structural trail takes precedence over Kijun when it is set
+                # AND it sits above the Kijun (must BEAT the protective Kijun, per V7/V12).
+                if trail is not None and trail >= kijun and close < trail:
+                    self.market_on_open_order(symbol, -holding.quantity)
+                    self._position_meta.pop(symbol, None)
+                    self.log(f"POLARITY_TRAIL|{date_str}|{symbol.value}|close={close:.2f}|trail={trail:.2f}|kijun={kijun:.2f}")
+                elif close < kijun:
                     self.market_on_open_order(symbol, -holding.quantity)
                     self._position_meta.pop(symbol, None)
                     self.log(f"STOP|{date_str}|{symbol.value}|close={close:.2f}|kijun={kijun:.2f}")
