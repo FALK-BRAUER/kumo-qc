@@ -1,8 +1,12 @@
-"""Tests for scripts/build_universe.py — the point-in-time top-N DV precompute.
+"""Tests for scripts/build_universe.py — the floors-only liquid-substrate precompute.
 
 Uses small synthetic daily zips in tmp_path (deci-cents close, share volume) with
-known closes/volumes so the expected ranking / floors / point-in-time behaviour are
-hand-checkable. build_universe.py lives in scripts/, imported by path.
+known closes/volumes so the expected floor / point-in-time behaviour is hand-checkable.
+build_universe.py lives in scripts/, imported by path.
+
+MODEL under test: floors gate TRADEABILITY only. EVERY name clearing both floors that
+day is kept — no top-N, no rank, no cut. A "narrower universe" only ever comes from a
+HIGHER floor, never a count cap. Selection is the signal phase's job, not tested here.
 """
 from __future__ import annotations
 
@@ -49,50 +53,68 @@ def data_dir(tmp_path: Path) -> Path:
     return d
 
 
-def test_topn_ranking_by_dollar_volume(data_dir: Path):
-    # window=3. Three tickers, all priced > floor, all liquid. DV ordering:
-    # big (close 100, vol 1e6 -> 1e8) > mid (50, 1e6 -> 5e7) > small (20, 1e6 -> 2e7).
+def test_floor_keeps_every_eligible_no_cap(data_dir: Path):
+    # The core model: ALL names clearing the floors are kept — no top-N truncation.
+    # Three liquid, above-price tickers with wildly different DV. None is dropped for
+    # being "rank 3". (Under the old top-N model n=2 would have cut "small"; here it stays.)
     ds = _dates(date(2025, 1, 1), 5)
-    _write_zip(data_dir, "big", [(d, 100.0, 1_000_000) for d in ds])
-    _write_zip(data_dir, "mid", [(d, 50.0, 1_000_000) for d in ds])
-    _write_zip(data_dir, "small", [(d, 20.0, 1_000_000) for d in ds])
+    _write_zip(data_dir, "big", [(d, 100.0, 1_000_000) for d in ds])    # 1e8 DV
+    _write_zip(data_dir, "mid", [(d, 50.0, 1_000_000) for d in ds])     # 5e7 DV
+    _write_zip(data_dir, "small", [(d, 20.0, 1_000_000) for d in ds])   # 2e7 DV
 
     uni = build_universe_mod.build_universe(
-        data_dir=data_dir, n=2, price_floor=10.0, dv_floor=1.0, dv_window=3,
+        data_dir=data_dir, min_price=10.0, min_avg_dollar_volume=1.0, adv_window=3,
     )
     last = "2025-01-05"
     assert last in uni
-    # top 2 by DV = big, mid. Output is sorted alphabetically within the day.
-    assert set(uni[last]) == {"big", "mid"}
-    assert "small" not in uni[last]
-    # Result list is sorted.
+    # Every one clears both floors -> all three present. No cap.
+    assert set(uni[last]) == {"big", "mid", "small"}
+    # Result list is sorted (determinism).
     assert uni[last] == sorted(uni[last])
 
 
 def test_price_floor_excludes_cheap(data_dir: Path):
     ds = _dates(date(2025, 1, 1), 4)
-    # cheapo has HUGE dv but close < price_floor -> excluded.
+    # cheapo has HUGE dv but close < min_price -> excluded (floor gates tradeability).
     _write_zip(data_dir, "cheapo", [(d, 5.0, 100_000_000) for d in ds])
     _write_zip(data_dir, "pricey", [(d, 50.0, 1_000_000) for d in ds])
 
     uni = build_universe_mod.build_universe(
-        data_dir=data_dir, n=10, price_floor=10.0, dv_floor=1.0, dv_window=3,
+        data_dir=data_dir, min_price=10.0, min_avg_dollar_volume=1.0, adv_window=3,
     )
     last = "2025-01-04"
     assert uni[last] == ["pricey"]
 
 
-def test_dv_floor_excludes_illiquid(data_dir: Path):
+def test_adv_floor_excludes_illiquid(data_dir: Path):
     ds = _dates(date(2025, 1, 1), 4)
     # thin: close 50 * vol 100 = 5_000 DV < floor 1e6 -> excluded.
     _write_zip(data_dir, "thin", [(d, 50.0, 100) for d in ds])
     _write_zip(data_dir, "thick", [(d, 50.0, 1_000_000) for d in ds])  # 5e7 DV
 
     uni = build_universe_mod.build_universe(
-        data_dir=data_dir, n=10, price_floor=10.0, dv_floor=1_000_000.0, dv_window=3,
+        data_dir=data_dir, min_price=10.0, min_avg_dollar_volume=1_000_000.0, adv_window=3,
     )
     last = "2025-01-04"
     assert uni[last] == ["thick"]
+
+
+def test_higher_floor_narrows_no_count_cap(data_dir: Path):
+    # The ONLY legitimate way to shrink the universe is RAISING a floor — never a count.
+    # Two liquid tickers; raise the ADV floor above "mid" -> only "big" survives.
+    ds = _dates(date(2025, 1, 1), 4)
+    _write_zip(data_dir, "big", [(d, 100.0, 1_000_000) for d in ds])  # 1e8 DV
+    _write_zip(data_dir, "mid", [(d, 50.0, 1_000_000) for d in ds])   # 5e7 DV
+
+    low = build_universe_mod.build_universe(
+        data_dir=data_dir, min_price=10.0, min_avg_dollar_volume=1.0, adv_window=3,
+    )
+    high = build_universe_mod.build_universe(
+        data_dir=data_dir, min_price=10.0, min_avg_dollar_volume=6e7, adv_window=3,
+    )
+    last = "2025-01-04"
+    assert set(low[last]) == {"big", "mid"}
+    assert high[last] == ["big"]  # raised floor, not a top-1 cut
 
 
 def test_point_in_time_no_history_absent_then_present(data_dir: Path):
@@ -104,7 +126,7 @@ def test_point_in_time_no_history_absent_then_present(data_dir: Path):
     _write_zip(data_dir, "late", [(d, 80.0, 2_000_000) for d in late_ds])
 
     uni = build_universe_mod.build_universe(
-        data_dir=data_dir, n=10, price_floor=10.0, dv_floor=1.0, dv_window=3,
+        data_dir=data_dir, min_price=10.0, min_avg_dollar_volume=1.0, adv_window=3,
     )
 
     # 2025-01-03: late has no bars at all -> absent. early has 3 bars -> present.
@@ -117,15 +139,15 @@ def test_point_in_time_no_history_absent_then_present(data_dir: Path):
 
 
 def test_no_future_leak_first_window_days_absent(data_dir: Path):
-    # A ticker must not appear before it accumulates dv_window bars, even though the
+    # A ticker must not appear before it accumulates adv_window bars, even though the
     # full history exists in the file (no hindsight).
     ds = _dates(date(2025, 1, 1), 5)
     _write_zip(data_dir, "x", [(d, 50.0, 1_000_000) for d in ds])
     uni = build_universe_mod.build_universe(
-        data_dir=data_dir, n=10, price_floor=10.0, dv_floor=1.0, dv_window=3,
+        data_dir=data_dir, min_price=10.0, min_avg_dollar_volume=1.0, adv_window=3,
     )
-    # days 1,2 (only 1,2 bars) -> x absent / date omitted; day 3 onward -> present.
-    assert uni.get("2025-01-01", []) == []  # omitted (no eligible) -> .get default
+    # days 1,2 (only 1,2 bars) -> x absent; date present but EMPTY (zero-eligible).
+    assert uni.get("2025-01-01", []) == []
     assert uni.get("2025-01-02", []) == []
     assert "x" in uni["2025-01-03"]
     assert "x" in uni["2025-01-05"]
@@ -136,7 +158,7 @@ def test_deterministic_hash(data_dir: Path):
     _write_zip(data_dir, "big", [(d, 100.0, 1_000_000) for d in ds])
     _write_zip(data_dir, "mid", [(d, 50.0, 1_000_000) for d in ds])
 
-    kwargs = dict(data_dir=data_dir, n=5, price_floor=10.0, dv_floor=1.0, dv_window=3)
+    kwargs = dict(data_dir=data_dir, min_price=10.0, min_avg_dollar_volume=1.0, adv_window=3)
     uni1 = build_universe_mod.build_universe(**kwargs)
     uni2 = build_universe_mod.build_universe(**kwargs)
     h1 = build_universe_mod.content_hash(uni1)
@@ -145,16 +167,16 @@ def test_deterministic_hash(data_dir: Path):
     assert len(h1) == 64  # sha256 hex
 
 
-def test_hash_changes_when_universe_changes(data_dir: Path):
+def test_hash_changes_when_floor_changes(data_dir: Path):
     ds = _dates(date(2025, 1, 1), 5)
-    _write_zip(data_dir, "big", [(d, 100.0, 1_000_000) for d in ds])
-    _write_zip(data_dir, "mid", [(d, 50.0, 1_000_000) for d in ds])
+    _write_zip(data_dir, "big", [(d, 100.0, 1_000_000) for d in ds])  # 1e8 DV
+    _write_zip(data_dir, "mid", [(d, 50.0, 1_000_000) for d in ds])   # 5e7 DV
     base = build_universe_mod.build_universe(
-        data_dir=data_dir, n=5, price_floor=10.0, dv_floor=1.0, dv_window=3,
+        data_dir=data_dir, min_price=10.0, min_avg_dollar_volume=1.0, adv_window=3,
     )
-    # n=1 drops "mid" from the top set -> different mapping -> different hash.
+    # Raise the floor above "mid" -> drops it -> different mapping -> different hash.
     narrowed = build_universe_mod.build_universe(
-        data_dir=data_dir, n=1, price_floor=10.0, dv_floor=1.0, dv_window=3,
+        data_dir=data_dir, min_price=10.0, min_avg_dollar_volume=6e7, adv_window=3,
     )
     assert build_universe_mod.content_hash(base) != build_universe_mod.content_hash(narrowed)
 
@@ -165,7 +187,7 @@ def test_cli_writes_json_and_meta(data_dir: Path, tmp_path: Path):
     _write_zip(data_dir, "mid", [(d, 50.0, 1_000_000) for d in ds])
     out = tmp_path / "u.json"
     rc = build_universe_mod.main([
-        "--n", "5", "--price-floor", "10", "--dv-floor", "1", "--dv-window", "3",
+        "--min-price", "10", "--min-avg-dollar-volume", "1", "--adv-window", "3",
         "--data-dir", str(data_dir), "--out", str(out),
     ])
     assert rc == 0
@@ -176,11 +198,14 @@ def test_cli_writes_json_and_meta(data_dir: Path, tmp_path: Path):
     import json
     payload = json.loads(out.read_text())
     assert "_universe_meta" in payload
-    assert payload["_universe_meta"]["n"] == 5
+    assert payload["_universe_meta"]["min_price"] == 10.0
+    assert payload["_universe_meta"]["min_avg_dollar_volume"] == 1.0
     assert len(payload["_universe_meta"]["universe_fingerprint"]) == 64
+    # No top-N field leaks into the meta (model is floors-only).
+    assert "n" not in payload["_universe_meta"]
     # meta sibling has params + fingerprint.
     meta_obj = json.loads(meta.read_text())
-    assert meta_obj["params"]["dv_window"] == 3
+    assert meta_obj["params"]["adv_window"] == 3
     assert meta_obj["universe_fingerprint"] == payload["_universe_meta"]["universe_fingerprint"]
 
 
@@ -189,10 +214,10 @@ def test_every_trading_date_emitted_no_gaps_incl_zero_eligible(data_dir: Path):
     # even when zero tickers qualify -> empty list, NOT omitted. So a consumer's missing
     # date means non-trading-day, never a silent precompute gap.
     ds = _dates(date(2025, 1, 1), 5)
-    # all below price_floor -> every eligible-eval is False -> zero-eligible days
+    # all below min_price -> every eligible-eval is False -> zero-eligible days
     _write_zip(data_dir, "cheaponly", [(d, 3.0, 100_000_000) for d in ds])
     uni = build_universe_mod.build_universe(
-        data_dir=data_dir, n=10, price_floor=10.0, dv_floor=1.0, dv_window=3,
+        data_dir=data_dir, min_price=10.0, min_avg_dollar_volume=1.0, adv_window=3,
     )
     # dates with >= window(3) history: 2025-01-03, -04, -05 — all present, all EMPTY (not omitted)
     for dk in ("2025-01-03", "2025-01-04", "2025-01-05"):

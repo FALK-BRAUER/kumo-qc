@@ -1,20 +1,27 @@
 #!/usr/bin/env python3
-"""Precompute the v2 dynamic universe: point-in-time top-N by trailing dollar volume.
+"""Precompute the v2 dynamic universe: full liquid substrate via tradeability FLOORS only.
 
-ARCH2-U / #220. NO snapshot, NO fixed list — a per-trading-date ranking computed
-ONLY from bars dated <= that date (no hindsight, survivorship-clean: delisted
-tickers vanish after their last bar, newly-listed appear once they have history).
+ARCH2-U2 / #220 (re-grounded). NO snapshot, NO fixed list, NO top-N, NO DV-ranking,
+NO cap. A per-trading-date eligible SET computed ONLY from bars dated <= that date
+(no hindsight, survivorship-clean: delisted tickers vanish after their last bar,
+newly-listed appear once they have history). Variable-size daily set.
+
+MODEL (Falk, re-grounded): the universe gates TRADEABILITY, never selects. EVERY name
+that clears the floors that day is in. SELECTION is the signal phase's job
+(bct_score_full, George's 8-condition, score>=7). Floor in, rate after — no liquidity/DV
+logic leaks into selection. If compute ever forces a reduction, RAISE the liquidity floor
+and document it as a perf limit — NEVER reintroduce a top-N.
 
 Substrate: data/equity/usa/daily/<ticker>.zip, each a single CSV with rows
     YYYYMMDD 00:00,Open,High,Low,Close,Volume
 OHLC are in DECI-CENTS (price$ = field / 10_000); Volume is shares.
     dollar_volume$ = (Close / 10_000) * Volume
 
-Eligibility AS OF a date D (using only bars with date <= D):
-  (a) latest close (the bar at-or-before D, i.e. the most recent) >= price_floor, AND
-  (b) trailing dv_window-day mean dollar-volume >= dv_floor,
-and the ticker must have at least dv_window bars up to and incl D.
-Eligible tickers are ranked by that trailing-mean DV (desc) and the top N kept.
+Eligibility AS OF a date D (using only bars with date <= D) — the ONLY universe gate:
+  (a) latest close (the bar at-or-before D, i.e. the most recent) >= min_price, AND
+  (b) trailing adv_window-day mean dollar-volume >= min_avg_dollar_volume,
+and the ticker must have at least adv_window bars up to and incl D.
+Every eligible ticker is kept (sorted, for determinism). No rank, no cut.
 
 Output: data/universe/<auto>.json  -> {"YYYY-MM-DD": [tickers sorted], ..., "_universe_meta": {...}}
 Sibling: data/universe/<auto>.meta.json -> params + content-hash fingerprint of the
@@ -36,7 +43,6 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pandas as pd
 
 DECI_CENTS_PER_DOLLAR = 10_000.0
@@ -91,18 +97,17 @@ def load_ticker_frame(zip_path: Path) -> pd.DataFrame | None:
 
 def build_universe(
     data_dir: Path,
-    n: int,
-    price_floor: float,
-    dv_floor: float,
-    dv_window: int,
+    min_price: float,
+    min_avg_dollar_volume: float,
+    adv_window: int,
     limit_tickers: int | None = None,
 ) -> dict[str, list[str]]:
-    """Return {date_str -> [tickers sorted]} for the point-in-time top-N universe.
+    """Return {date_str -> [eligible tickers sorted]} for the floors-only liquid substrate.
 
     Implementation: build two wide frames (close, trailing-mean DV) indexed by the
     union of all trading dates, columns = tickers. A ticker's value is NaN on dates
-    where it has < dv_window bars up to and incl that date (point-in-time guard).
-    Then per date, mask by floors and rank by trailing-mean DV desc, take top N.
+    where it has < adv_window bars up to and incl that date (point-in-time guard).
+    Then per date, keep EVERY ticker that clears both floors. No rank, no cut.
     """
     zips = sorted(data_dir.glob("*.zip"))
     if limit_tickers is not None:
@@ -118,9 +123,9 @@ def build_universe(
         frame = load_ticker_frame(zp)
         if frame is None or frame.empty:
             continue
-        # Trailing dv_window mean: min_periods=dv_window => NaN until enough history.
-        # This enforces "only appears once it has >= dv_window bars up to and incl D".
-        dvmean = frame["dollar_volume"].rolling(window=dv_window, min_periods=dv_window).mean()
+        # Trailing adv_window mean: min_periods=adv_window => NaN until enough history.
+        # This enforces "only appears once it has >= adv_window bars up to and incl D".
+        dvmean = frame["dollar_volume"].rolling(window=adv_window, min_periods=adv_window).mean()
         close_cols[ticker] = frame["close"]
         dvmean_cols[ticker] = dvmean
 
@@ -130,41 +135,30 @@ def build_universe(
     close_df = pd.DataFrame(close_cols).sort_index()
     dvmean_df = pd.DataFrame(dvmean_cols).reindex(close_df.index)
 
-    # Eligibility mask: have a trailing-mean (>= dv_window bars), close >= price_floor,
-    # dv_mean >= dv_floor. A NaN close (ticker not yet/no longer listed on that date)
-    # or NaN dvmean fails the comparison (NaN >= x is False) -> excluded. Good.
+    # Eligibility mask = the ONLY universe gate. Have a trailing-mean (>= adv_window
+    # bars), close >= min_price, dv_mean >= min_avg_dollar_volume. A NaN close (ticker
+    # not yet/no longer listed on that date) or NaN dvmean fails the comparison
+    # (NaN >= x is False) -> excluded. Good.
     eligible = (
         dvmean_df.notna()
-        & (close_df >= price_floor)
-        & (dvmean_df >= dv_floor)
+        & (close_df >= min_price)
+        & (dvmean_df >= min_avg_dollar_volume)
     )
 
-    # Rank only where eligible; everything else -> -inf so it never makes the top N.
-    ranked_dv = dvmean_df.where(eligible, other=-np.inf)
-
     universe: dict[str, list[str]] = {}
-    tickers = np.array(ranked_dv.columns)
+    columns = list(eligible.columns)
 
-    for date, row in ranked_dv.iterrows():
+    for date, elig_row in eligible.iterrows():
         # EVERY substrate trading date (= the de-facto calendar) gets a key, even if
         # zero-eligible (empty list). Completeness-by-construction: a consumer's "missing
         # date" then unambiguously means a NON-trading day, NOT a silent precompute gap
-        # (#182's other trap). At N=1500/$10/$5M zero-eligible never fires, but the guard holds.
+        # (#182's other trap).
         date_key = date.strftime("%Y-%m-%d")
-        elig_row = eligible.loc[date]
-        if not bool(elig_row.any()):
+        mask = elig_row.to_numpy(dtype=bool)
+        if not mask.any():
             universe[date_key] = []
             continue
-        vals = row.to_numpy(dtype="float64")
-        cand_idx = np.where(np.isfinite(vals))[0]
-        if cand_idx.size == 0:
-            universe[date_key] = []
-            continue
-        cand_vals = vals[cand_idx]
-        # Top N by DV desc. argsort ascending then take the tail; stable for ties.
-        order = cand_idx[np.argsort(cand_vals, kind="stable")][::-1]
-        top = order[:n]
-        universe[date_key] = sorted(str(t) for t in tickers[top])
+        universe[date_key] = sorted(columns[i] for i in range(len(columns)) if mask[i])
 
     return universe
 
@@ -182,19 +176,19 @@ def content_hash(universe: dict[str, list[str]]) -> str:
     return h.hexdigest()
 
 
-def auto_out_name(n: int, price_floor: float, dv_floor: float, dv_window: int) -> str:
+def auto_out_name(min_price: float, min_avg_dollar_volume: float, adv_window: int) -> str:
     return (
-        f"dynamic_dv_n{n}_p{int(price_floor)}"
-        f"_dv{int(dv_floor)}_w{dv_window}"
+        f"liquid_p{int(min_price)}"
+        f"_adv{int(min_avg_dollar_volume)}_w{adv_window}"
     )
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--n", type=int, default=1500, help="top-N by trailing DV (universe breadth)")
-    ap.add_argument("--price-floor", type=float, default=10.0, help="min latest close, $")
-    ap.add_argument("--dv-floor", type=float, default=5_000_000.0, help="min trailing-mean dollar volume, $")
-    ap.add_argument("--dv-window", type=int, default=20, help="trailing trading-day window for DV mean")
+    ap.add_argument("--min-price", type=float, default=5.0, help="min latest close, $ (tradeability floor)")
+    ap.add_argument("--min-avg-dollar-volume", type=float, default=5_000_000.0,
+                    help="min trailing-mean dollar volume, $ (tradeability floor)")
+    ap.add_argument("--adv-window", type=int, default=20, help="trailing trading-day window for ADV mean")
     ap.add_argument("--data-dir", type=Path, default=Path("data/equity/usa/daily"))
     ap.add_argument("--out", type=Path, default=None, help="output JSON path (auto under data/universe if omitted)")
     ap.add_argument("--limit-tickers", type=int, default=None, help="cap tickers (for fast tests)")
@@ -202,34 +196,34 @@ def main(argv: list[str] | None = None) -> int:
 
     universe = build_universe(
         data_dir=args.data_dir,
-        n=args.n,
-        price_floor=args.price_floor,
-        dv_floor=args.dv_floor,
-        dv_window=args.dv_window,
+        min_price=args.min_price,
+        min_avg_dollar_volume=args.min_avg_dollar_volume,
+        adv_window=args.adv_window,
         limit_tickers=args.limit_tickers,
     )
 
     fingerprint = content_hash(universe)
     params: dict[str, Any] = {
-        "n": args.n,
-        "price_floor": args.price_floor,
-        "dv_floor": args.dv_floor,
-        "dv_window": args.dv_window,
+        "min_price": args.min_price,
+        "min_avg_dollar_volume": args.min_avg_dollar_volume,
+        "adv_window": args.adv_window,
         "data_dir": str(args.data_dir),
         "limit_tickers": args.limit_tickers,
     }
 
     out_path = args.out
     if out_path is None:
-        out_path = Path("data/universe") / (auto_out_name(args.n, args.price_floor, args.dv_floor, args.dv_window) + ".json")
+        out_path = Path("data/universe") / (
+            auto_out_name(args.min_price, args.min_avg_dollar_volume, args.adv_window) + ".json"
+        )
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     meta_block = {
+        "model": "floors-only (tradeability gate, no top-N/rank/cap; selection lives in signal phase)",
         "params": params,
-        "n": args.n,
-        "price_floor": args.price_floor,
-        "dv_floor": args.dv_floor,
-        "dv_window": args.dv_window,
+        "min_price": args.min_price,
+        "min_avg_dollar_volume": args.min_avg_dollar_volume,
+        "adv_window": args.adv_window,
         "substrate_fingerprint": "see data/MANIFEST.json",
         "universe_fingerprint": fingerprint,
         "num_dates": len(universe),
