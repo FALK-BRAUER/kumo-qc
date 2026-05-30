@@ -78,6 +78,16 @@ def test_preserves_rank_order_not_active_set_order():
     assert ctx.bar_state.ranked_candidates == ["MSFT", "AAPL", "GOOG"]
 
 
+def test_case_insensitive_lowercase_artifact_uppercase_active():
+    # REAL-RUN case: artifact tickers are lowercase (zip stems); QC Symbol.value is
+    # uppercase. The intersection must still match, and ranked_candidates must carry the
+    # canonical _active value (uppercase) so the signal phase's active_by_value[ticker] hits.
+    qc = FakeQC(universe={"2025-01-02": ["zzz", "aaa", "mmm"]}, active=["AAA", "MMM", "ZZZ"])
+    ctx = make_ctx(qc)
+    _phase().evaluate(ctx)
+    assert ctx.bar_state.ranked_candidates == ["ZZZ", "AAA", "MMM"]  # rank order, uppercase
+
+
 def test_active_subset_keeps_rank_order():
     qc = FakeQC(universe={"2025-01-02": ["ZZZ", "MMM", "AAA"]}, active=["AAA", "ZZZ"])
     ctx = make_ctx(qc)

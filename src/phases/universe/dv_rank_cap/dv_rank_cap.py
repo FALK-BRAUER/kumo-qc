@@ -78,8 +78,13 @@ class DvRankCap(BasePhase):
         # PRESERVE RANK ORDER: today_list is DV-desc ranked. Filter to active symbols while
         # keeping that order (iterate the list, not the active set) — the #182 fix. Iterating
         # qc._active here would reorder by the set's hash order = nondeterministic.
-        active_vals = {s.value for s in getattr(qc, "_active", set())}
-        ctx.bar_state.ranked_candidates = [t for t in today_list if t in active_vals]
+        # CASE: artifact tickers are lowercase (zip stems); QC Symbol.value is uppercase.
+        # Match case-insensitively and EMIT the canonical _active value (what the signal
+        # phase keys its symbol lookup on, bct_score_full active_by_value[ticker]).
+        active_by_lower = {s.value.lower(): s.value for s in getattr(qc, "_active", set())}
+        ctx.bar_state.ranked_candidates = [
+            active_by_lower[t.lower()] for t in today_list if t.lower() in active_by_lower
+        ]
         return PhaseResult(
             decision="ranked",
             blocked=False,

@@ -82,8 +82,12 @@ class TradeabilityFloors(BasePhase):
         # eligible set has NO rank here (rank is the universe phase's job); sort for a
         # deterministic, order-stable `eligible` list.
         members: Iterable[str] = today.keys() if isinstance(today, dict) else today
-        active_vals = {s.value for s in getattr(qc, "_active", set())}
-        ctx.bar_state.eligible = sorted(t for t in members if t in active_vals)
+        # CASE: artifact tickers lowercase, QC Symbol.value uppercase — match case-insensitively
+        # and emit the canonical _active value (consistent with the universe phase + signal).
+        active_by_lower = {s.value.lower(): s.value for s in getattr(qc, "_active", set())}
+        ctx.bar_state.eligible = sorted(
+            active_by_lower[t.lower()] for t in members if t.lower() in active_by_lower
+        )
         return PhaseResult(
             decision="eligible",
             blocked=False,

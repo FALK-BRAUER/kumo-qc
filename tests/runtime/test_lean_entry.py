@@ -14,7 +14,7 @@ import pytest
 
 from engine.base import UniverseFingerprintError, UniverseLoadError
 from runtime.fingerprints import membership_hash, order_hash
-from runtime.lean_entry import active_set_hash, load_universe
+from runtime.lean_entry import active_set_hash, load_universe, ranked_for_date
 
 # Small synthetic artifacts (as build_filter / build_universe would emit, incl. a meta block).
 ELIGIBLE = {
@@ -117,6 +117,15 @@ def test_no_state_assigned_on_failure():
     assert not hasattr(qc, "_universe")
     # _eligible must not be assigned either — assignment happens only after BOTH verify.
     assert not hasattr(qc, "_eligible")
+
+
+def test_ranked_for_date_is_the_artifact_list():
+    # Artifact-driven: the subscription source is OUR ranked artifact[date], verbatim
+    # (rank order preserved), NOT QC's coarse feed. Out-of-range/non-trading -> empty.
+    uni = {"2025-01-02": ["zzz", "aaa"], "2025-01-03": []}
+    assert ranked_for_date(uni, "2025-01-02") == ["zzz", "aaa"]
+    assert ranked_for_date(uni, "2025-01-03") == []
+    assert ranked_for_date(uni, "2099-01-01") == []
 
 
 def test_active_set_hash_deterministic_order_independent():

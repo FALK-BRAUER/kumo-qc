@@ -80,6 +80,14 @@ def test_accepts_list_form_too():
     assert ctx.bar_state.eligible == ["AAPL", "MSFT"]
 
 
+def test_case_insensitive_lowercase_artifact_uppercase_active():
+    # Artifact lowercase, QC _active uppercase — match case-insensitively, emit canonical value.
+    qc = FakeQC(eligible={"2025-01-02": {"aaa": 1.0, "msft": 2.0}}, active=["AAA", "MSFT"])
+    ctx = make_ctx(qc)
+    _phase().evaluate(ctx)
+    assert ctx.bar_state.eligible == ["AAA", "MSFT"]  # sorted, canonical (uppercase)
+
+
 def test_none_eligible_fails_loud():
     from engine.base import UniverseLoadError
     qc = FakeQC(eligible=None, active=["AAPL"])
