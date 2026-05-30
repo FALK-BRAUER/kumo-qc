@@ -146,23 +146,25 @@ def build_universe(
     tickers = np.array(ranked_dv.columns)
 
     for date, row in ranked_dv.iterrows():
+        # EVERY substrate trading date (= the de-facto calendar) gets a key, even if
+        # zero-eligible (empty list). Completeness-by-construction: a consumer's "missing
+        # date" then unambiguously means a NON-trading day, NOT a silent precompute gap
+        # (#182's other trap). At N=1500/$10/$5M zero-eligible never fires, but the guard holds.
+        date_key = date.strftime("%Y-%m-%d")
         elig_row = eligible.loc[date]
         if not bool(elig_row.any()):
-            # No eligible ticker that day -> omit the date entirely (matches "ticker
-            # only appears on dates it qualifies"; an empty list would be misleading).
+            universe[date_key] = []
             continue
         vals = row.to_numpy(dtype="float64")
-        # Candidates = finite (eligible) entries.
         cand_idx = np.where(np.isfinite(vals))[0]
         if cand_idx.size == 0:
+            universe[date_key] = []
             continue
         cand_vals = vals[cand_idx]
         # Top N by DV desc. argsort ascending then take the tail; stable for ties.
         order = cand_idx[np.argsort(cand_vals, kind="stable")][::-1]
         top = order[:n]
-        chosen = sorted(str(t) for t in tickers[top])
-        date_key = date.strftime("%Y-%m-%d")
-        universe[date_key] = chosen
+        universe[date_key] = sorted(str(t) for t in tickers[top])
 
     return universe
 

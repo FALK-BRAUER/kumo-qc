@@ -182,3 +182,19 @@ def test_cli_writes_json_and_meta(data_dir: Path, tmp_path: Path):
     meta_obj = json.loads(meta.read_text())
     assert meta_obj["params"]["dv_window"] == 3
     assert meta_obj["universe_fingerprint"] == payload["_universe_meta"]["universe_fingerprint"]
+
+
+def test_every_trading_date_emitted_no_gaps_incl_zero_eligible(data_dir: Path):
+    # #182 other-trap guard: every substrate trading date (>= window history) gets a KEY,
+    # even when zero tickers qualify -> empty list, NOT omitted. So a consumer's missing
+    # date means non-trading-day, never a silent precompute gap.
+    ds = _dates(date(2025, 1, 1), 5)
+    # all below price_floor -> every eligible-eval is False -> zero-eligible days
+    _write_zip(data_dir, "cheaponly", [(d, 3.0, 100_000_000) for d in ds])
+    uni = build_universe_mod.build_universe(
+        data_dir=data_dir, n=10, price_floor=10.0, dv_floor=1.0, dv_window=3,
+    )
+    # dates with >= window(3) history: 2025-01-03, -04, -05 — all present, all EMPTY (not omitted)
+    for dk in ("2025-01-03", "2025-01-04", "2025-01-05"):
+        assert dk in uni, f"{dk} omitted — silent gap (the #182 trap)"
+        assert uni[dk] == [], f"{dk} should be empty (zero-eligible), got {uni[dk]}"
