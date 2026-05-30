@@ -37,8 +37,10 @@ build/cloud_package.py   AST closure → flatten src/→dist/ + manifest + metad
 dist/            GENERATED, tracked, NOT linted — flat artifact LEAN runs (local+cloud)
 sweeps/          driver.py + grids/ + runs/[ignored] + reports/   (config-permutation research)
 results/         bt-results.csv + schema.md   (master ledger, provenance-pinned)
+cli/             Typer operator CLI (data|build|bt|deploy|sweep|lib) — dev tooling, NOT in dist/
 backtests/[ignored]  data/[ignored]  lean.json(→dist/)
 scripts/ research/ docs/ ui/ archive/ zz_handoffs/   CLAUDE.md README.md CONVENTIONS.md
+# scripts/ being consolidated INTO cli/ (ARCH2-CLI) — most fold into subcommands.
 ```
 
 ## 4. The engine
