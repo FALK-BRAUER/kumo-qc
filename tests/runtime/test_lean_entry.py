@@ -128,6 +128,53 @@ def test_ranked_for_date_is_the_artifact_list():
     assert ranked_for_date(uni, "2099-01-01") == []
 
 
+def test_on_securities_changed_registers_active_and_disposes():
+    # Lifecycle control-flow (#213c): added → _active.add + _register_indicators; removed →
+    # _active.discard + remove_consolidator + del. QC-type construction (_register_indicators
+    # body) is integration-verified; here we test the bookkeeping with a stubbed register.
+    from runtime.lean_entry import BctEngineAlgorithm
+
+    class FakeSym:
+        def __init__(self, v): self.value = v
+        def __hash__(self): return hash(self.value)
+        def __eq__(self, o): return isinstance(o, FakeSym) and o.value == self.value
+
+    class FakeSec:
+        def __init__(self, sym): self.symbol = sym
+
+    class FakeChanges:
+        def __init__(self, added, removed):
+            self.added_securities = added
+            self.removed_securities = removed
+
+    class FakeSubMgr:
+        def __init__(self): self.removed = []
+        def remove_consolidator(self, sym, cons): self.removed.append((sym, cons))
+
+    algo = BctEngineAlgorithm()  # QCAlgorithm == object locally; initialize() not invoked
+    algo._active = set()
+    algo._indicators = {}
+    algo.subscription_manager = FakeSubMgr()
+    registered = []
+
+    def fake_register(sym):
+        registered.append(sym)
+        algo._indicators[sym] = {"consolidator": f"cons_{sym.value}"}
+    algo._register_indicators = fake_register  # type: ignore[method-assign]
+
+    aapl, msft = FakeSym("AAPL"), FakeSym("MSFT")
+    # add both
+    algo.on_securities_changed(FakeChanges([FakeSec(aapl), FakeSec(msft)], []))
+    assert algo._active == {aapl, msft}
+    assert registered == [aapl, msft]
+    assert set(algo._indicators) == {aapl, msft}
+    # remove one
+    algo.on_securities_changed(FakeChanges([], [FakeSec(aapl)]))
+    assert algo._active == {msft}
+    assert aapl not in algo._indicators
+    assert algo.subscription_manager.removed == [(aapl, "cons_AAPL")]
+
+
 def test_active_set_hash_deterministic_order_independent():
     c1, h1 = active_set_hash(["GOOG", "AAPL", "MSFT"])
     c2, h2 = active_set_hash(["MSFT", "GOOG", "AAPL"])  # different order, same set

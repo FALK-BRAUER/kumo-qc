@@ -26,13 +26,17 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable
+from datetime import timedelta
 from hashlib import sha256
 from typing import Any
+
+import pandas as pd
 
 from engine.base import UniverseFingerprintError, UniverseLoadError
 from engine.context import PhaseContext
 from engine.engine import StrategyEngine
 from runtime.fingerprints import membership_hash, order_hash
+from runtime.indicators import INDICATOR_KEYS, weekly_aggregate
 
 
 def _read_object_store(qc: Any, key: str) -> Any:
@@ -118,16 +122,22 @@ def active_set_hash(symbols: Iterable[str]) -> tuple[int, str]:
 # --------------------------------------------------------------------------------------
 try:  # pragma: no cover - QC runtime import; absent in the dev venv / unit tests
     from AlgorithmImports import (
+        Calendar,
         DataNormalizationMode,
+        IchimokuKinkoHyo,
         Market,
         QCAlgorithm,
         Resolution,
+        RollingWindow,
         SecurityType,
         Symbol,
+        TradeBar,
+        TradeBarConsolidator,
     )
 except ImportError:  # pragma: no cover
     QCAlgorithm = object
     DataNormalizationMode = Resolution = SecurityType = Market = Symbol = None
+    Calendar = IchimokuKinkoHyo = RollingWindow = TradeBar = TradeBarConsolidator = None
 
 
 class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
@@ -142,10 +152,17 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
     END_DATE: tuple[int, int, int] = (2025, 12, 31)
     CASH: int = 100_000
 
+    # Indicator warmup length — EXACT legacy value (750d). Warmup drives first-ready ->
+    # first-trade date -> parity; must match the champion.
+    WARMUP_DAYS: int = 750
+
     def initialize(self) -> None:
         self.set_start_date(*self.START_DATE)
         self.set_end_date(*self.END_DATE)
         self.set_cash(self.CASH)
+        self.set_benchmark("SPY")
+        self.set_time_zone("America/New_York")  # match legacy champion (scheduling/timestamps)
+        self.set_warmup(timedelta(days=self.WARMUP_DAYS))
 
         # RAW normalization everywhere — adjusted prices corrupt Ichimoku (2649e2e).
         self.universe_settings.resolution = Resolution.DAILY
@@ -153,10 +170,19 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
 
         self.spy = self.add_equity("SPY", Resolution.DAILY)
         self.spy.set_data_normalization_mode(DataNormalizationMode.RAW)
+        self.spy_sma200 = self.sma("SPY", 200)  # regime gate (spy_200ma phase reads this)
         # VIX is the CBOE INDEX (add_index), matching the proven legacy champion — NOT
         # add_equity("VIX") (a different USA-equity symbol the regime gate must not read).
         # Indices carry no splits/dividends, so no normalization mode applies.
         self.vix = self.add_index("VIX", Resolution.DAILY).symbol
+        self.vix_ichi = self.ichimoku(self.vix, 9, 26, 26, 52, 26, 26)  # vix regime phase
+
+        # Per-symbol indicator lifecycle state (#213c). _active = currently-subscribed set
+        # (managed by on_securities_changed); _indicators = qc._indicators contract the phases
+        # read; _position_meta is populated by the engine on fills.
+        self._active: set[Any] = set()
+        self._indicators: dict[Any, dict[str, Any]] = {}
+        self._position_meta: dict[Any, Any] = {}
 
         # FAIL-LOUD + FP-VERIFY universe load (the #182 guard). Raises before any trading.
         spec = self.UNIVERSE_SPEC
@@ -191,14 +217,85 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         Sets qc._active and logs the active-set hash (the diff-ladder rung). NO coarse feed.
 
         Artifact tickers are canonically lowercase (zip stems); we upper-case to the QC
-        convention before Symbol.create. The phases compare case-insensitively vs qc._active."""
+        convention before Symbol.create. The phases compare case-insensitively vs qc._active.
+        _active itself is owned by on_securities_changed (the truly-subscribed set); this
+        selector only requests + logs the artifact-driven active-set hash (the diff-ladder rung)."""
         date_str = self.time.strftime("%Y-%m-%d")
         tickers = ranked_for_date(self._universe, date_str)
         symbols = [Symbol.create(t.upper(), SecurityType.EQUITY, Market.USA) for t in tickers]
-        self._active = set(symbols)
         count, h = active_set_hash(t.upper() for t in tickers)
         self.log(f"ACTIVE_SET|{date_str}|count={count}|hash={h}")
         return symbols
+
+    def on_securities_changed(self, changes: Any) -> None:
+        """Register indicators for newly-subscribed symbols, dispose on removal — EXACT
+        legacy carve. Owns qc._active (the truly-subscribed set the phases intersect against)."""
+        for s in changes.added_securities:
+            sym = s.symbol
+            self._active.add(sym)
+            if sym not in self._indicators:
+                self._register_indicators(sym)
+        for s in changes.removed_securities:
+            sym = s.symbol
+            self._active.discard(sym)
+            if sym in self._indicators:
+                self.subscription_manager.remove_consolidator(
+                    sym, self._indicators[sym]["consolidator"]
+                )
+                del self._indicators[sym]
+
+    def _register_indicators(self, sym: Any) -> None:
+        """Build the per-symbol indicators into the qc._indicators[sym] contract (INDICATOR_KEYS).
+        Daily ichimoku 9/26/26/52/26/26 + sma200 (QC native), weekly ichimoku fed by a MANUAL
+        TradeBarConsolidator (Calendar.WEEKLY) — the proven QC-cloud resample-timeout fix
+        (8048c29). EXACT legacy carve."""
+        d_ichi = self.ichimoku(sym, 9, 26, 26, 52, 26, 26)
+        sma200 = self.sma(sym, 200)
+        w_ichi = IchimokuKinkoHyo(9, 26, 26, 52, 26, 26)
+        w_close = RollingWindow[float](28)
+        consolidator = TradeBarConsolidator(Calendar.WEEKLY)
+
+        def _on_weekly(_: Any, bar: TradeBar) -> None:
+            w_ichi.update(bar)
+            w_close.add(bar.close)
+
+        consolidator.data_consolidated += _on_weekly
+        self.subscription_manager.add_consolidator(sym, consolidator)
+
+        # With the 750-day warmup the consolidator receives enough weekly bars automatically;
+        # only seed manually outside warmup (avoid N× history() calls at init).
+        if not self.is_warming_up:
+            self._seed_weekly(sym, w_ichi, w_close)
+
+        self._indicators[sym] = {
+            "d_ichi": d_ichi,
+            "w_ichi": w_ichi,
+            "w_close": w_close,
+            "sma200": sma200,
+            "consolidator": consolidator,
+        }
+        assert set(self._indicators[sym]) == set(INDICATOR_KEYS)  # contract guard
+
+    def _seed_weekly(self, sym: Any, w_ichi: Any, w_close: Any) -> None:
+        """Seed the weekly ichimoku + close window from history using the MANUAL weekly
+        aggregation (runtime.indicators.weekly_aggregate) — NOT df.resample (the cloud-timeout
+        fix). Feeds each aggregated weekly bar to w_ichi/w_close in chronological order."""
+        hist = self.history(sym, self.WARMUP_DAYS, Resolution.DAILY)
+        if hist is None or hist.empty:
+            return
+        if isinstance(hist.index, pd.MultiIndex):
+            hist = hist.droplevel(0)
+        hist.columns = [c.lower() for c in hist.columns]
+        for wb in weekly_aggregate(hist):
+            # EXACT legacy positional TradeBar ctor incl. period=1wk (main.py _seed_weekly) —
+            # an empty TradeBar() defaults period=0 (end_time==time), deviating from legacy.
+            bar = TradeBar(
+                wb["friday"], sym,
+                wb["open"], wb["high"], wb["low"], wb["close"],
+                wb["volume"], timedelta(weeks=1),
+            )
+            w_ichi.update(bar)
+            w_close.add(float(wb["close"]))
 
     def on_data(self, data: Any) -> None:
         """Per-bar entry: build the PhaseContext and run the engine. The engine fires on the
