@@ -273,6 +273,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.risk_amount = float(self.get_parameter("risk_amount", "0"))
         self.log(f"VERSION_MARKER|risk_amount_sizing_v1|risk={self.risk_amount}")
         self.log("VERSION_MARKER|p2_base_v1")
+        self.log("VERSION_MARKER|x3a_weekly_cloud_v1")
         # E40d: gate on by default; override with regime_gate_enabled=false to disable
         _regime_param = self.get_parameter("regime_gate_enabled", "")
         self.regime_gate_enabled = _regime_param != "false"
@@ -654,6 +655,12 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             result = score_symbol_native(self, symbol, ind)
             if result is None or result["score"] < self.MIN_SCORE:
                 continue
+            # X3a: require weekly cloud GREEN (Senkou A > Senkou B)
+            w_ichi = ind.get("w_ichi")
+            if w_ichi is not None and w_ichi.is_ready:
+                if w_ichi.senkou_a.current.value <= w_ichi.senkou_b.current.value:
+                    self.log(f"WEEKLY_CLOUD_BLOCK|{date_str}|{symbol.value}")
+                    continue
             # F5: ADX quality gate — require ADX >= adx_min (0 = off)
             if self.adx_min > 0 and result.get("adx", 0.0) < self.adx_min:
                 self.log(f"ADX_GATE|{date_str}|{symbol.value}|adx={result.get('adx', 0):.1f}<{self.adx_min}")
