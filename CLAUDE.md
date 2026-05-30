@@ -172,6 +172,17 @@ The 2026-05-29 P0 incident proved the regime above is ignored without enforcemen
 - `chore:` config, gitignore, tooling
 - `refactor(scope):` restructure without behavior change
 
+## Branch Integration Policy — REBASE, never merge-commit
+
+**Standard practice: rebase + fast-forward. No merge commits. Linear history only.** This is mandatory, not a preference.
+
+- **Integrate a feature/experiment branch** → rebase it onto latest `main`, then fast-forward merge (`git rebase main` on the branch, then `git merge --ff-only` on main). Never `git merge` a branch into main as a merge-commit.
+- **Reconcile parallel worktree branches** (one built while another's BT/baseline was in flight) → rebase the later branch onto the updated base, never merge. If a parity/baseline change lands while a branch is open, rebase that branch onto the corrected baseline before continuing — don't build on a moving base.
+- **Delete the branch AND its worktree immediately after integration** (`git worktree remove` + `git branch -d`). Stale branches/worktrees are where drift and legacy code accumulate. We already carry a 49-worktree sprawl from skipping this.
+- **Never let a branch diverge for long.** Rebase onto main frequently while open.
+
+**Why:** merge-commit bubbles + long-lived branches accumulate divergent/legacy code and bury conflicts until they're expensive. Rebase keeps one clean line, surfaces conflicts at integration time, and leaves no orphaned legacy paths. The phase-engine migration especially must stay linear — `_cloud/` is generated from `src/` and any drift between branches corrupts the deploy artifact.
+
 ## Worker Regime — State Management
 
 Workers on kumo-qc maintain state in two places. Both are mandatory, not optional.
