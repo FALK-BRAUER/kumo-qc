@@ -334,3 +334,8 @@ date_run,window,period_start,period_end,commit,branch,environment,sharpe,net_pro
 2026-05-30,FY2025,2025-01-01,2025-12-31,ca2f7fa,feat/f1-risk-trail-pyramid,local,-0.149,5.148,,335,,7.0,,F1 risk+trail+pyramid (Phase-3a) — REJECT. Pyramid breaks base (Exp$/t -1.88). PYRAMID_ADD 63x POLARITY_TRAIL 78x verified
 2026-05-30,FY2025,2025-01-01,2025-12-31,ca2f7fa,f1-trail-only,local,-0.043,6.779,,337,,6.7,,F1 isolation TRAIL-ONLY — REJECT but best DD 6.7% (DD tool). Exp$/t +11.06. trail 102x
 2026-05-30,FY2025,2025-01-01,2025-12-31,ca2f7fa,f1-pyramid-only,local,-0.193,4.115,,220,,9.8,,F1 isolation PYRAMID-ONLY — REJECT, pyramid is the killer (Exp$/t -10.38, avgW$ 637->356). adds 51x. $200 BE-add refuted for this structure
+2026-05-30,FY2025,2025-01-01,2025-12-31,485a925,feat/p3b-Pe,local,0.961,23.537,,196,,7.1,,Phase3b Pe SIGNAL-RENEWED (add $200 on fresh Tenkan>Kijun cross) — BEATS champion 0.778 + lower DD. WR45% avgW491 avgL-233 pyrF1.51 Exp$/t91.64. WINDOWS PENDING
+2026-05-30,FY2025,2025-01-01,2025-12-31,485a925,feat/p3b-Pc,local,0.736,20.295,,224,,6.5,,Phase3b Pc ATR-SPACED (+1/+2 ATR) — beats risk base, best-DD 6.5%. WR43% avgW373 avgL-209 pyrF1.98 Exp$/t43.17. WINDOWS PENDING
+2026-05-30,FY2025,2025-01-01,2025-12-31,485a925,feat/p3b-Pb,local,0.389,13.869,,205,,6.8,,Phase3b Pb wide-spaced +10/+20% — below base. WR39% pyrF1.39 Exp$/t34.24
+2026-05-30,FY2025,2025-01-01,2025-12-31,485a925,feat/p3b-Pa,local,0.368,13.298,,218,,6.4,,Phase3b Pa de-pyramid +5/+10% $250/$125 — below base. WR38% pyrF1.74 Exp$/t20.32
+2026-05-30,FY2025,2025-01-01,2025-12-31,485a925,feat/p3b-Pd,local,-0.372,1.492,,227,,8.1,,Phase3b Pd vol-confirmed — REJECT, adds on noise not signal. WR43% pyrF1.49 Exp$/t5.42
