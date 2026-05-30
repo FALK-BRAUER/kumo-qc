@@ -254,6 +254,10 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.MAX_LOTS = int(self.get_parameter("max_lots", "3"))
         # Phase 3b #172: pyramid technique variant (Pa-Pe). Empty = legacy BE-trigger.
         self.pyramid_variant = self.get_parameter("pyramid_variant", "").strip()
+        # Uncapped pyramid test (Pc/Pe): no hardcoded lot cap; lots bounded by signal
+        # frequency + per-ticker risk ceiling ($ added). 0 = unlimited (cash-bounded).
+        self.pyramid_uncapped = self.get_parameter("pyramid_uncapped", "false").lower() == "true"
+        self.max_ticker_risk_usd = float(self.get_parameter("max_ticker_risk_usd", "0"))
         self.log(f"VERSION_MARKER|pyramid_v1|risk={self.PYRAMID_RISK}|max_lots={self.MAX_LOTS}|enabled={self.pyramid_enabled}")
         self.log(f"VERSION_MARKER|pyramid_engine_v1|variant={self.pyramid_variant or 'legacy_BE'}")
         # RS151 polarity trail toggle — allows base-equivalence sanity (trail inert)
@@ -587,7 +591,13 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 if not holding.invested or self._has_open_orders(symbol):
                     continue
                 meta = self._position_meta.get(symbol)
-                if not meta or meta.get("lots", 1) >= self.MAX_LOTS:
+                if not meta:
+                    continue
+                # Lot ceiling: uncapped → risk-based ($ added per ticker), else legacy max_lots.
+                if self.pyramid_uncapped:
+                    if self.max_ticker_risk_usd > 0 and meta.get("add_risk_used", 0.0) >= self.max_ticker_risk_usd:
+                        continue
+                elif meta.get("lots", 1) >= self.MAX_LOTS:
                     continue
                 vals = self._daily_vals(symbol)
                 if vals is None:
@@ -616,10 +626,11 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                         entry_price=float(meta["entry_price"]), close=close_p,
                         entry_atr=meta.get("entry_atr"), daily_tr=today_tr,
                         vol_20d_avg=avg_tr_20, tk_cross=tk_cross,
+                        uncapped=self.pyramid_uncapped,
                     )
                     if not fire:
                         continue
-                    add_risk = _pyr_add_dollars(variant, lots)
+                    add_risk = _pyr_add_dollars(variant, lots, uncapped=self.pyramid_uncapped)
                 else:
                     # Legacy BE-trigger (F1): add when Kijun trail reaches breakeven.
                     if kijun_p < meta["entry_price"]:
@@ -639,6 +650,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 committed_cash += cost
                 self.market_on_open_order(symbol, add_qty)
                 meta["lots"] = lots + 1
+                meta["add_risk_used"] = meta.get("add_risk_used", 0.0) + add_risk
                 self.log(f"PYRAMID_ADD|{date_str}|{symbol.value}|v={variant or 'BE'}|lot={meta['lots']}|qty={add_qty}|risk={add_risk:.0f}|price~{close_p:.2f}")
 
         exiting = {

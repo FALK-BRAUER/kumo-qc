@@ -38,11 +38,17 @@ _ATR_MULT = {"Pc": [1.0, 2.0]}
 VARIANTS = ("Pa", "Pb", "Pc", "Pd", "Pe")
 
 
-def add_dollars(variant: str, lots: int) -> float:
-    """$-risk for the add creating lot `lots+1`. 0 if beyond the scheme."""
+def add_dollars(variant: str, lots: int, uncapped: bool = False) -> float:
+    """$-risk for the add creating lot `lots+1`. 0 if beyond the scheme.
+    uncapped (Pc/Pe only): flat last-scheme size for unlimited lots — the lot count
+    is then bounded by signal frequency + max_ticker_risk_usd, not a hardcoded cap."""
     sizes = ADD_SIZES.get(variant, [])
     idx = lots - 1
-    return sizes[idx] if 0 <= idx < len(sizes) else 0.0
+    if idx < 0 or not sizes:
+        return 0.0
+    if uncapped and variant in ("Pc", "Pe"):
+        return sizes[min(idx, len(sizes) - 1)]
+    return sizes[idx] if idx < len(sizes) else 0.0
 
 
 def should_add(
@@ -55,14 +61,24 @@ def should_add(
     daily_tr: float | None = None,
     vol_20d_avg: float | None = None,
     tk_cross: bool = False,
+    uncapped: bool = False,
 ) -> bool:
     """
     Decide whether to add the next lot now. `lots` is the current lot count
-    (>=1). Caller enforces MAX_LOTS and the breakeven/score guards.
+    (>=1). Caller enforces the lot ceiling (max_ticker_risk_usd) + breakeven guards.
+    uncapped (Pc/Pe): extend the technique to unlimited lots — Pe fires on every
+    fresh cross; Pc fires at each successive +N*ATR multiple.
     """
     idx = lots - 1  # which add this would be (0-based)
     if idx < 0:
         return False
+
+    if uncapped and variant == "Pe":
+        return bool(tk_cross)
+    if uncapped and variant == "Pc":
+        if entry_atr is None or entry_atr <= 0:
+            return False
+        return close >= entry_price + lots * entry_atr  # next ATR multiple (+1,+2,+3,...)
 
     if variant in _PRICE_THRESH:
         thr = _PRICE_THRESH[variant]
