@@ -31,6 +31,9 @@ class BlockEvent:
 @dataclass(slots=True)
 class BarState:
     """Fresh per bar. Phases write here via the engine; engine fires from the typed lists."""
+    # Filter phase output: tradeability-eligible names for the bar (pre-rank). Universe
+    # phase emits ranked_candidates (rank+cap). Separated per the filter->universe seam.
+    eligible: list[str] = field(default_factory=list)
     ranked_candidates: list[str] = field(default_factory=list)
     sized_orders: list[OrderIntent] = field(default_factory=list)
     add_intents: list[OrderIntent] = field(default_factory=list)
