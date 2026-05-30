@@ -60,6 +60,7 @@ The #218 retrofit experiments often USED forbidden mechanics (fixed slots, max-p
 ## Testing
 - `tests/` **mirrors `src/`** 1:1 (`tests/<path>/test_<mod>.py`). Shared primitives in `tests/harness/`, cross-cutting in `tests/integration/`.
 - Parity tests run the built **`dist/`**, not `src/`.
+- **Functional unit tests are mandatory — not structural.** Each phase has BEHAVIORAL tests: real(istic) bar inputs → assert the actual decision/output is correct, plus the edge + failure cases (empty input, boundary floor values, ties, missing dates, None substrate). Import-only / "params exist" / "it instantiates" tests do NOT count as coverage. A phase merges only when its functional behavior — including its failure modes — is tested. (e.g. filter: tickers at/above/below each floor pass/fail correctly + boundary; universe: ranks by DV DESC + cap takes the right top-k + shuffle→same order; ranking: `(score,DV)` order + shuffle→identical output, the #182 determinism test; signal: BCT score correct on known bars + golden-master vs the canonical scanner.)
 
 ## Anti-drift
 - **Every non-hidden directory has a `README.md`** (3-5 lines: what it holds / what goes here / what doesn't). Create/update it when you touch a directory. This is how the structure stays honest.
