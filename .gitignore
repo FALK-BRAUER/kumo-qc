@@ -54,6 +54,10 @@ algorithm/performance_bct/polygon_universe_equity_fy2025.json
 # QC market data dumps — never commit
 data/
 
+# Claude Code harness local state (never project code)
+.claude/worktrees/
+.claude/scheduled_tasks.lock
+
 # UI secrets and temp files
 ui/.env.local
 ui/temp-find-project.js
