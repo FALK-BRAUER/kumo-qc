@@ -21,7 +21,8 @@ out/
 npm-debug.log*
 
 # LEAN local backtest output
-/Results/
+# NOTE (v2 #208): removed legacy "/Results/" — on case-insensitive macOS it
+# shadowed our tracked v2 results/ ledger. v2 BT output lives in backtests/.
 /backtests/
 */backtests/
 algorithm/*/backtests/
