@@ -3,9 +3,12 @@
 The clean local LEAN backtest data directory. **RAW daily OHLCV only.** Single source of truth for what local backtests read; must mirror what cloud reads.
 
 ## What it holds
-- `equity/usa/daily/<ticker>.zip` — LEAN-format daily bars. **GITIGNORED** (bulky, regenerable).
-- `MANIFEST.json` — **TRACKED**. Per-file sha256 = the **data fingerprint** that pins every result. (Current FY2025 raw substrate: `ba8307b6e556cca4`.)
+- `equity/usa/daily/<ticker>.zip` — LEAN-format daily bars. **GITIGNORED** (bulky, regenerable). The full substrate (~19k tickers), NOT a fixed subset.
+- `MANIFEST.json` — **TRACKED**, the **SUBSTRATE fingerprint** (hash of the zip SET — "what data exists"). Generated at #220 when the substrate scope is defined. **NOT a universe-subset** — universe selection is a strategy/phase concern (dynamic), pinned separately by config-hash. (A prior 326-ticker manifest was removed — it conflated substrate with a fixed universe; see #219.)
 - `README.md` — this file. TRACKED.
+
+## NO fixed universe (hard rule)
+There is **no 326 / fixed / snapshot universe anywhere** — in this dir, in code, in config. The fixed snapshot was the root of the slot-tiebreak / data-divergence / parity-chasing time-sinks. Universe = **dynamic, point-in-time** only (#220). This dir fingerprints the SUBSTRATE; which tickers a strategy selects is the dynamic universe phase, never a stored list here.
 
 ## Provenance (non-negotiable)
 - Built from **Massive SIP `day_aggs` / 5-min parquet** (`scripts/build_daily_from_parquet.py`), **RAW / unadjusted**.
@@ -13,10 +16,9 @@ The clean local LEAN backtest data directory. **RAW daily OHLCV only.** Single s
 - **NEVER mixed** (all-raw or rebuild — never some-raw-some-adjusted; mixed = silently wrong).
 
 ## Rules
-- Never hand-edit zips. Rebuild from parquet → re-fingerprint → bump `MANIFEST.json`.
-- **Every result pins to the fingerprint** (`dist/_metadata.py` carries it). A result not pinned to its data fingerprint is not valid (CONVENTIONS.md).
-- Local and cloud must run the SAME data state — verify the fingerprint matches before trusting a parity result.
+- Never hand-edit zips. Rebuild from parquet → re-fingerprint the SUBSTRATE → bump `MANIFEST.json`.
+- **Every result pins to (substrate-fingerprint + config-hash)** via `dist/_metadata.py`. A result not pinned is not valid (CONVENTIONS.md).
+- Local and cloud must run the SAME substrate — verify the fingerprint before trusting parity.
 
 ## Does NOT hold
-- Backtest OUTPUT (that's `backtests/`, gitignored).
-- Adjusted data, vendor caches, SQLite (`*.db`).
+- Backtest OUTPUT (`backtests/`, gitignored). Adjusted data, vendor caches, SQLite (`*.db`). **Any fixed-universe ticker list.**
