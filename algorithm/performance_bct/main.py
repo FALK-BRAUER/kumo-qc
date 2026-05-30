@@ -212,18 +212,6 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         ]
         return next((d for d in candidates if d.exists()), None)
 
-    @staticmethod
-    def _load_polygon_universe() -> dict | None:
-        candidates = [
-            Path(__file__).parent / "polygon_universe_equity200_fy2025.json",
-            Path("/Lean/Data/polygon_universe_equity200_fy2025.json"),
-        ]
-        for p in candidates:
-            if p.exists():
-                with open(p) as f:
-                    return json.load(f)
-        return None
-
     def initialize(self) -> None:
         self.log("VERSION_MARKER|e121_vix_ichimoku_2tier_v1")
         self.set_time_zone("America/New_York")
@@ -280,38 +268,36 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self._polygon_universe: dict | None = None
         self._position_meta: dict = {}  # symbol → {entry_date, entry_price}
 
-        poly = self._load_polygon_universe()
-        if poly is not None:
-            # Local: static universe from Polygon daily snapshot (867 unique tickers, FY2025)
-            if True:  # scope block
-                self._polygon_universe = poly
-                all_tickers: set[str] = set()
-                for tickers in poly.values():
-                    all_tickers.update(tickers)
-                self.log(f"LOCAL_UNIVERSE|polygon_equity|unique_tickers={len(all_tickers)}")
-                for ticker in sorted(all_tickers):
-                    try:
-                        self.add_equity(ticker, Resolution.DAILY)
-                    except Exception:
-                        pass
-            # (dead code — outer check ensures poly is not None here)
-        else:
-            # Cloud: load polygon-326 universe from ObjectStore (same as local)
-            obj_key = "polygon_universe_equity200_fy2025.json"
-            if self.object_store.contains_key(obj_key):
-                cloud_poly = json.loads(self.object_store.read(obj_key))
-                all_tickers = sorted({t for tickers in cloud_poly.values() for t in tickers})
-                self.log(f"CLOUD_UNIVERSE|object_store|unique_tickers={len(all_tickers)}")
-                for ticker in all_tickers:
-                    try:
-                        self.add_equity(ticker, Resolution.DAILY)
-                    except Exception:
-                        pass
-            else:
-                # Fallback if ObjectStore upload not done
-                self.log("CLOUD_UNIVERSE|object_store_missing|fallback_SPY_ETF")
-                spy = Symbol.create("SPY", SecurityType.EQUITY, Market.USA)
-                self.add_universe(self.universe.etf(spy, self.universe_settings))
+        # UNIFIED loader — single code path, local + cloud identical
+        # Local: auto-populates ObjectStore from disk on first run
+        # Cloud: ObjectStore pre-populated via upload
+        obj_key = "polygon_universe_equity200_fy2025.json"
+        if not self.object_store.contains_key(obj_key):
+            # Local harness: inject disk copy into ObjectStore so cloud code runs verbatim
+            local_candidates = [
+                Path(__file__).parent / obj_key,
+                Path("/Lean/Data") / obj_key,
+            ]
+            injected = False
+            for local_path in local_candidates:
+                if local_path.exists():
+                    self.object_store.save(obj_key, local_path.read_text())
+                    injected = True
+                    break
+            if not injected:
+                raise Exception(f"UniverseLoadError: ObjectStore key {obj_key!r} not found and no local file — cannot start")
+
+        poly = json.loads(self.object_store.read(obj_key))
+        if not poly:
+            raise Exception(f"UniverseLoadError: universe JSON empty — engine refuses to start")
+        self._polygon_universe = poly
+        all_tickers = sorted({t for tickers in poly.values() for t in tickers})
+        self.log(f"UNIVERSE|polygon_equity|unique_tickers={len(all_tickers)}|path=object_store")
+        for ticker in all_tickers:
+            try:
+                self.add_equity(ticker, Resolution.DAILY)
+            except Exception:
+                pass
 
         self.schedule.on(
             self.date_rules.every_day(),
@@ -519,10 +505,20 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 self.log(f"REGIME_BLOCK|{date_str}|SPY={spy_price:.2f}|MA200={spy_ma200:.2f}")
                 return
 
-        # When running locally with polygon universe, restrict candidates to today's snapshot
+        # Per-day filter: restrict candidates to today's snapshot from universe
         today_poly: set[str] | None = None
         if self._polygon_universe is not None:
-            today_poly = set(self._polygon_universe.get(date_str, []))
+            today_poly_list = self._polygon_universe.get(date_str)
+            if today_poly_list is None:
+                # Post-warmup, date within JSON key range = data-key mismatch bug
+                keys = self._polygon_universe
+                min_key = min(keys)
+                max_key = max(keys)
+                if min_key <= date_str <= max_key:
+                    raise Exception(f"UniverseLoadError: date_str {date_str!r} not in universe (range {min_key}..{max_key}) — date-key mismatch")
+                today_poly = set()  # outside range — no entries
+            else:
+                today_poly = set(today_poly_list)
 
         candidates: list[tuple] = []
         for symbol in sorted(self._active):
