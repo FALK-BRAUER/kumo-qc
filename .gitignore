@@ -12,6 +12,9 @@ __pycache__/
 venv/
 dist/
 build/
+# Strategy build/ and _cloud/ are tracked (cloud packaging artifacts)
+!algorithm/performance_bct/build/
+!algorithm/performance_bct/_cloud/
 
 # Node / Next.js
 node_modules/
