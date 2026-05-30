@@ -630,7 +630,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     )
                     if not fire:
                         continue
-                    add_risk = _pyr_add_dollars(variant, lots, uncapped=self.pyramid_uncapped)
+                    add_risk = _pyr_add_dollars(variant, lots, uncapped=self.pyramid_uncapped, entry_price=float(meta["entry_price"]), close=close_p)
                 else:
                     # Legacy BE-trigger (F1): add when Kijun trail reaches breakeven.
                     if kijun_p < meta["entry_price"]:
