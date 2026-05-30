@@ -22,6 +22,13 @@ The rules every contribution conforms to. The PR gate enforces these. See [docs/
 - **No count caps** (`max_positions`, `max_lots`, `max_adds`, `max_pyramid_lots`, `max_slots`, ...). Bound exposure with `gross_exposure_cap` (a % rule), never a count.
 - **No time-based exits** (`max_hold_days`, `exit_after_days`, ...).
 - **Explicit exposure only** — if `adds` is enabled, `gross_exposure_cap` MUST be enabled.
+- **NO fixed / snapshot universe — anywhere.** No 326, no hardcoded ticker list, in code, config, data, or tests. Universe = **dynamic, point-in-time** only. The fixed snapshot was the root of the slot-tiebreak / data-divergence / parity-chasing time-sinks and **proved nothing** — eradicated. Which tickers a strategy selects = the dynamic universe phase, pinned by config-hash; the substrate (the zip set) is fingerprinted separately.
+
+## Parity (cloud vs local)
+- Goal = **short-timeframe REPRODUCIBILITY, to a reasonable extent**: local == cloud on a SHORT window (days), same code (`dist/`) + same substrate (fingerprint), within tolerance.
+- **NOT** full-FY exact-match — the cloud-vs-local data-vendor residual is a known irreducible; chasing it is a rabbit-hole (cloud = ground-truth).
+- **NOT** parity against a fixed-universe oracle (326 proved nothing).
+- Refactor-correctness is a SEPARATE check: per-phase, universe-agnostic golden-master (v2 phase logic == monolith logic on a sample of tickers) — not an end-to-end fixed-universe parity.
 
 ## Build / deploy / dist
 - LEAN runs the **`dist/`** artifact — both local and cloud. No `if cloud:` branch in strategy code.
