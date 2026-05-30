@@ -29,6 +29,11 @@ The rules every contribution conforms to. The PR gate enforces these. See [docs/
 - The build (`build/cloud_package.py`) packages ONLY the active config's phase closure, and is itself unit-tested.
 - Every result is pinned to **(git commit + config-hash + data-fingerprint)** via `dist/_metadata.py`, logged on startup. No result without that pinning enters `results/bt-results.csv`.
 
+## Data (local backtest substrate)
+- `data/` = RAW daily OHLCV only, built from Massive SIP parquet (`scripts/build_daily_from_parquet.py`). **Never back-adjusted, never mixed** (adjusted corrupts Ichimoku — the 7x-calibration lesson).
+- Zips are gitignored; `data/MANIFEST.json` (the **data fingerprint**) + `data/README.md` are tracked.
+- **Every result pins to the data fingerprint** (carried in `dist/_metadata.py`). Local and cloud must run the same data state — verify the fingerprint before trusting parity.
+
 ## Git workflow
 - **Rebase, never merge-commit.** Linear history. Rebase a feature branch onto latest `main`, then `--ff-only` merge.
 - One feature branch = one worktree. **Delete the branch + worktree after integration.**
