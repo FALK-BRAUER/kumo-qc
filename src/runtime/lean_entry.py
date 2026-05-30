@@ -299,10 +299,16 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             hist = hist.droplevel(0)
         hist.columns = [c.lower() for c in hist.columns]
         for wb in weekly_aggregate(hist):
-            # EXACT legacy positional TradeBar ctor incl. period=1wk (main.py _seed_weekly) —
-            # an empty TradeBar() defaults period=0 (end_time==time), deviating from legacy.
+            # TIMESTAMP the seed bar at the week-START MONDAY to MATCH QC Calendar.Weekly
+            # (confirmed via QC docs: Calendar.Weekly = start of week = previous Monday). The
+            # live consolidator emits Monday-timed weekly bars; seeding at Friday made
+            # seed-Friday > a later live-Monday → IchimokuKinkoHyo is forward-only → "forward
+            # only indicator" rejection (#213f issue 2). Monday-seed → live-Monday = monotonic.
+            # OHLC unaffected: equities have no weekend bars, so W-FRI grouping and Monday-start
+            # bucket the identical Mon-Fri days — only the bar.time LABEL changes.
+            monday = wb["friday"] - timedelta(days=4)
             bar = TradeBar(
-                wb["friday"], sym,
+                monday, sym,
                 wb["open"], wb["high"], wb["low"], wb["close"],
                 wb["volume"], timedelta(weeks=1),
             )
