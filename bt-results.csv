@@ -292,3 +292,24 @@ date_run,window,period_start,period_end,commit,branch,environment,sharpe,net_pro
 2026-05-29,FY2025,2025-01-01,2025-12-31,713bfa7,feat/e116-objectstore-universe,cloud,1.315,39.396,39396,274,44,11.8,296.21,E116 cloud validation PASS — polygon-326 ObjectStore universe. Delta -0.127 vs E40d local 1.442. Within ±0.3 tolerance. BT 7b669725. Cloud/local divergence structural (QC data vendor vs local LEAN data).
 2026-05-29,FY2025,2025-01-01,2025-12-31,a9a4e8d,main,local,1.442,42.400,42400,196,44,9.5,196.00,E40d VIX<25 regime gate — DEPRECATED. Was champion but 1.442 Sharpe inflated by hardcoded 10-slot allocation tiebreak artifact. Superseded by B0d-honest. Commit a03e7a9 code, 10-slot config.
 2026-05-29,FY2025,2025-01-01,2025-12-31,a9a4e8d,main,local,0.831,25.000,25000,185,39,9.8,185.00,B0d-honest: principled baseline — max_positions=9999 + committed_cash heat cap. No slot tiebreak artifact. New experiment baseline. Commit a9a4e8d. All prior experiments vs E40d 1.442 need re-evaluation.
+2026-05-30,FY2025,2025-01-01,2025-12-31,3b1c244,feat/e40c-rerun,local,0.778,23.609,23609,143,46,9.1,,CHAMPION e40c flat-10% MS7 raw+tiebreak — beats all ~25 configs
+2026-05-30,FY2025,2025-01-01,2025-12-31,e225154054,cloud-e40c,cloud,1.346,41.364,41364,187,,,,e40c Track A cloud validation
+2026-05-30,FY2025,2025-01-01,2025-12-31,3b1c244,e40c-1M,local,0.897,25.904,259041,141,42,9.2,,e40c Track C $1M capital scaling
+2026-05-30,FY2025,2025-01-01,2025-12-31,2312698,e41v3-reval,local,-0.021,5.17,5170,282,30,23.9,,e41v3 rocket re-val COLLAPSED (orig 0.273)
+2026-05-30,FY2025,2025-01-01,2025-12-31,cc90728,e40b-reval,local,-0.19,2.771,2771,209,35,13.3,,e40b SPY200 re-val COLLAPSED (orig 1.048)
+2026-05-30,FY2025,2025-01-01,2025-12-31,9cf6ad0,e104-reval,local,-0.409,-2.489,-2489,251,,19.5,,e104 vix30 re-val COLLAPSED (orig 1.379)
+2026-05-30,FY2025,2025-01-01,2025-12-31,18a0b20,e28-reval,local,0.515,17.525,17525,155,40,12.0,,e28 vix-pct re-val borderline (orig 0.878)
+2026-05-30,FY2025,2025-01-01,2025-12-31,692d49a,risk-200,local,0.155,9.478,9478,449,,8.3,,risk-sweep $200 churn
+2026-05-30,FY2025,2025-01-01,2025-12-31,692d49a,risk-300,local,0.252,,,319,,,,risk-sweep $300
+2026-05-30,FY2025,2025-01-01,2025-12-31,692d49a,risk-500,local,0.546,,,199,,,,risk-sweep $500 (sweet spot, still<0.778)
+2026-05-30,FY2025,2025-01-01,2025-12-31,692d49a,risk-1000,local,0.484,,,119,,,,risk-sweep $1000
+2026-05-30,FY2025,2025-01-01,2025-12-31,692d49a,risk-2000,local,0.087,,,114,,,,risk-sweep $2000 collapse
+2026-05-30,FY2025,2025-01-01,2025-12-31,ms8,min-score-8,local,0.667,,,145,,,,MIN_SCORE=8 strict — loses (7s additive)
+2026-05-30,FY2025,2025-01-01,2025-12-31,797d3e2,v3-spy50,local,0.638,19.949,19949,149,46,8.7,,V3 SPY50 regime REJECTED
+2026-05-30,FY2025,2025-01-01,2025-12-31,v9,v9-sector-rot,local,0.573,18.174,18174,149,,9.6,,V9 sector-rotation MARGINAL (closest)
+2026-05-30,FY2025,2025-01-01,2025-12-31,6f856cf,v11-vol-scaled,local,0.531,16.26,16260,240,44,7.9,,V11 vol-scaled REJECTED
+2026-05-30,FY2025,2025-01-01,2025-12-31,v12,v12-no-stop-5d,local,0.001,6.92,6920,163,,9.6,,V12 no-stop-first5d COLLAPSE (stops protective)
+2026-05-30,FY2025,2025-01-01,2025-12-31,v7,v7-wider-stop,local,0.073,,,104,,,,V7 wider-stop COLLAPSE (anti-whipsaw refuted)
+2026-05-30,FY2025,2025-01-01,2025-12-31,187df5a,pyramid-A-flat,local,0.09,,,186,,,,Pyramid A flat-base REJECTED
+2026-05-30,FY2025,2025-01-01,2025-12-31,pyramid,pyramid-B-200,local,0.376,,,367,,,,Pyramid B $200-base REJECTED
+2026-05-30,FY2025,2025-01-01,2025-12-31,pyramid,pyramid-B-500,local,-0.12,,,227,,,,Pyramid B $500-base REJECTED
