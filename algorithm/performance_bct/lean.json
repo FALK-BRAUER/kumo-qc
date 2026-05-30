@@ -6,6 +6,7 @@
         "weekly_kijun_exit": "True",
         "cloud_exit": "True",
         "regime_gate_enabled": "true",
+        "vix_threshold": "30.0",
         "start_year": "2025",
         "start_month": "1",
         "start_day": "1",

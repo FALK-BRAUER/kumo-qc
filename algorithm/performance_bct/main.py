@@ -249,6 +249,8 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # E40d: gate on by default; override with regime_gate_enabled=false to disable
         _regime_param = self.get_parameter("regime_gate_enabled", "")
         self.regime_gate_enabled = _regime_param != "false"
+        # E104: VIX threshold parameterization (default 30.0 = looser gate)
+        self.vix_threshold = float(self.get_parameter("vix_threshold", "30.0"))
         # E51: Parabolic entry block — skip entries on names with extreme 13-day run
         _parabolic_param = self.get_parameter("parabolic_threshold", "")
         if _parabolic_param != "":
@@ -257,6 +259,8 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             self.parabolic_threshold = 0.25  # default 25%
         self.log(f"VERSION_MARKER|e51_parabolic_entry_block_v1|threshold={self.parabolic_threshold}")
         self.vix = self.add_index("VIX", Resolution.DAILY).symbol
+        # E104: VIX fear regime threshold (default 30.0 = looser than 25.0)
+        self.log(f"VERSION_MARKER|e104_vix{self.vix_threshold:.0f}_looser_gate")
         # E121: VIX Ichimoku 2-tier gate — VIX cloud for dynamic slot sizing
         self.vix_ichi = self.ichimoku(self.vix, 9, 26, 26, 52, 26, 26)
         self.log("VERSION_MARKER|e121_vix_ichimoku_2tier_v1")
@@ -454,6 +458,13 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     self.market_on_open_order(symbol, -holding.quantity)
                     self._position_meta.pop(symbol, None)
                     self.log(f"WEEKLY_KIJUN_STOP|{date_str}|{symbol.value}|close={close:.2f}|w_kijun={w_kijun:.2f}")
+
+        # E104: VIX fear regime gate — block new entries when VIX >= threshold
+        if self.regime_gate_enabled and self.securities.contains_key(self.vix):
+            vix_price = float(self.securities[self.vix].price)
+            if vix_price >= self.vix_threshold:
+                self.log(f"REGIME_BLOCK|{date_str}|VIX={vix_price:.2f}|threshold={self.vix_threshold:.0f}|reason=fear_regime")
+                return
 
         # E121: VIX Ichimoku 2-tier slot gate — no full block, only capacity reduction
         max_positions = self.MAX_POSITIONS
