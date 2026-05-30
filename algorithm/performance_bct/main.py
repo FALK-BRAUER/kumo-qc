@@ -273,6 +273,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.risk_amount = float(self.get_parameter("risk_amount", "0"))
         self.log(f"VERSION_MARKER|risk_amount_sizing_v1|risk={self.risk_amount}")
         self.log("VERSION_MARKER|p2_base_v1")
+        self.log("VERSION_MARKER|x7a_composite_v1")
         # E40d: gate on by default; override with regime_gate_enabled=false to disable
         _regime_param = self.get_parameter("regime_gate_enabled", "")
         self.regime_gate_enabled = _regime_param != "false"
@@ -689,17 +690,19 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                         dollar_volume = float((dv_hist[_cc] * dv_hist[_vc]).mean())
             except Exception:
                 dollar_volume = 0.0
-            candidates.append((symbol, result["score"], dollar_volume))
+            candidates.append((symbol, result["score"], dollar_volume, result.get("adx", 0.0)))
 
         # F3: circuit-breaker halts NEW entries (pyramid adds above already executed).
         if cb_halt:
             self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries=0|circuit_breaker_halt")
             return
-        # Primary: score DESC. Tiebreak: dollar-volume DESC. NEVER alphabetical.
-        candidates.sort(key=lambda x: (x[1], x[2]), reverse=True)
+        # Composite ranking: score × ADX × log(dollar_volume)
+        candidates.sort(key=lambda x: x[1] * max(x[3], 1.0) * float(np.log(max(x[2], 1.0))), reverse=True)
+        if candidates:
+            self.log(f"RANK_COMPOSITE|{date_str}|top={candidates[0][0].value}|n={len(candidates)}")
         slots = min(slots, self.MAX_ENTRIES_PER_DAY)  # principled entry-rate cap (churn control)
         # committed_cash / available_cash already initialized + reduced by pyramid adds above
-        for symbol, score, _dv in candidates[:slots]:
+        for symbol, score, _dv, _adx in candidates[:slots]:
             price = self.securities[symbol].price
             if price <= 0:
                 continue
