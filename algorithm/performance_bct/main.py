@@ -32,6 +32,16 @@ try:
 except ImportError:
     EQUITY_200 = []  # Fallback if universe.py not available
 
+try:
+    from resistance_support import compute_levels  # R/S #146 module
+except ImportError:
+    try:
+        import sys as _sys
+        _sys.path.append(str(Path(__file__).parent.parent))
+        from resistance_support import compute_levels
+    except Exception:
+        compute_levels = None  # type: ignore
+
 from typing import Any
 
 import numpy as np
@@ -196,6 +206,10 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     MAX_POSITIONS: int = 9999  # unlimited — heat cap (POSITION_PCT) + cash check governs exposure
     POSITION_PCT: float = 0.10
     MIN_SCORE: int = 7
+    # Pyramid adds (v1): add a $RISK lot to a winning position when its trailing
+    # stop (Kijun) has reached breakeven, up to MAX_LOTS. Adds preferred over new entries.
+    PYRAMID_RISK: float = 200.0
+    MAX_LOTS: int = 3
     # Exit condition flags — False = reference bct‑perf‑2020‑2026 (daily Kijun only)
     ENABLE_CLOUD_BREACH_EXIT: bool = False
     ENABLE_WEEKLY_KIJUN_EXIT: bool = False
@@ -228,6 +242,13 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.log("VERSION_MARKER|e121_vix_ichimoku_2tier_v1")
         self.set_time_zone("America/New_York")
         self.log("VERSION_MARKER|cloud_static200_v15")
+        # Pyramid v1 params (initial entry sizing stays the base risk_amount path — no ENTRY_RISK)
+        self.pyramid_enabled = self.get_parameter("pyramid_enabled", "false").lower() == "true"
+        self.PYRAMID_RISK = float(self.get_parameter("pyramid_risk", "200"))
+        self.MAX_LOTS = int(self.get_parameter("max_lots", "3"))
+        self.log(f"VERSION_MARKER|pyramid_v1|risk={self.PYRAMID_RISK}|max_lots={self.MAX_LOTS}|enabled={self.pyramid_enabled}")
+        # RS151 polarity trail toggle — allows base-equivalence sanity (trail inert)
+        self.polarity_trail_enabled = self.get_parameter("polarity_trail_enabled", "false").lower() == "true"
         self.MAX_ENTRIES_PER_DAY=int(self.get_parameter("max_entries_per_day","9999"))
         self.log("VERSION_MARKER|max_entries_v1")
         sy = int(self.get_parameter("start_year",  "2025"))
@@ -271,6 +292,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.qqq = self.add_equity("QQQ", Resolution.DAILY).symbol
         self.qqq_sma50 = self.sma("QQQ", 50)
         self.log("VERSION_MARKER|regime_gate_v1_qqq50")
+        # RS151: polarity-flip structural trail (broken resistance → support)
+        self.log("VERSION_MARKER|rs151_polarity_v1")
+        self.log("VERSION_MARKER|f1_risk_trail_pyramid_v1")
 
         self.universe_settings.resolution = Resolution.DAILY
         self.universe_settings.data_normalization_mode = DataNormalizationMode.RAW
@@ -420,6 +444,30 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     def _has_open_orders(self, symbol) -> bool:
         return bool(self.transactions.get_open_orders(symbol))
 
+    def _update_polarity_trail(self, symbol, close: float, meta: dict | None) -> float | None:
+        """RS151 polarity-flip trail.
+
+        Compute R/S levels from 252d daily history. The highest prior resistance
+        that price now sits ABOVE has flipped to support — that becomes the trailing
+        stop. Ratchet the stored trail UP only (never down). Returns the current
+        trail level (or None if not yet establishable / meta missing).
+        """
+        if meta is None or compute_levels is None:
+            return None
+        try:
+            df = _fetch_ohlcv(self, symbol, 252, Resolution.DAILY)
+            if df is None or df.empty or len(df) < 30:
+                return meta.get("trail")
+            lv = compute_levels(df, ref_price=close)
+            # Levels below current close that were formerly resistance = flipped support.
+            flipped = max((lvl for lvl in lv.support if lvl < close), default=None)
+            if flipped is not None:
+                existing = meta.get("trail")
+                meta["trail"] = flipped if existing is None else max(existing, flipped)
+        except Exception:
+            return meta.get("trail")
+        return meta.get("trail")
+
     def _rebalance(self) -> None:
         if self.is_warming_up:
             return
@@ -445,6 +493,11 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 if days_held >= self.PHASE3_DAYS and pnl_pct >= self.PHASE3_PNL:
                     in_phase3 = True
 
+            # RS151: polarity-flip structural trail.
+            # A prior resistance that price has broken ABOVE flips to support; the
+            # highest such flipped level becomes the trailing stop. Ratchet up only.
+            trail = self._update_polarity_trail(symbol, close, meta) if getattr(self, "polarity_trail_enabled", True) else None
+
             if in_phase3:
                 if close < cloud_bottom:
                     self.market_on_open_order(symbol, -holding.quantity)
@@ -453,7 +506,13 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     pnl_h = close / meta.get("entry_price", close) - 1
                     self.log(f"PHASE3_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_bottom={cloud_bottom:.2f}|days={days_h}|pnl={pnl_h:.1%}")
             else:
-                if close < kijun:
+                # RS151: structural trail takes precedence over Kijun when it is set
+                # AND it sits above the Kijun (must BEAT the protective Kijun, per V7/V12).
+                if trail is not None and trail >= kijun and close < trail:
+                    self.market_on_open_order(symbol, -holding.quantity)
+                    self._position_meta.pop(symbol, None)
+                    self.log(f"POLARITY_TRAIL|{date_str}|{symbol.value}|close={close:.2f}|trail={trail:.2f}|kijun={kijun:.2f}")
+                elif close < kijun:
                     self.market_on_open_order(symbol, -holding.quantity)
                     self._position_meta.pop(symbol, None)
                     self.log(f"STOP|{date_str}|{symbol.value}|close={close:.2f}|kijun={kijun:.2f}")
@@ -485,6 +544,41 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             if qqq_price < qqq_ma50:
                 self.log(f"REGIME_BLOCK|{date_str}|QQQ={qqq_price:.2f}|MA50={qqq_ma50:.2f}")
                 return
+
+        # === PYRAMID ADDS (preferred over new entries; consumes cash first) ===
+        committed_cash = 0.0  # threaded into the new-entry loop below
+        available_cash = float(self.portfolio.cash)
+        if getattr(self, "pyramid_enabled", False):
+            for symbol, holding in list(self.portfolio.items()):
+                if not holding.invested or self._has_open_orders(symbol):
+                    continue
+                meta = self._position_meta.get(symbol)
+                if not meta or meta.get("lots", 1) >= self.MAX_LOTS:
+                    continue
+                vals = self._daily_vals(symbol)
+                if vals is None:
+                    continue
+                close_p, kijun_p, _, _ = vals
+                # trail at breakeven+: trailing stop (Kijun) has reached original entry
+                if kijun_p < meta["entry_price"]:
+                    continue
+                ind = self._indicators.get(symbol)
+                if ind is None:
+                    continue
+                res = score_symbol_native(self, symbol, ind)
+                if res is None or res["score"] < self.MIN_SCORE:
+                    continue
+                stop_dist = close_p - kijun_p  # risk per share from CURRENT trail
+                if stop_dist <= 0:
+                    continue
+                add_qty = int(self.PYRAMID_RISK / stop_dist)
+                cost = add_qty * close_p
+                if add_qty <= 0 or (available_cash - committed_cash) < cost:
+                    continue
+                committed_cash += cost
+                self.market_on_open_order(symbol, add_qty)
+                meta["lots"] = meta.get("lots", 1) + 1
+                self.log(f"PYRAMID_ADD|{date_str}|{symbol.value}|lot={meta['lots']}|qty={add_qty}|price~{close_p:.2f}|trail={kijun_p:.2f}")
 
         exiting = {
             o.symbol
@@ -569,8 +663,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # Primary: score DESC. Tiebreak: dollar-volume DESC. NEVER alphabetical.
         candidates.sort(key=lambda x: (x[1], x[2]), reverse=True)
         slots = min(slots, self.MAX_ENTRIES_PER_DAY)  # principled entry-rate cap (churn control)
-        committed_cash = 0.0  # track cash committed this rebalance before fills execute
-        available_cash = float(self.portfolio.cash)
+        # committed_cash / available_cash already initialized + reduced by pyramid adds above
         for symbol, score, _dv in candidates[:slots]:
             price = self.securities[symbol].price
             if price <= 0:
@@ -596,7 +689,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 continue
             committed_cash += target_value
             self.market_on_open_order(symbol, quantity)
-            self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price)}
+            self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price), "lots": 1}
             self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}|sizing={sizing_tag}")
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
