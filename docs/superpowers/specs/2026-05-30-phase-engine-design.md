@@ -1,6 +1,6 @@
 # Phase-Based Strategy Engine — Design Spec
 **Date:** 2026-05-30  
-**Status:** Approved (Falk + fintrack)  
+**Status:** fintrack-reviewed (2 fixes applied 2026-05-30), Falk sign-off pending  
 **Epic:** #200  
 **Tickets:** ARCH-A #187 through ARCH-M #199  
 **Refs:** docs/ARCHITECTURE.md, docs/PHASES.md, algorithm/performance_bct/src/main.py.example
@@ -94,9 +94,28 @@ BarState = the serialization unit for parity diffing; trivial to unit-test via `
 
 ### 4.3 Block propagation
 
-Block set = `{regime, cash, circuit_breaker}` — these abort the bar entirely.  
-`eligibility` and `portfolio_risk` emit per-candidate `BlockEvent` into `BarState.blocks`, no bar-abort.  
-`diagnostics` and `circuit_breaker` always run regardless of prior blocks.
+Block set = `{regime, cash}` — these mark the bar as blocked, skipping all trading phases.  
+`circuit_breaker` is NOT in the block-set — it is a tail safety phase that MUST run even on a blocked bar (to detect and set the halt condition).  
+`diagnostics` and `circuit_breaker` always run regardless of block state — they are the always-run tail.
+
+Engine semantics: on block, the engine does NOT hard-`return`. It sets `bar_blocked = True` and continues iterating PHASE_ORDER, but skips all non-tail phases. Only the always-run tail `{diagnostics, circuit_breaker}` executes.
+
+```python
+ALWAYS_RUN = {"diagnostics", "circuit_breaker"}
+
+for item in PHASE_ORDER:
+    if isinstance(item, FireSentinel):
+        if not bar_blocked: fire_<x>(ctx)
+        continue
+    if bar_blocked and item not in ALWAYS_RUN:
+        continue
+    result = phase.evaluate(ctx)
+    ctx.apply(item, result)
+    if result.blocked and item in {"regime", "cash"}:
+        bar_blocked = True
+```
+
+`eligibility` and `portfolio_risk` emit per-candidate `BlockEvent` into `BarState.blocks`, no bar-abort.
 
 ### 4.4 Adds flow-back — mini re-run (Option A)
 
@@ -280,7 +299,8 @@ from phases.adds.pe_rampup_antikelly import PeRampupAntikelly
 
 | Step | Scope | Ticket | Gate |
 |------|-------|--------|------|
-| 0 | Phase-0 hygiene: oracle tag, .gitignore, archive dead dirs, prune worktrees | pre-ARCH | Falk auth ✅ |
+| 0a | Phase-0 non-destructive: oracle tag `baseline-oracle-v0`, .gitignore fix, untrack root noise, lean.json canonical | pre-ARCH | authorized ✅ |
+| 0b | Phase-0 destructive: archive 6 dead algorithm dirs (#3), prune 46 stale worktrees→3 (#4), keep x3a worktree | pre-ARCH | **PENDING Falk explicit auth** |
 | 1 | Scaffold `src/engine/` + `src/tests/harness/` + `build/cloud_package.py` (stub phases, FakeQCAlgorithm) | ARCH-A/D/G | fintrack reviews base.py + engine skeleton |
 | 2 | Carve main.py → phase modules, ±0.01 Sharpe parity vs oracle | ARCH-C/E | parity gate |
 | 3 | Per-phase folders/tests/headers, PR gate enforced | ARCH-F/H | 7-check merge gate live |
