@@ -195,7 +195,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
     MAX_POSITIONS: int = 9999  # unlimited — heat cap (POSITION_PCT) + cash check governs exposure
     POSITION_PCT: float = 0.10
-    MIN_SCORE: int = 7
+    MIN_SCORE: int = 8
     # Exit condition flags — False = reference bct‑perf‑2020‑2026 (daily Kijun only)
     ENABLE_CLOUD_BREACH_EXIT: bool = False
     ENABLE_WEEKLY_KIJUN_EXIT: bool = False
@@ -228,6 +228,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.log("VERSION_MARKER|e121_vix_ichimoku_2tier_v1")
         self.set_time_zone("America/New_York")
         self.log("VERSION_MARKER|cloud_static200_v15")
+        self.log("VERSION_MARKER|min_score_8_v1")
         sy = int(self.get_parameter("start_year",  "2025"))
         sm = int(self.get_parameter("start_month", "1"))
         sd = int(self.get_parameter("start_day",   "1"))
