@@ -127,6 +127,63 @@ def score_symbol(algorithm: Any, symbol: Any) -> dict[str, Any] | None:
     return {"score": score, "rating": rating, "conditions": conditions}
 
 
-def score_symbol_native(algorithm: Any, symbol: Any, ind: Any) -> dict[str, Any] | None:
-    """Delegates to score_symbol (History-based)."""
-    return score_symbol(algorithm, symbol)
+def score_symbol_native(algorithm: Any, symbol: Any, ind: dict[str, Any]) -> dict[str, Any] | None:
+    """MAINTAINED-indicator BCT scorer (#213f) — reads qc._indicators[sym], ZERO per-bar
+    history (kills the 10s isolator timeout at ~900 candidates). Same 8 conditions + rating
+    as the history-based score_symbol; values come from the maintained suite instead of a
+    per-bar qc.history() fetch.
+
+    INTENTIONAL ASYMMETRY (NOT a bug — fintrack-ruled canonical):
+      - price-vs-structure conditions (1,5,6,8) use the LIVE current price (d_price).
+      - chikou (3) is a CLOSE-based lagging line → completed-week close-vs-close:
+        w_close[0] (latest completed weekly close) > w_close[26] (26 completed weeks ago).
+        The <=1wk lag is inherent to a lagging line + avoids the partial-week look-ahead
+        the history-path resample had. Weekly cloud (1,4) uses the COMPLETED-week w_ichi.
+    Returns None until every maintained indicator is ready (mirrors score_symbol's
+    critical-NaN guard).
+    """
+    d_ichi = ind["d_ichi"]; w_ichi = ind["w_ichi"]; w_close = ind["w_close"]
+    sma200 = ind["sma200"]; adx = ind["adx"]; adx_window = ind["adx_window"]; roc13 = ind["roc13"]
+
+    if not (d_ichi.is_ready and w_ichi.is_ready and sma200.is_ready and adx.is_ready and roc13.is_ready):
+        return None
+    if w_close.count < 27 or adx_window.count < 4:  # need w_close[26] + adx 3-back
+        return None
+
+    d_price = float(algorithm.securities[symbol].price)
+    if d_price <= 0:
+        return None
+
+    # daily structure
+    d_tenkan = d_ichi.tenkan.current.value
+    d_cloud_top = max(d_ichi.senkou_a.current.value, d_ichi.senkou_b.current.value)
+    ma200 = sma200.current.value
+    # weekly structure (completed weeks)
+    w_tenkan = w_ichi.tenkan.current.value
+    w_kijun = w_ichi.kijun.current.value
+    w_sa = w_ichi.senkou_a.current.value
+    w_sb = w_ichi.senkou_b.current.value
+    w_cloud_top = max(w_sa, w_sb)
+    # adx
+    adx_now = adx.current.value
+    plus_di = adx.positive_directional_index.current.value
+    minus_di = adx.negative_directional_index.current.value
+    adx_rising = adx_window[0] > adx_window[3]  # now vs 3-back == legacy adx[-1]>adx[-4]
+
+    conditions: list[bool] = [
+        bool(d_price > w_cloud_top),                       # 1 weekly: live price above completed cloud
+        bool(w_tenkan > w_kijun),                          # 2 weekly tenkan > kijun
+        bool(w_close[0] > w_close[26]),                    # 3 weekly chikou (completed close-vs-close)
+        bool(w_sa > w_sb),                                 # 4 weekly cloud green
+        bool(d_price > d_cloud_top),                       # 5 daily: live price above cloud
+        bool(d_price > d_tenkan),                          # 6 daily above tenkan
+        bool(adx_rising and plus_di > minus_di and adx_now >= 20),  # 7 ADX
+        bool(d_price > ma200),                             # 8 above 200MA
+    ]
+    score = sum(conditions)
+    if score == 8:   rating = "+++"
+    elif score >= 6: rating = "++"
+    elif score >= 4: rating = "+"
+    elif score >= 2: rating = "="
+    else:            rating = "--"
+    return {"score": score, "rating": rating, "conditions": conditions}

@@ -45,6 +45,11 @@ class BctScoreFull(BasePhase):
         # Build symbol lookup from qc._active
         active_by_value = {s.value: s for s in getattr(qc, "_active", set())}
 
+        # #213f: dollar-volume tiebreak from the precomputed filter artifact (trailing-20d
+        # mean DV), NOT a per-bar qc.history(20) — keeps on_data history-free. Artifact keys
+        # are lowercase (zip stems); candidate tickers are canonical (upper).
+        eligible_today = getattr(qc, "_eligible", {}).get(date_str) or {}
+
         candidates: list[tuple[Any, int, float]] = []  # (symbol, score, dollar_volume)
         blocked_log: list[str] = []
 
@@ -80,40 +85,17 @@ class BctScoreFull(BasePhase):
             if result is None or result["score"] < min_score:
                 continue
 
-            # E51: Parabolic entry block — skip if 13-day return exceeds threshold
-            try:
-                from QuantConnect import Resolution  # noqa
-                hist = qc.history(symbol, 14, Resolution.DAILY)
-                if hist is not None and len(hist) >= 14:
-                    import pandas as pd
-                    if isinstance(hist.index, pd.MultiIndex):
-                        hist = hist.droplevel(0)
-                    close_col = "close" if "close" in hist.columns else "Close"
-                    price_13d_ago = float(hist.iloc[0][close_col])
-                    current_price = float(hist.iloc[-1][close_col])
-                    if price_13d_ago > 0:
-                        return_13d = current_price / price_13d_ago - 1
-                        if return_13d > parabolic_threshold:
-                            blocked_log.append(ticker)
-                            continue
-            except Exception:
-                pass
+            # E51: Parabolic entry block — skip if the maintained 13-day ROC exceeds the
+            # threshold. #213f: roc13 (maintained) replaces the per-bar qc.history(14).
+            # roc(13) = (price - price[13-back])/price[13-back] == legacy parabolic, by
+            # construction (a decimal fraction, comparable to parabolic_threshold).
+            roc13 = ind.get("roc13")
+            if roc13 is not None and roc13.is_ready and roc13.current.value > parabolic_threshold:
+                blocked_log.append(ticker)
+                continue
 
-            # Dollar-volume tiebreak (oracle L572-587)
-            dollar_volume = 0.0
-            try:
-                from QuantConnect import Resolution  # noqa
-                import pandas as pd
-                dv_hist = qc.history(symbol, 20, Resolution.DAILY)
-                if dv_hist is not None and len(dv_hist) >= 1:
-                    if isinstance(dv_hist.index, pd.MultiIndex):
-                        dv_hist = dv_hist.droplevel(0)
-                    _cc = "close" if "close" in dv_hist.columns else "Close"
-                    _vc = "volume" if "volume" in dv_hist.columns else "Volume"
-                    if _vc in dv_hist.columns:
-                        dollar_volume = float((dv_hist[_cc] * dv_hist[_vc]).mean())
-            except Exception:
-                dollar_volume = 0.0
+            # Dollar-volume tiebreak from the artifact (no per-bar history). 0.0 if absent.
+            dollar_volume = float(eligible_today.get(ticker.lower(), 0.0))
 
             candidates.append((symbol, result["score"], dollar_volume))
 

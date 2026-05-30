@@ -49,10 +49,16 @@ def test_resample_weekly_reduces_rows():
     assert "close" in weekly.columns
 
 
-def test_score_symbol_native_returns_none_outside_lean():
-    # Outside LEAN, QuantConnect not importable → returns None (safe fallback)
-    result = score_symbol_native(algorithm=None, symbol=None, ind=None)
-    assert result is None
+def test_score_symbol_native_returns_none_when_indicators_not_ready():
+    # #213f: score_symbol_native now reads MAINTAINED indicators (no history). Contract:
+    # ind is always a dict (bct_score_full guards `if ind is None: continue` before calling);
+    # returns None until indicators are ready. Full condition-logic + readiness coverage is in
+    # tests/phases/shared/test_score_symbol_native.py. Here: a not-ready d_ichi → None.
+    class _NR:  # not-ready indicator
+        is_ready = False
+    ind = {"d_ichi": _NR(), "w_ichi": _NR(), "w_close": _NR(), "sma200": _NR(),
+           "adx": _NR(), "adx_window": _NR(), "roc13": _NR()}
+    assert score_symbol_native(algorithm=None, symbol=None, ind=ind) is None
 
 
 def test_oracle_helpers_importable():
