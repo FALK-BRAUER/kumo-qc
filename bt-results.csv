@@ -10,7 +10,6 @@ date_run,window,period_start,period_end,commit,branch,environment,sharpe,net_pro
 2026-05-27,FY2025,2025-01-01,2025-12-31,feat/e18-time-based-exit,feat/e18-time-based-exit,local,1.079,33.33,33330,232,0,0,0,E18 time-based exit (90d + close < Tenkan) — NEUTRAL (+0.043 vs 1.036 baseline, time exit never fired or didn't help)
 2026-05-27,FY2025,2025-01-01,2025-12-31,feat/e32-three-phase-stop,feat/e32-three-phase-stop,local,-0.021,5.6,5600,578,0,15.7,0,E32 three-phase stop — CATASTROPHICALLY REJECTED (-1.057 Sharpe delta vs 1.036). Phase 1 Tenkan stop fires at days 1-3, same failure mode as E54
 2026-05-27,FY2025,2025-01-01,2025-12-31,feat/e32-dd-circuit-breaker,feat/e32-dd-circuit-breaker,local,1.079,33.33,33330,232,0,0,236.91,E32 4% trailing DD circuit breaker — NEUTRAL (0 delta vs 1.036, circuit never fired in FY2025)
-
 2026-05-27,FY2025,2025-01-01,2025-12-31,feat/e76-risk-sizing,feat/e76-risk-sizing,local,-0.361,-8.32,-8320,483,24,32.7,0,E76 combo 3: heat=6% risk=1.5% — CATASTROPHICALLY REJECTED (-1.397 Sharpe delta vs 1.036). SWEEP HALTED.
 2026-05-27,FY2025,2025-01-01,2025-12-31,feat/e76-risk-sizing,feat/e76-risk-sizing,local,-0.327,-6.69,-6690,538,30,30.7,0,E76 combo 2: heat=6% risk=1.0% — CATASTROPHICALLY REJECTED (-1.363 Sharpe delta vs 1.036)
 2026-05-27,FY2025,2025-01-01,2025-12-31,feat/e76-risk-sizing,feat/e76-risk-sizing,local,-0.291,-3.23,-3230,748,28,24.8,0,E76 combo 1: heat=6% risk=0.5% — CATASTROPHICALLY REJECTED (-1.327 Sharpe delta vs 1.036)
@@ -18,7 +17,6 @@ date_run,window,period_start,period_end,commit,branch,environment,sharpe,net_pro
 2026-05-27,FY2025,2025-01-01,2025-12-31,feat/e58-cloud-thickness-sizing,feat/e58-cloud-thickness-sizing,local,1.036,30.08,30080,238,40,11.6,0,E58 cloud thickness sizing — NEUTRAL (0 delta vs 1.036 baseline, initial 2.497 report was incorrect window)
 2026-05-27,FY2025,2025-01-01,2025-12-31,feat/e55-weekly-kijun-exit,feat/e55-weekly-kijun-exit,local,-0.289,-0.67,-670,70,20,26.6,0,E55 weekly kijun exit (26-week as stop) — CATASTROPHICALLY REJECTED (-1.325 Sharpe delta vs 1.036)
 2026-05-27,FY2025,2025-01-01,2025-12-31,feat/e54-tenkan-exit,feat/e54-tenkan-exit,local,0.0,-5.86,-5860,100,0,0,0,E54 tenkan-exit (first 28d) — CATASTROPHICALLY REJECTED (-1.0 Sharpe delta vs 1.036)
-
 2026-05-27,FY2025,2025-01-01,2025-12-31,feat/c2-resistance-proximity,feat/c2-resistance-proximity,local,1.036,30.08,30049,238,40,11.6,,C2 resistance proximity gate (2% of 52w high) — NEUTRAL (0 delta vs 1.036)
 2026-05-27,FY2025,2025-01-01,2025-12-31,feat/earnings-avoidance,feat/earnings-avoidance,local,0.908,26.67,26667,246,38,11.9,250,E53 earnings avoidance gate (5d) — REJECTED (-0.128 Sharpe vs 1.036)
 2026-05-27,Q1-2025,2025-01-01,2025-03-31,feat/earnings-avoidance,feat/earnings-avoidance,local,1.196,8.08,8075,78,41,6.7,81,E53 Q1
@@ -105,7 +103,6 @@ date_run,window,period_start,period_end,commit,branch,environment,sharpe,net_pro
 2026-05-27,W5,2025-05-01,2025-10-31,aa29954,feat/e26-inverse-vol-sizing,local,2.612,27.302%,27302.0,90,38%,6.1%,90.70,E26 inverse-vol+risk-sizing: excellent in recovery period
 2026-05-27,W6,2025-06-01,2025-11-30,aa29954,feat/e26-inverse-vol-sizing,local,2.497,25.213%,25213.0,86,32%,6.3%,86.58,E26 inverse-vol+risk-sizing: excellent in recovery period
 2026-05-27,FY2025,2025-01-01,2025-12-31,aa29954,feat/e26-inverse-vol-sizing,local,1.036,30.049%,30049.0,238,40%,11.6%,242.47,E26 REJECTED: 1.036 < champion 1.079; bimodal H1 churn kills H1 windows
-
 2026-05-27,FY2025,2025-01-01,2025-12-31,8048c29,feat/earnings-avoidance,local,0.908,26.667%,26667.0,246,38%,11.9%,250.24,"#53 earnings-avoidance 5d gate, G3 code. vs 8048c29 baseline 1.036 Sharpe / +30.05%"
 2026-05-27,Q1-2025,2025-01-01,2025-03-31,8048c29,feat/earnings-avoidance,local,1.196,8.075%,8075.0,78,41%,6.7%,80.73,"#53 earnings-avoidance 5d gate, G3 code. vs 8048c29 baseline 1.036 Sharpe / +30.05%"
 2026-05-27,Q2-2025,2025-04-01,2025-06-30,8048c29,feat/earnings-avoidance,local,-0.752,-2.490%,-2490.0,104,30%,9.0%,104.42,"#53 earnings-avoidance 5d gate, G3 code. vs 8048c29 baseline 1.036 Sharpe / +30.05%"
