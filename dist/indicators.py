@@ -17,9 +17,23 @@ from typing import Any
 import pandas as pd
 
 # The exact contract of qc._indicators[symbol]. Lifecycle populates ALL of these; phases
-# read a subset (bct_score_full: sma200/d_ichi; kijun_g3_exits: d_ichi/w_ichi). consolidator
-# is retained so on_securities_changed can dispose it on unsubscribe.
-INDICATOR_KEYS: tuple[str, ...] = ("d_ichi", "w_ichi", "w_close", "sma200", "consolidator")
+# read a subset. consolidator is retained so on_securities_changed can dispose it.
+#   d_ichi     daily IchimokuKinkoHyo (conditions 5,6: daily>cloud, daily>tenkan)
+#   w_ichi     weekly IchimokuKinkoHyo (conditions 1,2,4: weekly>cloud, tenkan>kijun, green)
+#   w_close    RollingWindow[float](28) weekly closes (condition 3: chikou vs 26 completed wks)
+#   sma200     daily SMA(200) (condition 8: price>200MA)
+#   adx        daily ADX(9) (condition 7: adx>=20, +DI>-DI)            [#213f maintained]
+#   adx_window RollingWindow[float](5) of ADX values (condition 7: adx_rising = [0]>[3]) [#213f]
+#   roc13      daily ROC(13) (parabolic entry block: 13-day run > threshold) [#213f maintained]
+#   consolidator  weekly TradeBarConsolidator (disposed on unsubscribe)
+# #213f added adx/adx_window/roc13 so the SIGNAL reads maintained indicators O(1)/candidate
+# (zero per-bar history → no 10s isolator timeout). NOTE: maintained ADX/ROC are NEW design
+# (legacy computed ADX via per-bar history, fit only because its universe was ~326); no
+# legacy template — the QC wiring (adx.updated → window; roc convention) is integration-
+# verified on the LEAN run, flagged for confirmation.
+INDICATOR_KEYS: tuple[str, ...] = (
+    "d_ichi", "w_ichi", "w_close", "sma200", "adx", "adx_window", "roc13", "consolidator",
+)
 
 
 def weekly_friday(ts: pd.Timestamp) -> pd.Timestamp:

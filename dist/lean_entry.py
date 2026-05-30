@@ -251,6 +251,15 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         (8048c29). EXACT legacy carve."""
         d_ichi = self.ichimoku(sym, 9, 26, 26, 52, 26, 26)
         sma200 = self.sma(sym, 200)
+        # #213f maintained indicators so the SIGNAL reads O(1)/candidate (no per-bar history).
+        # ADX(9) → condition 7 (adx>=20, +DI>-DI). adx_window holds recent ADX values so
+        # adx_rising = window[0] > window[3] (now vs 3 bars back, == legacy adx[-1]>adx[-4]).
+        # ROC(13) → parabolic block (13-day run). [QC-API: adx.updated signature + roc
+        # convention integration-verified on the LEAN run — flagged, not unit-testable here.]
+        adx = self.adx(sym, 9)
+        adx_window = RollingWindow[float](5)
+        adx.updated += lambda _s, _pt: adx_window.add(adx.current.value)
+        roc13 = self.roc(sym, 13)
         w_ichi = IchimokuKinkoHyo(9, 26, 26, 52, 26, 26)
         w_close = RollingWindow[float](28)
         consolidator = TradeBarConsolidator(Calendar.WEEKLY)
@@ -272,6 +281,9 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             "w_ichi": w_ichi,
             "w_close": w_close,
             "sma200": sma200,
+            "adx": adx,
+            "adx_window": adx_window,
+            "roc13": roc13,
             "consolidator": consolidator,
         }
         assert set(self._indicators[sym]) == set(INDICATOR_KEYS)  # contract guard

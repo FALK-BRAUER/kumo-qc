@@ -74,4 +74,7 @@ def test_weekly_aggregate_empty_or_missing_cols():
 
 def test_indicator_keys_contract():
     # The documented qc._indicators[symbol] contract (lifecycle populates these; phases read them).
-    assert INDICATOR_KEYS == ("d_ichi", "w_ichi", "w_close", "sma200", "consolidator")
+    # #213f added adx/adx_window/roc13 so the signal reads maintained indicators (no per-bar history).
+    assert INDICATOR_KEYS == (
+        "d_ichi", "w_ichi", "w_close", "sma200", "adx", "adx_window", "roc13", "consolidator",
+    )

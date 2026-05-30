@@ -24,7 +24,7 @@
     "phase_universe_dv_rank_cap.py",
     "shared_oracle_helpers.py"
   ],
-  "git_commit": "29f3d7b1c36aaec2606bf7e9321d3b114291b819",
+  "git_commit": "43849fc9e356705ac2c7d1f473cf62e9b8f14b11",
   "phase_markers": {
     "diagnostics": "version_marker_v1",
     "exit_hard": "kijun_g3_exits_v1",
