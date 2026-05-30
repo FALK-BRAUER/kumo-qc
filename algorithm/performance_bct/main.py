@@ -37,6 +37,11 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+try:
+    from resistance_support import compute_levels  # R/S #146 module (#148 pre-breakout filter)
+except ImportError:
+    compute_levels = None
+
 
 _WEEKLY_BARS = 130
 _DAILY_BARS = 700
@@ -265,6 +270,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.qqq = self.add_equity("QQQ", Resolution.DAILY).symbol
         self.qqq_sma50 = self.sma("QQQ", 50)
         self.log("VERSION_MARKER|regime_gate_v1_qqq50")
+
+        # #148: pre-breakout zone filter — enter only 2-10% below nearest resistance
+        self.log("VERSION_MARKER|rs148_prebreakout_v1")
 
         self.universe_settings.resolution = Resolution.DAILY
         self.universe_settings.data_normalization_mode = DataNormalizationMode.RAW
@@ -527,6 +535,37 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             result = score_symbol_native(self, symbol, ind)
             if result is None or result["score"] < self.MIN_SCORE:
                 continue
+            # === #148: PRE-BREAKOUT ZONE FILTER ===
+            # Enter only when price is 2-10% below nearest resistance (defined
+            # upside, not at the ceiling). Skip if no clean resistance.
+            if compute_levels is not None:
+                try:
+                    pb_price = float(self.securities[symbol].price)
+                    if pb_price <= 0:
+                        continue
+                    pb_df = self.history(symbol, 252, Resolution.DAILY)
+                    if pb_df is not None and not pb_df.empty:
+                        if isinstance(pb_df.index, pd.MultiIndex):
+                            pb_df = pb_df.droplevel(0)
+                        pb_df = pb_df.rename(columns=str.lower)
+                        pb_lv = compute_levels(pb_df, ref_price=pb_price)
+                        pb_r = pb_lv.nearest_resistance
+                        if pb_r is None:
+                            self.log(f"PREBREAKOUT_SKIP|{date_str}|{symbol.value}|no_resistance")
+                            continue
+                        pb_gap = pb_r / pb_price - 1.0
+                        if 0.02 <= pb_gap <= 0.10:
+                            self.log(f"PREBREAKOUT_OK|{date_str}|{symbol.value}|gap={pb_gap:.4f}|r={pb_r:.2f}|px={pb_price:.2f}")
+                        else:
+                            self.log(f"PREBREAKOUT_SKIP|{date_str}|{symbol.value}|gap={pb_gap:.4f}")
+                            continue
+                    else:
+                        self.log(f"PREBREAKOUT_SKIP|{date_str}|{symbol.value}|no_history")
+                        continue
+                except Exception as e:
+                    self.log(f"PREBREAKOUT_SKIP|{date_str}|{symbol.value}|err={type(e).__name__}")
+                    continue
+            # === END #148 ===
             # E51: Parabolic entry block — skip if 13-day return exceeds threshold
             try:
                 hist = self.history(symbol, 14, Resolution.DAILY)
