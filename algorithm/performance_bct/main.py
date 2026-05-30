@@ -264,7 +264,10 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # E40c: QQQ > 50-day MA regime gate
         self.qqq = self.add_equity("QQQ", Resolution.DAILY).symbol
         self.qqq_sma50 = self.sma("QQQ", 50)
-        self.log("VERSION_MARKER|regime_gate_v1_qqq50")
+        # V15 (me154): multi-ETF OR — also track IWM 50MA
+        self.iwm_sym = self.add_equity("IWM", Resolution.DAILY).symbol
+        self.iwm_sma50 = self.sma("IWM", 50)
+        self.log("VERSION_MARKER|me154_qqq_or_iwm_v1")
 
         self.universe_settings.resolution = Resolution.DAILY
         self.universe_settings.data_normalization_mode = DataNormalizationMode.RAW
@@ -472,12 +475,15 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 tier = 1
             self.log(f"VIX_TIER|{date_str}|VIX={vix_price:.2f}|cloud_top={vix_cloud_top:.2f}|tier={tier}|max_positions={max_positions}")
 
-        # E40c: Regime gate — block entries when QQQ < 50-day MA
-        if self.qqq_sma50.is_ready:
+        # V15 (me154): Multi-ETF OR regime gate — block ONLY when BOTH QQQ and IWM < 50-day MA
+        if self.qqq_sma50.is_ready and self.iwm_sma50.is_ready:
             qqq_price = float(self.securities[self.qqq].price)
             qqq_ma50 = float(self.qqq_sma50.current.value)
-            if qqq_price < qqq_ma50:
-                self.log(f"REGIME_BLOCK|{date_str}|QQQ={qqq_price:.2f}|MA50={qqq_ma50:.2f}")
+            iwm_price = float(self.securities[self.iwm_sym].price)
+            iwm_ma50 = float(self.iwm_sma50.current.value)
+            block = (qqq_price < qqq_ma50) and (iwm_price < iwm_ma50)
+            if block:
+                self.log(f"REGIME_OR|{date_str}|QQQ={qqq_price:.2f}|QQQ_MA50={qqq_ma50:.2f}|IWM={iwm_price:.2f}|IWM_MA50={iwm_ma50:.2f}")
                 return
 
         exiting = {
