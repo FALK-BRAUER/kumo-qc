@@ -265,6 +265,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.qqq = self.add_equity("QQQ", Resolution.DAILY).symbol
         self.qqq_sma50 = self.sma("QQQ", 50)
         self.log("VERSION_MARKER|regime_gate_v1_qqq50")
+        self.log("VERSION_MARKER|me157_breadth_v1")
 
         self.universe_settings.resolution = Resolution.DAILY
         self.universe_settings.data_normalization_mode = DataNormalizationMode.RAW
@@ -479,6 +480,23 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             if qqq_price < qqq_ma50:
                 self.log(f"REGIME_BLOCK|{date_str}|QQQ={qqq_price:.2f}|MA50={qqq_ma50:.2f}")
                 return
+
+        # me157 (V18): market breadth gate — block entries when <50% of active
+        # universe trades above its own 200-day MA (weak breadth).
+        ready = 0
+        above = 0
+        for sym in self._active:
+            ind = self._indicators.get(sym)
+            s200 = ind and ind.get("sma200")
+            if s200 and s200.is_ready:
+                ready += 1
+                if float(self.securities[sym].price) > float(s200.current.value):
+                    above += 1
+        if ready > 0:
+            breadth = above / ready
+            self.log(f"BREADTH|{date_str}|breadth={breadth:.3f}|above={above}|ready={ready}")
+            if breadth < 0.50:
+                return  # block entries this rebalance
 
         exiting = {
             o.symbol
