@@ -224,8 +224,21 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     return json.load(f)
         return None
 
+    @staticmethod
+    def _load_sector_map() -> dict | None:
+        candidates = [
+            Path(__file__).parent / "ticker_sector_map.json",
+            Path("/Lean/Data/ticker_sector_map.json"),
+        ]
+        for p in candidates:
+            if p.exists():
+                with open(p) as f:
+                    return json.load(f)
+        return None
+
     def initialize(self) -> None:
         self.log("VERSION_MARKER|e121_vix_ichimoku_2tier_v1")
+        self.log("VERSION_MARKER|me155_sector_regime_v1")
         self.set_time_zone("America/New_York")
         self.log("VERSION_MARKER|cloud_static200_v15")
         sy = int(self.get_parameter("start_year",  "2025"))
@@ -265,6 +278,15 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.qqq = self.add_equity("QQQ", Resolution.DAILY).symbol
         self.qqq_sma50 = self.sma("QQQ", 50)
         self.log("VERSION_MARKER|regime_gate_v1_qqq50")
+
+        # me155: per-stock sector regime — subscribe 11 SPDR sector ETFs + 50-day SMA each.
+        self._sector_sma50 = {}
+        for etf in "XLB,XLC,XLY,XLP,XLV,XLI,XLRE,XLF,XLE,XLK,XLU".split(","):
+            self.add_equity(etf, Resolution.DAILY)
+            self._sector_sma50[etf] = self.sma(etf, 50)
+        # ticker -> {sector, etf}; missing key => skip filter for that symbol
+        self._sector_map = self._load_sector_map() or {}
+        self.log(f"VERSION_MARKER|me155_sector_regime_v1|map_tickers={len(self._sector_map)}")
 
         self.universe_settings.resolution = Resolution.DAILY
         self.universe_settings.data_normalization_mode = DataNormalizationMode.RAW
@@ -527,6 +549,21 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             result = score_symbol_native(self, symbol, ind)
             if result is None or result["score"] < self.MIN_SCORE:
                 continue
+            # me155: per-stock sector regime — enter only if the stock's mapped
+            # SPDR sector ETF trades above its 50-day MA (strong sector).
+            etf = self._sector_map.get(symbol.value.upper(), {}).get("etf")
+            if etf is None:
+                pass  # ticker absent from map → skip filter (allow)
+            else:
+                ind_etf = self._sector_sma50.get(etf)
+                if ind_etf is not None and ind_etf.is_ready:
+                    etf_price = float(self.securities[etf].price)
+                    etf_ma = float(ind_etf.current.value)
+                    if etf_price < etf_ma:
+                        self.log(f"SECTOR_REGIME|{date_str}|{symbol.value}|{etf}|price={etf_price:.2f}<ma50={etf_ma:.2f}|SKIP")
+                        continue   # weak sector → reject
+                    else:
+                        self.log(f"SECTOR_REGIME|{date_str}|{symbol.value}|{etf}|OK")
             # E51: Parabolic entry block — skip if 13-day return exceeds threshold
             try:
                 hist = self.history(symbol, 14, Resolution.DAILY)
