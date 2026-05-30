@@ -53,8 +53,11 @@ algorithm/performance_bct/polygon_universe_equity_fy2025.json
 .vscode/
 *.swp
 
-# QC market data dumps — never commit
-data/
+# Local backtest data dir (#208): zips are bulky+regenerable → ignored.
+# But TRACK the dir's README + the data fingerprint MANIFEST (pins results to data state).
+data/**
+!data/README.md
+!data/MANIFEST.json
 
 # Claude Code harness local state (never project code)
 .claude/worktrees/
