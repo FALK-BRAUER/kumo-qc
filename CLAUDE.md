@@ -233,3 +233,56 @@ Workers **MUST NOT** run any of the following without explicit written authoriza
 - Deleting branches
 
 When in doubt: write a handoff, open a GitHub issue, and stop. Do NOT improvise a cleanup. The May 23 incident: Worker B deleted the entire kumo-qc directory following an orchestrator's "archive or delete" instruction. Orchestrators do not have destructive authority — only fintrack does.
+
+## Cloud/Local Parity — Architectural Rule (charter, 2026-05-30)
+
+**Single code path for cloud and local. No environment branches in strategy logic. Local is a HARNESS that emulates cloud — not the other way around.**
+
+### What this means
+
+- **NEVER** write `if cloud: X else: local: Y` branches in strategy code. Every such branch is a bug waiting to detonate.
+- Cloud (LEAN container, ObjectStore, scheduler, fill model) is the CANONICAL environment — the strategy will trade there.
+- Local backtesting MUST run the SAME code path on the SAME data flow as cloud. Local = cheap iteration, cloud = paid validation, IDENTICAL results.
+- If cloud behavior is hard to reproduce locally (ObjectStore, scheduling, subscription manager, normalization), the fix is to **EMULATE cloud locally** (mock ObjectStore, replay LEAN scheduling, identical data normalization) — NOT to add a workaround that makes cloud behave like local.
+
+### What is FORBIDDEN
+
+- Loading data from disk locally + ObjectStore on cloud (different code paths, different state).
+- Disabling a cloud filter because "it gives ~zero valid candidates on cloud" — that's a bug to fix, not a branch to add.
+- Hardcoding cloud behavior to match local convenience.
+- Accepting ±0.3 Sharpe parity on a non-amplifying baseline (e.g. E40d) as proof of parity. **Parity must be proven on the strategy that exercises the amplifying mechanic (pyramid, leverage, momentum sizing).**
+
+### Concrete lesson — 8b50c1a regression (2026-05-28)
+
+The local code path stored `self._polygon_universe` (date-keyed dict) and filtered candidates to today's snapshot per day (~50-100 names). The cloud code path loaded the same JSON from ObjectStore but DID NOT assign `self._polygon_universe`, leaving the daily filter inert → cloud saw all 326 unique tickers every day.
+
+Diagnosis at the time (commit 8b50c1a): "Cloud causes ~zero valid candidates (date key mismatch or schedule timing). Cloud path should not set _polygon_universe."
+
+Workaround chosen: **disable the filter on cloud**, accept 1.315 (cloud) vs 1.442 (local) Sharpe on E40d as "within ±0.3."
+
+What this hid: **selection divergence**. Cloud and local picked completely different stocks from day 1 (different selection logic → different trades → different P&L). E40d tolerated it. Pe pyramid (added later) amplified it from 1.141 local → -0.055 cloud.
+
+### Required architecture going forward
+
+1. **One Initialize() universe path** — same loader, same assignment, same daily filter, regardless of where it executes.
+2. **Local harness must spin up ObjectStore mock** — store the polygon JSON in a local ObjectStore-equivalent so the cloud code path runs verbatim locally.
+3. **Cloud/local parity test on EVERY pyramid/leverage/amplifying variant before claiming a result.** Baseline parity is insufficient.
+4. **Any "if cloud" branch in algorithm/ requires explicit CLAUDE.md update + justification + parity test on amplifying mechanic before merge.**
+5. **Diff protocol applies when parity breaks** — first-divergence point, concurrent positions, cash trajectory, pyramid adds, fill-level — before interpretation (see #173 Local vs Cloud Divergence Diagnosis Protocol).
+
+### Charter principle
+
+*Workarounds for cloud/local divergence that look acceptable at ±0.3 Sharpe on a non-amplifying strategy will EXPLODE under amplifying mechanics. Parity must be proven on the strategy that exercises the amplification, not just on the baseline. Single code path always. Local emulates cloud, not the other way around.*
+
+## Git as Source of Truth for Cloud Code (charter, 2026-05-30)
+
+All code deployed to QC cloud projects MUST exist in git first.
+
+- Cloud-deployed files (.py modules, main.py, helpers) → authored in git → committed → pushed to cloud via API (`scripts/qc_pe_cloud.py` reads from a git-tracked worktree) or `lean cloud push`.
+- NEVER author files directly on QC via `/files/update` without a corresponding git commit first.
+- Cloud project = deployment target, NOT an authoring environment.
+- Risk if violated: cloud project cleared = code lost; code review impossible without an API pull; re-deploys overwrite cloud.
+
+**Worktree branches ARE git-tracked → they count as source of truth.** Verify a file exists in ANY branch (`git log --all -- path`) before raising a "cloud-only / not in git" alarm — searching only the `main` worktree will miss work that legitimately lives on a feature branch under the worktree regime.
+
+Note (2026-05-30): pyramid_engine.py + resistance_support.py were briefly suspected "cloud-only" during Phase 3c — VERIFIED FALSE. Both are committed on `feat/p3b-pyramid-search` (e12ec42) and earlier feat branches; the alarm came from grepping the `main` tree only. They land on `main` when the pyramid work graduates. The deploy already reads from the git-tracked worktree, so cloud code traces to a commit. Rule formalized to prevent the confusion recurring.
