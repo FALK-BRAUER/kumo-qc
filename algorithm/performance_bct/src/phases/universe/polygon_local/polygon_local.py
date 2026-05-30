@@ -9,7 +9,7 @@ After #182 unified loader lands and ARCH-D harness is wired, Initialize loading
 will move here as a proper universe.source phase.
 """
 from __future__ import annotations
-from engine.base import PhaseInterface, PhaseResult, UniverseLoadError
+from engine.base import PhaseInterface, PhaseResult
 from engine.context import PhaseContext
 
 
@@ -36,20 +36,16 @@ class PolygonLocal(PhaseInterface):
 
         today_list = poly.get(date_str)
         if today_list is None:
-            # Fail-loud if date is within the JSON's key range (date-key mismatch = bug)
-            if poly:
-                min_key = min(poly)
-                max_key = max(poly)
-                if min_key <= date_str <= max_key:
-                    raise UniverseLoadError(
-                        f"date_str {date_str!r} not in universe (range {min_key}..{max_key}) — date-key mismatch"
-                    )
-            # Outside range: no entries for this date
+            # Missing date = non-trading day (weekend/holiday) — legitimately absent from JSON.
+            # The schedule fires every_day() but JSON keys are trading days only.
+            # NOT fail-loud: the date-key FORMAT mismatch bug class (e.g. "20250102" vs
+            # "2025-01-02") manifests as ALL dates missing, caught by the whole-universe
+            # empty guard in the loader (main.py Initialize), not per-bar here.
             ctx.bar_state.ranked_candidates = []
             return PhaseResult(
                 decision="empty",
                 blocked=False,
-                reason=f"date {date_str} outside universe range",
+                reason=f"date {date_str} not a trading day in universe",
                 facts={"date": date_str, "count": 0},
                 metrics={},
             )

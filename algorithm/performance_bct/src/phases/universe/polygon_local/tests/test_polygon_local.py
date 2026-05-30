@@ -1,7 +1,7 @@
 import pytest
 from datetime import datetime
 from engine.context import PhaseContext
-from engine.base import UniverseLoadError
+# removed
 from phases.universe.polygon_local.polygon_local import PolygonLocal
 
 
@@ -74,14 +74,17 @@ def test_date_outside_range_returns_empty():
     assert result.blocked is False
 
 
-def test_date_in_range_but_missing_raises_universe_error():
+def test_missing_date_returns_empty_not_raise():
+    # Non-trading day (weekend/holiday) within range = legitimately absent.
+    # schedule fires every_day() but JSON keys are trading days only → must NOT raise.
     universe = {"2025-01-02": ["AAPL"], "2025-01-06": ["MSFT"]}
     qc = FakeQC(polygon_universe=universe, active=["AAPL", "MSFT"])
-    # 2025-01-03 is within range (between 01-02 and 01-06) but not a key
-    ctx = PhaseContext(qc=qc, time=datetime(2025, 1, 3), data=None)
+    # 2025-01-04 is a Saturday — within range, not a key
+    ctx = PhaseContext(qc=qc, time=datetime(2025, 1, 4), data=None)
     phase = PolygonLocal(params={}, logger=None)
-    with pytest.raises(UniverseLoadError, match="date-key mismatch"):
-        phase.evaluate(ctx)
+    result = phase.evaluate(ctx)  # must NOT raise
+    assert result.blocked is False
+    assert ctx.bar_state.ranked_candidates == []
 
 
 def test_universe_never_blocks():
