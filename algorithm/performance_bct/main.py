@@ -160,7 +160,7 @@ def score_symbol(algorithm: Any, symbol: Any) -> dict[str, Any] | None:
     elif score >= 4: rating = "+"
     elif score >= 2: rating = "="
     else:            rating = "--"
-    return {"score": score, "rating": rating, "conditions": conditions}
+    return {"score": score, "rating": rating, "conditions": conditions, "adx": float(adx_now)}
 
 
 def score_symbol_native(algorithm: Any, symbol: Any, ind: Any) -> dict[str, Any] | None:
@@ -292,6 +292,14 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.qqq = self.add_equity("QQQ", Resolution.DAILY).symbol
         self.qqq_sma50 = self.sma("QQQ", 50)
         self.log("VERSION_MARKER|regime_gate_v1_qqq50")
+        # F-track gates (Phase 3a). F2 regime / F3 circuit-breaker / F5 ADX gate.
+        self.regime_mode = self.get_parameter("regime_mode", "qqq").strip()  # "qqq" | "qqq_or_iwm"
+        self.iwm = self.add_equity("IWM", Resolution.DAILY).symbol
+        self.iwm_sma50 = self.sma("IWM", 50)
+        self.circuit_breaker_dd = float(self.get_parameter("circuit_breaker_dd", "0"))  # 0=off, e.g. 0.04
+        self.adx_min = float(self.get_parameter("adx_min", "0"))  # 0=off (score uses >=20); e.g. 30
+        self._equity_peak = 0.0
+        self.log(f"VERSION_MARKER|ftrack_gates_v1|regime={self.regime_mode}|cb_dd={self.circuit_breaker_dd}|adx_min={self.adx_min}")
         # RS151: polarity-flip structural trail (broken resistance → support)
         self.log("VERSION_MARKER|rs151_polarity_v1")
         self.log("VERSION_MARKER|f1_risk_trail_pyramid_v1")
@@ -537,11 +545,30 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 tier = 1
             self.log(f"VIX_TIER|{date_str}|VIX={vix_price:.2f}|cloud_top={vix_cloud_top:.2f}|tier={tier}|max_positions={max_positions}")
 
-        # E40c: Regime gate — block entries when QQQ < 50-day MA
+        # F3: portfolio-level trailing DD circuit breaker — halt NEW entries when
+        # equity has fallen > circuit_breaker_dd from its peak (pyramid adds still allowed).
+        equity = float(self.portfolio.total_portfolio_value)
+        self._equity_peak = max(self._equity_peak, equity)
+        cb_halt = False
+        if self.circuit_breaker_dd > 0 and self._equity_peak > 0:
+            cb_dd = 1.0 - equity / self._equity_peak
+            if cb_dd > self.circuit_breaker_dd:
+                cb_halt = True
+                self.log(f"CIRCUIT_BREAKER|{date_str}|dd={cb_dd:.3f}>{self.circuit_breaker_dd}|halt_entries")
+
+        # Regime gate. F2: "qqq_or_iwm" allows entries if EITHER index > 50MA (looser).
         if self.qqq_sma50.is_ready:
             qqq_price = float(self.securities[self.qqq].price)
             qqq_ma50 = float(self.qqq_sma50.current.value)
-            if qqq_price < qqq_ma50:
+            qqq_ok = qqq_price >= qqq_ma50
+            if self.regime_mode == "qqq_or_iwm" and self.iwm_sma50.is_ready:
+                iwm_price = float(self.securities[self.iwm].price)
+                iwm_ma50 = float(self.iwm_sma50.current.value)
+                allow = qqq_ok or (iwm_price >= iwm_ma50)
+                if not allow:
+                    self.log(f"REGIME_OR|{date_str}|QQQ={qqq_price:.2f}/{qqq_ma50:.2f}|IWM={iwm_price:.2f}/{iwm_ma50:.2f}|block")
+                    return
+            elif not qqq_ok:
                 self.log(f"REGIME_BLOCK|{date_str}|QQQ={qqq_price:.2f}|MA50={qqq_ma50:.2f}")
                 return
 
@@ -627,6 +654,10 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             result = score_symbol_native(self, symbol, ind)
             if result is None or result["score"] < self.MIN_SCORE:
                 continue
+            # F5: ADX quality gate — require ADX >= adx_min (0 = off)
+            if self.adx_min > 0 and result.get("adx", 0.0) < self.adx_min:
+                self.log(f"ADX_GATE|{date_str}|{symbol.value}|adx={result.get('adx', 0):.1f}<{self.adx_min}")
+                continue
             # E51: Parabolic entry block — skip if 13-day return exceeds threshold
             try:
                 hist = self.history(symbol, 14, Resolution.DAILY)
@@ -660,6 +691,10 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 dollar_volume = 0.0
             candidates.append((symbol, result["score"], dollar_volume))
 
+        # F3: circuit-breaker halts NEW entries (pyramid adds above already executed).
+        if cb_halt:
+            self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries=0|circuit_breaker_halt")
+            return
         # Primary: score DESC. Tiebreak: dollar-volume DESC. NEVER alphabetical.
         candidates.sort(key=lambda x: (x[1], x[2]), reverse=True)
         slots = min(slots, self.MAX_ENTRIES_PER_DAY)  # principled entry-rate cap (churn control)
