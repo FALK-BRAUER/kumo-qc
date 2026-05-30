@@ -310,3 +310,6 @@ date_run,window,period_start,period_end,commit,branch,environment,sharpe,net_pro
 2026-05-30,FY2025,2025-01-01,2025-12-31,187df5a,pyramid-A-flat,local,0.09,,,186,,,,Pyramid A flat-base REJECTED
 2026-05-30,FY2025,2025-01-01,2025-12-31,pyramid,pyramid-B-200,local,0.376,,,367,,,,Pyramid B $200-base REJECTED
 2026-05-30,FY2025,2025-01-01,2025-12-31,pyramid,pyramid-B-500,local,-0.12,,,227,,,,Pyramid B $500-base REJECTED
+2026-05-30,FY2025,2025-01-01,2025-12-31,v13,v13-tight-trail,local,0.667,,,159,,,,V13 tighter-trail-after-10pct REJECTED
+2026-05-30,FY2025,2025-01-01,2025-12-31,v1b,v1-e40c-e28-stack,local,0.393,,,151,,,,V1 e40c+e28 stack clean REJECTED
+2026-05-30,FY2025,2025-01-01,2025-12-31,v5,v5-etf-only,local,0.121,,,206,,,,V5 ETF-only universe REJECTED
