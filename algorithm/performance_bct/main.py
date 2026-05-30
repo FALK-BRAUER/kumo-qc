@@ -37,6 +37,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from resistance_support import compute_levels  # rs150: R/R 2:1 structural filter
+
 
 _WEEKLY_BARS = 130
 _DAILY_BARS = 700
@@ -265,6 +267,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.qqq = self.add_equity("QQQ", Resolution.DAILY).symbol
         self.qqq_sma50 = self.sma("QQQ", 50)
         self.log("VERSION_MARKER|regime_gate_v1_qqq50")
+        self.log("VERSION_MARKER|rs150_rr2_v1")
 
         self.universe_settings.resolution = Resolution.DAILY
         self.universe_settings.data_normalization_mode = DataNormalizationMode.RAW
@@ -526,6 +529,33 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             # === END PRE-FILTER ===
             result = score_symbol_native(self, symbol, ind)
             if result is None or result["score"] < self.MIN_SCORE:
+                continue
+            # rs150: R/R 2:1 structural entry filter — keep only if reward >= 2x risk
+            try:
+                rr_price = float(self.securities[symbol].price)
+                rr_hist = self.history(symbol, 252, Resolution.DAILY)
+                if rr_hist is None or len(rr_hist) < 1:
+                    self.log(f"RR_SKIP|{date_str}|{symbol.value}|reason=no_history")
+                    continue
+                if isinstance(rr_hist.index, pd.MultiIndex):
+                    rr_hist = rr_hist.droplevel(0)
+                rr_hist = rr_hist.rename(columns=str.lower)
+                lv = compute_levels(rr_hist, ref_price=rr_price)
+                r = lv.nearest_resistance
+                s = lv.nearest_support
+                if r is None or s is None:
+                    self.log(f"RR_SKIP|{date_str}|{symbol.value}|reason=no_clean_rs")
+                    continue
+                reward = r - rr_price
+                risk = rr_price - s
+                if risk <= 0 or reward < 2.0 * risk:
+                    ratio = (reward / risk) if risk > 0 else float("nan")
+                    self.log(f"RR_SKIP|{date_str}|{symbol.value}|reward={reward:.4f}|risk={risk:.4f}|ratio={ratio:.3f}")
+                    continue
+                ratio = reward / risk
+                self.log(f"RR_OK|{date_str}|{symbol.value}|reward={reward:.4f}|risk={risk:.4f}|ratio={ratio:.3f}")
+            except Exception as _rr_exc:
+                self.log(f"RR_SKIP|{date_str}|{symbol.value}|reason=exc|{_rr_exc}")
                 continue
             # E51: Parabolic entry block — skip if 13-day return exceeds threshold
             try:
