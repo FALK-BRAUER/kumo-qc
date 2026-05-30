@@ -302,7 +302,7 @@ from phases.adds.pe_rampup_antikelly import PeRampupAntikelly
 | 0a | Phase-0 non-destructive: oracle tag `baseline-oracle-v0`, .gitignore fix, untrack root noise, lean.json canonical | pre-ARCH | authorized ✅ |
 | 0b | Phase-0 destructive: archive 6 dead algorithm dirs (#3), prune 46 stale worktrees→3 (#4), keep x3a worktree | pre-ARCH | **PENDING Falk explicit auth** |
 | 1 | Scaffold `src/engine/` + `src/tests/harness/` + `build/cloud_package.py` (stub phases, FakeQCAlgorithm) | ARCH-A/D/G | fintrack reviews base.py + engine skeleton |
-| 2 | Carve main.py → phase modules, ±0.01 Sharpe parity vs oracle | ARCH-C/E | parity gate |
+| 2 | Carve **current main.py's actual config** (flat-10% + Kijun/G3 + E40d = `champion-asis-v1`) → phase modules, ±0.01 Sharpe parity vs oracle tag. NOT baseline-essentials-v1 — that's a separate strategy change. | ARCH-C/E | parity gate vs oracle |
 | 3 | Per-phase folders/tests/headers, PR gate enforced | ARCH-F/H | 7-check merge gate live |
 | 4 | CI: GitHub Actions running 7-check gate on every PR | ARCH-H | CI green |
 | 5 | Retrofit Pe/Pe-rampup (after #182 unified loader lands) | ARCH-I | parity on amplifying variant |
@@ -325,7 +325,13 @@ from phases.adds.pe_rampup_antikelly import PeRampupAntikelly
 
 ---
 
-## 10. Baseline-Essentials-v1 STRATEGY_CONFIG (first on main, no pyramid)
+## 10. Baseline-Essentials-v1 STRATEGY_CONFIG (north-star config — NOT the carve target)
+
+> **⚠️ Carve target ≠ this config.** ARCH-C carve reproduces current main.py (flat-10% sizing, Kijun/G3 stop, E40d regime) at ±0.01 Sharpe. That is `champion-asis-v1`. baseline-essentials-v1 below is a separate strategy (risk-$500 / ATR stops / vix<25) validated as distinct variants AFTER engine-correctness is proven. Do not conflate refactor-correctness with strategy change.
+>
+> **PENDING Falk decision:** which lineage becomes main's eventual production baseline — G3 local 1.079 (current main.py) vs sT-cloud champion 1.2273 (provisional, pending #182). This does NOT block ARCH-A scaffold or ARCH-C carve.
+
+## 10a. champion-asis-v1 (ARCH-C carve target)
 
 ```python
 STRATEGY_CONFIG = {
