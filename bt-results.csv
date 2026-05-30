@@ -347,3 +347,6 @@ date_run,window,period_start,period_end,commit,branch,environment,sharpe,net_pro
 2026-05-30,W4,2025-07-01,2025-09-30,dbe86c2,feat/p3b-Pe-uncapped,local,3.333,15.18,,71,,5.9,,Pe uncapped window — POS; W4 outlier carries FY (+15.2% of +24.5%)
 2026-05-30,W5,2025-09-01,2025-11-30,dbe86c2,feat/p3b-Pe-uncapped,local,0.392,2.978,,69,,4.5,,Pe uncapped window — POS; W4 outlier carries FY (+15.2% of +24.5%)
 2026-05-30,W6,2025-10-01,2025-12-31,dbe86c2,feat/p3b-Pe-uncapped,local,-2.677,-6.939,,89,,8.2,,Pe uncapped window — NEG; W4 outlier carries FY (+15.2% of +24.5%)
+2026-05-30,FY2025,2025-01-01,2025-12-31,5313b80,feat/ftrack-F2,local,-0.092,6.087,,340,,6.7,,F-track F2 risk+trail+me154 regime (QQQ|IWM) — REJECT vs base 0.536. gate REGIME_OR 83x
+2026-05-30,FY2025,2025-01-01,2025-12-31,5313b80,feat/ftrack-F3,local,-1.04,1.215,,52,,5.3,,F-track F3 risk+trail+4% portfolio circuit breaker — REJECT, halts too aggressively (52 ord). gate CIRCUIT_BREAKER 304x
+2026-05-30,FY2025,2025-01-01,2025-12-31,5313b80,feat/ftrack-F5,local,-0.721,-2.178,,341,,5.9,,F-track F5 risk+trail+ADX>=30 gate — REJECT vs base 0.536. gate ADX_GATE 3756x
