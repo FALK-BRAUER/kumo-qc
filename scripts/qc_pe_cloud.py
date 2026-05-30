@@ -31,8 +31,8 @@ PE_PARAMS = {
     "warmup_days": "750",
     # exit-config: filled from local-repro recipe (see EXITS below)
 }
-# Set to True/False once local repro locks the exact exit-config that gives 1.00.
-EXITS = {"cloud_exit": None, "weekly_kijun_exit": None}  # None = leave at main.py default
+# CANONICAL exit-config (Falk decision 2026-05-30): EXITS-ON. Pe = 1.141 under this.
+EXITS = {"cloud_exit": True, "weekly_kijun_exit": True}
 
 
 def post(path, body):
