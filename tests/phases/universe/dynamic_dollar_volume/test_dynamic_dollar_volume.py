@@ -69,16 +69,14 @@ def test_filters_to_active_intersection():
     assert "NVDA" not in ctx.bar_state.ranked_candidates
 
 
-def test_none_universe_passes_through_all_active_and_logs():
-    logger = RecordingLogger()
+def test_none_universe_fails_loud_never_passes_through():
+    # #182 fall-through trap: None universe must RAISE, never trade-the-whole-substrate (~19k).
+    from engine.base import UniverseLoadError
     qc = FakeQC(dynamic_universe=None, active=["AAPL", "MSFT"])
-    phase = DynamicDollarVolume(DynamicDollarVolume.Params(), logger=logger)
+    phase = DynamicDollarVolume(DynamicDollarVolume.Params(), logger=None)
     ctx = make_ctx(qc)
-    result = phase.evaluate(ctx)
-    assert result.blocked is False
-    assert result.decision == "all"
-    assert set(ctx.bar_state.ranked_candidates) == {"AAPL", "MSFT"}
-    assert len(logger.warnings) == 1  # never silent
+    with pytest.raises(UniverseLoadError):
+        phase.evaluate(ctx)
 
 
 def test_date_below_range_returns_empty_no_raise():

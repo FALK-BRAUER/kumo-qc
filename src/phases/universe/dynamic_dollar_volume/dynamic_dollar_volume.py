@@ -18,10 +18,11 @@ Charter (ARCH2-U / #220):
     Initialize (QCAlgorithm) and stashed as `self._dynamic_universe`; the phase reads
     it from `ctx.qc._dynamic_universe`. NO relative file reads in the phase.
 
-Fail-loud semantics (the #182 lesson — DO NOT per-day-raise on missing dates):
-  - `_dynamic_universe` is None        -> pass-through ALL active, log a warning. Never
-                                          fabricate a universe. (Whole-artifact-missing is
-                                          the Initialize-time fail-loud, not here.)
+Fail-loud semantics (the #182 lessons — both traps closed):
+  - `_dynamic_universe` is None        -> FAIL LOUD (raise). Never pass-through-all-active
+                                          (~19k) — that's the #182 fall-through-to-everything
+                                          trap. Absent at runtime = a load/wiring bug; a log
+                                          warning is not enough (logs-aren't-enough lesson).
   - date not in the dict (any reason)  -> empty set, NO raise. The schedule fires
                                           every_day(); weekends/holidays and zero-eligible
                                           trading days legitimately have no key. Raising
@@ -37,7 +38,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from engine.base import BasePhase, PhaseResult
+from engine.base import BasePhase, PhaseResult, UniverseLoadError
 from engine.context import PhaseContext
 
 
@@ -64,19 +65,13 @@ class DynamicDollarVolume(BasePhase):
         universe = getattr(qc, "_dynamic_universe", None)
 
         if universe is None:
-            # No universe loaded — pass through all active symbols. Logged, never silent.
-            if self._logger is not None:
-                self._logger.warn(
-                    f"dynamic_dollar_volume: _dynamic_universe is None on {date_str} "
-                    f"— passing through all active (no universe loaded)"
-                )
-            ctx.bar_state.ranked_candidates = [s.value for s in getattr(qc, "_active", set())]
-            return PhaseResult(
-                decision="all",
-                blocked=False,
-                reason="no _dynamic_universe — all active symbols",
-                facts={"date": date_str, "count": len(ctx.bar_state.ranked_candidates)},
-                metrics={},
+            # FAIL LOUD — never pass-through-all. _dynamic_universe absent at runtime = a
+            # load/wiring bug; trading the entire substrate (~19k) is the #182 fall-through
+            # trap (worse than the 326 leak). A log warning is NOT enough (logs-aren't-enough,
+            # the contamination lesson) — raise so the bug surfaces, never trade-everything.
+            raise UniverseLoadError(
+                f"dynamic_dollar_volume: _dynamic_universe not loaded on {date_str} "
+                f"— refusing to trade-everything (load/wiring bug; fix Initialize)"
             )
 
         today_list = universe.get(date_str)
