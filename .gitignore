@@ -10,8 +10,9 @@ __pycache__/
 *.egg-info/
 .venv/
 venv/
-dist/
-build/
+# NOTE (v2 #208): dist/ and build/ are NOT ignored here.
+#   build/ = source (cloud_package.py).  dist/ = generated but git-TRACKED
+#   (deploy-from-git + diff visibility). dist/ is excluded from mypy, not git.
 
 # Node / Next.js
 node_modules/
@@ -71,3 +72,9 @@ data/kumo-qc.db
 # QC backtest-output artifacts + signal cache (output, not source)
 qc/
 storage/
+
+# GSD / planning scratch state (never project code)
+.planning/
+
+# Structure v2 (#208): sweep run workspaces are generated
+sweeps/runs/
