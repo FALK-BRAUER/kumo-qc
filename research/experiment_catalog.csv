@@ -1,0 +1,124 @@
+experiment_id,hypothesis,original_sharpe,commit_hash,status
+E36-atr-stop-FY2025,E36 ATR initial stop FY2025 — NEUTRAL (-0.132 Sharpe delta vs G3 baseline),0.947,9dcae5f,neutral
+E36-v2-ATR-stop-1.5x-FY2025,E36-v2 ATR stop 1.5x multiplier — REJECTED. 1.268 Sharpe vs E40d 1.442 (delta -0.174). ATR stop underperforms Kijun stop. Confirms Kijun as optimal trailing stop mechanism. E36 track closed.,1.268,cloud-e40d,rejected
+E37-buy-stop-FY2025,E37 buy stop entry FY2025 — REJECTED (-0.816 Sharpe delta vs G3 baseline),0.263,d65c4b9,rejected
+E38-resistance-gate-FY2025,E38 resistance gate FY2025 — REJECTED (-0.514 Sharpe delta vs G3 baseline),0.565,c10a1a2,rejected
+E39-ladder-exits-FY2025,E39 ladder exits FY2025 — REJECTED (-0.566 Sharpe delta vs G3 baseline),0.470,3140ae2,rejected
+E43-v2-pyramid-adds-only-FY2025,E43-v2 pyramid adds only (no breakeven stop) — REJECTED. 1.374 Sharpe vs E40d 1.442 (delta -0.068). 99 pyramid adds fired (vs 8 in E43 combo). Raw return +53.6% vs E40d +42.4% (+11.2pp) but DD 16.1% v,1.374,cloud-e40d,rejected
+E44-v2-ADX-tiebreaker-FY2025,E44-v2 ADX tiebreaker (sort score desc ADX desc) — CATASTROPHIC REJECTION. -0.140 Sharpe vs E40d 1.442 (delta -1.582). STX entered 2025-06-10 @126.36 confirming slot-competition theory — but high-ADX ,-0.140,cloud-e40d,rejected
+E51-parabolic-block-FY2025,E51 parabolic block (13-day move >25%) — REJECTED. 1.254 Sharpe vs E40d 1.442 (delta -0.188). 12 parabolic skips. Net negative effect — parabolic moves are momentum confirmers,1.254,cloud-e40d,rejected
+E53-v2-earnings-avoidance-2d-FY2025,E53-v2 earnings avoidance ±2d — REJECTED. 1.208 Sharpe vs E40d 1.442 (delta -0.234). 7 entries blocked in FY2025; net negative. Earnings avoidance track closed.,1.208,cloud-e40d,rejected
+E85-signal-freshness-2d-FY2025,E85 signal freshness gate >2d — REJECTED. 1.268 Sharpe vs E40d 1.442 (delta -0.174). 0 freshness skips — gate never fires. Daily rebalancing means BCT signals refresh every day a ticker qualifies. Sig,1.268,cloud-e40d,rejected
+E87-rotation-quality-FY2025,E87 rotation quality gate (weekly price > weekly Tenkan) — REJECTED. 1.129 Sharpe vs E40d 1.442 (delta -0.313). Weekly price>Tenkan filter degrades performance. E87 track closed.,1.129,cloud-e40d,rejected
+G3-baseline-FY2025,G3 Phase 3 cloud-bottom stop FY2025 — BASELINE (re-run for cross-check),1.079,8048c29,unknown
+c2-resistance-proximity,C2 resistance proximity gate (2% of 52w high) — NEUTRAL (0 delta vs 1.036),1.036,feat/c2-resistance-proximity,neutral
+cloud-static-universe,G3 CLOUD v15-static: hardcoded 326-ticker polygon-200 list. Sharpe 0.836 vs local 1.079 — universe was primary divergence. 326 orders vs 232 local (remaining gap from adjusted prices). BT b9307a6d,0.836,2ecb954,unknown
+cloud-universe-file,G3 CLOUD v16: core 164 tickers (intersection first+last date). Worse than v15 — removing rotators removed trending stocks. Core stable = choppy large-caps + false signals. BT 8fed3a6e,-0.140,7c0d70c,unknown
+e104-vix30,E104 W3. E40d 4.427. Delta 0.000.,4.427,9cf6ad0,unknown
+e116-objectstore-universe,E116 cloud validation PASS — polygon-326 ObjectStore universe. Delta -0.127 vs E40d local 1.442. Within ±0.3 tolerance. BT 7b669725. Cloud/local divergence structural (QC data vendor vs local LEAN dat,1.315,713bfa7,unknown
+e18-time-based-exit,E18 time-based exit (90d + close < Tenkan) — NEUTRAL (+0.043 vs 1.036 baseline,1.079,feat/e18-time-based-exit,neutral
+e26-inverse-vol-sizing,E26 inverse-vol+risk-sizing: excellent in recovery period,2.612,aa29954,unknown
+e28-vix-percentile,E28 W3. E40d 4.427. Delta 0.000. 0 VIX blocks — strong trending Q3,4.427,0f3cb4a,unknown
+e29-credit-risk-off,E40d 4.427. Delta -0.617. 2 blocks only (TLT positive Q3). Small residual regression.,3.810,47af3cc,unknown
+e32-dd-circuit-breaker,E32 4% trailing DD circuit breaker — NEUTRAL (0 delta vs 1.036,1.079,feat/e32-dd-circuit-breaker,neutral
+e32-three-phase-clean,E32 three-phase stop (P1: Tenkan/cloud exit 0-28d; P2: Kijun 28-56d; P3: cloud_bottom 56d+15%) — CATASTROPHICALLY REJECTED (-1.057 Sharpe delta vs 1.036; 578 orders = 2.4x churn),-0.021,970c626,rejected
+e32-three-phase-stop,E32 three-phase stop — CATASTROPHICALLY REJECTED (-1.057 Sharpe delta vs 1.036). Phase 1 Tenkan stop fires at days 1-3,-0.021,feat/e32-three-phase-stop,rejected
+e33-sue-boost,E33 SUE Boost — NEUTRAL (implementation correct,1.079,5776bcc,neutral
+e35-earnings-avoidance,E35 earnings avoidance 2d proximity — NEUTRAL locally (0 skips 0 exits). Local LEAN has no Morningstar data so filter is no-op. Needs cloud BT to test actual behavior.,1.079,5482c55,neutral
+e38-clean,E38 resistance gate W6. Delta 0.000 — gate never fired in trending H1 tape. VERDICT: NEUTRAL/REJECT.,0.186,c10a1a2,rejected
+e39-ladder-exits,REJECTED — E39 ladder exits (50% trim at +20%/+40%). -0.566 Sharpe delta vs 1.036 G3 baseline. 20% trim cuts BCT momentum mid-run (stocks run 40-80%+ post-breakout). Kijun trail already handles let-wi,0.470,3140ae2,rejected
+e40-combo-regime,E40-combo W3. E40d 4.427. Delta -1.306.,3.121,e9294bd,unknown
+e40b-spy200-regime,E40b W3 Q3. Delta 0.000 — gate never fired (SPY well above 200d). Identical to G3 baseline.,4.427,cc90728,unknown
+e40b-v2-consecutive,E40b-v2 W3 Q3. Delta 0.000 — gate never fired (SPY well above 200d all Q3). Identical to G3 baseline.,4.427,6da9ddc,unknown
+e40c-qqq-regime,E40c QQQ>SMA50 regime gate. G3 W3 baseline 3.832. Delta +0.595. Bullish regime — fewer but higher-quality entries.,4.427,7cdb05b,unknown
+e41-adx-plateau,E41 ADX plateau W3. G3 3.832. Delta -1.177.,2.655,3975943,unknown
+e41v3-rocket-override,E41v3 W3. G3 3.832. Delta +0.711.,4.543,2312698,unknown
+e42-heat-cap,E42 v1 W3. G3 3.832. Delta -1.297.,2.535,0252721,unknown
+e43-pyramid-add,E43 W3. G3 4.427. Delta -0.375. 0 pyr adds,4.052,cd1ad92,unknown
+e45-vix-cloud-gate,E45 W3. E40d 4.427. Delta 0.000. T2=0 T3=0 — VIX below cloud all Q3.,4.427,3ffe004,unknown
+e45v2-vix-cloud-2tier,E45v2 W3. E40d 4.427. Delta 0.000. T2=0. VIX below cloud all Q3.,4.427,7184a65,unknown
+e49-chikou-span-gate,C3 chikou span gate ENABLED — REJECTED (-0.102 Sharpe vs 1.036 baseline),0.977,1c1d81a,rejected
+e49-iwm-breadth-canary,E49 IWM breadth canary (IWM < 50D SMA blocks entries) — REJECTED (-0.103 Sharpe vs 1.036),0.933,feat/e49-iwm-breadth-canary,rejected
+e51-parabolic-block,E51 W3. E40d 4.427. Delta 0.000. 29 PARABOLIC_BLOCKs. No delta — strong trending Q3 produces few parabolic entries at block time.,4.427,cf337e1,unknown
+e51-parabolic-block-40pct,E51 W3. Baseline 4.427. Delta 0.000.,4.427,cf337e1,unknown
+e53v3-earnings-1d,E53-v3 W3-Q3. E40d 4.427. Delta -0.172. 76 blocks.,4.255,849262d,unknown
+e54-tenkan-exit,E54 tenkan-exit (first 28d) — CATASTROPHICALLY REJECTED (-1.0 Sharpe delta vs 1.036),0.000,feat/e54-tenkan-exit,rejected
+e55-weekly-kijun-exit,E55 weekly kijun exit (26-week as stop) — CATASTROPHICALLY REJECTED (-1.325 Sharpe delta vs 1.036),-0.289,feat/e55-weekly-kijun-exit,rejected
+e55-weekly-kijun-exit-v2,"#55 REJECTED: weekly Kijun (26w) as primary stop — far too loose, positions bleed for months",-0.289,d0ddd38,rejected
+e58-cloud-thickness-sizing,E58 cloud thickness sizing — NEUTRAL (0 delta vs 1.036 baseline,1.036,feat/e58-cloud-thickness-sizing,neutral
+e76-risk-sizing,E76 combo 1: heat=6% risk=0.5% — CATASTROPHICALLY REJECTED (-1.327 Sharpe delta vs 1.036),-0.291,feat/e76-risk-sizing,rejected
+e78-active-return-gate,E22 active return gate (10d vs SPY > 0) — NEUTRAL (0 delta vs 1.036,1.036,feat/e78-active-return-gate,neutral
+e82-three-phase-stop,E82 three-phase stop progression — UNVERIFIED (result source unknown/contradictory,0.562,feat/e82-three-phase-stop,unknown
+e86-breakout-carveout,E86 W3. E40d 4.427. Delta -0.375. 36 PROX_BLOCKs.,4.052,7ac9c5f,unknown
+e88-priority-fill,E88 W3. E40d 4.427. Delta 0.000.,4.427,0db308e,unknown
+earnings-avoidance,E53 Q3,3.832,feat/earnings-avoidance,unknown
+g3-phase3-cloud-stop,Phase 3 cloud-bottom stop — FIRST POSITIVE EXPERIMENT (+0.261 Sharpe delta),1.079,d10dbd4,unknown
+g3-ytd-baseline,G3 baseline YTD-2026 (Jan-Apr). Polygon fallback: uses 2025-12-31 universe for 2026 dates. STX in universe but no entry (scored <7). SMH not in polygon universe. Top winner: MU +30.8% / $3073. 10 open,2.418,8048c29,unknown
+inline-scanner-v19,REJECTED — v19 inline warmup scanner (90d union pool daily re-score). -0.519 Sharpe delta vs 1.079 baseline. Daily pool bypasses polygon liquidity gate → 2x entries (421 vs 232) at lower quality. Pool,0.560,f9df218,rejected
+inline-scanner-v20,NEUTRAL — v20 inline scanner (top-200 DV filter + BCT ≥7). +0.035 Sharpe vs 1.036 G3. Higher return (+38.3% vs +30.1%) but 2x orders (451 vs 240) and worse DD (16.6% vs 11%). V20_DAILY_PAD fires frequ,1.071,5ca2ed6,neutral
+qc2-hy-credit-overlay,QC-2 HY credit overlay — REJECTED (vs 1.079 baseline),0.763,1206139251,rejected
+score-threshold-34,#34 — MIN_SCORE 7 + removed RESISTANCE_PROXIMITY/CHIKOU_WEEKLY/ADX_TOO_LOW/DI_NOT_POSITIVE,-0.800,e4df2ee,unknown
+sp500-universe,S&P500-universe (500 tickers) G3-code BCT,3.426,2b5b4ef,unknown
+e121-vix-ichimoku-2tier,chore(results): E45 VIX cloud gate 3-tier — REJECTED. FY2025 -0.076 vs E40d 1.442 (delta -1.518),N/A,d003458,unknown
+e16-kijun-atr-trail,feat(e16): Kijun-1ATR as Phase 3 stop anchor with cloud_bottom fallback,N/A,e72256d,unknown
+e17-vol-adjusted-cloud,feat(exp/e17): vol-adjusted cloud bottom Phase 3 stop (cloud_bottom - 0.5×ATR14),N/A,47230ad,unknown
+e22-active-return-gate,feat(e22): add active return gate - filter stocks outperforming SPY 10d,N/A,a2ef17f,unknown
+e32-trailing-dd-cb,chore(results): E29 credit/bond risk-off gate — REJECTED. FY2025 0.18 vs E40d 1.442 (delta -1.262),N/A,df35cfd,unknown
+e34-risk-sizing,feat(performance_bct): E34 risk-based sizing via heat_per_slot parameter,N/A,436fc31,unknown
+e36-atr-initial-stop,feat(performance_bct): E36 ATR initial stop (2.5x ATR14),N/A,9dcae5f,unknown
+e37-buy-stop-entry,feat(performance_bct): E37 buy stop entry (0.5% above current price),N/A,d65c4b9,unknown
+e38-resistance-gate,feat(e38): resistance proximity gate (3% below 52w high blocks entry),N/A,c10a1a2,unknown
+e38-resistance-gate-clean,fix: manual weekly aggregation to avoid QC cloud resample timeout (#81),N/A,8048c29,unknown
+e40a-spy-regime-gate,feat(exp): E40e composite regime gate — SPY>50MA AND VIX<25 (#90),N/A,c138bd5,unknown
+e40b-v2-cloud,feat(e44): Heat cap only (no slot gate) — REJECTED 0.856 Sharpe vs 1.079 G3,N/A,1ca0d37,unknown
+e40d-cloud-validation,chore(results): E40d cloud validation GH#115 — 7 windows recorded,N/A,5edc6fa,unknown
+e40d-v3-vix30,feat(e40d-v3): Looser VIX<30 regime gate (vs E40d VIX<25),N/A,4cb0fb5,unknown
+e40d-vix25-regime,"feat(regime): add VIX<25 gate (E40d champion, #90)",N/A,a03e7a9,unknown
+e42-vix-cache-perf,chore(results): GH #79 universe expansion analysis — equity-200 vs S&P 500,N/A,8461f3e,unknown
+e45-constant-r,docs(experiment-log): add fleet state GH #110 as cold-pickup reference,N/A,5855a73,unknown
+e45-v2-vix-gated-adds,"docs(experiment-log): E45 REJECTED — constant-R is leverage amplifier, E40d remains champion",N/A,52139e0,unknown
+e46-weekly-bct,feat(e46): weekly BCT pre-filter — extract weekly_score from score_symbol,N/A,236aade,unknown
+e47-sector-regime,feat(e47): sector regime gate — block entry if sector ETF weekly price below cloud,N/A,f3e388f,unknown
+e48-resistance-proximity-5pct,chore: add dummy file to force QC cache invalidation,N/A,d0ddd38,unknown
+e49-iwm-breadth-canary-clean,chore: add dummy file to force QC cache invalidation,N/A,d0ddd38,unknown
+e8-adx-hard-gate,Merge main (G3 Phase 3 stop) into E8 branch,N/A,2425757,unknown
+e80-sp500-universe,feat(universe): E80 S&P 500 ObjectStore universe vs polygon-326 (GH #80),N/A,7b95fc1,unknown
+e85-signal-freshness,docs(experiment-log): E43-v2/E44-v2/E53-v2 all REJECTED — E40d remains champion 1.442,N/A,c8a8102,unknown
+e87-rotation-gate,docs(experiment-log): add fleet state GH #110 as cold-pickup reference,N/A,5855a73,unknown
+e89-unlimited-slots-risk-sizing,chore(results): E80 S&P500 universe — REJECTED. FY2025 0.363 Sharpe (delta -0.952 vs polygon-326 1.315),N/A,69253ba,unknown
+e90-resistance-tiebreak,fix(cloud): apply ObjectStore polygon-326 universe (GH #116 fix),N/A,b57c7f6,unknown
+exp-cloud-thickness,"fix(cloud-thickness): clean branch, remove sector filter and volume surge contamination",N/A,64f0fbd,unknown
+exp-conviction-sizing,fix(performance_bct): wire Polygon equity-200 universe for local BT validation (#44),N/A,182ac7d,unknown
+exp-conviction-sizing-clean,feat(exp-conviction-sizing): raise exposure cap to 150% to preserve position count,N/A,f566d8d,unknown
+exp-conviction-weighted,fix(cloud-thickness): re-add gate code after accidental removal,N/A,3677c8d,unknown
+exp-gate-ablation,feat(exp): gate ablation — remove SMA200 + cloud pre-filters from entry candidates,N/A,b4f02c3,unknown
+exp-rotation-stagnation,experiment(bct): R2 stagnation rotation — REJECTED,N/A,72f5b37,unknown
+exp-spy-cloud-gate,feat(exp-spy-cloud-gate): E16 SPY weekly cloud gate for score=7 entries,N/A,7d0fac3,unknown
+exp-volume-surge,"feat(exp-conviction-sizing): score-8 gets 1.5x position size, 100% exposure cap",N/A,9abae24,unknown
+e45,"E45-v2: VIX Ichimoku 2-tier gate — drop Tier3, keep Tier1/Tier2 slot reduction only",N/A,GH#121,unknown
+e90,E90: resistance breakout confluence — prefer entries just above broken resistance level,N/A,GH#120,unknown
+e89,"E89: unlimited slots + $200 risk sizing + heat cap — remove MAX_POSITIONS, let heat govern",N/A,GH#118,unknown
+e88,E88: 7/8 priority-fill — allow score≥7 entries when slots remain after 8/8 candidates,N/A,GH#117,unknown
+e40,E40d cloud validation — FY2025 + W1-W6 all windows,N/A,GH#115,unknown
+e47,E47: Sector Ichimoku regime — only enter stocks where sector ETF weekly cloud is bullish,N/A,GH#114,unknown
+e46,E46: Multi-timeframe BCT — require weekly Ichimoku alignment (score ≥6/8 weekly + ≥7/8 daily),N/A,GH#113,unknown
+e45,E45-v2: Constant-R resizing with VIX gate on adds (only build in calm markets),N/A,GH#111,unknown
+e40,FLEET STATE: E40d champion 1.442 Sharpe — experiment queue + architectural findings,N/A,GH#110,accepted
+e45,E45: Constant-R position resizing — build position as Kijun trails,N/A,GH#109,unknown
+e40,E40g: Market breadth regime gate (<50% above 50MA),N/A,GH#108,unknown
+e40,E40h: VVIX<100 vol-of-vol regime gate,N/A,GH#107,unknown
+e40,E40d-v2: Stricter VIX<20 regime gate,N/A,GH#106,unknown
+e40,E40f: HY credit spread regime gate (>4% entry block),N/A,GH#105,unknown
+e40,E40d-v3: Looser VIX<30 regime gate,N/A,GH#104,unknown
+e36,E36-v2: ATR stop with 1.5× multiplier,N/A,GH#99,unknown
+e40,E40-combo: VIX<25 AND SPY>200MA ≥3d consecutive,N/A,GH#98,unknown
+e53,E53-v3: Earnings avoidance day-of only (±1d),N/A,GH#97,unknown
+e53,E53-v2: Earnings avoidance ±2d window,N/A,GH#96,unknown
+e44,E44-v2: ADX tiebreaker in candidate ranking,N/A,GH#95,unknown
+e43,E43-v2: Pyramid add only — no breakeven stop,N/A,GH#94,unknown
+e41,E41: Fix c7 adx_rising to surface mature parabolic trends (rocket ship fix),N/A,GH#92,unknown
+e40,feat: E40 regime gate — SPY/QQQ MA filter to block entries in weak markets,N/A,GH#90,unknown
+e22,feat: E22 benchmark-relative active return entry gate,N/A,GH#78,unknown
+e26,feat: E26 inverse-vol position sizing experiment,N/A,GH#77,unknown
+e8,[EXP-E8] ADX hard gate — enforce +DI > -DI as mandatory entry condition,N/A,GH#47,unknown
+e116,feat(cloud): E116 ObjectStore polygon-326 universe — cloud parity confirmed 1.315 Sharpe,N/A,PR#123,unknown
