@@ -64,3 +64,6 @@ ui/temp-find-project.js
 zz_handoffs/
 lean_backtest.sh
 data/kumo-qc.db
+
+# BT output at any depth (archive/*/backtests etc)
+**/backtests/
