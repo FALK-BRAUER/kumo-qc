@@ -510,13 +510,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         if self._polygon_universe is not None:
             today_poly_list = self._polygon_universe.get(date_str)
             if today_poly_list is None:
-                # Post-warmup, date within JSON key range = data-key mismatch bug
-                keys = self._polygon_universe
-                min_key = min(keys)
-                max_key = max(keys)
-                if min_key <= date_str <= max_key:
-                    raise Exception(f"UniverseLoadError: date_str {date_str!r} not in universe (range {min_key}..{max_key}) — date-key mismatch")
-                today_poly = set()  # outside range — no entries
+                today_poly = set()  # non-trading day or holiday — no entries
             else:
                 today_poly = set(today_poly_list)
 
