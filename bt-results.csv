@@ -321,3 +321,11 @@ date_run,window,period_start,period_end,commit,branch,environment,sharpe,net_pro
 2026-05-30,FY2025,2025-01-01,2025-12-31,maxent,p1-r500-me2,local,0.286,,,264,,,,P1 $500 maxent2
 2026-05-30,FY2025,2025-01-01,2025-12-31,maxent,p1-r500-me5,local,0.392,,,251,,,,P1 $500 maxent5 WINNER (best deployable)
 2026-05-30,FY2025,2025-01-01,2025-12-31,maxent,p1-r500-me10,local,0.385,,,251,,,,P1 $500 maxent10
+2026-05-30,FY2025,2025-01-01,2025-12-31,b98f1ab,feat/rs147,local,0.131,9.208,,393,,7.2,,R/S #147 struct stop max(kijun,supp+0.5ATR) — REJECT vs champ 0.778, 2.7x churn confirms V7/V12 stop-tightening lesson
+2026-05-30,FY2025,2025-01-01,2025-12-31,5968572,feat/rs148,local,0.574,18.211,,168,,11.1,,R/S #148 pre-breakout 2-10% below resistance — REJECT vs 0.778, Phase-3 candidate (risk-sizing)
+2026-05-30,FY2025,2025-01-01,2025-12-31,52c6079,feat/rs149,local,0.48,15.944,,176,,9.5,,R/S #149 buy-stop above resistance +5% conf — REJECT vs 0.778
+2026-05-30,FY2025,2025-01-01,2025-12-31,6ddbc7c,feat/rs150,local,0.409,14.14,,200,,8.2,,R/S #150 R/R 2:1 filter — REJECT vs 0.778
+2026-05-30,FY2025,2025-01-01,2025-12-31,a1d7e3a,feat/rs151,local,0.446,14.41,,266,,6.4,,R/S #151 polarity-flip trail — REJECT vs 0.778 BUT lowest DD 6.4% (DD-reducer, Phase-3 candidate)
+2026-05-30,FY2025,2025-01-01,2025-12-31,bb3c450,feat/me153,local,0.682,20.834,,147,,8.7,,multiETF #153 V14 QQQ>50 AND SPY>50 — REJECT vs 0.778
+2026-05-30,FY2025,2025-01-01,2025-12-31,24e8758,feat/me154,local,0.752,23.121,,145,,9.1,,multiETF #154 V15 QQQ>50 OR IWM>50 — REJECT vs 0.778 (near-miss, Phase-3 HIGH candidate)
+2026-05-30,FY2025,2025-01-01,2025-12-31,836c104,feat/me157,local,0.039,7.462,,169,,10.2,,multiETF #157 V18 breadth>50% — REJECT vs 0.778, breadth gate blocks too many entries
