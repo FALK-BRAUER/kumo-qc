@@ -22,8 +22,12 @@ npm-debug.log*
 # LEAN local backtest output
 /Results/
 /backtests/
+*/backtests/
 algorithm/performance_bct/backtests/
 *.json.bak
+
+# Root log files
+*.log
 
 # macOS
 .DS_Store
