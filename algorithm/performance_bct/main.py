@@ -246,12 +246,13 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # Exit condition parameter overrides
         self.cloud_exit_enabled = self.get_parameter("cloud_exit", str(self.ENABLE_CLOUD_BREACH_EXIT)).lower() == "true"
         self.weekly_kijun_exit_enabled = self.get_parameter("weekly_kijun_exit", str(self.ENABLE_WEEKLY_KIJUN_EXIT)).lower() == "true"
-        # E40b Phase2: SPY > 200-day MA regime gate
+        # E40c-v3: SPY > 50-day MA regime gate (faster regime than 200d)
         self.spy = self.add_equity("SPY", Resolution.DAILY)
-        self.spy_sma200 = self.sma("SPY", 200)
+        self.spy_sma50 = self.sma("SPY", 50)
         # E40d: gate on by default; override with regime_gate_enabled=false to disable
         _regime_param = self.get_parameter("regime_gate_enabled", "")
         self.regime_gate_enabled = _regime_param != "false"
+        self.log("VERSION_MARKER|v3_spy_50ma")
         # E51: Parabolic entry block — skip entries on names with extreme 13-day run
         _parabolic_param = self.get_parameter("parabolic_threshold", "")
         if _parabolic_param != "":
@@ -511,12 +512,12 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         if slots <= 0:
             return
 
-        # E40b Phase2: SPY regime gate — block entries when SPY below 200d SMA
-        if self.spy_sma200.is_ready:
+        # E40c-v3: SPY regime gate — block entries when SPY below 50d SMA
+        if self.spy_sma50.is_ready:
             spy_price = float(self.securities[self.spy].price)
-            spy_ma200 = float(self.spy_sma200.current.value)
-            if spy_price < spy_ma200:
-                self.log(f"REGIME_BLOCK|{date_str}|SPY={spy_price:.2f}|MA200={spy_ma200:.2f}")
+            spy_ma50 = float(self.spy_sma50.current.value)
+            if spy_price < spy_ma50:
+                self.log(f"REGIME_BLOCK|{date_str}|SPY={spy_price:.2f}|MA50={spy_ma50:.2f}")
                 return
 
         # When running locally with polygon universe, restrict candidates to today's snapshot
