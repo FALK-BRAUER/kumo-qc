@@ -23,6 +23,13 @@ The rules every contribution conforms to. The PR gate enforces these. See [docs/
 - **No time-based exits** (`max_hold_days`, `exit_after_days`, ...).
 - **Explicit exposure only** — if `adds` is enabled, `gross_exposure_cap` MUST be enabled.
 - **NO fixed / snapshot universe — anywhere.** No 326, no hardcoded ticker list, in code, config, data, or tests. Universe = **dynamic, point-in-time** only. The fixed snapshot was the root of the slot-tiebreak / data-divergence / parity-chasing time-sinks and **proved nothing** — eradicated. Which tickers a strategy selects = the dynamic universe phase, pinned by config-hash; the substrate (the zip set) is fingerprinted separately.
+- **NO fixed slots, NO day-holds / max-holds / max-hold-days, nothing of that family.** These are count-caps + time-caps by another name — forbidden. Position count is governed by `gross_exposure_cap` + signal rarity; exits are rotation / trail / cloud-breach (principled), never "held N days."
+
+## Retrofits — principled re-expression (do NOT port the mechanic)
+The #218 retrofit experiments often USED forbidden mechanics (fixed slots, max-positions, max-hold-days, day-based exits). **We do NOT carry those over.** When retrofitting an old idea into the v2 library:
+- Take the INTENT, drop the mechanic.
+- Re-express via a **principled KPI-based or $-risk-based** approach: exposure via `gross_exposure_cap` (% rule), sizing via $-risk, exits via signal/structure (rotation/trail/cloud/kumo-flip), selection via dynamic universe + KPI ranking.
+- A retrofit that can only be expressed as a fixed slot / max-hold is REJECTED, not ported. The library accepts only principled forms.
 
 ## Parity (cloud vs local)
 - Goal = **short-timeframe REPRODUCIBILITY, to a reasonable extent**: local == cloud on a SHORT window (days), same code (`dist/`) + same substrate (fingerprint), within tolerance.

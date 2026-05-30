@@ -55,18 +55,22 @@ def test_imports_rewritten_no_pkg_prefix(built: tuple[cp.BuildResult, Path]) -> 
 
 
 def test_manifest_fields(built: tuple[cp.BuildResult, Path]) -> None:
-    _, dist = built
+    result, dist = built
     m = json.loads((dist / "_manifest.json").read_text())
-    assert m["data_fingerprint"] == "ba8307b6e556cca4"
+    # Assert CONSISTENCY (manifest == build result), not a hardcoded literal.
+    # Substrate fingerprint may be "unknown" until #220 defines the substrate
+    # (NO fixed-universe fingerprint — the 326 manifest was removed, #219).
+    assert m["data_fingerprint"] == result.data_fingerprint
     assert m["build_script_version"] == cp.BUILD_SCRIPT_VERSION
     assert "phase_signal_sample_bct.py" in m["files"]
     assert m["phase_markers"]["signal"] == "sample_bct_v1"
 
 
 def test_metadata_emitted(built: tuple[cp.BuildResult, Path]) -> None:
-    _, dist = built
+    result, dist = built
     meta = (dist / "_metadata.py").read_text()
-    assert "DATA_FINGERPRINT = 'ba8307b6e556cca4'" in meta
+    # metadata fingerprint == build result (consistency), not a hardcoded literal
+    assert f"DATA_FINGERPRINT = {result.data_fingerprint!r}" in meta
     assert "CONFIG_HASH" in meta and "GIT_COMMIT" in meta
 
 
