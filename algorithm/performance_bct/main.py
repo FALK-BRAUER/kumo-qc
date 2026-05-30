@@ -224,6 +224,18 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     return json.load(f)
         return None
 
+    @staticmethod
+    def _load_sector_map() -> dict | None:
+        candidates = [
+            Path(__file__).parent / "ticker_sector_map.json",
+            Path("/Lean/Data/ticker_sector_map.json"),
+        ]
+        for p in candidates:
+            if p.exists():
+                with open(p) as f:
+                    return json.load(f)
+        return None
+
     def initialize(self) -> None:
         self.log("VERSION_MARKER|e121_vix_ichimoku_2tier_v1")
         self.set_time_zone("America/New_York")
@@ -265,6 +277,16 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.qqq = self.add_equity("QQQ", Resolution.DAILY).symbol
         self.qqq_sma50 = self.sma("QQQ", 50)
         self.log("VERSION_MARKER|regime_gate_v1_qqq50")
+
+        # ME156 (V17): sector relative-strength gate
+        self.log("VERSION_MARKER|me156_sector_rs_v1")
+        self.spy = self.add_equity("SPY", Resolution.DAILY).symbol  # idempotent (benchmark)
+        self._sector_map = self._load_sector_map() or {}
+        self.log(f"SECTOR_MAP|loaded|tickers={len(self._sector_map)}")
+        self._sector_sma50 = {}
+        for etf in "XLB,XLC,XLY,XLP,XLV,XLI,XLRE,XLF,XLE,XLK,XLU".split(","):
+            self.add_equity(etf, Resolution.DAILY)
+            self._sector_sma50[etf] = self.sma(etf, 50)
 
         self.universe_settings.resolution = Resolution.DAILY
         self.universe_settings.data_normalization_mode = DataNormalizationMode.RAW
@@ -419,6 +441,27 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             return
         date_str = self.time.strftime("%Y-%m-%d")
 
+        # ME156 (V17): trailing 20-day return helper (MultiIndex-safe; None if <21 bars)
+        def ret20(sym):
+            try:
+                # Wrap in list → forces DataFrame return (bare Symbol can yield a lazy enumerable)
+                h = self.history([sym], 21, Resolution.DAILY)
+                if h is None or len(h) < 21 or not hasattr(h, "index"):
+                    return None
+                if isinstance(h.index, pd.MultiIndex):
+                    h = h.droplevel(0)
+                _c = "close" if "close" in h.columns else "Close"
+                first = float(h[_c].iloc[0])
+                last = float(h[_c].iloc[-1])
+                if first <= 0:
+                    return None
+                return last / first - 1
+            except Exception:
+                return None
+
+        # Cache SPY's 20d return once per rebalance
+        spy_ret20 = ret20(self.spy)
+
         for symbol, holding in list(self.portfolio.items()):
             if not holding.invested or self._has_open_orders(symbol):
                 continue
@@ -527,6 +570,22 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             result = score_symbol_native(self, symbol, ind)
             if result is None or result["score"] < self.MIN_SCORE:
                 continue
+            # ME156 (V17): sector RS gate — sector ETF > 50MA AND sector 20d ret > SPY 20d ret
+            etf = self._sector_map.get(symbol.value.upper(), {}).get("etf")
+            if etf is None:
+                pass  # ticker absent from sector map → skip filter, never reject
+            else:
+                sec_ind = self._sector_sma50.get(etf)
+                above_ma = (
+                    sec_ind is not None and sec_ind.is_ready
+                    and float(self.securities[etf].price) >= float(sec_ind.current.value)
+                )
+                etf_r = ret20(etf)
+                rs_ok = etf_r is not None and spy_ret20 is not None and etf_r > spy_ret20
+                if not (above_ma and rs_ok):
+                    self.log(f"SECTOR_RS|{date_str}|{symbol.value}|{etf}|above_ma={above_ma}|etf_r={etf_r}|spy_r={spy_ret20}|SKIP")
+                    continue
+                self.log(f"SECTOR_RS|{date_str}|{symbol.value}|{etf}|OK|etf_r={etf_r:.3f}>spy_r={spy_ret20:.3f}")
             # E51: Parabolic entry block — skip if 13-day return exceeds threshold
             try:
                 hist = self.history(symbol, 14, Resolution.DAILY)
