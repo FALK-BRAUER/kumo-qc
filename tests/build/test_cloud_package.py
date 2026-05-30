@@ -11,6 +11,7 @@ import pytest
 import cloud_package as cp
 
 SAMPLE = "strategies._build_sample"
+CHAMPION = "strategies.champion_asis"
 
 
 @pytest.fixture
@@ -85,6 +86,27 @@ def test_flat_dist_importable(built: tuple[cp.BuildResult, Path]) -> None:
     assert out.returncode == 0, out.stderr
     assert "_build_sample" in out.stdout
     assert "signal" in out.stdout and "regime" not in out.stdout  # only enabled wired
+
+
+def test_list_valued_kind_roundtrips_no_duplicate_dict_key(tmp_path: Path) -> None:
+    # REGRESSION: a multi-slot kind (regime = [SpySma200, VixPercentile]) must be emitted
+    # as a LIST literal in dist/main.py. The old codegen wrote one `'regime':` dict line
+    # per slot → the second silently overwrote the first → a phase vanished from dist while
+    # present in src. Build the real champion (its regime has 2 slots) and prove both survive.
+    dist = tmp_path / "dist"
+    cp.build(CHAMPION, dist_dir=dist)
+    main_txt = (dist / "main.py").read_text()
+    assert main_txt.count("'regime':") == 1, "duplicate 'regime' dict key — list kind not grouped"
+    out = subprocess.run(
+        [sys.executable, "-c",
+         "import main; r=main.STRATEGY_CONFIG.phases['regime']; "
+         "print(isinstance(r, list), len(r) if isinstance(r, list) else 1, "
+         "[s.impl.__name__ for s in (r if isinstance(r, list) else [r])])"],
+        cwd=str(dist), capture_output=True, text=True,
+    )
+    assert out.returncode == 0, out.stderr
+    # both regime phases present in the rebuilt dist config, in order
+    assert "True 2 ['SpySma200', 'VixPercentile']" in out.stdout, out.stdout
 
 
 def test_flat_name_unit() -> None:

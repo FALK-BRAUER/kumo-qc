@@ -81,12 +81,36 @@ class _ExampleSizing(BasePhase):
         return PhaseResult(decision=None, blocked=False, reason="example", facts={}, metrics={})
 
 
+class _ExampleFilter(BasePhase):
+    PHASE_KIND = "filter"
+    REQUIRES_UPSTREAM: list[str] = []
+    PROVIDES_DOWNSTREAM = ["eligible"]
+
+    @dataclass(slots=True)
+    class Params:
+        min_price: float = 10.0
+        enabled: bool = True
+
+    def __init__(self, params: "_ExampleFilter.Params", logger: Any) -> None:
+        super().__init__(params, logger)
+        self.p = params
+
+    @property
+    def version_marker(self) -> str:
+        return "_example_filter_v1"
+
+    def evaluate(self, ctx: PhaseContext) -> PhaseResult:
+        return PhaseResult(decision=None, blocked=False, reason="example", facts={}, metrics={})
+
+
 # The direct-ref config: impl=class, params=class.Params(...). mypy --strict checks each
-# Params construction (field names + types) at THIS site.
+# Params construction (field names + types) at THIS site. Includes a `filter` slot so the
+# example stays a runtime-valid strategy (filter is a REQUIRED phase, #235).
 EXAMPLE_CONFIG = StrategyConfig(
     name="_example",
     version="0.0.0",
     phases={
+        "filter": Slot(impl=_ExampleFilter, params=_ExampleFilter.Params(min_price=10.0)),
         "universe": Slot(impl=_ExampleUniverse, params=_ExampleUniverse.Params(min_dollar_volume=5_000_000.0)),
         "signal": Slot(impl=_ExampleSignal, params=_ExampleSignal.Params(min_score=7)),
         "sizing": Slot(impl=_ExampleSizing, params=_ExampleSizing.Params(position_pct=0.10)),

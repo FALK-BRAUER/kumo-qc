@@ -212,9 +212,16 @@ def _emit_main(config: Any, enabled: list[tuple[str, Any]], dist: Path, src: Pat
         "from config import Slot, StrategyConfig",
         "from engine import StrategyEngine",
     ]
-    slot_lines: list[str] = []
+    # Group enabled slots by kind, preserving first-seen order. A kind may carry MULTIPLE
+    # slots (regime, exit_*, diagnostics) — those MUST be emitted as a list literal, never
+    # as repeated dict keys (a repeated key silently drops all but the last → a phase would
+    # vanish from dist while present in src). Single-slot kinds emit a bare Slot.
     seen_cls: set[str] = set()
+    grouped: dict[str, list[Any]] = {}
     for kind, slot in enabled:
+        grouped.setdefault(kind, []).append(slot)
+
+    def _render_slot(slot: Any) -> str:
         cls = slot.impl.__name__
         flat_mod = _flat_name(_module_to_file(slot.impl.__module__, src), src)[:-3]  # strip .py
         if cls not in seen_cls:
@@ -222,12 +229,26 @@ def _emit_main(config: Any, enabled: list[tuple[str, Any]], dist: Path, src: Pat
             seen_cls.add(cls)
         params_kwargs = ", ".join(f"{f.name}={getattr(slot.params, f.name)!r}"
                                   for f in dataclasses.fields(slot.params))
-        slot_lines.append(f'    {kind!r}: Slot(impl={cls}, params={cls}.Params({params_kwargs})),')
-        # record marker (instantiate cheaply for marker text)
-        try:
-            markers[kind] = slot.impl(slot.params, None).version_marker
-        except Exception:
-            markers[kind] = f"{flat_mod}"
+        return f"Slot(impl={cls}, params={cls}.Params({params_kwargs}))"
+
+    slot_lines: list[str] = []
+    for kind, slots in grouped.items():
+        rendered = [_render_slot(s) for s in slots]
+        # Emit a list literal if the source config had a list for this kind OR there are
+        # multiple enabled slots — round-trips multi-sub-phase kinds faithfully.
+        original_is_list = isinstance(config.phases.get(kind), list)
+        if original_is_list or len(rendered) > 1:
+            slot_lines.append(f'    {kind!r}: [{", ".join(rendered)}],')
+        else:
+            slot_lines.append(f'    {kind!r}: {rendered[0]},')
+        # record marker(s) — one per slot, joined for multi-slot kinds (accurate provenance)
+        marker_texts: list[str] = []
+        for s in slots:
+            try:
+                marker_texts.append(s.impl(s.params, None).version_marker)
+            except Exception:
+                marker_texts.append(_flat_name(_module_to_file(s.impl.__module__, src), src)[:-3])
+        markers[kind] = ",".join(marker_texts)
     body = "\n".join(imports) + "\n\n"
     body += f'STRATEGY_CONFIG = StrategyConfig(\n    name={config.name!r},\n    version={config.version!r},\n    phases={{\n'
     body += "\n".join(slot_lines) + "\n    },\n)\n\n"
