@@ -1,0 +1,324 @@
+"""
+EXAMPLE main.py — kumo-qc phase-based strategy engine.
+
+This is the canonical template for every strategy file.
+Real strategies copy this structure and customize STRATEGY_CONFIG only.
+
+See:
+- docs/ARCHITECTURE.md — design rationale
+- docs/PHASES.md       — per-phase contract spec
+"""
+
+from AlgorithmImports import *
+from engine.engine import StrategyEngine
+
+# =============================================================================
+# STRATEGY DEFINITION — declarative, all phases listed
+# =============================================================================
+#
+# How to read this:
+#   - Every phase kind appears explicitly (even if disabled) for visibility.
+#   - "module" = dotted path to the phase implementation.
+#   - "enabled" = on/off toggle.
+#   - "params" = phase-specific parameters (see PHASES.md for each).
+#   - List-of-phases supported for: regime, portfolio_risk, exit_*, diagnostics.
+#
+# To create a new strategy: copy this file, rename STRATEGY_CONFIG.name,
+# toggle phases on/off, tweak params. Engine handles the rest.
+# =============================================================================
+
+STRATEGY_CONFIG = {
+    "name": "baseline-essentials-v1",
+    "version": "1.0.0",
+    "description": (
+        "Baseline BCT strategy with validated essentials only. "
+        "No pyramid, no boosters. Foundation for retrofit experiments."
+    ),
+    "tags": ["baseline", "bct", "ichimoku", "essentials"],
+    "author": "fintrack HQ + du9j9gml (2026-05-30)",
+
+    "phases": {
+        # ──────────────────────────────────────────────────────────────────
+        # UNIVERSE — daily eligible ticker set
+        # ──────────────────────────────────────────────────────────────────
+        "universe": {
+            "module": "phases.universe.polygon_daily",
+            "enabled": True,
+            "params": {
+                "min_price": 20.0,           # Falk threshold (vs Mark's $3)
+                "min_dv": 500_000,           # min daily dollar volume
+            },
+        },
+
+        # ──────────────────────────────────────────────────────────────────
+        # SIGNAL — BCT 8-condition score per ticker
+        # ──────────────────────────────────────────────────────────────────
+        "signal": {
+            "module": "phases.signal.bct_score",
+            "enabled": True,
+            "params": {
+                "min_score": 7,              # strong signal stack (7/8 confluences)
+            },
+        },
+
+        # ──────────────────────────────────────────────────────────────────
+        # REGIME — macro on/off (list; first block wins)
+        # ──────────────────────────────────────────────────────────────────
+        "regime": [
+            {
+                "module": "phases.regime.vix_threshold",
+                "enabled": True,
+                "params": {"max_vix": 25},   # E40d — confirmed essential
+            },
+            {
+                "module": "phases.regime.spy_200ma",
+                "enabled": True,
+                "params": {},                # E40c — confirmed essential
+            },
+            # Disabled by default — enable via retrofit experiments:
+            {
+                "module": "phases.regime.market_breadth",
+                "enabled": False,
+                "params": {"min_pct_above_200ma": 50},
+            },
+        ],
+
+        # ──────────────────────────────────────────────────────────────────
+        # RANKING — order candidates for entry selection
+        # ──────────────────────────────────────────────────────────────────
+        "ranking": {
+            "module": "phases.ranking.dollar_volume",
+            "enabled": True,
+            "params": {
+                "direction": "desc",         # high-liquidity first (replaced alpha bug)
+            },
+        },
+
+        # ──────────────────────────────────────────────────────────────────
+        # ENTRY SELECTION — pick which ranked candidates to attempt
+        # ──────────────────────────────────────────────────────────────────
+        "entry_selection": {
+            "module": "phases.entry_selection.take_all",
+            "enabled": True,
+            "params": {},                    # no count cap — capital limits
+        },
+
+        # ──────────────────────────────────────────────────────────────────
+        # ENTRY TIMING — order type + price
+        # ──────────────────────────────────────────────────────────────────
+        "entry_timing": {
+            "module": "phases.entry.buy_stop_kijun",
+            "enabled": True,
+            "params": {
+                "offset_pct": 0.75,          # buy stop 0.75% above prior close
+            },
+        },
+
+        # ──────────────────────────────────────────────────────────────────
+        # SIZING — share quantity per order
+        # ──────────────────────────────────────────────────────────────────
+        # ⚠️ RECONCILE: Pe local 1.141 used risk_amount=500. Architecture
+        #    spec said $200. Pending Falk decision (see ARCH ticket).
+        "sizing": {
+            "module": "phases.sizing.risk_based_fixed",
+            "enabled": True,
+            "params": {
+                "risk_dollars": 500,         # qty = 500 / (entry_price - stop_price)
+            },
+        },
+
+        # ──────────────────────────────────────────────────────────────────
+        # REENTRY — after stop-out filter (disabled in baseline)
+        # ──────────────────────────────────────────────────────────────────
+        "reentry": {
+            "module": "phases.reentry.cooldown_buy_stop",
+            "enabled": False,
+            "params": {
+                "cooldown_days": 30,
+                "require_buy_stop": True,
+            },
+        },
+
+        # ──────────────────────────────────────────────────────────────────
+        # ELIGIBILITY — per-order pre-fire checks
+        # ──────────────────────────────────────────────────────────────────
+        "eligibility": {
+            "module": "phases.eligibility.already_held_check",
+            "enabled": True,
+            "params": {},
+        },
+
+        # ──────────────────────────────────────────────────────────────────
+        # PORTFOLIO RISK — aggregate exposure caps (list)
+        # ──────────────────────────────────────────────────────────────────
+        "portfolio_risk": [
+            {
+                "module": "phases.portfolio_risk.gross_exposure_cap",
+                "enabled": True,
+                "params": {"max_pct": 100},  # no margin — explicit (#181)
+            },
+        ],
+
+        # ──────────────────────────────────────────────────────────────────
+        # CASH — cash floor + margin policy
+        # ──────────────────────────────────────────────────────────────────
+        "cash": {
+            "module": "phases.cash.no_margin",
+            "enabled": True,
+            "params": {},
+        },
+
+        # ──────────────────────────────────────────────────────────────────
+        # STOPS INITIAL — set stop at order fill
+        # ──────────────────────────────────────────────────────────────────
+        "stops_initial": {
+            "module": "phases.stops.atr_initial",
+            "enabled": True,
+            "params": {"atr_mult": 2.5},
+        },
+
+        # ──────────────────────────────────────────────────────────────────
+        # TRAIL — ratchet stops as price progresses
+        # ──────────────────────────────────────────────────────────────────
+        "trail": {
+            "module": "phases.trail.kijun_trail",
+            "enabled": True,
+            "params": {},
+        },
+
+        # ──────────────────────────────────────────────────────────────────
+        # EXIT HARD — forced exits (list)
+        # ──────────────────────────────────────────────────────────────────
+        "exit_hard": [
+            {
+                "module": "phases.exit.cloud_breach",
+                "enabled": True,
+                "params": {},
+            },
+            {
+                "module": "phases.exit.weekly_kijun",
+                "enabled": True,
+                "params": {},
+            },
+        ],
+
+        # ──────────────────────────────────────────────────────────────────
+        # EXIT TARGET / REGIME / ROTATION — disabled in baseline
+        # ──────────────────────────────────────────────────────────────────
+        "exit_target": {"module": "phases.exit_target.r_multiple", "enabled": False, "params": {"r_target": 3.0}},
+        "exit_regime": {"module": "phases.exit_regime.vix_spike_exit", "enabled": False, "params": {"vix_threshold": 30}},
+        "exit_rotation": {"module": "phases.exit_rotation.sell_worst_buy_best", "enabled": False, "params": {"min_score_delta": 2}},
+
+        # ──────────────────────────────────────────────────────────────────
+        # ADDS / PROFIT — disabled in baseline (retrofit later)
+        # ──────────────────────────────────────────────────────────────────
+        "adds": {
+            "module": "phases.adds.pe_signal_renewed",
+            "enabled": False,                # Pe retrofit pending #182
+            "params": {"lot_size_dollars": 200},
+        },
+        "profit": {
+            "module": "phases.profit.ladder_trim",
+            "enabled": False,                # ladder retrofit pending #179
+            "params": {"rungs_pct": [10, 20], "trim_fraction": 0.33},
+        },
+
+        # ──────────────────────────────────────────────────────────────────
+        # REBALANCE — engine tick scheduler
+        # ──────────────────────────────────────────────────────────────────
+        "rebalance": {
+            "module": "phases.rebalance.daily_close",
+            "enabled": True,
+            "params": {"time": "16:05"},
+        },
+
+        # ──────────────────────────────────────────────────────────────────
+        # DIAGNOSTICS — logging + parity (list, never blocks)
+        # ──────────────────────────────────────────────────────────────────
+        "diagnostics": [
+            {
+                "module": "phases.diagnostics.version_marker",
+                "enabled": True,
+                "params": {},
+            },
+            {
+                "module": "phases.diagnostics.parity_logger",
+                "enabled": True,
+                "params": {"frequency": "daily"},
+            },
+        ],
+
+        # ──────────────────────────────────────────────────────────────────
+        # CIRCUIT BREAKER — disabled (F3 dead-latch lesson)
+        # ──────────────────────────────────────────────────────────────────
+        "circuit_breaker": {
+            "module": "phases.circuit_breaker.dd_reset",
+            "enabled": False,
+            "params": {"max_dd_pct": 15.0, "reset_after_days": 30},
+        },
+    },
+
+    # ──────────────────────────────────────────────────────────────────────
+    # CHARTER INVARIANTS — engine enforces at init, refuses to start if violated
+    # ──────────────────────────────────────────────────────────────────────
+    "invariants": {
+        "no_count_caps": True,               # no max_positions / max_lots / max_entries_per_day
+        "no_time_exits": True,               # no max_hold_days / exit_if_flat_after_days
+        "explicit_exposure_only": True,      # implicit caps prohibited; #181
+        "single_code_path": True,            # no if cloud / else local branches
+    },
+
+    # ──────────────────────────────────────────────────────────────────────
+    # VALIDATION GATE STATUS — current state
+    # ──────────────────────────────────────────────────────────────────────
+    "validation": {
+        "g1_windows":         "NOT_RUN",     # 6 windows, ≥4 positive
+        "g2_concentration":   "NOT_RUN",     # no single window > 50% annual
+        "g3_oos":             "NOT_RUN",     # OOS year survives
+        "g4_uncapped":        "PASS",        # uncapped doesn't collapse
+        "g5_methodology":     "NOT_RUN",     # DSR/PBO audit
+    },
+
+    # ──────────────────────────────────────────────────────────────────────
+    # TESTED PERFORMANCE — anchor expected metrics (regression target)
+    # ──────────────────────────────────────────────────────────────────────
+    "tested_performance": {
+        "FY2025_local": {
+            "sharpe": 0.55,
+            "ret_pct": "TBD",                # populate after first run
+            "dd_pct":  "TBD",
+            "orders":  "TBD",
+            "commit":  "TBD",                # commit hash where measured
+        },
+        "FY2025_cloud": {
+            "sharpe": "TBD",                 # populate after #182 unify-loader fix
+        },
+    },
+}
+
+
+# =============================================================================
+# ENGINE BOOTSTRAP — algorithm class is a thin wrapper
+# =============================================================================
+# NO business logic here. Engine resolves phases, runs PHASE_ORDER, fires orders.
+# =============================================================================
+
+class BaselineEssentialsV1(QCAlgorithm):
+    def Initialize(self):
+        self.SetStartDate(2025, 1, 1)
+        self.SetEndDate(2025, 12, 31)
+        self.SetCash(100_000)
+
+        # Single code path — same Initialize() for cloud + local.
+        # Universe phase handles the data source unification.
+        self.engine = StrategyEngine(STRATEGY_CONFIG, qc_algorithm=self)
+        self.engine.initialize()
+
+    def OnData(self, data):
+        self.engine.on_data(data)
+
+    def OnOrderEvent(self, order_event):
+        self.engine.on_order_event(order_event)
+
+    def OnSecuritiesChanged(self, changes):
+        self.engine.on_securities_changed(changes)
