@@ -9,6 +9,14 @@ class CharterViolation(Exception):
     pass
 
 
+class DependencyError(Exception):
+    pass
+
+
+class ConfigError(Exception):
+    pass
+
+
 class UniverseLoadError(Exception):
     pass
 

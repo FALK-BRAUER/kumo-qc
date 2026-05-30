@@ -32,6 +32,7 @@ def test_allowed_params_pass():
         "phases": {
             "sizing": {"module": "stub", "enabled": True, "params": {"risk_dollars": 500}},
             "adds": {"module": "stub", "enabled": True, "params": {"lot_size_dollars": 200}},
+            "portfolio_risk": {"module": "stub", "enabled": True, "params": {"max_pct": 100}},
         },
         "invariants": {},
     }

@@ -30,7 +30,9 @@ def make_ctx(qc):
 
 def minimal_config(phases_override=None):
     phases = {
+        "universe": {"module": "stub", "enabled": True, "params": {}},
         "signal": {"module": "stub", "enabled": True, "params": {}},
+        "sizing": {"module": "stub", "enabled": True, "params": {}},
         "portfolio_risk": {"module": "stub", "enabled": True, "params": {"max_pct": 100}},
     }
     if phases_override:

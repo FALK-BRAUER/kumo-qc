@@ -37,6 +37,14 @@ class ComponentLogger:
             "adds": adds,
         }, separators=(",", ":")))
 
+    def log_phase_loaded(self, kind: str, module: str, marker: str) -> None:
+        self._qc.Log(json.dumps({
+            "evt": "PHASE_LOADED",
+            "kind": kind,
+            "module": module,
+            "marker": marker,
+        }, separators=(",", ":")))
+
     def log_strategy_init(self, config_hash: str, name: str, version: str) -> None:
         self._qc.Log(json.dumps({
             "evt": "STRATEGY_INIT",

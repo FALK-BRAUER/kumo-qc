@@ -2,7 +2,7 @@ from __future__ import annotations
 import hashlib
 import json
 from typing import Any
-from engine.base import PhaseInterface, CharterViolation
+from engine.base import PhaseInterface, CharterViolation, DependencyError, ConfigError
 from engine.context import PhaseContext
 from engine.logger import ComponentLogger
 
@@ -94,7 +94,23 @@ def _config_hash(config: dict) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()[:12]
 
 
+def _phase_order_index() -> dict[str, int]:
+    """Map each phase kind string to its first index in PHASE_ORDER (ignores FireSentinels)."""
+    idx = {}
+    for i, item in enumerate(PHASE_ORDER):
+        if isinstance(item, str) and item not in idx:
+            idx[item] = i
+    return idx
+
+
+def _count_enabled_subphases(phase_cfg) -> int:
+    cfgs = phase_cfg if isinstance(phase_cfg, list) else [phase_cfg]
+    return sum(1 for c in cfgs if c.get("enabled", True))
+
+
 class StrategyEngine:
+    REQUIRED_PHASES = {"universe", "signal", "sizing"}
+
     def __init__(self, config: dict, qc: Any, phase_instances: dict[str, list[PhaseInterface]]):
         self.config = config
         self.qc = qc
@@ -103,7 +119,63 @@ class StrategyEngine:
         self._fired_entries = 0
         self._fired_exits = 0
         self._fired_adds = 0
+
+        # ── Validate invariants (C1 + forbidden params) ──
         validate_invariants(config)
+
+        # ── 1. Required-phases check ──
+        phases = config.get("phases", {})
+        for required in self.REQUIRED_PHASES:
+            cfg = phases.get(required)
+            if cfg is None:
+                raise ConfigError(f"Missing required phase: '{required}'")
+            cfgs = cfg if isinstance(cfg, list) else [cfg]
+            if not any(c.get("enabled", True) for c in cfgs):
+                raise ConfigError(f"Required phase '{required}' is present but all instances are disabled")
+
+        # ── 2. Single-adds enforcement ──
+        adds_cfg = phases.get("adds")
+        if adds_cfg is not None and _count_enabled_subphases(adds_cfg) > 1:
+            raise CharterViolation(
+                "Only one adds phase may be enabled at a time (adds implementations are mutually exclusive)"
+            )
+
+        # ── 3. Dependency check ──
+        order_idx = _phase_order_index()
+        for kind, instances in phase_instances.items():
+            for inst in instances:
+                if not inst.enabled:
+                    continue
+                for upstream in inst.REQUIRES_UPSTREAM:
+                    upstream_cfg = phases.get(upstream)
+                    if upstream_cfg is None:
+                        raise DependencyError(
+                            f"Phase '{kind}' requires upstream '{upstream}' but it is not configured"
+                        )
+                    upstream_cfgs = upstream_cfg if isinstance(upstream_cfg, list) else [upstream_cfg]
+                    if not any(c.get("enabled", True) for c in upstream_cfgs):
+                        raise DependencyError(
+                            f"Phase '{kind}' requires upstream '{upstream}' but all instances are disabled"
+                        )
+                    if upstream not in order_idx or kind not in order_idx:
+                        continue  # safety: should not happen
+                    if order_idx[upstream] >= order_idx[kind]:
+                        raise DependencyError(
+                            f"Phase '{kind}' requires upstream '{upstream}' but '{upstream}' appears "
+                            f"after '{kind}' in PHASE_ORDER"
+                        )
+
+        # ── 4. Version-marker logging ──
+        for kind, instances in phase_instances.items():
+            for inst in instances:
+                if not inst.enabled:
+                    continue
+                self.logger.log_phase_loaded(
+                    kind=kind,
+                    module=inst.__class__.__module__,
+                    marker=inst.version_marker,
+                )
+
         self.logger.log_strategy_init(
             config_hash=_config_hash(config),
             name=config.get("name", "unknown"),
