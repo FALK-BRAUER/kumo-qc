@@ -339,3 +339,5 @@ date_run,window,period_start,period_end,commit,branch,environment,sharpe,net_pro
 2026-05-30,FY2025,2025-01-01,2025-12-31,485a925,feat/p3b-Pb,local,0.389,13.869,,205,,6.8,,Phase3b Pb wide-spaced +10/+20% — below base. WR39% pyrF1.39 Exp$/t34.24
 2026-05-30,FY2025,2025-01-01,2025-12-31,485a925,feat/p3b-Pa,local,0.368,13.298,,218,,6.4,,Phase3b Pa de-pyramid +5/+10% $250/$125 — below base. WR38% pyrF1.74 Exp$/t20.32
 2026-05-30,FY2025,2025-01-01,2025-12-31,485a925,feat/p3b-Pd,local,-0.372,1.492,,227,,8.1,,Phase3b Pd vol-confirmed — REJECT, adds on noise not signal. WR43% pyrF1.49 Exp$/t5.42
+2026-05-30,FY2025,2025-01-01,2025-12-31,dbe86c2,feat/p3b-Pe-uncapped,local,1.0,24.486,,191,,7.1,,Phase3b Pe UNCAPPED (no max_lots, signal self-limits pyrF1.54) — VALIDATED, NOT slot artifact. Beats champ 0.778. WR45% avgW500 avgL-223 Exp$/t103.73. =capped 0.961 → cap irrelevant
+2026-05-30,FY2025,2025-01-01,2025-12-31,dbe86c2,feat/p3b-Pc-uncapped,local,-0.449,-1.982,,257,,12.9,,Phase3b Pc UNCAPPED — SLOT ARTIFACT confirmed. capped 0.736→uncapped -0.449, pyrF1.98→2.63, DD 6.5→12.9%. REJECTED. WR33% Exp$/t-23.44

@@ -31,3 +31,18 @@
 ## Verification
 
 All 5: marker `pyramid_engine_v1` confirmed own-code-ran; PYRAMID_ADD counts from runtime logs (Pe 42, Pc 77, Pb 35, Pa 62, Pd 47); metrics from `totalPerformance.tradeStatistics` + `statistics`. Engine unit-tested independently (`pyramid_engine.test.py`).
+
+## Uncapped validation (slot-artifact test, 2026-05-30)
+
+Falk caught that `max_lots=3` is a hardcoded slot cap (E40d-class). Re-ran Pe + Pc with the cap removed (`pyramid_uncapped`, lots bounded by signal frequency + `max_ticker_risk_usd`).
+
+| variant | capped Sharpe | UNCAPPED Sharpe | Ret% | DD% | pyrF cap→uncap | Exp$/t | verdict |
+|---------|-------------:|----------------:|-----:|----:|:--------------:|-------:|---------|
+| **Pe** | 0.961 | **1.00** | +24.5% | 7.1% | 1.51 → 1.54 | 103.73 | ✅ GENUINE — cap irrelevant |
+| Pc | 0.736 | **-0.449** | -2.0% | 12.9% | 1.98 → 2.63 | -23.44 | ❌ slot artifact — rejected |
+
+**Pe is validated.** Unlimited and $1500-ceiling runs are identical — the fresh-Tenkan>Kijun-cross signal naturally self-limits to ~1.5 adds/ticker, so no cap ever binds. Removing it left Pe unchanged (slightly better, 0.961→1.00). Not a slot artifact.
+
+**Pc was a slot artifact.** Uncapped, ATR-multiple adds keep firing through trends (119 adds, pyrF 2.63), DD blows from 6.5%→12.9%, Sharpe → -0.449. The capped 0.736 was manufactured by the 3-lot limit — exactly the E40d 1.442 trap. Rejected.
+
+**Pe deployable-candidate profile:** $500 risk-based initial, +$200 on fresh Tenkan>Kijun cross (no count cap), FY2025 1.00 Sharpe / +24.5% / 7.1% DD / WR 45% / Exp$/trade 103.73. Beats the disqualified flat-10% champion (0.778) with lower drawdown. Window robustness (capped) 5/6 positive; uncapped-window re-check recommended before Phase-2 graduation.
