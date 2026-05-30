@@ -285,6 +285,10 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # (d): Risk-based position sizing — RISK_AMOUNT per trade (0 = off, use flat POSITION_PCT)
         self.risk_amount = float(self.get_parameter("risk_amount", "0"))
         self.log(f"VERSION_MARKER|risk_amount_sizing_v1|risk={self.risk_amount}")
+        # Gross-exposure cap (P3b): explicit % ceiling on holdings/equity. 100 = no margin
+        # (pure cash). <= 0 = disabled (no cap). Applies to BOTH entries AND pyramid adds.
+        self.max_gross_exposure_pct = float(self.get_parameter("max_gross_exposure_pct", "100"))
+        self.log(f"VERSION_MARKER|gross_exposure_cap_v1|max_pct={self.max_gross_exposure_pct}")
         self.log("VERSION_MARKER|p2_base_v1")
         # E40d: gate on by default; override with regime_gate_enabled=false to disable
         _regime_param = self.get_parameter("regime_gate_enabled", "")
@@ -482,6 +486,18 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
     def _has_open_orders(self, symbol) -> bool:
         return bool(self.transactions.get_open_orders(symbol))
 
+    def _would_exceed_gross_cap(self, additional_cost: float) -> bool:
+        """True if adding `additional_cost` of market exposure would push gross
+        exposure (holdings value / equity) above the cap. Disabled when cap <= 0."""
+        cap = getattr(self, "max_gross_exposure_pct", 0.0)
+        if cap <= 0:
+            return False
+        equity = float(self.portfolio.total_portfolio_value)
+        if equity <= 0:
+            return True
+        gross_after = abs(float(self.portfolio.total_holdings_value)) + additional_cost
+        return (gross_after / equity) * 100.0 > cap
+
     def _update_polarity_trail(self, symbol, close: float, meta: dict | None) -> float | None:
         """RS151 polarity-flip trail.
 
@@ -647,6 +663,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 cost = add_qty * close_p
                 if add_qty <= 0 or (available_cash - committed_cash) < cost:
                     continue
+                if self._would_exceed_gross_cap(committed_cash + cost):  # +in-flight exposure this rebalance
+                    self.log(f"GROSS_CAP_BLOCK|{date_str}|{symbol.value}|add")
+                    continue
                 committed_cash += cost
                 self.market_on_open_order(symbol, add_qty)
                 meta["lots"] = lots + 1
@@ -759,6 +778,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 self.log(f"SKIP|{date_str}|{symbol.value}|cash_exhausted|remaining={available_cash - committed_cash:.2f}")
                 break
             if quantity <= 0:
+                continue
+            if self._would_exceed_gross_cap(committed_cash + target_value):  # +in-flight exposure this rebalance
+                self.log(f"GROSS_CAP_BLOCK|{date_str}|{symbol.value}|entry")
                 continue
             committed_cash += target_value
             self.market_on_open_order(symbol, quantity)
