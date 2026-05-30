@@ -48,3 +48,39 @@ def test_forbidden_param_in_list_phase_raises():
     }
     with pytest.raises(CharterViolation, match="max_positions"):
         validate_invariants(config)
+
+
+# C1: explicit-exposure invariant — adds require portfolio_risk
+def test_adds_without_portfolio_risk_raises():
+    config = {
+        "name": "t", "version": "1.0.0",
+        "phases": {
+            "adds": {"module": "phases.adds.pe", "enabled": True, "params": {}},
+        },
+        "invariants": {},
+    }
+    with pytest.raises(CharterViolation, match="implicit exposure"):
+        validate_invariants(config)
+
+
+def test_adds_with_portfolio_risk_passes():
+    config = {
+        "name": "t", "version": "1.0.0",
+        "phases": {
+            "adds": {"module": "phases.adds.pe", "enabled": True, "params": {}},
+            "portfolio_risk": {"module": "phases.portfolio_risk.gross_cap", "enabled": True, "params": {"max_pct": 100}},
+        },
+        "invariants": {},
+    }
+    validate_invariants(config)  # must not raise
+
+
+def test_adds_disabled_no_portfolio_risk_passes():
+    config = {
+        "name": "t", "version": "1.0.0",
+        "phases": {
+            "adds": {"module": "phases.adds.pe", "enabled": False, "params": {}},
+        },
+        "invariants": {},
+    }
+    validate_invariants(config)  # disabled adds → no requirement

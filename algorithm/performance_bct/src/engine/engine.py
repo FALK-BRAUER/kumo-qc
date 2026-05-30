@@ -61,6 +61,15 @@ FORBIDDEN_PARAMS = {
 }
 
 
+def _phase_enabled(config: dict, kind: str) -> bool:
+    """True if any sub-phase of `kind` is enabled in config."""
+    phase_cfg = config.get("phases", {}).get(kind)
+    if phase_cfg is None:
+        return False
+    cfgs = phase_cfg if isinstance(phase_cfg, list) else [phase_cfg]
+    return any(c.get("enabled", True) for c in cfgs)
+
+
 def validate_invariants(config: dict) -> None:
     for kind, phase_cfg in config.get("phases", {}).items():
         cfgs = phase_cfg if isinstance(phase_cfg, list) else [phase_cfg]
@@ -70,6 +79,14 @@ def validate_invariants(config: dict) -> None:
                     raise CharterViolation(
                         f"'{param_key}' is a forbidden param (count cap / time exit) in phase '{kind}'"
                     )
+
+    # C1: explicit-exposure invariant — amplifying adds REQUIRE an explicit exposure cap.
+    # An uncapped pyramid over margin is the Pe -0.055 cloud blowup. No implicit caps.
+    if _phase_enabled(config, "adds") and not _phase_enabled(config, "portfolio_risk"):
+        raise CharterViolation(
+            "adds enabled without portfolio_risk (gross_exposure_cap) — "
+            "implicit exposure forbidden; amplifying adds require explicit cap"
+        )
 
 
 def _config_hash(config: dict) -> str:
