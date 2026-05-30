@@ -313,3 +313,11 @@ date_run,window,period_start,period_end,commit,branch,environment,sharpe,net_pro
 2026-05-30,FY2025,2025-01-01,2025-12-31,v13,v13-tight-trail,local,0.667,,,159,,,,V13 tighter-trail-after-10pct REJECTED
 2026-05-30,FY2025,2025-01-01,2025-12-31,v1b,v1-e40c-e28-stack,local,0.393,,,151,,,,V1 e40c+e28 stack clean REJECTED
 2026-05-30,FY2025,2025-01-01,2025-12-31,v5,v5-etf-only,local,0.121,,,206,,,,V5 ETF-only universe REJECTED
+2026-05-30,FY2025,2025-01-01,2025-12-31,maxent,p1-r200-me1,local,0.044,,,423,,,,P1 $200 maxent1
+2026-05-30,FY2025,2025-01-01,2025-12-31,maxent,p1-r200-me2,local,-0.105,,,440,,,,P1 $200 maxent2
+2026-05-30,FY2025,2025-01-01,2025-12-31,maxent,p1-r200-me5,local,0.236,,,433,,,,P1 $200 maxent5
+2026-05-30,FY2025,2025-01-01,2025-12-31,maxent,p1-r200-me10,local,0.131,,,449,,,,P1 $200 maxent10
+2026-05-30,FY2025,2025-01-01,2025-12-31,maxent,p1-r500-me1,local,0.143,,,251,,,,P1 $500 maxent1
+2026-05-30,FY2025,2025-01-01,2025-12-31,maxent,p1-r500-me2,local,0.286,,,264,,,,P1 $500 maxent2
+2026-05-30,FY2025,2025-01-01,2025-12-31,maxent,p1-r500-me5,local,0.392,,,251,,,,P1 $500 maxent5 WINNER (best deployable)
+2026-05-30,FY2025,2025-01-01,2025-12-31,maxent,p1-r500-me10,local,0.385,,,251,,,,P1 $500 maxent10
