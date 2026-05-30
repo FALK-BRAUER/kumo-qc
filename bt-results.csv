@@ -341,3 +341,9 @@ date_run,window,period_start,period_end,commit,branch,environment,sharpe,net_pro
 2026-05-30,FY2025,2025-01-01,2025-12-31,485a925,feat/p3b-Pd,local,-0.372,1.492,,227,,8.1,,Phase3b Pd vol-confirmed — REJECT, adds on noise not signal. WR43% pyrF1.49 Exp$/t5.42
 2026-05-30,FY2025,2025-01-01,2025-12-31,dbe86c2,feat/p3b-Pe-uncapped,local,1.0,24.486,,191,,7.1,,Phase3b Pe UNCAPPED (no max_lots, signal self-limits pyrF1.54) — VALIDATED, NOT slot artifact. Beats champ 0.778. WR45% avgW500 avgL-223 Exp$/t103.73. =capped 0.961 → cap irrelevant
 2026-05-30,FY2025,2025-01-01,2025-12-31,dbe86c2,feat/p3b-Pc-uncapped,local,-0.449,-1.982,,257,,12.9,,Phase3b Pc UNCAPPED — SLOT ARTIFACT confirmed. capped 0.736→uncapped -0.449, pyrF1.98→2.63, DD 6.5→12.9%. REJECTED. WR33% Exp$/t-23.44
+2026-05-30,W1,2025-01-01,2025-03-31,dbe86c2,feat/p3b-Pe-uncapped,local,0.419,3.274,,32,,7.0,,Pe uncapped window — POS; W4 outlier carries FY (+15.2% of +24.5%)
+2026-05-30,W2,2025-03-01,2025-05-31,dbe86c2,feat/p3b-Pe-uncapped,local,0.55,2.797,,27,,1.8,,Pe uncapped window — POS; W4 outlier carries FY (+15.2% of +24.5%)
+2026-05-30,W3,2025-05-01,2025-07-31,dbe86c2,feat/p3b-Pe-uncapped,local,0.814,4.515,,84,,3.4,,Pe uncapped window — POS; W4 outlier carries FY (+15.2% of +24.5%)
+2026-05-30,W4,2025-07-01,2025-09-30,dbe86c2,feat/p3b-Pe-uncapped,local,3.333,15.18,,71,,5.9,,Pe uncapped window — POS; W4 outlier carries FY (+15.2% of +24.5%)
+2026-05-30,W5,2025-09-01,2025-11-30,dbe86c2,feat/p3b-Pe-uncapped,local,0.392,2.978,,69,,4.5,,Pe uncapped window — POS; W4 outlier carries FY (+15.2% of +24.5%)
+2026-05-30,W6,2025-10-01,2025-12-31,dbe86c2,feat/p3b-Pe-uncapped,local,-2.677,-6.939,,89,,8.2,,Pe uncapped window — NEG; W4 outlier carries FY (+15.2% of +24.5%)
