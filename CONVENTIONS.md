@@ -19,10 +19,12 @@ The rules every contribution conforms to. The PR gate enforces these. See [docs/
 - **Merge a phase when it is correct** (tests + parity + charter + header pass) — independent of whether it improves the champion.
 
 ## Charter invariants (engine refuses to start otherwise)
-- **No count caps** (`max_positions`, `max_lots`, `max_adds`, `max_pyramid_lots`, `max_slots`, ...). Bound exposure with `gross_exposure_cap` (a % rule), never a count.
+- **No count caps** (`max_positions`, `max_lots`, `max_adds`, `max_pyramid_lots`, `max_slots`, ...). Bound *exposure* with `gross_exposure_cap` (a % rule), never a count. (This is about POSITION count — how many you HOLD. It is DISTINCT from the universe `coarse_max` scan-breadth cap — how many names you SCAN — which is a legitimate dynamic-universe param, not a position cap. Do not conflate the two.)
 - **No time-based exits** (`max_hold_days`, `exit_after_days`, ...).
 - **Explicit exposure only** — if `adds` is enabled, `gross_exposure_cap` MUST be enabled.
-- **NO fixed / snapshot universe — anywhere.** No 326, no hardcoded ticker list, in code, config, data, or tests. Universe = **dynamic, point-in-time** only. The fixed snapshot was the root of the slot-tiebreak / data-divergence / parity-chasing time-sinks and **proved nothing** — eradicated. Which tickers a strategy selects = the dynamic universe phase, pinned by config-hash; the substrate (the zip set) is fingerprinted separately.
+- **NO FROZEN / snapshot universe — anywhere.** No 326, no hardcoded same-every-day ticker list, in code, config, data, or tests. The FROZEN snapshot was the root of the slot-tiebreak / data-divergence / parity-chasing time-sinks and **proved nothing** — eradicated. The substrate (the zip set) is fingerprinted separately from selection.
+- **Universe = dynamic `filter → rank → cap`, point-in-time. A rank and a cap are REQUIRED, not forbidden** — what's forbidden is *freezing* the list. Each trading day the universe phase: filters the substrate by tradeability floors (`min_price`, `min_avg_dollar_volume`, `adv_window`) → **ranks** (baseline: dollar-volume DESC) → caps `coarse_max` (param; default unbounded). Recomputed daily, pinned by config-hash. (Known-good build: commits `52993ae` + `2649e2e`.)
+- **The rank MUST be deterministic and IDENTICAL local + cloud.** Entry-priority ranking = `(score DESC, dollar-volume DESC)`, **NEVER alphabetical / insertion-order**. The #182 scar was local-alphabetical vs cloud-volume → different buys → irreproducible BTs. Consistency both sides is the fix; removing the rank is NOT. (Universe volume-rank lives in the `universe` phase; entry-priority `(score, DV)` rank is the separate `ranking` phase.)
 - **NO fixed slots, NO day-holds / max-holds / max-hold-days, nothing of that family.** These are count-caps + time-caps by another name — forbidden. Position count is governed by `gross_exposure_cap` + signal rarity; exits are rotation / trail / cloud-breach (principled), never "held N days."
 
 ## Retrofits — principled re-expression (do NOT port the mechanic)
@@ -36,6 +38,7 @@ The #218 retrofit experiments often USED forbidden mechanics (fixed slots, max-p
 - **NOT** full-FY exact-match — the cloud-vs-local data-vendor residual is a known irreducible; chasing it is a rabbit-hole (cloud = ground-truth).
 - **NOT** parity against a fixed-universe oracle (326 proved nothing).
 - Refactor-correctness is a SEPARATE check: per-phase, universe-agnostic golden-master (v2 phase logic == monolith logic on a sample of tickers) — not an end-to-end fixed-universe parity.
+- **Divergence-debug protocol** — when cloud ≠ local on the short-window check, do NOT chase the residual blindly. Run a SHORT window, pull BOTH cloud + local logs + trade lists, and DIFF them to the mechanical root-cause (this is how #182 — the alphabetical-vs-volume rank — was found). A divergence is NOT dismissable as tolerance noise until the diff proves it is the known cloud-vendor residual. This guard is how we avoid repeating the days-long debugging scars.
 
 ## Build / deploy / dist
 - LEAN runs the **`dist/`** artifact — both local and cloud. No `if cloud:` branch in strategy code.

@@ -49,6 +49,7 @@ scripts/ docs/ ui/ archive/ zz_handoffs/   CLAUDE.md README.md CONVENTIONS.md
 - A `regime`/`cash` block scopes to the ENTRY pipeline ONLY — exit/stop/trail phases run regardless (oracle behaviour; PHASES.md §3). `diagnostics` + `circuit_breaker` always run.
 - `PhaseContext` = LEAN read-only refs + a fresh `BarState` per bar. Phases write intents via `apply(kind, result)`, keyed by `(kind, module)`, rejecting true double-writes. The engine fires from the typed BarState lists at sentinel boundaries.
 - Engine refuses to start on charter violation (count caps / time exits / `adds` without `gross_exposure_cap`) — fail loud, no silent fallback. Logs every phase `version_marker` at init.
+- **Universe + ranking are DISTINCT phases.** `universe` does `filter → rank (dollar-volume DESC, baseline) → cap (coarse_max param)`; `ranking` orders signaled candidates `(score DESC, dollar-volume DESC)`. Both are deterministic and IDENTICAL local+cloud — the #182 fix. Neither freezes a list; both are dynamic + point-in-time. A rank/cap is required; only *freezing* the universe is forbidden (CONVENTIONS.md §Charter). The universe scan-breadth `coarse_max` is NOT a position count cap.
 
 ## 5. Build → deploy → run
 ```
@@ -69,6 +70,8 @@ dist/ ──▶ QC cloud deploy        (via QC API /files/update)     ⇒ SAME a
 - `dist/_metadata.py` logged on startup; results named by (commit + config-hash + data-fingerprint).
 - No phase reads files via relative paths — all assets injected via typed params (so the closure packager is complete).
 - Validation gates G1–G5 (incl G5 DSR/PBO #202) + the acceptance contract (#203) on PR.
+- Cloud≠local divergence is root-caused by diffing short-window logs+trades (the #182 protocol — CONVENTIONS.md §Parity), never dismissed as noise until proven the cloud-vendor residual.
 
 ## 8. References
 v1 history: `git show <pre-v2>:docs/ARCHITECTURE.md`. Design session 2026-05-30 (web + Perplexity + Gemini). Related: #183 harness fidelity, #194 CI, #202 G5, #203 acceptance contract, PHASES.md (per-phase contracts).
+**Foundation (#231)** — trusted base data + base scanner, the bedrock for mechanics testing: #219 data, #220 universe (`filter→rank→cap`), #228 signal (canonical BCT scorer), #230 ranking (`(score,DV)` tiebreak, #182 fix), #229 trust gate (blocks mechanics until reproducible). Known-good build: commits `52993ae` + `2649e2e`.
