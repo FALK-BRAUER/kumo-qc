@@ -27,7 +27,7 @@ from typing import Any
 
 BUILD_SCRIPT_VERSION = "1.0.0"
 ENGINE_CORE = ("base", "config", "context", "engine", "logger")
-PROJECT_ROOTS = ("engine", "phases", "strategies")
+PROJECT_ROOTS = ("engine", "phases", "strategies", "runtime")
 
 
 @dataclass(slots=True)
@@ -55,8 +55,8 @@ def _flat_name(path: Path, src: Path) -> str:
     """Flatten a src path to its dist filename (no subdirs allowed in dist)."""
     rel = path.relative_to(src)
     parts = rel.parts
-    if parts[0] == "engine":
-        return parts[-1]                                   # engine/base.py -> base.py
+    if parts[0] in ("engine", "runtime"):
+        return parts[-1]                                   # engine/base.py -> base.py; runtime/lean_entry.py -> lean_entry.py
     if parts[0] == "phases":
         if parts[1] == "shared":
             return f"shared_{rel.stem}.py"                 # phases/shared/h.py -> shared_h.py
@@ -67,12 +67,14 @@ def _flat_name(path: Path, src: Path) -> str:
 _RE_ENGINE = re.compile(r"\bfrom engine\.(\w+) import")
 _RE_PHASE = re.compile(r"\bfrom phases\.(\w+)\.\w+\.(\w+) import")
 _RE_SHARED = re.compile(r"\bfrom phases\.shared\.(\w+) import")
+_RE_RUNTIME = re.compile(r"\bfrom runtime\.(\w+) import")
 
 
 def _rewrite_imports(text: str) -> str:
     text = _RE_SHARED.sub(r"from shared_\1 import", text)
     text = _RE_PHASE.sub(r"from phase_\1_\2 import", text)
     text = _RE_ENGINE.sub(r"from \1 import", text)
+    text = _RE_RUNTIME.sub(r"from \1 import", text)  # runtime/lean_entry.py -> lean_entry.py
     return text
 
 
@@ -112,6 +114,28 @@ def _load_config(strategy_module: str) -> Any:
         if hasattr(mod, attr):
             return getattr(mod, attr)
     raise ValueError(f"{strategy_module}: no StrategyConfig found (CONFIG/STRATEGY_CONFIG/EXAMPLE_CONFIG)")
+
+
+def _load_universe_spec(strategy_module: str) -> dict[str, str] | None:
+    """Return the strategy module's UNIVERSE_SPEC (ObjectStore keys + pinned fps) if it
+    declares one. Strategies that don't bind a universe artifact (the sample/example) omit
+    it, and the generated main.py then carries only STRATEGY_CONFIG."""
+    src = _src_root()
+    if str(src) not in sys.path:
+        sys.path.insert(0, str(src))
+    mod = importlib.import_module(strategy_module)
+    spec = getattr(mod, "UNIVERSE_SPEC", None)
+    if spec is None:
+        return None
+    if not isinstance(spec, dict):
+        raise ValueError(f"{strategy_module}: UNIVERSE_SPEC must be a dict, got {type(spec).__name__}")
+    # Validate at BUILD time (fail-fast) — a malformed spec would otherwise only KeyError at
+    # QC runtime inside initialize(), post-deploy.
+    required = ("eligible_key", "universe_key", "membership_fp", "order_fp")
+    missing = [k for k in required if not spec.get(k)]
+    if missing:
+        raise ValueError(f"{strategy_module}: UNIVERSE_SPEC missing/empty keys {missing} (need {list(required)})")
+    return spec
 
 
 def _enabled_slots(config: Any) -> list[tuple[str, Any]]:
@@ -157,6 +181,7 @@ def build(strategy_module: str, *, dist_dir: Path | None = None, verbose: bool =
     src = _src_root()
     dist = dist_dir if dist_dir is not None else src.parent / "dist"
     config = _load_config(strategy_module)
+    universe_spec = _load_universe_spec(strategy_module)
     enabled = _enabled_slots(config)
 
     # seed = enabled phase module files + engine core
@@ -168,6 +193,11 @@ def build(strategy_module: str, *, dist_dir: Path | None = None, verbose: bool =
         seeds.append(f)
     for m in ENGINE_CORE:
         seeds.append(src / "engine" / f"{m}.py")
+    # The LEAN entry (#213) is seeded only for deployable strategies (those binding a
+    # UNIVERSE_SPEC); it pulls runtime.fingerprints (the load-time fp-verify) transitively.
+    # Config-only fixtures (sample/example) stay minimal — no LEAN entry.
+    if universe_spec is not None:
+        seeds.append(src / "runtime" / "lean_entry.py")
 
     closure = _closure(seeds, src)
 
@@ -182,7 +212,7 @@ def build(strategy_module: str, *, dist_dir: Path | None = None, verbose: bool =
         included.append(flat)
 
     # generated flat entry + manifest + metadata
-    phase_markers = _emit_main(config, enabled, dist, src)
+    phase_markers = _emit_main(config, enabled, dist, src, universe_spec)
     result = BuildResult(
         config_hash=_config_hash(config),
         data_fingerprint=_data_fingerprint(),
@@ -203,10 +233,17 @@ def build(strategy_module: str, *, dist_dir: Path | None = None, verbose: bool =
     return result
 
 
-def _emit_main(config: Any, enabled: list[tuple[str, Any]], dist: Path, src: Path) -> dict[str, str]:
-    """Generate dist/main.py: flat imports of enabled phases + rebuilt enabled config."""
+def _emit_main(
+    config: Any,
+    enabled: list[tuple[str, Any]],
+    dist: Path,
+    src: Path,
+    universe_spec: dict[str, str] | None = None,
+) -> dict[str, str]:
+    """Generate dist/main.py: flat imports of enabled phases + rebuilt enabled config.
+    If the strategy binds a UNIVERSE_SPEC, also emit the LEAN entry subclass (#213) so the
+    same dist artifact runs on QC; otherwise emit only the config (sample/example)."""
     markers: dict[str, str] = {}
-    imports: list[str] = ["from engine import Slot, StrategyConfig, StrategyEngine  # noqa"]
     # engine __init__ is dropped in flat dist; import the flat modules directly instead
     imports = [
         "from config import Slot, StrategyConfig",
@@ -249,10 +286,21 @@ def _emit_main(config: Any, enabled: list[tuple[str, Any]], dist: Path, src: Pat
             except Exception:
                 marker_texts.append(_flat_name(_module_to_file(s.impl.__module__, src), src)[:-3])
         markers[kind] = ",".join(marker_texts)
+    if universe_spec is not None:
+        imports.append("from lean_entry import BctEngineAlgorithm")
     body = "\n".join(imports) + "\n\n"
     body += f'STRATEGY_CONFIG = StrategyConfig(\n    name={config.name!r},\n    version={config.version!r},\n    phases={{\n'
     body += "\n".join(slot_lines) + "\n    },\n)\n\n"
-    body += "# LEAN entry wires here in #213 (QCAlgorithm.Initialize builds StrategyEngine(STRATEGY_CONFIG, self)).\n"
+    if universe_spec is not None:
+        # The LEAN entry subclass (#213). QC instantiates this top-level QCAlgorithm; it
+        # fail-loud + fp-verify loads the universe from ObjectStore and runs the engine.
+        body += (
+            "\nclass BCTAlgorithm(BctEngineAlgorithm):\n"
+            "    STRATEGY_CONFIG = STRATEGY_CONFIG\n"
+            f"    UNIVERSE_SPEC = {universe_spec!r}\n"
+        )
+    else:
+        body += "# No UNIVERSE_SPEC — config-only build (sample/example); no LEAN entry emitted.\n"
     (dist / "main.py").write_text(body)
     return markers
 

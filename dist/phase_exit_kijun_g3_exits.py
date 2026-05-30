@@ -7,6 +7,14 @@ phase3_days=56, phase3_pnl=0.15 (champion-asis-v1)
 Charter: single code path, exits run UNCONDITIONALLY — this phase always has
 blocked=False. Faithful carve of oracle _rebalance L429-468 (baseline-oracle-v0).
 DO NOT modify evaluate() stop logic — breaks champion-asis-v1 parity (ARCH-C ±0.01 gate).
+
+CHARTER NOTE — phase3_days is NOT a forbidden time-exit / max-hold. It is George's Rule #13
+phase-progression AGE GATE: once a position is ≥phase3_days held AND ≥phase3_pnl in profit,
+the trailing stop LOOSENS from Kijun to cloud-bottom (a LOWER stop, evaluate() L81-104). It
+NEVER forces an exit and NEVER caps holding time — maturity widens the leash, the position
+still only exits on a price-stop breach. Distinct from FORBIDDEN_PARAMS time-exits
+(max_hold_days / exit_after_days / time_stop_days …), which the charter-scan rejects by
+name (validate_invariants); phase3_days is legitimately absent from that list.
 """
 from __future__ import annotations
 

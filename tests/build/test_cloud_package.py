@@ -109,6 +109,50 @@ def test_list_valued_kind_roundtrips_no_duplicate_dict_key(tmp_path: Path) -> No
     assert "True 2 ['SpySma200', 'VixPercentile']" in out.stdout, out.stdout
 
 
+def test_universe_spec_strategy_emits_lean_entry(tmp_path: Path) -> None:
+    # #213: a strategy binding a UNIVERSE_SPEC gets the LEAN entry — lean_entry.py +
+    # runtime fingerprints flattened into dist, and a BCTAlgorithm subclass in main.py
+    # carrying the spec (ObjectStore keys + pinned fps).
+    dist = tmp_path / "dist"
+    cp.build(CHAMPION, dist_dir=dist)
+    assert (dist / "lean_entry.py").is_file()
+    assert (dist / "fingerprints.py").is_file()  # pulled transitively by lean_entry
+    main_txt = (dist / "main.py").read_text()
+    assert "class BCTAlgorithm(BctEngineAlgorithm):" in main_txt
+    assert "membership_fp" in main_txt and "order_fp" in main_txt
+    # flat dist imports in isolation (QCAlgorithm falls back to object without AlgorithmImports)
+    out = subprocess.run(
+        [sys.executable, "-c",
+         "import main; print(main.BCTAlgorithm.UNIVERSE_SPEC['eligible_key'])"],
+        cwd=str(dist), capture_output=True, text=True,
+    )
+    assert out.returncode == 0, out.stderr
+    assert "filter.json" in out.stdout
+
+
+def test_no_spec_strategy_is_config_only(tmp_path: Path) -> None:
+    # The sample strategy declares NO UNIVERSE_SPEC -> config-only main.py, no LEAN entry.
+    dist = tmp_path / "dist"
+    cp.build(SAMPLE, dist_dir=dist)
+    main_txt = (dist / "main.py").read_text()
+    assert "BctEngineAlgorithm" not in main_txt
+    assert not (dist / "lean_entry.py").is_file()
+
+
+def test_universe_spec_validation_rejects_incomplete() -> None:
+    # A malformed UNIVERSE_SPEC must fail at BUILD time (fail-fast), not as a QC-runtime
+    # KeyError post-deploy. Inject a fake strategy module with an incomplete spec.
+    import types
+    m = types.ModuleType("strategies._fake_bad_spec")
+    m.UNIVERSE_SPEC = {"eligible_key": "x"}  # missing universe_key/membership_fp/order_fp
+    sys.modules["strategies._fake_bad_spec"] = m
+    try:
+        with pytest.raises(ValueError, match="missing"):
+            cp._load_universe_spec("strategies._fake_bad_spec")
+    finally:
+        del sys.modules["strategies._fake_bad_spec"]
+
+
 def test_flat_name_unit() -> None:
     src = cp._src_root()
     assert cp._flat_name(src / "engine" / "base.py", src) == "base.py"

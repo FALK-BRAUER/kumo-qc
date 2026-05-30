@@ -8,6 +8,7 @@ from phase_regime_vix_percentile import VixPercentile
 from phase_sizing_flat_pct_heatcap import FlatPctHeatcap
 from phase_exit_kijun_g3_exits import KijunG3Exits
 from phase_diagnostics_version_marker import VersionMarker
+from lean_entry import BctEngineAlgorithm
 
 STRATEGY_CONFIG = StrategyConfig(
     name='champion-asis',
@@ -23,4 +24,7 @@ STRATEGY_CONFIG = StrategyConfig(
     },
 )
 
-# LEAN entry wires here in #213 (QCAlgorithm.Initialize builds StrategyEngine(STRATEGY_CONFIG, self)).
+
+class BCTAlgorithm(BctEngineAlgorithm):
+    STRATEGY_CONFIG = STRATEGY_CONFIG
+    UNIVERSE_SPEC = {'eligible_key': 'universe/floors_p10_adv5000000_w20.filter.json', 'universe_key': 'universe/universe_ranked_n9999.json', 'membership_fp': '28e5af714f20bd180549e29f9d6fbddf2f331c6bb257136739e7ee98cf9bfde1', 'order_fp': '142afbb8c1e30aba1277a30272af741f946b08c7c39a2b65685098ee55018c05'}

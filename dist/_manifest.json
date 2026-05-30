@@ -9,6 +9,8 @@
     "config.py",
     "context.py",
     "engine.py",
+    "fingerprints.py",
+    "lean_entry.py",
     "logger.py",
     "main.py",
     "phase_diagnostics_version_marker.py",
@@ -21,7 +23,7 @@
     "phase_universe_dv_rank_cap.py",
     "shared_oracle_helpers.py"
   ],
-  "git_commit": "79f91f968aa01558f0c755f3a82b4119d233b731",
+  "git_commit": "f480d50f2db1985262fc6215e0043d2090a4dff9",
   "phase_markers": {
     "diagnostics": "version_marker_v1",
     "exit_hard": "kijun_g3_exits_v1",

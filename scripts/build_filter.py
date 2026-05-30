@@ -36,7 +36,6 @@ back-adjusted — the 7x-calibration / 1.079 lesson). dollar_volume$ = (Close/10
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import sys
 import zipfile
@@ -44,6 +43,11 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+
+# Single-source the fingerprint algorithm: build-time hash MUST equal the load-time
+# verify in runtime/lean_entry.py (the anti-#182 fp guardrail). Never reimplement here.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from runtime.fingerprints import membership_hash  # noqa: E402
 
 DECI_CENTS_PER_DOLLAR = 10_000.0
 
@@ -157,19 +161,6 @@ def build_filter(
             str(t): float(dv_row[t]) for t in col_order if bool(elig_row[t])
         }
     return out
-
-
-def membership_hash(filt: dict[str, dict[str, float]]) -> str:
-    """Deterministic SHA-256 over date -> sorted(tickers). DV EXCLUDED -> a pure
-    eligibility-membership fingerprint (the first thing to diff when cloud != local).
-    """
-    h = hashlib.sha256()
-    for date in sorted(filt):
-        h.update(date.encode("utf-8"))
-        h.update(b":")
-        h.update(",".join(sorted(filt[date])).encode("utf-8"))
-        h.update(b"\n")
-    return h.hexdigest()
 
 
 def auto_out_name(min_price: float, min_avg_dollar_volume: float, adv_window: int) -> str:

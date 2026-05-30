@@ -30,11 +30,15 @@ preserved (empty list stays empty) — no silent gap (#182). NO timestamp (Date.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import sys
 from pathlib import Path
 from typing import Any
+
+# Single-source the fingerprint algorithm: build-time order_hash MUST equal the load-time
+# verify in runtime/lean_entry.py (the anti-#182 fp guardrail). Never reimplement here.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from runtime.fingerprints import order_hash  # noqa: E402
 
 
 def load_filter_artifact(path: Path) -> dict[str, dict[str, float]]:
@@ -65,19 +69,6 @@ def rank_and_cap(
         ranked = sorted(day.items(), key=lambda kv: (-kv[1], kv[0]))
         out[date] = [t for t, _dv in ranked[:coarse_max]]
     return out
-
-
-def order_hash(universe: dict[str, list[str]]) -> str:
-    """Deterministic SHA-256 over date -> LIST (ORDER-SENSITIVE — the ranked order is the
-    artifact's whole point; this fingerprint changes if the order changes).
-    """
-    h = hashlib.sha256()
-    for date in sorted(universe):
-        h.update(date.encode("utf-8"))
-        h.update(b":")
-        h.update(",".join(universe[date]).encode("utf-8"))  # NOT sorted — order matters
-        h.update(b"\n")
-    return h.hexdigest()
 
 
 def auto_out_name(coarse_max: int) -> str:

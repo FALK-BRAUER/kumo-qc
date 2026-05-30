@@ -20,6 +20,12 @@ class UniverseLoadError(Exception):
     """Raised when the universe is empty/unresolved — fail loud, never trade-everything."""
 
 
+class UniverseFingerprintError(Exception):
+    """Raised when a loaded universe artifact's recomputed fingerprint != the pinned value.
+    The structural anti-#182 guard: same key but DIFFERENT bytes (cloud ObjectStore !=
+    local) screams here instead of silently diverging. Do not run on mismatch."""
+
+
 class DependencyError(Exception):
     """Raised at init when a phase's REQUIRES_UPSTREAM is unmet or mis-ordered."""
 

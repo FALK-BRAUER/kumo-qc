@@ -66,3 +66,16 @@ CONFIG = StrategyConfig(
         ],
     },
 )
+
+# Universe artifact binding for the LEAN entry (#213). The loader (runtime.lean_entry)
+# reads these ObjectStore keys, recomputes each fingerprint, and FAILS LOUD unless it
+# equals the pinned value below — the structural anti-#182 guard (same key, different
+# bytes => raise). Fingerprints pinned to substrate 90f2d7e3, floors p10/adv5M/w20,
+# coarse_max 9999. Re-pin (regenerate + paste from the .meta.json) when substrate or
+# universe params change — that is how results stay tied to the data state.
+UNIVERSE_SPEC = {
+    "eligible_key": "universe/floors_p10_adv5000000_w20.filter.json",
+    "universe_key": "universe/universe_ranked_n9999.json",
+    "membership_fp": "28e5af714f20bd180549e29f9d6fbddf2f331c6bb257136739e7ee98cf9bfde1",
+    "order_fp": "142afbb8c1e30aba1277a30272af741f946b08c7c39a2b65685098ee55018c05",
+}
