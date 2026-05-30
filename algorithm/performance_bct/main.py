@@ -228,6 +228,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.log("VERSION_MARKER|e121_vix_ichimoku_2tier_v1")
         self.set_time_zone("America/New_York")
         self.log("VERSION_MARKER|cloud_static200_v15")
+        self.log("VERSION_MARKER|v1_e40c_e28_stack_clean")
+        self.vix_pct_lookback=504
+        self.vix_pct_threshold=75.0
         sy = int(self.get_parameter("start_year",  "2025"))
         sm = int(self.get_parameter("start_month", "1"))
         sd = int(self.get_parameter("start_day",   "1"))
@@ -479,6 +482,22 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             if qqq_price < qqq_ma50:
                 self.log(f"REGIME_BLOCK|{date_str}|QQQ={qqq_price:.2f}|MA50={qqq_ma50:.2f}")
                 return
+
+        # V1: e28 VIX-percentile gate stacked — block entries when VIX in top 25% of 2yr distribution
+        if self.securities.contains_key(self.vix):
+            try:
+                _vh = self.history(self.vix, self.vix_pct_lookback, Resolution.DAILY)
+                if _vh is not None and len(_vh) >= int(self.vix_pct_lookback*0.8):
+                    if isinstance(_vh.index, pd.MultiIndex):
+                        _vh = _vh.droplevel(0)
+                    _vc = "close" if "close" in _vh.columns else "Close"
+                    _vnow = float(self.securities[self.vix].price)
+                    _pctl = float((_vh[_vc] < _vnow).mean()*100)
+                    if _pctl >= self.vix_pct_threshold:
+                        self.log(f"VIX_PERCENTILE_BLOCK|{date_str}|VIX={_vnow:.2f}|pctl={_pctl:.1f}")
+                        return
+            except Exception:
+                pass
 
         exiting = {
             o.symbol
