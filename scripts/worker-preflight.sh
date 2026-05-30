@@ -22,10 +22,10 @@ if [[ -z "$TOPLEVEL" ]]; then
   exit 1
 fi
 
-# Common-dir reveals if this checkout is a linked worktree (.git/worktrees/...)
-GIT_COMMON="$(git rev-parse --git-common-dir 2>/dev/null || echo '')"
+# git-dir reveals if this checkout is a linked worktree (.git/worktrees/...)
+GIT_DIR="$(git rev-parse --git-dir 2>/dev/null || echo '')"
 IS_WORKTREE="no"
-if [[ "$GIT_COMMON" == *"/worktrees/"* ]]; then
+if [[ "$GIT_DIR" == *"/worktrees/"* ]]; then
   IS_WORKTREE="yes"
 fi
 
