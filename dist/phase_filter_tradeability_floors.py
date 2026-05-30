@@ -2,7 +2,17 @@
 
 Kind:    filter
 Marker:  tradeability_floors_v1
-Params:  min_price=10.0, min_avg_dollar_volume=5_000_000, adv_window=20, enabled=True
+Params:  min_price=10.0, min_avg_dollar_volume=100_000_000, adv_window=20, enabled=True
+
+LIQUIDITY THRESHOLD — min_avg_dollar_volume=100M (fintrack ruling, data-informed):
+  The FY2025 breadth curve (median eligible/day): 5M→3237, 10M→2691, 25M→1970, 50M→1430,
+  100M→943, 200M→549. 5M was too low (pulled ~2700 marginal names George wouldn't trade,
+  and OOM'd the local container). 100M = genuinely liquid large/mid caps (~943/day) — a
+  principled LIQUIDITY threshold (not a count cap), a wide-enough liquid net for the score>=7
+  signal to filter (trade count → DSR/PBO robustness), and ~3x the local compute margin vs
+  2700. Picked on principle, NOT to match the champion (v2 is the corrected pipeline, not a
+  clone). If LOCAL infra OOMs at 943, that is a local-RAM limit — validate on cloud or use a
+  temp HIGHER local-only floor; do NOT lower the strategy floor to fit local RAM.
          (mirror scripts/build_filter.py — the phase CONSUMES the precomputed
           date->eligible artifact; the floor math lives in the precompute. Params carried
           for provenance/fingerprint.)
@@ -45,7 +55,7 @@ class TradeabilityFloors(BasePhase):
     @dataclass(slots=True)
     class Params:
         min_price: float = 10.0
-        min_avg_dollar_volume: float = 5_000_000.0
+        min_avg_dollar_volume: float = 100_000_000.0  # liquidity threshold (see header)
         adv_window: int = 20
         enabled: bool = True
 

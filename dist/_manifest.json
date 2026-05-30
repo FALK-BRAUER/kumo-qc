@@ -1,6 +1,6 @@
 {
   "build_script_version": "1.0.0",
-  "config_hash": "5b5c1a17d022",
+  "config_hash": "883e5f3e8297",
   "data_fingerprint": "90f2d7e3fb80d0a4d2eb286f6a43199e1519495a3ce9d787a4d7d0dfc70c535c",
   "files": [
     "_manifest.json",
@@ -24,7 +24,7 @@
     "phase_universe_dv_rank_cap.py",
     "shared_oracle_helpers.py"
   ],
-  "git_commit": "37ad44cb8352426ce17f8ab1c441512d6331f098",
+  "git_commit": "29f3d7b1c36aaec2606bf7e9321d3b114291b819",
   "phase_markers": {
     "diagnostics": "version_marker_v1",
     "exit_hard": "kijun_g3_exits_v1",

@@ -35,7 +35,7 @@ def test_pipeline_wires_filter_then_universe_then_signal() -> None:
 def test_filter_floors_are_the_agreed_defaults() -> None:
     p = CONFIG.phases["filter"].params  # type: ignore[union-attr]
     assert p.min_price == 10.0
-    assert p.min_avg_dollar_volume == 5_000_000.0
+    assert p.min_avg_dollar_volume == 100_000_000.0  # liquidity threshold (fintrack ruling, ~943/day)
     assert p.adv_window == 20
 
 

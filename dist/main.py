@@ -14,7 +14,7 @@ STRATEGY_CONFIG = StrategyConfig(
     name='champion-asis',
     version='3.0.0',
     phases={
-    'filter': Slot(impl=TradeabilityFloors, params=TradeabilityFloors.Params(min_price=10.0, min_avg_dollar_volume=5000000.0, adv_window=20, enabled=True)),
+    'filter': Slot(impl=TradeabilityFloors, params=TradeabilityFloors.Params(min_price=10.0, min_avg_dollar_volume=100000000.0, adv_window=20, enabled=True)),
     'universe': Slot(impl=DvRankCap, params=DvRankCap.Params(coarse_max=9999, enabled=True)),
     'signal': Slot(impl=BctScoreFull, params=BctScoreFull.Params(min_score=7, parabolic_threshold=0.25, enabled=True)),
     'regime': [Slot(impl=SpySma200, params=SpySma200.Params(enabled=True)), Slot(impl=VixPercentile, params=VixPercentile.Params(vix_percentile_enabled=False, vix_percentile_threshold=75.0, vix_percentile_lookback=504, enabled=True))],
@@ -27,4 +27,4 @@ STRATEGY_CONFIG = StrategyConfig(
 
 class BCTAlgorithm(BctEngineAlgorithm):
     STRATEGY_CONFIG = STRATEGY_CONFIG
-    UNIVERSE_SPEC = {'eligible_key': 'universe/floors_p10_adv5000000_w20.filter.json', 'universe_key': 'universe/universe_ranked_n9999.json', 'membership_fp': '28e5af714f20bd180549e29f9d6fbddf2f331c6bb257136739e7ee98cf9bfde1', 'order_fp': '142afbb8c1e30aba1277a30272af741f946b08c7c39a2b65685098ee55018c05'}
+    UNIVERSE_SPEC = {'eligible_key': 'universe/floors_p10_adv100000000_w20.filter.json', 'universe_key': 'universe/universe_ranked_n9999.json', 'membership_fp': 'c4bf02c04a1fe1d3c63925db66bbce7c4e3e3dc7919da25855aaf51523ea5444', 'order_fp': 'c43fef288aa2a0c0780f71c1ca49f818ea9a8d99c30de6253cdb5819c984e370'}

@@ -170,8 +170,9 @@ def auto_out_name(min_price: float, min_avg_dollar_volume: float, adv_window: in
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--min-price", type=float, default=10.0, help="min latest close, $ (tradeability floor)")
-    ap.add_argument("--min-avg-dollar-volume", type=float, default=5_000_000.0,
-                    help="min trailing-mean dollar volume, $ (tradeability floor)")
+    ap.add_argument("--min-avg-dollar-volume", type=float, default=100_000_000.0,
+                    help="min trailing-mean dollar volume, $ (LIQUIDITY threshold; 100M = "
+                         "liquid large/mid caps, ~943 names/day FY2025 — fintrack ruling)")
     ap.add_argument("--adv-window", type=int, default=20, help="trailing trading-day window for ADV mean")
     ap.add_argument("--data-dir", type=Path, default=Path("data/equity/usa/daily"))
     ap.add_argument("--out", type=Path, default=None, help="output JSON path (auto under data/universe if omitted)")

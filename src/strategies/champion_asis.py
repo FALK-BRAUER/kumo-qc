@@ -30,11 +30,12 @@ CONFIG = StrategyConfig(
     name="champion-asis",
     version="3.0.0",
     phases={
-        # Tradeability gate (price>=10, trailing-20d ADV>=5M). Eligibility only.
+        # Tradeability gate: price>=10, trailing-20d ADV>=100M (LIQUIDITY threshold —
+        # liquid large/mid caps, ~943 names/day FY2025; fintrack ruling). Eligibility only.
         "filter": Slot(
             impl=TradeabilityFloors,
             params=TradeabilityFloors.Params(
-                min_price=10.0, min_avg_dollar_volume=5_000_000.0, adv_window=20,
+                min_price=10.0, min_avg_dollar_volume=100_000_000.0, adv_window=20,
             ),
         ),
         # Rank eligible by DV desc, cap coarse_max (unbounded baseline). Scan breadth only.
@@ -70,12 +71,13 @@ CONFIG = StrategyConfig(
 # Universe artifact binding for the LEAN entry (#213). The loader (runtime.lean_entry)
 # reads these ObjectStore keys, recomputes each fingerprint, and FAILS LOUD unless it
 # equals the pinned value below — the structural anti-#182 guard (same key, different
-# bytes => raise). Fingerprints pinned to substrate 90f2d7e3, floors p10/adv5M/w20,
-# coarse_max 9999. Re-pin (regenerate + paste from the .meta.json) when substrate or
-# universe params change — that is how results stay tied to the data state.
+# bytes => raise). Fingerprints pinned to substrate 90f2d7e3, floors p10/adv100M/w20,
+# coarse_max 9999 (LIQUIDITY threshold 100M = ~943 names/day FY2025; fintrack ruling —
+# see tradeability_floors header). Re-pin (regenerate + paste from the .meta.json) when
+# substrate or universe params change — that is how results stay tied to the data state.
 UNIVERSE_SPEC = {
-    "eligible_key": "universe/floors_p10_adv5000000_w20.filter.json",
+    "eligible_key": "universe/floors_p10_adv100000000_w20.filter.json",
     "universe_key": "universe/universe_ranked_n9999.json",
-    "membership_fp": "28e5af714f20bd180549e29f9d6fbddf2f331c6bb257136739e7ee98cf9bfde1",
-    "order_fp": "142afbb8c1e30aba1277a30272af741f946b08c7c39a2b65685098ee55018c05",
+    "membership_fp": "c4bf02c04a1fe1d3c63925db66bbce7c4e3e3dc7919da25855aaf51523ea5444",
+    "order_fp": "c43fef288aa2a0c0780f71c1ca49f818ea9a8d99c30de6253cdb5819c984e370",
 }

@@ -49,7 +49,7 @@ def _phase():
 def test_params_defaults():
     p = TradeabilityFloors.Params()
     assert p.min_price == 10.0
-    assert p.min_avg_dollar_volume == 5_000_000.0
+    assert p.min_avg_dollar_volume == 100_000_000.0  # liquidity threshold (fintrack ruling)
     assert p.adv_window == 20
     assert p.enabled is True
 
