@@ -236,7 +236,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         ed = int(self.get_parameter("end_day",     "31"))
         self.set_start_date(sy, sm, sd)
         self.set_end_date(ey, em, ed)
-        self.set_cash(100_000)
+        self.set_cash(1_000_000)
         self.set_benchmark("SPY")
 
         warmup_days = int(self.get_parameter("warmup_days", "750"))
