@@ -83,6 +83,9 @@ class StrategyEngine:
         self.qc = qc
         self.phases = phase_instances
         self.logger = ComponentLogger(qc)
+        self._fired_entries = 0
+        self._fired_exits = 0
+        self._fired_adds = 0
         validate_invariants(config)
         self.logger.log_strategy_init(
             config_hash=_config_hash(config),
@@ -93,7 +96,7 @@ class StrategyEngine:
     def on_data_with_ctx(self, ctx: PhaseContext) -> None:
         bar_blocked = False
         phases_run: list[str] = []
-        fired_entries = fired_exits = fired_adds = 0
+        self._fired_entries = self._fired_exits = self._fired_adds = 0
 
         for item in PHASE_ORDER:
             if isinstance(item, FireSentinel):
@@ -121,11 +124,49 @@ class StrategyEngine:
 
         self.logger.log_tick(
             chain=phases_run,
-            entries=fired_entries,
-            exits=fired_exits,
-            adds=fired_adds,
+            entries=self._fired_entries,
+            exits=self._fired_exits,
+            adds=self._fired_adds,
         )
 
     def _fire(self, sentinel: FireSentinel, ctx: PhaseContext) -> None:
-        # Order submission wired in ARCH-C when LEAN integration lands
-        pass
+        qc = self.qc
+        date_str = ctx.time.strftime("%Y-%m-%d")
+        active_by_value: dict = {s.value: s for s in getattr(qc, "_active", set())}
+
+        if sentinel is FIRE_ENTRIES:
+            for intent in ctx.bar_state.sized_orders:
+                sym = active_by_value.get(intent.ticker)
+                if sym is None or intent.qty <= 0:
+                    continue
+                qc.market_on_open_order(sym, intent.qty)
+                price = float(qc.securities[sym].price)
+                if not hasattr(qc, "_position_meta"):
+                    qc._position_meta = {}
+                qc._position_meta[sym] = {"entry_date": ctx.time, "entry_price": price}
+                self._fired_entries += 1
+                qc.log(f"ENTRY|{date_str}|{intent.ticker}|qty={intent.qty}|price~{price:.2f}")
+
+        elif sentinel is FIRE_EXITS:
+            for intent in ctx.bar_state.exit_intents:
+                sym = active_by_value.get(intent.ticker)
+                if sym is None:
+                    continue
+                qc.market_on_open_order(sym, intent.qty)  # qty is negative
+                getattr(qc, "_position_meta", {}).pop(sym, None)
+                self._fired_exits += 1
+
+        elif sentinel is FIRE_ADDS:
+            for intent in ctx.bar_state.add_intents:
+                sym = active_by_value.get(intent.ticker)
+                if sym is None or intent.qty <= 0:
+                    continue
+                qc.market_on_open_order(sym, intent.qty)
+                self._fired_adds += 1
+
+        elif sentinel is FIRE_TRIMS:
+            for intent in ctx.bar_state.trim_intents:
+                sym = active_by_value.get(intent.ticker)
+                if sym is None:
+                    continue
+                qc.market_on_open_order(sym, intent.qty)

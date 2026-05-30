@@ -9,9 +9,19 @@ from engine.tests.fixtures.stub_phases import make_stub
 class FakeQC:
     def __init__(self):
         self.logged = []
+        self.orders = []
+        self._active = set()
+        self.securities = {}
+        self._position_meta = {}
 
     def Log(self, msg):
         self.logged.append(msg)
+
+    def log(self, msg):
+        self.logged.append(msg)
+
+    def market_on_open_order(self, symbol, qty):
+        self.orders.append((symbol, qty))
 
 
 def make_ctx(qc):
