@@ -7,10 +7,9 @@ class StubPhase(PhaseInterface):
     PROVIDES_DOWNSTREAM: list[str] = []
 
     def __init__(self, kind: str, blocked: bool = False, params: dict = None, logger=None):
+        super().__init__(params=params or {}, logger=logger)
         self.PHASE_KIND = kind
         self._blocked = blocked
-        self._params = params or {}
-        self._logger = logger
         self.called = False
 
     def evaluate(self, ctx: PhaseContext) -> PhaseResult:

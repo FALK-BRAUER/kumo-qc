@@ -115,7 +115,7 @@ def test_blocked_bar_still_runs_diagnostics_and_circuit_breaker():
     assert cb_stub.called
 
 
-def test_blocked_bar_skips_trading_phases_after_block():
+def test_blocked_bar_skips_entry_phases():
     qc = FakeQC()
     regime_stub = make_stub("regime", blocked=True)
     sizing_stub = make_stub("sizing")
@@ -126,6 +126,26 @@ def test_blocked_bar_skips_trading_phases_after_block():
     )
     engine.on_data_with_ctx(make_ctx(qc))
     assert sizing_stub.called is False
+
+
+def test_blocked_bar_still_runs_exit_phases():
+    """Regime block halts entries only. Exit phases (trail, exit_hard) must run."""
+    qc = FakeQC()
+    regime_stub = make_stub("regime", blocked=True)
+    trail_stub = make_stub("trail")
+    exit_stub = make_stub("exit_hard")
+    engine = StrategyEngine(
+        config=minimal_config(),
+        qc=qc,
+        phase_instances={
+            "regime": [regime_stub],
+            "trail": [trail_stub],
+            "exit_hard": [exit_stub],
+        },
+    )
+    engine.on_data_with_ctx(make_ctx(qc))
+    assert trail_stub.called
+    assert exit_stub.called
 
 
 def test_engine_logs_strategy_init():

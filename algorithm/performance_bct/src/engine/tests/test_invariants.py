@@ -12,14 +12,14 @@ def cfg_with_param(kind: str, param: str, value):
 
 
 @pytest.mark.parametrize("param", [
-    "max_positions",
-    "max_lots",
-    "max_entries_per_day",
-    "max_hold_days",
-    "exit_if_flat_after_days",
-    "max_adds",
-    "max_pyramid_lots",
-    "max_position_adds",
+    # count caps
+    "max_positions", "max_lots", "max_entries_per_day",
+    "max_adds", "max_pyramid_lots", "max_position_adds",
+    "max_concurrent_positions", "position_limit", "max_slots",
+    # time-based exits
+    "max_hold_days", "exit_if_flat_after_days",
+    "max_days_held", "max_bars_held", "time_stop_days",
+    "exit_after_days", "holding_period_limit",
 ])
 def test_forbidden_param_raises_charter_violation(param):
     with pytest.raises(CharterViolation, match=param):

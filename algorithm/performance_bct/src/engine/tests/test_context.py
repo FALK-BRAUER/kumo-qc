@@ -16,15 +16,31 @@ def test_bar_state_starts_empty():
 def test_bar_state_apply_stores_output():
     bs = BarState()
     result = object()
-    bs.apply("signal", result)
-    assert bs.phase_outputs["signal"] is result
+    bs.apply("signal", result, module="bct_score_v1")
+    assert bs.phase_outputs["signal"][0] is result
 
 
-def test_bar_state_apply_rejects_double_write():
+def test_bar_state_apply_accumulates_list_phases():
     bs = BarState()
-    bs.apply("signal", object())
+    r1, r2 = object(), object()
+    bs.apply("regime", r1, module="vix_threshold_v1")
+    bs.apply("regime", r2, module="spy_200ma_v1")
+    assert len(bs.phase_outputs["regime"]) == 2
+    assert bs.phase_outputs["regime"][0] is r1
+    assert bs.phase_outputs["regime"][1] is r2
+
+
+def test_bar_state_apply_rejects_true_double_write():
+    bs = BarState()
+    bs.apply("signal", object(), module="bct_score_v1")
     with pytest.raises(ValueError, match="double-write"):
-        bs.apply("signal", object())
+        bs.apply("signal", object(), module="bct_score_v1")
+
+
+def test_bar_state_apply_allows_different_modules_same_kind():
+    bs = BarState()
+    bs.apply("exit_hard", object(), module="cloud_breach_v1")
+    bs.apply("exit_hard", object(), module="weekly_kijun_v1")  # must not raise
 
 
 def test_order_intent_fields():

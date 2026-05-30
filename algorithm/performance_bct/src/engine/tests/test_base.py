@@ -10,8 +10,7 @@ class ConcretePhase(PhaseInterface):
     PROVIDES_DOWNSTREAM = ["ranked_candidates"]
 
     def __init__(self, params: dict, logger):
-        self._params = params
-        self._logger = logger
+        super().__init__(params=params, logger=logger)
 
     def evaluate(self, ctx: PhaseContext) -> PhaseResult:
         return PhaseResult(decision=[], blocked=False, reason="ok", facts={}, metrics={})
@@ -27,8 +26,7 @@ class MissingEvaluatePhase(PhaseInterface):
     PROVIDES_DOWNSTREAM = []
 
     def __init__(self, params, logger):
-        self._params = params
-        self._logger = logger
+        super().__init__(params=params, logger=logger)
 
     @property
     def version_marker(self):
@@ -88,4 +86,18 @@ def test_universe_load_error_is_exception():
 
 def test_validate_config_default_passes():
     phase = ConcretePhase(params={"min_score": 7}, logger=None)
-    phase.validate_config({"min_score": 7})  # should not raise
+    phase.validate_config()  # no args — reads self._params
+
+
+def test_enabled_reads_from_init_params():
+    phase = ConcretePhase(params={"enabled": False, "min_score": 7}, logger=None)
+    assert phase.enabled is False
+    assert phase._params["min_score"] == 7
+
+
+def test_logger_stored_on_init():
+    class FakeLogger:
+        pass
+    logger = FakeLogger()
+    phase = ConcretePhase(params={}, logger=logger)
+    assert phase._logger is logger

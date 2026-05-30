@@ -30,12 +30,17 @@ class BarState:
     exit_intents: list[OrderIntent] = field(default_factory=list)
     trim_intents: list[OrderIntent] = field(default_factory=list)
     blocks: list[BlockEvent] = field(default_factory=list)
-    phase_outputs: dict[str, Any] = field(default_factory=dict)
+    phase_outputs: dict[str, list[Any]] = field(default_factory=dict)
+    _seen: set = field(default_factory=set, repr=False)
 
-    def apply(self, kind: str, result: Any) -> None:
-        if kind in self.phase_outputs:
-            raise ValueError(f"double-write detected for phase kind '{kind}'")
-        self.phase_outputs[kind] = result
+    def apply(self, kind: str, result: Any, module: str = "") -> None:
+        key = (kind, module)
+        if key in self._seen:
+            raise ValueError(f"double-write detected for phase ({kind!r}, {module!r})")
+        self._seen.add(key)
+        if kind not in self.phase_outputs:
+            self.phase_outputs[kind] = []
+        self.phase_outputs[kind].append(result)
 
 
 @dataclass

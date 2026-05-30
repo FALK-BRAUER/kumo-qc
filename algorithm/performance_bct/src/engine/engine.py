@@ -38,12 +38,26 @@ PHASE_ORDER: list = [
     "diagnostics", "circuit_breaker",
 ]
 
+# Phases that are suppressed when bar_blocked (entry-side only).
+# Exit-side (stops_initial, trail, exit_*, profit) ALWAYS runs — oracle behaviour.
+ENTRY_ONLY_PHASES = {
+    "entry_selection", "entry_timing", "sizing", "reentry",
+    "eligibility", "portfolio_risk", "cash", "adds",
+}
+ENTRY_ONLY_SENTINELS = {FIRE_ENTRIES, FIRE_ADDS}
+
+# Always runs regardless of block state.
 ALWAYS_RUN = {"diagnostics", "circuit_breaker"}
 
 FORBIDDEN_PARAMS = {
+    # count caps
     "max_positions", "max_lots", "max_entries_per_day",
-    "max_hold_days", "exit_if_flat_after_days",
     "max_adds", "max_pyramid_lots", "max_position_adds",
+    "max_concurrent_positions", "position_limit", "max_slots",
+    # time-based exits
+    "max_hold_days", "exit_if_flat_after_days",
+    "max_days_held", "max_bars_held", "time_stop_days",
+    "exit_after_days", "holding_period_limit",
 }
 
 
@@ -79,23 +93,27 @@ class StrategyEngine:
     def on_data_with_ctx(self, ctx: PhaseContext) -> None:
         bar_blocked = False
         phases_run: list[str] = []
+        fired_entries = fired_exits = fired_adds = 0
 
         for item in PHASE_ORDER:
             if isinstance(item, FireSentinel):
-                if not bar_blocked:
-                    self._fire(item, ctx)
+                # Entry-side sentinels suppressed on blocked bar; exit-side always fire.
+                if bar_blocked and item in ENTRY_ONLY_SENTINELS:
+                    continue
+                self._fire(item, ctx)
                 continue
 
             kind = item
             for phase in self.phases.get(kind, []):
                 if not phase.enabled:
                     continue
-                if bar_blocked and kind not in ALWAYS_RUN:
+                # On blocked bar: suppress entry-side phases; always run exit-side + tail.
+                if bar_blocked and kind in ENTRY_ONLY_PHASES and kind not in ALWAYS_RUN:
                     continue
 
                 result = phase.evaluate(ctx)
                 self.logger.log_phase(kind, phase, result)
-                ctx.bar_state.apply(kind, result)
+                ctx.bar_state.apply(kind, result, module=phase.version_marker)
                 phases_run.append(kind)
 
                 if result.blocked and kind in {"regime", "cash"}:
@@ -103,9 +121,9 @@ class StrategyEngine:
 
         self.logger.log_tick(
             chain=phases_run,
-            entries=len(ctx.bar_state.sized_orders),
-            exits=len(ctx.bar_state.exit_intents),
-            adds=len(ctx.bar_state.add_intents),
+            entries=fired_entries,
+            exits=fired_exits,
+            adds=fired_adds,
         )
 
     def _fire(self, sentinel: FireSentinel, ctx: PhaseContext) -> None:

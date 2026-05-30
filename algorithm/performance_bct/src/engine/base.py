@@ -27,6 +27,10 @@ class PhaseInterface(ABC):
     REQUIRES_UPSTREAM: list[str]
     PROVIDES_DOWNSTREAM: list[str]
 
+    def __init__(self, params: dict, logger: Any):
+        self._params = params
+        self._logger = logger
+
     @abstractmethod
     def evaluate(self, ctx: PhaseContext) -> PhaseResult: ...
 
@@ -38,5 +42,5 @@ class PhaseInterface(ABC):
     def enabled(self) -> bool:
         return self._params.get("enabled", True)
 
-    def validate_config(self, params: dict) -> None:
+    def validate_config(self) -> None:
         pass
