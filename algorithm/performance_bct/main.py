@@ -228,6 +228,8 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.log("VERSION_MARKER|e121_vix_ichimoku_2tier_v1")
         self.set_time_zone("America/New_York")
         self.log("VERSION_MARKER|cloud_static200_v15")
+        self.MAX_ENTRIES_PER_DAY=int(self.get_parameter("max_entries_per_day","9999"))
+        self.log("VERSION_MARKER|max_entries_v1")
         sy = int(self.get_parameter("start_year",  "2025"))
         sm = int(self.get_parameter("start_month", "1"))
         sd = int(self.get_parameter("start_day",   "1"))
@@ -565,6 +567,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
         # Primary: score DESC. Tiebreak: dollar-volume DESC. NEVER alphabetical.
         candidates.sort(key=lambda x: (x[1], x[2]), reverse=True)
+        slots = min(slots, self.MAX_ENTRIES_PER_DAY)  # principled entry-rate cap (churn control)
         committed_cash = 0.0  # track cash committed this rebalance before fills execute
         available_cash = float(self.portfolio.cash)
         for symbol, score, _dv in candidates[:slots]:
