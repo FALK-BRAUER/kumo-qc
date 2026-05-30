@@ -95,10 +95,25 @@ def main() -> None:
             retry = still
         missing = still
 
-    unmapped = [t for t, v in result.items() if v["etf"] is None]
+    # Merge with any existing map and NEVER shrink it. A failed/rate-limited run
+    # (FMP daily cap → 0 fetched) must not wipe a good map. Keep existing entries
+    # for tickers this run could not fetch; only add/overwrite successful fetches.
+    existing = {}
+    if os.path.exists(OUT):
+        try:
+            existing = json.load(open(OUT))
+        except Exception:
+            existing = {}
+    merged = dict(existing)
+    merged.update(result)  # this run's successes win; misses retain prior values
+    if len(merged) < len(existing):
+        sys.exit(f"ABORT: would shrink map ({len(existing)} -> {len(merged)}); not writing.")
+    result = merged
+
+    unmapped = [t for t, v in result.items() if not v.get("etf")]
     json.dump(result, open(OUT, "w"), indent=2, sort_keys=True)
-    print(f"\nwrote {OUT}: {len(result)} mapped, {len(missing)} missing profile, "
-          f"{len(unmapped)} no-ETF (unknown sector)")
+    print(f"\nwrote {OUT}: {len(result)} mapped ({len(existing)} prior), "
+          f"{len(missing)} missing this run, {len(unmapped)} no-ETF (unknown sector)")
     if missing:
         print("MISSING:", ",".join(missing))
     if unmapped:
