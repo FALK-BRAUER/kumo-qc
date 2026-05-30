@@ -26,7 +26,7 @@ This document defines the canonical architecture for kumo-qc strategy code. All 
 
 8. **Logging everywhere.** Engine logs every tick + phase chain + decisions. Each phase logs every evaluation step (inputs, decision, reason, metrics). Pipe-delimited or structured JSON. Markers verified on every deploy.
 
-9. **Charter invariants enforced by engine.** No count caps (`max_positions`, `max_lots` forbidden), no time-based exits (`max_hold_days` forbidden), explicit exposure control only (implicit caps prohibited).
+9. **Charter invariants enforced by engine.** No count caps (`max_positions`, `max_lots`, `max_adds`, `max_pyramid_lots`, `max_position_adds` forbidden), no time-based exits (`max_hold_days` forbidden), explicit exposure control only (implicit caps prohibited).
 
 10. **Validation gates run on PR.** G1 (6-window robustness), G2 (no period concentration), G3 (OOS year), G4 (uncapped doesn't collapse), G5 (methodology audit — DSR/PBO). Automated in CI.
 
@@ -181,7 +181,7 @@ STRATEGY_CONFIG = {
                            "enabled": True, "params": {"offset_pct": 0.75}},
 
         "sizing":         {"module": "phases.sizing.risk_based_fixed",
-                           "enabled": True, "params": {"risk_dollars": 200}},
+                           "enabled": True, "params": {"risk_dollars": 500}},
 
         "eligibility":    {"module": "phases.eligibility.already_held_check",
                            "enabled": True, "params": {}},
@@ -261,13 +261,13 @@ class PhaseResult:
 # src/engine/engine.py
 class StrategyEngine:
     PHASE_ORDER = [
-        "universe", "signal", "regime", "ranking",
-        "entry_selection", "entry_timing", "eligibility", "sizing",
-        "portfolio_risk", "cash",
+        "rebalance", "universe", "signal", "regime", "ranking",
+        "entry_selection", "entry_timing", "sizing",
+        "reentry", "eligibility", "portfolio_risk", "cash",
         "stops_initial", "trail",
-        "adds", "profit", "exit_rotation", "reentry",
-        "exit_hard", "exit_target", "exit_regime",
-        "rebalance", "diagnostics", "circuit_breaker"
+        "exit_hard", "exit_target", "exit_regime", "exit_rotation",
+        "adds", "profit",
+        "diagnostics", "circuit_breaker"
     ]
 
     def __init__(self, config: dict, qc_algo):

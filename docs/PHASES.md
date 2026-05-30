@@ -409,7 +409,7 @@ class PhaseResult:
 **Params:**
 | Impl | Params |
 |---|---|
-| `pe_signal_renewed` | `lot_size_dollars: float` (default 200), `max_adds: int` or None |
+| `pe_signal_renewed` | `lot_size_dollars: float` (default 200) |
 | `pe_rampup_antikelly` | `lot_progression: list[float]` (e.g. [200, 400, 600]) |
 | `pe_conviction` | `lot_progression: list[float]` (e.g. [300, 200, 100]) |
 | `pe_winscale` | `min_unrealized_pct: float`, `lot_size_dollars: float` |
@@ -420,7 +420,7 @@ class PhaseResult:
 **Contract:**
 - Adds MUST flow through same sizing + portfolio_risk + cash phases as entries.
 - MUST emit `ADD_INTENT|<ticker>|lot=<#>|size=<$>|method=<impl>`.
-- `max_adds` is the ONLY count-cap exception (per-position, not portfolio-level).
+
 
 ---
 
