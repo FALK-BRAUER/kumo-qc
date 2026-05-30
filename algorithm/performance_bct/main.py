@@ -228,6 +228,8 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.log("VERSION_MARKER|e121_vix_ichimoku_2tier_v1")
         self.set_time_zone("America/New_York")
         self.log("VERSION_MARKER|cloud_static200_v15")
+        self.MAX_ENTRIES_PER_DAY=int(self.get_parameter("max_entries_per_day","9999"))
+        self.log("VERSION_MARKER|max_entries_v1")
         sy = int(self.get_parameter("start_year",  "2025"))
         sm = int(self.get_parameter("start_month", "1"))
         sd = int(self.get_parameter("start_day",   "1"))
@@ -249,6 +251,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         # (d): Risk-based position sizing — RISK_AMOUNT per trade (0 = off, use flat POSITION_PCT)
         self.risk_amount = float(self.get_parameter("risk_amount", "0"))
         self.log(f"VERSION_MARKER|risk_amount_sizing_v1|risk={self.risk_amount}")
+        self.log("VERSION_MARKER|p2_base_v1")
         # E40d: gate on by default; override with regime_gate_enabled=false to disable
         _regime_param = self.get_parameter("regime_gate_enabled", "")
         self.regime_gate_enabled = _regime_param != "false"
@@ -565,6 +568,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
         # Primary: score DESC. Tiebreak: dollar-volume DESC. NEVER alphabetical.
         candidates.sort(key=lambda x: (x[1], x[2]), reverse=True)
+        slots = min(slots, self.MAX_ENTRIES_PER_DAY)  # principled entry-rate cap (churn control)
         committed_cash = 0.0  # track cash committed this rebalance before fills execute
         available_cash = float(self.portfolio.cash)
         for symbol, score, _dv in candidates[:slots]:
