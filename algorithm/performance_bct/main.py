@@ -228,6 +228,14 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.log("VERSION_MARKER|e121_vix_ichimoku_2tier_v1")
         self.set_time_zone("America/New_York")
         self.log("VERSION_MARKER|cloud_static200_v15")
+        self.log("VERSION_MARKER|v5_etf_only")
+        self.v5_etfs = set()
+        for _e in ["XLK","XLE","XLF","XLI","XLV","XLY","XLP","XLB","XLU","XLRE","XLC","SMH","SOXX","QQQ","IGV","TAN","CIBR","GRID","ICLN","BOTZ","LIT","URA","GLD","SLV","GDX","GDXJ","XOP","COPX","ITA","XBI","IBB","IWM","SPY","EEM","EWJ","FXI","KRE","KBE"]:
+            try:
+                _sym = self.add_equity(_e, Resolution.DAILY).symbol
+                self.v5_etfs.add(_e)
+            except Exception:
+                pass
         sy = int(self.get_parameter("start_year",  "2025"))
         sm = int(self.get_parameter("start_month", "1"))
         sd = int(self.get_parameter("start_day",   "1"))
@@ -497,6 +505,8 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         today_poly: set[str] | None = None
         if self._polygon_universe is not None:
             today_poly = set(self._polygon_universe.get(date_str, []))
+        if getattr(self, "v5_etfs", None):
+            today_poly = self.v5_etfs  # V5: restrict to curated ETF universe
 
         candidates: list[tuple] = []
         for symbol in sorted(self._active):
