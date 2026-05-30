@@ -1,5 +1,9 @@
 # CLAUDE.md — kumo-qc
 
+## Architecture Charter
+
+**Canonical strategy architecture: phase-based engine.** See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — decisions, taxonomy, source tree, contracts, packaging, merge gate, migration plan. All new strategy work MUST follow this. Migration tickets: ARCH-A through ARCH-M.
+
 ## What This Is
 QuantConnect-based trading engine implementing George's Blue Cloud Trading (BCT) Ichimoku methodology at scale.
 Replaces the brittle kumo-trader agent/ monolith with QC's managed infrastructure.
