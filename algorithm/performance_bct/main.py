@@ -226,6 +226,7 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
 
     def initialize(self) -> None:
         self.log("VERSION_MARKER|e121_vix_ichimoku_2tier_v1")
+        self.log("VERSION_MARKER|rs147_struct_stop_v1")
         self.set_time_zone("America/New_York")
         self.log("VERSION_MARKER|cloud_static200_v15")
         sy = int(self.get_parameter("start_year",  "2025"))
@@ -411,6 +412,42 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         senkou_b = d_ichi.senkou_b.current.value
         return close, kijun, max(senkou_a, senkou_b), min(senkou_a, senkou_b)
 
+    def _structural_stop(self, symbol, close, kijun, cloud_top, cloud_bottom):
+        """RS#147: structural stop = max(kijun, nearest_support + 0.5*ATR14).
+        Returns (structural_stop, support, atr). Falls back to kijun on any data issue."""
+        from QuantConnect import Resolution  # noqa: PLC0415
+        from resistance_support import compute_levels  # noqa: PLC0415
+
+        try:
+            df = self.history(symbol, 252, Resolution.DAILY)
+            if df is None or df.empty:
+                return kijun, kijun, 0.0
+            if isinstance(df.index, pd.MultiIndex):
+                df = df.droplevel(0)
+            df = df.copy()
+            df.columns = [c.lower() for c in df.columns]
+            required = {"open", "high", "low", "close", "volume"}
+            if not required.issubset(df.columns):
+                return kijun, kijun, 0.0
+            df = df[["open", "high", "low", "close", "volume"]].astype(float)
+
+            lv = compute_levels(df, ref_price=close, senkou_a=cloud_top, senkou_b=cloud_bottom)
+            support = lv.nearest_support if lv.nearest_support is not None else kijun
+
+            prev_close = df["close"].shift(1)
+            tr = pd.concat([
+                df["high"] - df["low"],
+                (df["high"] - prev_close).abs(),
+                (df["low"] - prev_close).abs(),
+            ], axis=1).max(axis=1)
+            atr_val = tr.rolling(14).mean().iloc[-1]
+            atr = float(atr_val) if pd.notna(atr_val) else 0.0
+
+            structural_stop = max(kijun, support + 0.5 * atr)
+            return structural_stop, support, atr
+        except Exception:
+            return kijun, kijun, 0.0
+
     def _has_open_orders(self, symbol) -> bool:
         return bool(self.transactions.get_open_orders(symbol))
 
@@ -447,10 +484,17 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                     pnl_h = close / meta.get("entry_price", close) - 1
                     self.log(f"PHASE3_EXIT|{date_str}|{symbol.value}|close={close:.2f}|cloud_bottom={cloud_bottom:.2f}|days={days_h}|pnl={pnl_h:.1%}")
             else:
-                if close < kijun:
+                structural_stop, support, atr = self._structural_stop(
+                    symbol, close, kijun, cloud_top, cloud_bottom
+                )
+                if close < structural_stop:
                     self.market_on_open_order(symbol, -holding.quantity)
                     self._position_meta.pop(symbol, None)
-                    self.log(f"STOP|{date_str}|{symbol.value}|close={close:.2f}|kijun={kijun:.2f}")
+                    self.log(
+                        f"STRUCT_STOP|{date_str}|{symbol.value}|close={close:.2f}"
+                        f"|kijun={kijun:.2f}|support={support:.2f}|atr={atr:.2f}"
+                        f"|structural_stop={structural_stop:.2f}"
+                    )
                 elif self.cloud_exit_enabled and close < cloud_top:
                     self.market_on_open_order(symbol, -holding.quantity)
                     self._position_meta.pop(symbol, None)
