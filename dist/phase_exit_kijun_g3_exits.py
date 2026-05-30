@@ -12,9 +12,10 @@ CHARTER NOTE — phase3_days is NOT a forbidden time-exit / max-hold. It is Geor
 phase-progression AGE GATE: once a position is ≥phase3_days held AND ≥phase3_pnl in profit,
 the trailing stop LOOSENS from Kijun to cloud-bottom (a LOWER stop, evaluate() L81-104). It
 NEVER forces an exit and NEVER caps holding time — maturity widens the leash, the position
-still only exits on a price-stop breach. Distinct from FORBIDDEN_PARAMS time-exits
-(max_hold_days / exit_after_days / time_stop_days …), which the charter-scan rejects by
-name (validate_invariants); phase3_days is legitimately absent from that list.
+still only exits on a price-stop breach. Distinct from a genuine time-exit (max_hold_days /
+exit_after_days …) which the charter (CONVENTIONS §Charter rules) forbids — that rule is
+code-review-enforced, not an engine param-name scan (the FORBIDDEN_PARAMS blocklist was
+removed as brittle). phase3_days is a trail-loosen age gate, reviewer-judged legitimate.
 """
 from __future__ import annotations
 

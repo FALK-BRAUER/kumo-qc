@@ -12,7 +12,6 @@ Slots, depends on the PhaseInterface Protocol.
 """
 from __future__ import annotations
 
-import dataclasses
 import hashlib
 from typing import Any
 
@@ -69,17 +68,6 @@ ENTRY_ONLY_PHASES: frozenset[str] = frozenset({
 ENTRY_ONLY_SENTINELS: frozenset[FireSentinel] = frozenset({FIRE_ENTRIES, FIRE_ADDS})
 ALWAYS_RUN: frozenset[str] = frozenset({"diagnostics", "circuit_breaker"})
 
-FORBIDDEN_PARAMS: frozenset[str] = frozenset({
-    # count caps
-    "max_positions", "max_lots", "max_entries_per_day",
-    "max_adds", "max_pyramid_lots", "max_position_adds",
-    "max_concurrent_positions", "position_limit", "max_slots",
-    # time-based exits
-    "max_hold_days", "exit_if_flat_after_days",
-    "max_days_held", "max_bars_held", "time_stop_days",
-    "exit_after_days", "holding_period_limit",
-})
-
 REQUIRED_PHASES: tuple[str, ...] = ("filter", "universe", "signal", "sizing")
 
 # Every schedulable phase kind = the string items of PHASE_ORDER. A config keyed by any
@@ -103,14 +91,13 @@ def _kind_enabled(config: StrategyConfig, kind: str) -> bool:
 
 
 def validate_invariants(config: StrategyConfig) -> None:
-    """Charter: no count caps / time exits (scan typed-param field names); explicit-exposure."""
-    for kind, value in config.phases.items():
-        for slot in _slots(value):
-            for f in dataclasses.fields(slot.params):  # type: ignore[arg-type]
-                if f.name in FORBIDDEN_PARAMS:
-                    raise CharterViolation(
-                        f"'{f.name}' is a forbidden count-cap/time-exit param in phase '{kind}'"
-                    )
+    """Charter STRUCTURAL check: explicit-exposure (adds require portfolio_risk).
+
+    The no-count-caps / no-time-exits rules are NOT enforced here anymore (Falk directive):
+    a hardcoded param-name blocklist is brittle (misses novel names, gives false safety). Those
+    rules live in CONVENTIONS §Charter + code-review. This keeps only the structural invariant
+    that can't be a naming game — amplifying adds MUST pair with an explicit gross_exposure_cap.
+    """
     if _kind_enabled(config, "adds") and not _kind_enabled(config, "portfolio_risk"):
         raise CharterViolation(
             "adds enabled without portfolio_risk (gross_exposure_cap) — "

@@ -18,10 +18,15 @@ The rules every contribution conforms to. The PR gate enforces these. See [docs/
 - Each phase declares `PHASE_KIND`, `REQUIRES_UPSTREAM`, `PROVIDES_DOWNSTREAM`, a `version_marker`, and a mandatory file header (tested params + setup + charter + changelog).
 - **Merge a phase when it is correct** (tests + parity + charter + header pass) — independent of whether it improves the champion.
 
-## Charter invariants (engine refuses to start otherwise)
-- **No count caps** (`max_positions`, `max_lots`, `max_adds`, `max_pyramid_lots`, `max_slots`, ...). Bound exposure with `gross_exposure_cap` (a % rule), never a count.
-- **No time-based exits** (`max_hold_days`, `exit_after_days`, ...).
-- **Explicit exposure only** — if `adds` is enabled, `gross_exposure_cap` MUST be enabled.
+## Charter rules
+
+**No count caps** and **no time-based exits** are RULES — enforced by these conventions + code-review, NOT by a hardcoded engine param-name blocklist. (The former `FORBIDDEN_PARAMS` engine scan was removed: a name-list is brittle — it misses novel names and gives false safety. A reviewer judges intent; a blocklist judges spelling.)
+- **No count caps** (`max_positions`, `max_lots`, `max_adds`, `max_pyramid_lots`, `max_slots`, ...). Bound exposure with `gross_exposure_cap` (a % rule), never a count. *(review-enforced rule)*
+- **No time-based exits** (`max_hold_days`, `exit_after_days`, ...). Exits are signal/structure-based (rotation / trail / cloud-breach), never "held N days." *(review-enforced rule)*
+
+**Explicit exposure only — the one STRUCTURAL invariant the engine still enforces** (`validate_invariants`, refuses to start otherwise): if `adds` is enabled, `gross_exposure_cap`/`portfolio_risk` MUST be enabled. This can't be gamed by renaming, so it stays in code.
+
+Structural guards the engine DOES enforce at init (not param-name games): `_validate_known_kinds` (a configured phase kind absent from `PHASE_ORDER` → ConfigError, no silent no-op) and `REQUIRED_PHASES` (filter/universe/signal/sizing present).
 - **NO fixed / snapshot universe — anywhere.** No 326, no hardcoded ticker list, in code, config, data, or tests. Universe = **dynamic, point-in-time** only. The fixed snapshot was the root of the slot-tiebreak / data-divergence / parity-chasing time-sinks and **proved nothing** — eradicated. Which tickers a strategy selects = the dynamic universe phase, pinned by config-hash; the substrate (the zip set) is fingerprinted separately.
 - **NO fixed slots, NO day-holds / max-holds / max-hold-days, nothing of that family.** These are count-caps + time-caps by another name — forbidden. Position count is governed by `gross_exposure_cap` + signal rarity; exits are rotation / trail / cloud-breach (principled), never "held N days."
 

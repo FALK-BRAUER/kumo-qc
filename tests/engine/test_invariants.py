@@ -1,11 +1,9 @@
-from dataclasses import dataclass
-
 import pytest
 
 from engine.base import CharterViolation, ConfigError, DependencyError
 from engine.config import Slot, StrategyConfig
 from engine.engine import StrategyEngine, validate_invariants
-from tests.harness.stub_phases import StubPhase, slot
+from tests.harness.stub_phases import slot
 
 
 class FakeQC:
@@ -13,68 +11,11 @@ class FakeQC:
     def log(self, msg: str) -> None: ...
 
 
-# --- a phase whose Params carries a forbidden field name (count cap) ---
-class _CapPhase(StubPhase):
-    @dataclass(slots=True)
-    class Params:
-        kind: str = "sizing"
-        max_positions: int = 10  # FORBIDDEN
-        enabled: bool = True
-
-    def __init__(self, params: "_CapPhase.Params", logger: object = None) -> None:
-        # build a StubPhase.Params-shaped object for the base
-        super().__init__(StubPhase.Params(kind=params.kind), logger)
-
-
-def test_forbidden_param_field_raises() -> None:
-    cfg = StrategyConfig(name="t", version="1.0.0", phases={
-        "sizing": Slot(impl=_CapPhase, params=_CapPhase.Params()),
-    })
-    with pytest.raises(CharterViolation, match="max_positions"):
-        validate_invariants(cfg)
-
-
-# --- a phase whose Params carries a forbidden TIME-EXIT field name (max-hold) ---
-class _TimeExitPhase(StubPhase):
-    @dataclass(slots=True)
-    class Params:
-        kind: str = "exit_hard"
-        max_hold_days: int = 90  # FORBIDDEN time-exit / max-hold
-        enabled: bool = True
-
-    def __init__(self, params: "_TimeExitPhase.Params", logger: object = None) -> None:
-        super().__init__(StubPhase.Params(kind=params.kind), logger)
-
-
-def test_forbidden_time_exit_param_raises() -> None:
-    # Proves the charter-scan catches a genuine TIME-EXIT by name (not only count-caps).
-    # This is the guarantee that makes phase3_days's legitimacy meaningful: a real
-    # max_hold_days / exit_after_days WOULD be rejected; phase3_days passes only because
-    # it is correctly absent from FORBIDDEN_PARAMS (a trail-loosen age gate, not a max-hold).
-    cfg = StrategyConfig(name="t", version="1.0.0", phases={
-        "exit_hard": Slot(impl=_TimeExitPhase, params=_TimeExitPhase.Params()),
-    })
-    with pytest.raises(CharterViolation, match="max_hold_days"):
-        validate_invariants(cfg)
-
-
-def test_phase3_days_is_not_forbidden() -> None:
-    # The legitimate Rule #13 trail-loosen age gate must NOT trip the scan — a phase
-    # carrying phase3_days passes validate_invariants (not a FORBIDDEN_PARAMS name).
-    class _Phase3(StubPhase):
-        @dataclass(slots=True)
-        class Params:
-            kind: str = "exit_hard"
-            phase3_days: int = 56  # Rule #13 age gate — legitimate
-            enabled: bool = True
-
-        def __init__(self, params: object, logger: object = None) -> None:
-            super().__init__(StubPhase.Params(kind="exit_hard"), logger)
-
-    cfg = StrategyConfig(name="t", version="1.0.0", phases={
-        "exit_hard": Slot(impl=_Phase3, params=_Phase3.Params()),
-    })
-    validate_invariants(cfg)  # must NOT raise
+# FORBIDDEN_PARAMS removed (Falk directive): the no-count-caps / no-time-exits rules are
+# CONVENTIONS + code-review enforced, NOT a brittle engine param-name blocklist. The former
+# test_forbidden_param_field_raises / test_forbidden_time_exit_param_raises /
+# test_phase3_days_is_not_forbidden tested that removed scan — deleted with it. validate_invariants
+# now only enforces the structural explicit-exposure invariant (adds → portfolio_risk).
 
 
 def test_allowed_params_pass() -> None:
