@@ -67,3 +67,7 @@ data/kumo-qc.db
 
 # BT output at any depth (archive/*/backtests etc)
 **/backtests/
+
+# QC backtest-output artifacts + signal cache (output, not source)
+qc/
+storage/
