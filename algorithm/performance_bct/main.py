@@ -42,6 +42,12 @@ except ImportError:
     except Exception:
         compute_levels = None  # type: ignore
 
+try:
+    from pyramid_engine import should_add as _pyr_should_add, add_dollars as _pyr_add_dollars  # Phase 3b #172
+except Exception:
+    _pyr_should_add = None  # type: ignore
+    _pyr_add_dollars = None  # type: ignore
+
 from typing import Any
 
 import numpy as np
@@ -246,7 +252,10 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
         self.pyramid_enabled = self.get_parameter("pyramid_enabled", "false").lower() == "true"
         self.PYRAMID_RISK = float(self.get_parameter("pyramid_risk", "200"))
         self.MAX_LOTS = int(self.get_parameter("max_lots", "3"))
+        # Phase 3b #172: pyramid technique variant (Pa-Pe). Empty = legacy BE-trigger.
+        self.pyramid_variant = self.get_parameter("pyramid_variant", "").strip()
         self.log(f"VERSION_MARKER|pyramid_v1|risk={self.PYRAMID_RISK}|max_lots={self.MAX_LOTS}|enabled={self.pyramid_enabled}")
+        self.log(f"VERSION_MARKER|pyramid_engine_v1|variant={self.pyramid_variant or 'legacy_BE'}")
         # RS151 polarity trail toggle — allows base-equivalence sanity (trail inert)
         self.polarity_trail_enabled = self.get_parameter("polarity_trail_enabled", "false").lower() == "true"
         self.MAX_ENTRIES_PER_DAY=int(self.get_parameter("max_entries_per_day","9999"))
@@ -428,6 +437,31 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
             w_ichi.update(bar)
             w_close.add(float(row["close"]))
 
+    def _atr_stats(self, symbol) -> tuple[float | None, float | None, float | None]:
+        """Phase 3b: (ATR14, today's true range, 20d avg true range) from daily history.
+        Used for Pc ATR-spacing and Pd vol-confirmation. Returns (None,None,None) on
+        insufficient data."""
+        try:
+            hist = self.history(symbol, 22, Resolution.DAILY)
+            if hist is None or len(hist) < 15:
+                return None, None, None
+            if isinstance(hist.index, pd.MultiIndex):
+                hist = hist.droplevel(0)
+            h = hist["high"].astype(float)
+            l = hist["low"].astype(float)
+            c = hist["close"].astype(float)
+            prev_c = c.shift(1)
+            tr = pd.concat([(h - l), (h - prev_c).abs(), (l - prev_c).abs()], axis=1).max(axis=1)
+            tr = tr.dropna()
+            if tr.empty:
+                return None, None, None
+            atr14 = float(tr.tail(14).mean())
+            today_tr = float(tr.iloc[-1])
+            avg_tr_20 = float(tr.tail(20).mean())
+            return atr14, today_tr, avg_tr_20
+        except Exception:
+            return None, None, None
+
     def _daily_vals(self, symbol) -> tuple[float, float, float, float] | None:
         """Returns (close, kijun, cloud_top, cloud_bottom)."""
         if symbol not in self._indicators:
@@ -559,26 +593,53 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 if vals is None:
                     continue
                 close_p, kijun_p, _, _ = vals
-                # trail at breakeven+: trailing stop (Kijun) has reached original entry
-                if kijun_p < meta["entry_price"]:
-                    continue
                 ind = self._indicators.get(symbol)
                 if ind is None:
                     continue
-                res = score_symbol_native(self, symbol, ind)
-                if res is None or res["score"] < self.MIN_SCORE:
+                lots = meta.get("lots", 1)
+                variant = getattr(self, "pyramid_variant", "")
+
+                if variant and _pyr_should_add is not None:
+                    # Phase 3b: technique-driven add. Trigger from the pyramid_engine;
+                    # size = engine $-risk over the Kijun-stop distance.
+                    d_ichi = ind.get("d_ichi")
+                    tk_cross = False
+                    if d_ichi is not None and d_ichi.is_ready:
+                        tk_now = d_ichi.tenkan.current.value > d_ichi.kijun.current.value
+                        tk_cross = bool(tk_now and not meta.get("tk_above_prev", False))
+                        meta["tk_above_prev"] = bool(tk_now)
+                    _atr, today_tr, avg_tr_20 = (None, None, None)
+                    if variant in ("Pc", "Pd"):
+                        _atr, today_tr, avg_tr_20 = self._atr_stats(symbol)
+                    fire = _pyr_should_add(
+                        variant, lots,
+                        entry_price=float(meta["entry_price"]), close=close_p,
+                        entry_atr=meta.get("entry_atr"), daily_tr=today_tr,
+                        vol_20d_avg=avg_tr_20, tk_cross=tk_cross,
+                    )
+                    if not fire:
+                        continue
+                    add_risk = _pyr_add_dollars(variant, lots)
+                else:
+                    # Legacy BE-trigger (F1): add when Kijun trail reaches breakeven.
+                    if kijun_p < meta["entry_price"]:
+                        continue
+                    res = score_symbol_native(self, symbol, ind)
+                    if res is None or res["score"] < self.MIN_SCORE:
+                        continue
+                    add_risk = self.PYRAMID_RISK
+
+                stop_dist = close_p - kijun_p  # risk per share from current Kijun stop
+                if stop_dist <= 0 or add_risk <= 0:
                     continue
-                stop_dist = close_p - kijun_p  # risk per share from CURRENT trail
-                if stop_dist <= 0:
-                    continue
-                add_qty = int(self.PYRAMID_RISK / stop_dist)
+                add_qty = int(add_risk / stop_dist)
                 cost = add_qty * close_p
                 if add_qty <= 0 or (available_cash - committed_cash) < cost:
                     continue
                 committed_cash += cost
                 self.market_on_open_order(symbol, add_qty)
-                meta["lots"] = meta.get("lots", 1) + 1
-                self.log(f"PYRAMID_ADD|{date_str}|{symbol.value}|lot={meta['lots']}|qty={add_qty}|price~{close_p:.2f}|trail={kijun_p:.2f}")
+                meta["lots"] = lots + 1
+                self.log(f"PYRAMID_ADD|{date_str}|{symbol.value}|v={variant or 'BE'}|lot={meta['lots']}|qty={add_qty}|risk={add_risk:.0f}|price~{close_p:.2f}")
 
         exiting = {
             o.symbol
@@ -689,7 +750,9 @@ class BCTPerformanceAlgorithm(QCAlgorithm):
                 continue
             committed_cash += target_value
             self.market_on_open_order(symbol, quantity)
-            self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price), "lots": 1}
+            _atr0, _, _ = self._atr_stats(symbol)  # Phase 3b: ATR at entry for Pc spacing
+            self._position_meta[symbol] = {"entry_date": self.time, "entry_price": float(price),
+                                           "lots": 1, "entry_atr": _atr0}
             self.log(f"ENTRY|{date_str}|{symbol.value}|score={score}/8|qty={quantity}|price~{price:.2f}|sizing={sizing_tag}")
 
         self.log(f"REBALANCE|{date_str}|open={open_count}|new_entries={min(len(candidates), slots)}")
