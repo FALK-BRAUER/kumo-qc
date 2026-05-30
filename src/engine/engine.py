@@ -80,7 +80,7 @@ FORBIDDEN_PARAMS: frozenset[str] = frozenset({
     "exit_after_days", "holding_period_limit",
 })
 
-REQUIRED_PHASES: tuple[str, ...] = ("universe", "signal", "sizing")
+REQUIRED_PHASES: tuple[str, ...] = ("filter", "universe", "signal", "sizing")
 
 # Every schedulable phase kind = the string items of PHASE_ORDER. A config keyed by any
 # kind NOT in here would instantiate but never be scheduled in the per-bar loop (it reads

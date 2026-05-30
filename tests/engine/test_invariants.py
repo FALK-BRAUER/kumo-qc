@@ -50,6 +50,7 @@ def test_adds_without_portfolio_risk_raises() -> None:
 
 def test_adds_with_portfolio_risk_passes() -> None:
     cfg = StrategyConfig(name="t", version="1.0.0", phases={
+        "filter": slot("filter"),
         "universe": slot("universe"), "signal": slot("signal"), "sizing": slot("sizing"),
         "adds": slot("adds"), "portfolio_risk": slot("portfolio_risk"),
     })
@@ -57,15 +58,26 @@ def test_adds_with_portfolio_risk_passes() -> None:
 
 
 def test_required_phase_missing_raises() -> None:
+    # filter/universe/signal present, sizing omitted -> reports the missing 'sizing'.
     cfg = StrategyConfig(name="t", version="1.0.0", phases={
-        "universe": slot("universe"), "signal": slot("signal"),  # no sizing
+        "filter": slot("filter"), "universe": slot("universe"), "signal": slot("signal"),
     })
     with pytest.raises(ConfigError, match="sizing"):
         StrategyEngine(config=cfg, qc=FakeQC())
 
 
+def test_filter_required_missing_raises() -> None:
+    # filter is now a REQUIRED phase (explicit eligibility stage cannot be omitted).
+    cfg = StrategyConfig(name="t", version="1.0.0", phases={
+        "universe": slot("universe"), "signal": slot("signal"), "sizing": slot("sizing"),
+    })
+    with pytest.raises(ConfigError, match="filter"):
+        StrategyEngine(config=cfg, qc=FakeQC())
+
+
 def test_single_adds_enforced() -> None:
     cfg = StrategyConfig(name="t", version="1.0.0", phases={
+        "filter": slot("filter"),
         "universe": slot("universe"), "signal": slot("signal"), "sizing": slot("sizing"),
         "portfolio_risk": slot("portfolio_risk"),
         "adds": [slot("adds"), slot("adds")],
@@ -76,7 +88,7 @@ def test_single_adds_enforced() -> None:
 
 def test_dependency_unmet_raises() -> None:
     cfg = StrategyConfig(name="t", version="1.0.0", phases={
-        "universe": slot("universe"), "signal": slot("signal"),
+        "filter": slot("filter"), "universe": slot("universe"), "signal": slot("signal"),
         "sizing": slot("sizing", requires=("ranking",)),  # ranking not enabled
     })
     with pytest.raises(DependencyError, match="ranking"):
@@ -85,7 +97,8 @@ def test_dependency_unmet_raises() -> None:
 
 def test_dependency_satisfied_passes() -> None:
     cfg = StrategyConfig(name="t", version="1.0.0", phases={
-        "universe": slot("universe"), "signal": slot("signal", requires=("universe",)),
+        "filter": slot("filter"), "universe": slot("universe"),
+        "signal": slot("signal", requires=("universe",)),
         "sizing": slot("sizing", requires=("signal",)),
     })
-    StrategyEngine(config=cfg, qc=FakeQC())  # universe<signal<sizing in PHASE_ORDER, must not raise
+    StrategyEngine(config=cfg, qc=FakeQC())  # filter<universe<signal<sizing, must not raise

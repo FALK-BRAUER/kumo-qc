@@ -33,6 +33,7 @@ class FakeQC:
 
 def base_phases(**extra: Any) -> dict[str, Any]:
     p: dict[str, Any] = {
+        "filter": slot("filter"),
         "universe": slot("universe"),
         "signal": slot("signal"),
         "sizing": slot("sizing"),
