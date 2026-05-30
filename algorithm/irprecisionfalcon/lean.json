@@ -1,0 +1,12 @@
+{
+    "project-id": "irprecisionfalcon-local",
+    "description": "IRPrecisionFalcon — ML-based QQQ-relative strategy. RandomForest signal on MAG8 universe.",
+    "parameters": {
+        "start_year": "2025",
+        "start_month": "1",
+        "start_day": "1",
+        "end_year": "2025",
+        "end_month": "12",
+        "end_day": "31"
+    }
+}
