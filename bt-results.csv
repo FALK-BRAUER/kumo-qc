@@ -329,3 +329,5 @@ date_run,window,period_start,period_end,commit,branch,environment,sharpe,net_pro
 2026-05-30,FY2025,2025-01-01,2025-12-31,bb3c450,feat/me153,local,0.682,20.834,,147,,8.7,,multiETF #153 V14 QQQ>50 AND SPY>50 — REJECT vs 0.778
 2026-05-30,FY2025,2025-01-01,2025-12-31,24e8758,feat/me154,local,0.752,23.121,,145,,9.1,,multiETF #154 V15 QQQ>50 OR IWM>50 — REJECT vs 0.778 (near-miss, Phase-3 HIGH candidate)
 2026-05-30,FY2025,2025-01-01,2025-12-31,836c104,feat/me157,local,0.039,7.462,,169,,10.2,,multiETF #157 V18 breadth>50% — REJECT vs 0.778, breadth gate blocks too many entries
+2026-05-30,FY2025,2025-01-01,2025-12-31,86f5694,feat/me155,local,-0.031,6.478,,167,,8.9,,sector #155 V16 per-stock sector ETF>50MA gate — REJECT vs 0.778, sector gating turns Sharpe negative (gate fired 5490x). NOTE 80/326 unmapped bypassed gate
+2026-05-30,FY2025,2025-01-01,2025-12-31,bea6d7a,feat/me156,local,-0.186,4.145,,165,,7.8,,sector #156 V17 sector RS (ETF>50MA AND sector20d>SPY20d) — REJECT vs 0.778, worst of batch (gate 5612x). NOTE 80/326 unmapped bypassed

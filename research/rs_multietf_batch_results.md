@@ -38,6 +38,16 @@ Flat-10% is the disqualified-for-live champion. These were tested against it; th
 
 Tickets kept OPEN, tagged Phase-3 retest candidate.
 
+## Sector-regime batch (#155/#156) — appended 2026-05-30
+
+| Exp | Ticket | Gate | Sharpe | Ret% | DD% | Orders | Gate-fires | Verdict |
+|-----|--------|------|-------:|-----:|----:|-------:|-----------:|---------|
+| me155 | #155 | per-stock: sector ETF > 50MA | -0.031 | +6.48% | 8.9% | 167 | 5490× | REJECT |
+| me156 | #156 | sector ETF >50MA AND sector 20d > SPY 20d | -0.186 | +4.15% | 7.8% | 165 | 5612× | REJECT |
+
+Both turn Sharpe **negative** — sector regime gating over-filters, removing winners faster than losers. Sector RS (#156) is the worst in the entire day's batch.
+**Caveat:** `ticker_sector_map.json` covered 246/326; the 80 unmapped (P–Z, FMP free-tier daily cap) bypassed the gate (~25% of universe ungated). Direction is strongly negative — a full-map re-run will not flip positive, but a clean re-run is warranted if ever revisited. Backfill pending FMP daily reset. Phase-3 priority LOW.
+
 ## Verification trail
 
 All 8: `VERSION_MARKER|<id>_*` present in executed `code/main.py` snapshot (wrapper-confirmed own code ran) + distinct gate-log token counted in runtime log (proves logic fired). Artifacts in each `kumo-qc-<id>/algorithm/performance_bct/backtests/`. Numbers from `*-summary.json` statistics only.
