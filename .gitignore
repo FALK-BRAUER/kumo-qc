@@ -23,8 +23,20 @@ npm-debug.log*
 /Results/
 /backtests/
 */backtests/
+algorithm/*/backtests/
 algorithm/performance_bct/backtests/
 *.json.bak
+
+# Databases (regenerable)
+*.db
+
+# Per-worktree LEAN config (local-id churns per worktree — not durable)
+algorithm/performance_bct/config.json
+
+# Universe-snapshot JSONs (regenerable; equity200 is the canonical tracked one)
+algorithm/performance_bct/etf_universe_fy2025.json
+algorithm/performance_bct/polygon_universe_daily_fy2025.json
+algorithm/performance_bct/polygon_universe_equity_fy2025.json
 
 # Root log files
 *.log
