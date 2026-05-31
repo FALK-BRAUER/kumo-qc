@@ -19,7 +19,7 @@ STRATEGY_CONFIG = StrategyConfig(
     'universe': Slot(impl=DvRankCap, params=DvRankCap.Params(enabled=True)),
     'signal': Slot(impl=BctScoreFull, params=BctScoreFull.Params(min_score=7, parabolic_threshold=0.25, enabled=True)),
     'regime': [Slot(impl=SpySma200, params=SpySma200.Params(enabled=True)), Slot(impl=VixPercentile, params=VixPercentile.Params(vix_percentile_enabled=False, vix_percentile_threshold=75.0, vix_percentile_lookback=504, enabled=True))],
-    'entry_selection': Slot(impl=BctEntryConfirm, params=BctEntryConfirm.Params(macd_fast=12, macd_slow=26, macd_signal=9, volume_gate_mult=1.0, tenkan_pullback_tol=0.005, gap_up_threshold=0.05, min_confirm=2, enabled=True)),
+    'entry_selection': Slot(impl=BctEntryConfirm, params=BctEntryConfirm.Params(macd_fast=12, macd_slow=26, macd_signal=9, volume_gate_mult=1.0, tenkan_pullback_tol=0.005, flat_eps=0.002, gap_up_threshold=0.01, min_confirm=2, enabled=True)),
     'entry_timing': Slot(impl=MarketOnOpenEntry, params=MarketOnOpenEntry.Params(enabled=True)),
     'sizing': Slot(impl=FlatPctHeatcap, params=FlatPctHeatcap.Params(position_pct=0.1, enabled=True)),
     'exit_hard': [Slot(impl=KijunG3Exits, params=KijunG3Exits.Params(cloud_exit_enabled=False, weekly_kijun_exit_enabled=False, phase3_days=56, phase3_pnl=0.15, enabled=True))],

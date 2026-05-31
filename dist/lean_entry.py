@@ -381,7 +381,10 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
 
         def _on_daily(_: Any, bar: TradeBar) -> None:
             t = d_ichi.tenkan.current.value if d_ichi.is_ready else 0.0
-            tbounce.update(float(bar.open), float(bar.close), float(t))
+            # Feed the FULL daily OHLC bar (HQ #253-P1: C2 reads the daily LOW + candle body/wick).
+            tbounce.update(
+                float(bar.open), float(bar.high), float(bar.low), float(bar.close), float(t)
+            )
 
         daily_consolidator.data_consolidated += _on_daily
         self.subscription_manager.add_consolidator(sym, daily_consolidator)
