@@ -256,9 +256,20 @@ def _emit_main(
     for kind, slot in enabled:
         grouped.setdefault(kind, []).append(slot)
 
+    def _slot_file(slot: Any) -> Path:
+        """Resolve an enabled slot's src file. build() already validated every enabled
+        slot resolves (raises before _emit_main if not), so None is unreachable here;
+        the guard makes the invariant explicit and narrows Path | None -> Path."""
+        f = _module_to_file(slot.impl.__module__, src)
+        if f is None:
+            raise ValueError(
+                f"phase {slot.impl.__name__}: module {slot.impl.__module__} not under src/"
+            )
+        return f
+
     def _render_slot(slot: Any) -> str:
         cls = slot.impl.__name__
-        flat_mod = _flat_name(_module_to_file(slot.impl.__module__, src), src)[:-3]  # strip .py
+        flat_mod = _flat_name(_slot_file(slot), src)[:-3]  # strip .py
         if cls not in seen_cls:
             imports.append(f"from {flat_mod} import {cls}")
             seen_cls.add(cls)
@@ -282,7 +293,7 @@ def _emit_main(
             try:
                 marker_texts.append(s.impl(s.params, None).version_marker)
             except Exception:
-                marker_texts.append(_flat_name(_module_to_file(s.impl.__module__, src), src)[:-3])
+                marker_texts.append(_flat_name(_slot_file(s), src)[:-3])
         markers[kind] = ",".join(marker_texts)
     if deployable:
         imports.append("from lean_entry import BctEngineAlgorithm")
