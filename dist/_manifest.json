@@ -1,6 +1,6 @@
 {
   "build_script_version": "1.0.0",
-  "config_hash": "1ba1902b8bfb",
+  "config_hash": "e573e84b1ce1",
   "data_fingerprint": "90f2d7e3fb80d0a4d2eb286f6a43199e1519495a3ce9d787a4d7d0dfc70c535c",
   "files": [
     "_manifest.json",
@@ -13,6 +13,7 @@
     "lean_entry.py",
     "logger.py",
     "main.py",
+    "phase_diagnostics_chart_emit.py",
     "phase_diagnostics_version_marker.py",
     "phase_exit_kijun_g3_exits.py",
     "phase_regime_spy_200ma.py",
@@ -23,9 +24,9 @@
     "shared_oracle_helpers.py",
     "universe_select.py"
   ],
-  "git_commit": "020de35d3d69a794244cbf49f499b2415cbde43d",
+  "git_commit": "7da1a572defecf03f7d7d4ea0795119b9251ea15",
   "phase_markers": {
-    "diagnostics": "version_marker_v1",
+    "diagnostics": "version_marker_v1,chart_emit_v1",
     "exit_hard": "kijun_g3_exits_v1",
     "regime": "spy_200ma_v1,vix_percentile_v1",
     "signal": "bct_score_full_v1",
