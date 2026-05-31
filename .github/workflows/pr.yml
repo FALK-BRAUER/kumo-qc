@@ -1,0 +1,40 @@
+name: PR Checks
+
+# Runs the full gate on every PR to the integration branches. Until branch
+# protection requires this workflow (see #250), a red run is advisory; with
+# protection on, red blocks merge. Pure-python — tests use FakeQC, no LEAN/docker.
+on:
+  pull_request:
+    branches: [mainV2, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"   # matches mypy.ini python_version
+
+      - name: Install toolchain + test-runtime deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          # pandas/numpy are LEAN-supplied at strategy runtime and intentionally
+          # NOT in requirements-dev.txt, but the unit tests import them directly
+          # (e.g. vix_percentile, oracle_helpers). Install for CI only.
+          pip install pandas numpy
+
+      - name: mypy --strict (src/)
+        run: mypy            # mypy.ini: strict=True, files=src
+
+      - name: pytest (full suite — incl. liveness acceptance #244-D)
+        run: pytest          # pytest.ini: pythonpath=src build, testpaths=tests
