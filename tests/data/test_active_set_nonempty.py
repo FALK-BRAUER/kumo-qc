@@ -179,13 +179,10 @@ def test_empty_coarse_file_zero_rows_reads_to_empty_feed(tmp_path) -> None:
     assert rows == []  # 0 rows -> empty feed (correct-0, distinguishable from a populated day)
 
 
-def test_missing_coarse_file_for_a_day_is_detectable(tmp_path) -> None:
-    # A MISSING coarse file for a day (data gap) is DETECTABLE at the file grain: the path does
-    # not exist. A monitor MUST distinguish 'file absent' (potential data gap = broken-0 if it
-    # was a real session) from 'file present but 0 rows' (holiday = correct-0). We pin that the
-    # absence is observable (not a silent empty), which is the hook a fail-loud day-loop needs.
-    missing_fp = tmp_path / "20250102.csv"  # not written
-    assert not missing_fp.is_file()  # absence is explicit, never silently treated as empty
+# NOTE: the MISSING-coarse-file-on-a-known-trading-day fail-loud case (data gap that must RAISE,
+# not silently read as an empty/holiday feed) is a #261 deliverable — it needs the day-loop guard
+# that knows a date is a real session, which the selection gate alone cannot. #261 owns that guard
+# AND its negative test. Not pinned here (no current function to drive); see the #263 report.
 
 
 def test_real_day_distinguishable_from_holiday_by_input_count(monkeypatch) -> None:
@@ -200,4 +197,4 @@ def test_real_day_distinguishable_from_holiday_by_input_count(monkeypatch) -> No
 
     algo2 = _make_algo(monkeypatch)
     holiday_ranked = algo2._coarse_selection([])
-    assert (len([]) == 0) and (len(holiday_ranked) == 0)  # correct-0: (0, 0)
+    assert len(holiday_ranked) == 0  # correct-0: empty input -> empty selection (no raise)
