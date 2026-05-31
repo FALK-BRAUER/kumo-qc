@@ -187,15 +187,17 @@ def test_empty_coarse_file_zero_rows_reads_to_empty_feed(tmp_path) -> None:
 
 
 # #261 RESOLUTION (was a #263 deferral): the MISSING-coarse-file-on-a-known-trading-day fail-loud
-# case is now implemented in the selection gate itself. INVESTIGATION RESULT: QC's
-# CoarseFundamentalUniverseSelection callback fires ONCE PER TRADING DAY and ONLY when a coarse
-# file exists for that session — it is NEVER invoked on a non-trading day (the local conform's
-# clean_orphan_files purges non-session files precisely so the native reader cannot trip on them,
-# and every real FY2025 session feed carries >10k rows). So the callback firing AT ALL means QC
-# already determined it is a real session; an EMPTY feed at that point == a data gap, not a
-# holiday. The day-loop knowledge the #263 note wanted lives IN QC's callback contract — the gate
-# can rely on it. The guard therefore lives in _coarse_selection (no external day-loop needed),
-# tested by test_empty_feed_on_trading_day_raises_loud above (#261-5).
+# case is now implemented in the selection gate itself. INVESTIGATION RESULT: QC drives
+# CoarseFundamentalUniverseSelection off its OWN NYSE trading calendar — the callback fires once
+# per real session and is NEVER invoked on a market holiday, regardless of stray files on disk.
+# THAT CALENDAR is the guarantee. (clean_orphan_files is belt-and-suspenders meant to purge stale
+# non-session files; the tree currently still carries ~14 US-holiday orphans — header-only or
+# foreign-exchange tickers, no SPY bars — so do NOT rely on the purge having run; QC's calendar
+# excludes those days anyway. Real FY2025 session feeds carry >10k rows each.) So the callback
+# firing AT ALL means QC already determined it is a real session; an EMPTY feed at that point ==
+# a data gap, not a holiday. The day-loop knowledge the #263 note wanted lives IN QC's callback
+# contract — the gate can rely on it. The guard therefore lives in _coarse_selection (no external
+# day-loop needed), tested by test_empty_feed_on_trading_day_raises_loud above (#261-5).
 
 
 def test_real_day_distinguishable_from_degraded_by_input_count(monkeypatch) -> None:

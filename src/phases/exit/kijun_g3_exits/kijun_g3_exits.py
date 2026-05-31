@@ -63,6 +63,14 @@ class KijunG3Exits(BasePhase):
 
             ind = getattr(qc, "_indicators", {}).get(symbol)
             if ind is None:
+                # NOTE (#261-8 boundary): a fully-absent indicator entry is treated as a benign
+                # skip, NOT the cold-d_ichi raise below. Distinction: a cold d_ichi means the
+                # indicator EXISTS but isn't ready = broken wiring on a name that entry warmed
+                # (fail loud). `ind is None` means there is no indicator object at all for this
+                # held name — the only realistic cause is a delisted/unsubscribed symbol still in
+                # the portfolio, where there is literally nothing to evaluate a Kijun stop against
+                # (liquidation/other exit logic handles it). Skipping is the only option here; it
+                # is not the "indicator present but not consulted" silent-ride class the guard targets.
                 continue
             # FAIL-LOUD GUARD (#261-8): an INVESTED position whose daily Ichimoku is missing or
             # COLD at stop-evaluation time is the silent-skip class — the Kijun/cloud stop is

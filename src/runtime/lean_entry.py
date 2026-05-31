@@ -309,15 +309,18 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         coarse_dv = coarse_to_dollar_volume(coarse)
         coarse_close = coarse_to_close(coarse)
 
-        # FAIL-LOUD GUARD (#261-5): missing-coarse-on-a-known-trading-day. QC's
-        # CoarseFundamentalUniverseSelection callback fires ONCE PER TRADING DAY — and ONLY when
-        # there is a coarse data file for that session. On a market holiday there is no session,
-        # so QC never invokes this callback (the local conform's clean_orphan_files confirms the
-        # contract: it PURGES non-session days so the native reader never trips on them, and the
-        # FY2025 session feeds carry >10k rows each). Therefore reaching this callback with an
-        # EMPTY feed means "QC fired on a real trading day but the coarse data is missing" = a
-        # DATA GAP that would otherwise read as a silent empty/holiday feed (the #173 mirage).
-        # Empty == ALWAYS broken here → RAISE with the day, never silently select [].
+        # FAIL-LOUD GUARD (#261-5): missing-coarse-on-a-known-trading-day. QC drives
+        # CoarseFundamentalUniverseSelection off its OWN NYSE trading calendar — the callback fires
+        # once per real session and is NOT invoked on a market holiday (no session → no callback),
+        # regardless of which files happen to sit on disk. That calendar is the actual guarantee.
+        # (Belt-and-suspenders only: the local conform's clean_orphan_files is MEANT to purge stale
+        # non-session files, but the tree currently still carries ~14 US-holiday orphans — header-
+        # only or foreign-exchange tickers; SPY has no bars on those days so QC's calendar excludes
+        # them anyway. Do NOT rely on the purge having run; rely on QC's calendar.) Real FY2025
+        # session feeds carry >10k rows each. Therefore reaching this callback with an EMPTY feed
+        # means "QC fired on a real trading day but the coarse data is missing" = a DATA GAP that
+        # would otherwise read as a silent empty/holiday feed (the #173 mirage). Empty == ALWAYS
+        # broken here → RAISE with the day, never silently select [].
         # (Reconciled with #263's correct-0 contract: there is NO legitimate empty-feed case —
         # QC does not fire the callback on a non-trading day — so the prior "empty = correct-0"
         # pin is FLIPPED to assert this raise; see tests/data/test_active_set_nonempty.py.)
