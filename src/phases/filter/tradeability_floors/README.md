@@ -1,16 +1,19 @@
 # phases/filter/tradeability_floors
 
-The tradeability **filter** phase (#233 / #238): eligibility floors, runs before the universe.
+The tradeability **filter** phase (#233 / #238 / R1): eligibility floors, applied FIRST.
 
-- **What it holds:** `tradeability_floors.py` (consumer phase) + its test mirror.
-- **Model:** a name is eligible on date D iff latest close ≥ `min_price` (10.0) AND
-  trailing-`adv_window` (20d) mean dollar volume ≥ `min_avg_dollar_volume` (100M). The floor
-  math is applied LIVE inside `runtime.universe_select.select_live_universe`; this phase
-  EMITS the live-selected eligible set (`qc._ranked_today` ∩ active, sorted) as
-  `bar_state.eligible`. No rank, no cap, no Ichimoku.
-- **Live, not artifact (#238):** the precomputed `qc._eligible` file is RETIRED (the universe
-  is computed live from QC's coarse feed). Params carried for provenance (they MUST mirror
-  the lean_entry universe knobs). Fail-loud: `_ranked_today` None → raise; empty → empty list
-  (no raise).
-- **What goes here:** changes to the floor consumption / fail-loud semantics only. Rank,
-  cap, and selection do NOT go here.
+- **What it holds:** `tradeability_floors.py` (the real floor phase) + its test mirror.
+- **Model (R1 un-fuse):** the shared upstream (`runtime.lean_entry._coarse_selection`) builds
+  `qc._bar_metrics = {ticker: (close, trailing_dv)}` once-daily (prefilter survivors + RAW
+  trailing metrics, NO floors). This phase APPLIES the floors via
+  `runtime.universe_select.apply_floors`: a name is eligible iff `close ≥ min_price` (10.0)
+  AND `trailing_dv ≥ min_avg_dollar_volume` (100M). It emits the floored set ∩ active
+  (case-insensitive, canonical uppercase, sorted) as `bar_state.eligible`. No rank, no cap,
+  no Ichimoku — rank+cap is the universe phase's job.
+- **Params:** `min_price` + `min_avg_dollar_volume` are FUNCTIONAL (drive the floor);
+  `adv_window` (20) is PROVENANCE of the upstream trailing window (mirrors
+  `lean_entry.ADV_WINDOW`; the mean is computed in `build_bar_metrics`, not here).
+- **Fail-loud:** `_bar_metrics` None → raise (shared-upstream wiring bug; the guard lives here,
+  the first consumer of the upstream metrics); empty `{}` → empty eligible (no raise).
+- **What goes here:** changes to the floor math / fail-loud semantics only. Rank, cap, and
+  selection do NOT go here.

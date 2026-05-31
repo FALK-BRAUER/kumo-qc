@@ -1,4 +1,4 @@
-"""Filter phase: tradeability FLOORS (#233 / #238) — eligibility gate, runs BEFORE universe.
+"""Filter phase: tradeability FLOORS (#233 / #238 / R1) — eligibility gate, runs FIRST.
 
 Kind:    filter
 Marker:  tradeability_floors_v1
@@ -14,28 +14,33 @@ LIQUIDITY THRESHOLD — min_avg_dollar_volume=100M (fintrack ruling, data-inform
   clone). If LOCAL infra OOMs at 943, that is a local-RAM limit — validate on cloud or use a
   temp HIGHER local-only floor; do NOT lower the strategy floor to fit local RAM.
 
-MODEL (#238 live-coarse integration — the floors are APPLIED LIVE, this phase REPORTS):
-  - The tradeability floors (min_price, min_avg_dollar_volume) are now applied LIVE inside
-    runtime.universe_select.select_live_universe (run once-daily by lean_entry._coarse_
-    selection). Every ticker the live selection keeps has ALREADY cleared the floors. There
-    is no longer a precomputed `qc._eligible` artifact (the stored-file mechanism the #238
-    work retired — the 326 scar).
-  - This phase therefore EMITS the live-selected eligible set: qc._ranked_today ∩ qc._active
-    (the names that passed the floors AND are truly subscribed). The Params remain as the
-    PROVENANCE of the floor values applied live (fingerprint/config-hash); the floor MATH
-    moved to select_live_universe, mirrored by these params (they MUST stay in sync — the
-    lean_entry MIN_PRICE / MIN_AVG_DOLLAR_VOLUME / ADV_WINDOW wire the same numbers).
-  - Keeps the filter→universe seam (filter emits the eligible set; universe ranks+caps),
-    preserving REQUIRED_PHASES("filter") and the engine's phase ordering. NOT the entry-side
-    `eligibility` phase kind (which gates positions after sizing).
+MODEL (#238 / R1 UN-FUSE — the floors are APPLIED HERE, this is the REAL first filter):
+  - The SHARED UPSTREAM (runtime.lean_entry._coarse_selection, once-daily) builds
+    `qc._bar_metrics = {ticker_lower: (close, trailing_dv)}` — prefilter survivors with RAW
+    trailing metrics, NO floors/rank/cap. R1 (Falk): the filter and the rank are now DISTINCT
+    phases, filter FIRST. This phase APPLIES the PRECISE floors via apply_floors
+    (close >= min_price AND trailing_dv >= min_avg_dollar_volume) — no longer a re-expose of
+    a precomputed `_ranked_today` (that was the FUSED no-op; un-fused per R1).
+  - `min_price` + `min_avg_dollar_volume` are FUNCTIONAL (they drive the floor). `adv_window`
+    is the PROVENANCE of the upstream trailing window — the trailing mean is computed in
+    runtime.lean_entry.build_bar_metrics; this mirrors lean_entry.ADV_WINDOW (they MUST stay
+    in sync; this phase does not recompute the window, it documents it).
+  - Emits `bar_state.eligible` = the floored tickers ∩ the truly-subscribed active set
+    (case-insensitive), as the canonical uppercase Symbol.value, sorted for determinism.
+    Rank + cap is the RANK phase's job (dv_rank_cap, downstream).
+  - Keeps the filter→universe→signal seam (filter emits eligible; rank ranks+caps), preserving
+    REQUIRED_PHASES("filter") and the engine's phase ordering. NOT the entry-side `eligibility`
+    phase kind (which gates positions after sizing).
   - POINT-IN-TIME, survivorship-clean by construction (the live coarse feed is the day's
     tradeable set; delisted names simply never appear in the coarse feed for that day).
 
 Fail-loud (the #182 lessons):
-  - `_ranked_today` is None -> FAIL LOUD (raise). Never pass-through-all (the 19k
-                              fall-through trap). Absent at runtime = a live-selection wiring
-                              bug (lean_entry must always assign it, [] on a zero day).
-  - empty ranked list      -> empty eligible, NO raise (zero-candidate / pre-warmup day).
+  - `_bar_metrics` is None -> FAIL LOUD (raise). Never pass-through-all (the 19k fall-through
+                             trap). Absent at runtime = a shared-upstream wiring bug
+                             (lean_entry._coarse_selection must always assign it, {} on a zero
+                             day). The wiring guard lives HERE now (the first consumer of the
+                             upstream metrics).
+  - empty `{}` metrics     -> empty eligible, NO raise (zero-candidate / pre-warmup day).
 """
 from __future__ import annotations
 
@@ -44,6 +49,7 @@ from typing import Any
 
 from engine.base import BasePhase, PhaseResult, UniverseLoadError
 from engine.context import PhaseContext
+from runtime.universe_select import apply_floors
 
 
 class TradeabilityFloors(BasePhase):
@@ -55,7 +61,7 @@ class TradeabilityFloors(BasePhase):
     class Params:
         min_price: float = 10.0
         min_avg_dollar_volume: float = 100_000_000.0  # liquidity threshold (see header)
-        adv_window: int = 20
+        adv_window: int = 20  # PROVENANCE of the upstream trailing window (lean_entry.ADV_WINDOW)
         enabled: bool = True
 
     def __init__(self, params: "TradeabilityFloors.Params", logger: Any) -> None:
@@ -65,17 +71,17 @@ class TradeabilityFloors(BasePhase):
     def evaluate(self, ctx: PhaseContext) -> PhaseResult:
         qc = ctx.qc
         date_str = ctx.time.strftime("%Y-%m-%d")
-        ranked_today = getattr(qc, "_ranked_today", None)
+        bar_metrics = getattr(qc, "_bar_metrics", None)
 
-        if ranked_today is None:
+        if bar_metrics is None:
             raise UniverseLoadError(
-                f"tradeability_floors: _ranked_today not set on {date_str} — refusing to "
-                f"trade-everything (live selection wiring bug; fix lean_entry._coarse_"
+                f"tradeability_floors: _bar_metrics not set on {date_str} — refusing to "
+                f"trade-everything (shared-upstream wiring bug; fix lean_entry._coarse_"
                 f"selection). Never pass-through-all."
             )
 
-        if not ranked_today:
-            # Zero-candidate day / pre-warmup (the live selection assigns [] not None).
+        if not bar_metrics:
+            # Zero-candidate day / pre-warmup (the shared upstream assigns {} not None).
             ctx.bar_state.eligible = []
             return PhaseResult(
                 decision="empty",
@@ -85,14 +91,19 @@ class TradeabilityFloors(BasePhase):
                 metrics={},
             )
 
-        # The live-selected set already cleared the floors (applied in select_live_universe).
-        # Emit it ∩ the truly-subscribed active set, sorted for a deterministic, order-stable
-        # `eligible` list (rank is the universe phase's job).
-        # CASE: ranked tickers lowercase, QC Symbol.value uppercase — match case-insensitively
-        # and emit the canonical _active value (consistent with the universe phase + signal).
+        # APPLY THE FLOORS (R1: this is the real filter, run FIRST). floored = lowercase
+        # tickers clearing close>=min_price AND trailing_dv>=min_avg_dollar_volume, sorted.
+        floored = apply_floors(
+            bar_metrics,
+            min_price=self.p.min_price,
+            min_avg_dollar_volume=self.p.min_avg_dollar_volume,
+        )
+
+        # Intersect with the truly-subscribed active set (case-insensitive), emit the canonical
+        # uppercase Symbol.value, sorted. Rank is the RANK phase's job (dv_rank_cap).
         active_by_lower = {s.value.lower(): s.value for s in getattr(qc, "_active", set())}
         ctx.bar_state.eligible = sorted(
-            active_by_lower[t.lower()] for t in ranked_today if t.lower() in active_by_lower
+            active_by_lower[t] for t in floored if t in active_by_lower
         )
         return PhaseResult(
             decision="eligible",

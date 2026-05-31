@@ -12,7 +12,7 @@ from lean_entry import BctEngineAlgorithm
 
 STRATEGY_CONFIG = StrategyConfig(
     name='champion-asis',
-    version='3.0.0',
+    version='3.1.0',
     phases={
     'filter': Slot(impl=TradeabilityFloors, params=TradeabilityFloors.Params(min_price=10.0, min_avg_dollar_volume=100000000.0, adv_window=20, enabled=True)),
     'universe': Slot(impl=DvRankCap, params=DvRankCap.Params(enabled=True)),

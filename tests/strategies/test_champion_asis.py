@@ -1,8 +1,9 @@
-"""Tests for the champion-asis strategy config — the filter->rank+cap BCT wire.
+"""Tests for the champion-asis strategy config — the filter->rank+cap BCT wire (R1 un-fuse).
 
-Config-level: the engine accepts it (all init validations pass), the pipeline kinds are
-present + correctly typed, and the config hash is stable. Phase LOGIC is tested in each
-phase's own mirror; this asserts the WIRING.
+Config-level: the engine accepts it (all init validations pass — incl. the R1 dependency
+universe REQUIRES_UPSTREAM=["filter"], filter precedes universe in PHASE_ORDER), the pipeline
+kinds are present + correctly typed, and the config hash is stable. Phase LOGIC is tested in
+each phase's own mirror; this asserts the WIRING.
 """
 from __future__ import annotations
 
@@ -40,9 +41,9 @@ def test_filter_floors_are_the_agreed_defaults() -> None:
 
 
 def test_universe_phase_carries_no_cap_param() -> None:
-    # #238 dedup: the cap (coarse_max scan-breadth) lives in lean_entry.COARSE_MAX →
-    # select_live_universe (single source); the universe phase exposes the already-capped
-    # live order and carries no cap param of its own.
+    # #238 dedup: the cap (coarse_max scan-breadth) lives in lean_entry.COARSE_MAX (read off
+    # qc by the rank phase = single source); the universe phase ranks+caps the eligible set
+    # and carries no cap param of its own.
     p = CONFIG.phases["universe"].params  # type: ignore[union-attr]
     assert not hasattr(p, "coarse_max")
 

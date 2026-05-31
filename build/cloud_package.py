@@ -290,9 +290,10 @@ def _emit_main(
     body += f'STRATEGY_CONFIG = StrategyConfig(\n    name={config.name!r},\n    version={config.version!r},\n    phases={{\n'
     body += "\n".join(slot_lines) + "\n    },\n)\n\n"
     if deployable:
-        # The LEAN entry subclass (#213/#238). QC instantiates this top-level QCAlgorithm; it
-        # registers the LIVE coarse-driven universe (add_universe → select_live_universe) and
-        # runs the engine. No UNIVERSE_SPEC: the universe is computed live, not loaded.
+        # The LEAN entry subclass (#213/#238/R1). QC instantiates this top-level QCAlgorithm;
+        # it registers the LIVE coarse-driven shared upstream (add_universe → prefilter +
+        # build_bar_metrics; the filter phase applies apply_floors, the rank phase rank_and_cap)
+        # and runs the engine. No UNIVERSE_SPEC: the universe is computed live, not loaded.
         body += (
             "\nclass BCTAlgorithm(BctEngineAlgorithm):\n"
             "    STRATEGY_CONFIG = STRATEGY_CONFIG\n"

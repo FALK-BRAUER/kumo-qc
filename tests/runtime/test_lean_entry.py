@@ -2,7 +2,7 @@
 
 The pure, extractable logic is unit-tested here:
   - coarse_to_dollar_volume: coarse feed → {ticker: single-day DV}, lowercased (the
-    prefilter input to select_live_universe).
+    prefilter input to the shared-upstream build_bar_metrics).
   - active_set_hash: determinism + order-independence (the diff-ladder rung).
   - on_securities_changed: indicator-lifecycle bookkeeping (register/dispose).
   - on_data warmup guard.

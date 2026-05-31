@@ -9,10 +9,11 @@ Kijun+G3 exits / version-marker) wired over the v2 universe pipeline:
 
 NOT the 326 oracle, NO fixed slots, NO top-N artifact, NO stored universe file: a dynamic,
 point-in-time, survivorship-clean candidate set computed LIVE once-daily from QC's coarse
-feed (#238 — runtime.universe_select.select_live_universe: floors gate tradeability; DV-desc
-rank+coarse_max cap; BCT score>=7 selects). Run fresh -> gate-validate (G1-G5/DSR-PBO) ->
-first honest baseline. Every result pins to (git commit + this config hash + substrate
-fingerprint 90f2d7e3).
+feed (#238 / R1 un-fuse — the shared upstream lean_entry._coarse_selection builds the
+trailing metrics; the FILTER phase applies apply_floors → eligible (tradeability, FIRST); the
+RANK phase applies rank_and_cap → ranked_candidates (DV-desc, coarse_max cap); BCT score>=7
+selects). Run fresh -> gate-validate (G1-G5/DSR-PBO) -> first honest baseline. Every result
+pins to (git commit + this config hash + substrate fingerprint 90f2d7e3).
 
 Direct-ref Slots, typed Params. One active strategy per build. NO UNIVERSE_SPEC: #238
 retired the stored-universe-file ObjectStore artifact + its fingerprint-verify (the 326
@@ -34,18 +35,21 @@ from phases.universe.dv_rank_cap.dv_rank_cap import DvRankCap
 
 CONFIG = StrategyConfig(
     name="champion-asis",
-    version="3.0.0",
+    # 3.1.0: R1 un-fuse (Falk) — filter is now FUNCTIONAL + FIRST (applies the floors →
+    # eligible), the universe phase ranks+caps the eligible set; no longer a fused re-expose.
+    version="3.1.0",
     phases={
-        # Tradeability gate: price>=10, trailing-20d ADV>=100M (LIQUIDITY threshold —
-        # liquid large/mid caps, ~943 names/day FY2025; fintrack ruling). Eligibility only.
+        # Tradeability FILTER (R1: functional + FIRST): price>=10, trailing-20d ADV>=100M
+        # (LIQUIDITY threshold — liquid large/mid caps, ~943 names/day FY2025; fintrack
+        # ruling). Applies the floors to qc._bar_metrics → bar_state.eligible.
         "filter": Slot(
             impl=TradeabilityFloors,
             params=TradeabilityFloors.Params(
                 min_price=10.0, min_avg_dollar_volume=100_000_000.0, adv_window=20,
             ),
         ),
-        # Exposes the LIVE-selected ranked order (filter+DV-rank+cap done in
-        # select_live_universe, capped via lean_entry.COARSE_MAX — the single source).
+        # RANK + CAP: consumes the filter's eligible set, ranks DV-desc (ticker-asc tiebreak)
+        # via qc._trailing_dv, caps via lean_entry.COARSE_MAX (the single source).
         "universe": Slot(
             impl=DvRankCap,
             params=DvRankCap.Params(),
@@ -77,9 +81,10 @@ CONFIG = StrategyConfig(
 
 # NO UNIVERSE_SPEC (#238): the stored-universe-file mechanism (ObjectStore eligible/universe
 # JSON + the load-time fingerprint-verify) is RETIRED. The universe is computed LIVE
-# once-daily from QC's coarse feed (runtime.universe_select.select_live_universe, wired in
-# runtime.lean_entry._coarse_selection) — there is no file to pin or verify. The universe
-# knobs are class attributes on the lean_entry subclass (PREFILTER_DV / MIN_PRICE /
+# once-daily from QC's coarse feed (R1 un-fuse: the shared upstream runtime.lean_entry.
+# _coarse_selection builds qc._bar_metrics; the filter phase applies runtime.universe_select.
+# apply_floors; the rank phase applies rank_and_cap) — there is no file to pin or verify. The
+# universe knobs are class attributes on the lean_entry subclass (PREFILTER_DV / MIN_PRICE /
 # MIN_AVG_DOLLAR_VOLUME / COARSE_MAX / ADV_WINDOW), mirroring the phase Params above.
 
 # LEAN_ENTRY: this strategy is LEAN-DEPLOYABLE — the build (build/cloud_package.py) seeds

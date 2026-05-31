@@ -1,6 +1,6 @@
 {
   "build_script_version": "1.0.0",
-  "config_hash": "4470d56d9fcb",
+  "config_hash": "4a5d02385e48",
   "data_fingerprint": "90f2d7e3fb80d0a4d2eb286f6a43199e1519495a3ce9d787a4d7d0dfc70c535c",
   "files": [
     "_manifest.json",
@@ -24,7 +24,7 @@
     "shared_oracle_helpers.py",
     "universe_select.py"
   ],
-  "git_commit": "aaa4f4ac194a25e733c1381b890b6b72bafea118",
+  "git_commit": "3a6f682eab4b8e5c594116f610d0cea54ce8935b",
   "phase_markers": {
     "diagnostics": "version_marker_v1",
     "exit_hard": "kijun_g3_exits_v1",
