@@ -40,13 +40,14 @@ def _spy(qc: FakeQC, *, price: float, ma200: float, ready: bool = True) -> None:
     qc.spy_sma200 = _Ind(ma200, ready=ready)
 
 
-def _make_qc() -> tuple[FakeQC, FakeSymbol, FakeSymbol]:
-    """Two equities: WINNER (scores 8/8) and LAGGARD (pre-filtered out, below SMA200)."""
+def _make_qc() -> tuple[FakeQC, FakeSymbol, FakeSymbol, FakeSymbol]:
+    """Three equities: WINNER (scores 8/8), WINNER2 (scores 8/8, flat), LAGGARD (pre-filtered out, below SMA200)."""
     qc = FakeQC(cash=1_000_000.0, total_value=1_000_000.0)
     winner = qc.add_security("WINNER", WINNER_PRICE, all_pass_indicators())
+    winner2 = qc.add_security("WINNER2", WINNER_PRICE, all_pass_indicators())
     laggard = qc.add_security("LAGGARD", WINNER_PRICE, below_sma200_indicators())
-    qc._trailing_dv = {"winner": 5_000_000.0, "laggard": 4_000_000.0}
-    return qc, winner, laggard
+    qc._trailing_dv = {"winner": 5_000_000.0, "winner2": 5_000_000.0, "laggard": 4_000_000.0}
+    return qc, winner, winner2, laggard
 
 
 def _ctx(qc: FakeQC, when: datetime) -> PhaseContext:
@@ -72,8 +73,12 @@ def test_e2e_regime_transition_full_cycle() -> None:
     - stale position_meta across blocked bars
     - exit asymmetry (exit fires when entries are blocked)
     - double-entry or corrupted state after unblock
+    - REGIME BLOCK ISOLATION: WINNER2 is flat, 8/8, and present on blocked bars.
+      If the regime block were disabled, WINNER2 would fire on bar2/bar3.
+      Asserting it does NOT appear in orders on blocked bars AND DOES appear
+      after unblock isolates the regime gate as the sole cause of suppression.
     """
-    qc, winner, laggard = _make_qc()
+    qc, winner, winner2, laggard = _make_qc()
     engine = StrategyEngine(config=CONFIG, qc=qc)
     expected_qty = 1000
 
@@ -91,6 +96,7 @@ def test_e2e_regime_transition_full_cycle() -> None:
     # --------------------------------------------------------------------------------------
     # BAR 1 — ENTRY. WINNER scores 8/8, regime OK (SPY > MA200).
     #   -> sizing sizes WINNER -> FIRE_ENTRIES submits buy -> position_meta recorded.
+    #   WINNER2 is also flat and 8/8 but NOT in ranked set this bar (deliberate).
     # --------------------------------------------------------------------------------------
     qc._ranked_today = ["WINNER", "LAGGARD"]
     _spy(qc, price=500.0, ma200=400.0)
@@ -109,9 +115,10 @@ def test_e2e_regime_transition_full_cycle() -> None:
     # --------------------------------------------------------------------------------------
     # BAR 2 — HOLD DURING BLOCK. SPY < MA200 (regime blocks entries).
     #   WINNER close=100 > Kijun=88 → no exit yet.
+    #   WINNER2 is flat, 8/8, in ranked set — must NOT enter (regime gate isolates).
     #   position_meta must survive across this blocked bar (bug surface #1).
     # --------------------------------------------------------------------------------------
-    qc._ranked_today = ["WINNER", "LAGGARD"]
+    qc._ranked_today = ["WINNER", "WINNER2", "LAGGARD"]
     _spy(qc, price=300.0, ma200=400.0)  # SPY 300 < MA200 400 → BLOCK entries
     # close stays at 100 (> Kijun 88), so no exit fires
 
@@ -125,14 +132,18 @@ def test_e2e_regime_transition_full_cycle() -> None:
     assert engine._fired_exits == 0
     # Order ledger unchanged: still just the bar1 entry.
     assert len(qc.orders) == 1
+    # REGIME BLOCK ISOLATION: WINNER2 is flat, 8/8, present — but blocked.
+    # If regime block were disabled, WINNER2 would appear in orders here.
+    assert winner2 not in [s for (s, _) in qc.orders], "WINNER2 must NOT enter on blocked bar"
 
     # --------------------------------------------------------------------------------------
     # BAR 3 — EXIT DURING BLOCK. SPY still < MA200 (still blocked).
     #   WINNER close drops below Kijun → exit fires (bug surface #2: asymmetry).
+    #   WINNER2 still flat, 8/8, present — still must NOT enter (regime gate isolates).
     #   Entries still suppressed; position_meta cleared on exit.
     # --------------------------------------------------------------------------------------
     qc.securities[winner].close = KIJUN - 5.0  # 83 < 88 → Kijun-stop fires
-    qc._ranked_today = ["WINNER", "LAGGARD"]
+    qc._ranked_today = ["WINNER", "WINNER2", "LAGGARD"]
     _spy(qc, price=300.0, ma200=400.0)  # still BLOCKED
 
     orders_before = len(qc.orders)
@@ -145,6 +156,9 @@ def test_e2e_regime_transition_full_cycle() -> None:
     assert winner not in qc._position_meta, "position_meta must be cleared on exit"
     assert engine._fired_entries == 0  # entries still blocked
     assert engine._fired_exits == 1    # exit asymmetry: exit fires on blocked bar
+    # REGIME BLOCK ISOLATION: WINNER2 still blocked on bar3.
+    assert winner2 not in [s for (s, _) in qc.orders[orders_before:]], \
+        "WINNER2 must NOT enter on blocked bar (bar3)"
 
     # Reflect the close in the portfolio (WINNER now flat).
     qc.portfolio[winner] = FakeHolding(invested=False, quantity=0)
@@ -152,32 +166,38 @@ def test_e2e_regime_transition_full_cycle() -> None:
     # --------------------------------------------------------------------------------------
     # BAR 4 — UNBLOCK AND RE-ENTER. SPY > MA200 (regime unblocks).
     #   WINNER flat, scores 8/8 again -> clean re-entry (bug surface #3).
+    #   WINNER2 flat, scores 8/8 -> enters for the FIRST time (regime unblocked).
     #   Must NOT double-enter; must set fresh position_meta.
     # --------------------------------------------------------------------------------------
     qc.securities[winner].close = WINNER_PRICE  # reset close to healthy
-    qc._ranked_today = ["WINNER", "LAGGARD"]
+    qc._ranked_today = ["WINNER", "WINNER2", "LAGGARD"]
     _spy(qc, price=500.0, ma200=400.0)  # SPY 500 > MA200 400 → UNBLOCKED
 
     orders_before = len(qc.orders)
     bar4 = _tick(engine, qc, datetime(2025, 1, 9))
 
-    # Re-entry sized and fired exactly once (no double-entry).
-    assert [o.ticker for o in bar4.bar_state.sized_orders] == ["WINNER"]
-    assert qc.orders[orders_before:] == [(winner, expected_qty)]
+    # Both WINNER and WINNER2 sized and fired (regime unblocked).
+    tickers = [o.ticker for o in bar4.bar_state.sized_orders]
+    assert tickers == ["WINNER", "WINNER2"], f"expected both WINNER and WINNER2 after unblock, got {tickers}"
+    # Orders: both entries, no duplicates.
+    assert qc.orders[orders_before:] == [(winner, expected_qty), (winner2, expected_qty)]
     assert winner in qc._position_meta, "fresh position_meta after re-entry"
+    assert winner2 in qc._position_meta, "fresh position_meta for WINNER2 first entry"
     assert qc._position_meta[winner]["entry_price"] == WINNER_PRICE
-    assert engine._fired_entries == 1  # re-entered cleanly
+    assert qc._position_meta[winner2]["entry_price"] == WINNER_PRICE
+    assert engine._fired_entries == 2  # both WINNER and WINNER2 entered cleanly
     assert engine._fired_exits == 0
 
     # --------------------------------------------------------------------------------------
     # FULL-SEQUENCE LEDGER — the complete order tape across all 5 bars.
-    #   entry → hold(blocked) → exit(blocked) → re-entry(unblocked)
+    #   entry → hold(blocked) → exit(blocked) → re-entry(unblocked, both)
     #   Proves: lifecycle composed, regime transition handled correctly end-to-end.
     # --------------------------------------------------------------------------------------
     assert qc.orders == [
-        (winner, expected_qty),     # bar1: ENTRY  WINNER  +1000
-        (winner, -expected_qty),    # bar3: EXIT   WINNER  -1000 (during block)
-        (winner, expected_qty),     # bar4: RE-ENTRY WINNER +1000 (after unblock)
+        (winner, expected_qty),     # bar1: ENTRY  WINNER   +1000
+        (winner, -expected_qty),    # bar3: EXIT   WINNER   -1000 (during block)
+        (winner, expected_qty),     # bar4: RE-ENTRY WINNER  +1000 (after unblock)
+        (winner2, expected_qty),    # bar4: ENTRY  WINNER2  +1000 (first time, after unblock)
     ]
 
 
@@ -188,7 +208,7 @@ def test_e2e_regime_transition_full_cycle() -> None:
 
 def test_e2e_position_meta_survives_blocked_bar() -> None:
     """position_meta is NOT stale after a blocked bar where the position is held."""
-    qc, winner, _ = _make_qc()
+    qc, winner, winner2, _ = _make_qc()
     engine = StrategyEngine(config=CONFIG, qc=qc)
     expected_qty = 1000
 
@@ -198,8 +218,8 @@ def test_e2e_position_meta_survives_blocked_bar() -> None:
     _tick(engine, qc, datetime(2025, 1, 6))
     qc.portfolio[winner] = FakeHolding(invested=True, quantity=expected_qty)
 
-    # bar2: blocked bar, no exit
-    qc._ranked_today = ["WINNER", "LAGGARD"]
+    # bar2: blocked bar, no exit; WINNER2 present but flat — still blocked
+    qc._ranked_today = ["WINNER", "WINNER2", "LAGGARD"]
     _spy(qc, price=300.0, ma200=400.0)
     _tick(engine, qc, datetime(2025, 1, 7))
 
@@ -209,11 +229,15 @@ def test_e2e_position_meta_survives_blocked_bar() -> None:
     # No new entry (blocked), no exit (close > Kijun)
     assert engine._fired_entries == 0
     assert engine._fired_exits == 0
+    # Regime block isolation: WINNER2 didn't enter either
+    assert winner2 not in [s for (s, _) in qc.orders]
 
 
 def test_e2e_exit_fires_on_blocked_bar() -> None:
-    """Exit asymmetry: exit phase fires when entries are blocked by regime."""
-    qc, winner, _ = _make_qc()
+    """Exit asymmetry: exit phase fires when entries are blocked by regime.
+    WINNER2 is flat, 8/8, present on the blocked bar — must NOT enter.
+    """
+    qc, winner, winner2, _ = _make_qc()
     engine = StrategyEngine(config=CONFIG, qc=qc)
     expected_qty = 1000
 
@@ -223,84 +247,93 @@ def test_e2e_exit_fires_on_blocked_bar() -> None:
     _tick(engine, qc, datetime(2025, 1, 6))
     qc.portfolio[winner] = FakeHolding(invested=True, quantity=expected_qty)
 
-    # bar2: blocked + exit
+    # bar2: blocked + exit; WINNER2 flat, 8/8, present — still blocked
     qc.securities[winner].close = KIJUN - 5.0
-    qc._ranked_today = ["WINNER", "LAGGARD"]
+    qc._ranked_today = ["WINNER", "WINNER2", "LAGGARD"]
     _spy(qc, price=300.0, ma200=400.0)
     bar2 = _tick(engine, qc, datetime(2025, 1, 7))
 
-    # Exit produced despite block; entry suppressed.
+    # Exit produced despite block; entry suppressed (including WINNER2).
     assert [(e.ticker, e.qty) for e in bar2.bar_state.exit_intents] == [("WINNER", -expected_qty)]
     assert engine._fired_entries == 0
     assert engine._fired_exits == 1
+    assert winner2 not in [s for (s, _) in qc.orders], "WINNER2 must NOT enter on blocked bar"
 
 
 def test_e2e_no_double_entry_after_unblock() -> None:
-    """After unblock, a flat symbol that re-enters does so exactly once."""
-    qc, winner, _ = _make_qc()
+    """After unblock, a flat symbol that re-enters does so exactly once.
+    Strengthened: WINNER stays INVESTED across unblock → assert no second entry
+    (tests the invested-dedup directly, not masked by regime block).
+    """
+    qc, winner, winner2, _ = _make_qc()
     engine = StrategyEngine(config=CONFIG, qc=qc)
     expected_qty = 1000
 
-    # bar1: entry
+    # bar1: entry WINNER; WINNER2 is flat but not in ranked set
     qc._ranked_today = ["WINNER", "LAGGARD"]
     _spy(qc, price=500.0, ma200=400.0)
     _tick(engine, qc, datetime(2025, 1, 6))
     qc.portfolio[winner] = FakeHolding(invested=True, quantity=expected_qty)
 
-    # bar2: exit during block
-    qc.securities[winner].close = KIJUN - 5.0
-    qc._ranked_today = ["WINNER", "LAGGARD"]
+    # bar2: block with WINNER still invested; WINNER2 flat, 8/8, present
+    qc._ranked_today = ["WINNER", "WINNER2", "LAGGARD"]
     _spy(qc, price=300.0, ma200=400.0)
     _tick(engine, qc, datetime(2025, 1, 7))
-    qc.portfolio[winner] = FakeHolding(invested=False, quantity=0)
+    # WINNER stays invested, WINNER2 blocked by regime
 
-    # bar3: unblock → re-enter
-    qc.securities[winner].close = WINNER_PRICE
-    qc._ranked_today = ["WINNER", "LAGGARD"]
+    # bar3: unblock with WINNER still invested, WINNER2 flat
+    qc._ranked_today = ["WINNER", "WINNER2", "LAGGARD"]
     _spy(qc, price=500.0, ma200=400.0)
     bar3 = _tick(engine, qc, datetime(2025, 1, 8))
 
-    # Exactly one re-entry — no double-order, no duplicate position_meta.
-    assert [o.ticker for o in bar3.bar_state.sized_orders] == ["WINNER"]
-    # Verify the order list has exactly the three expected orders (no extras).
+    # WINNER already invested → no second entry (invested-dedup).
+    # WINNER2 flat, unblocked → enters.
+    tickers = [o.ticker for o in bar3.bar_state.sized_orders]
+    assert tickers == ["WINNER2"], f"WINNER deduped, only WINNER2 enters: got {tickers}"
     assert qc.orders == [
-        (winner, expected_qty),     # bar1
-        (winner, -expected_qty),    # bar2
-        (winner, expected_qty),     # bar3
+        (winner, expected_qty),     # bar1: WINNER entry
+        (winner2, expected_qty),    # bar3: WINNER2 entry (WINNER deduped)
     ]
-    assert engine._fired_entries == 1  # only one entry this bar
+    assert engine._fired_entries == 1  # only WINNER2 entry this bar
     assert engine._fired_exits == 0
 
 
 def test_e2e_reentry_resets_position_meta_cleanly() -> None:
     """Re-entry after unblock sets a fresh position_meta (not corrupted stale state)."""
-    qc, winner, _ = _make_qc()
+    qc, winner, winner2, _ = _make_qc()
     engine = StrategyEngine(config=CONFIG, qc=qc)
     expected_qty = 1000
 
-    # bar1: entry
+    # bar1: entry WINNER
     qc._ranked_today = ["WINNER", "LAGGARD"]
     _spy(qc, price=500.0, ma200=400.0)
     _tick(engine, qc, datetime(2025, 1, 6))
     qc.portfolio[winner] = FakeHolding(invested=True, quantity=expected_qty)
 
-    # bar2: exit during block
+    # bar2: exit during block; WINNER2 present but blocked
     qc.securities[winner].close = KIJUN - 5.0
-    qc._ranked_today = ["WINNER", "LAGGARD"]
+    qc._ranked_today = ["WINNER", "WINNER2", "LAGGARD"]
     _spy(qc, price=300.0, ma200=400.0)
     _tick(engine, qc, datetime(2025, 1, 7))
     qc.portfolio[winner] = FakeHolding(invested=False, quantity=0)
 
-    # bar3: unblock → re-enter
+    # bar3: unblock → re-enter both WINNER and WINNER2
     qc.securities[winner].close = WINNER_PRICE
-    qc._ranked_today = ["WINNER", "LAGGARD"]
+    qc._ranked_today = ["WINNER", "WINNER2", "LAGGARD"]
     _spy(qc, price=500.0, ma200=400.0)
-    _tick(engine, qc, datetime(2025, 1, 8))
+    bar3 = _tick(engine, qc, datetime(2025, 1, 8))
 
-    # Fresh position_meta with correct entry price (not stale/corrupted).
+    # Both sized after unblock
+    tickers = [o.ticker for o in bar3.bar_state.sized_orders]
+    assert tickers == ["WINNER", "WINNER2"]
+
+    # Fresh position_meta for both (not stale/corrupted).
     assert winner in qc._position_meta
     assert qc._position_meta[winner]["entry_price"] == WINNER_PRICE
+    assert winner2 in qc._position_meta
+    assert qc._position_meta[winner2]["entry_price"] == WINNER_PRICE
     # No residual stale keys
     assert "exit_date" not in qc._position_meta[winner]
+    assert "exit_date" not in qc._position_meta[winner2]
 
 
