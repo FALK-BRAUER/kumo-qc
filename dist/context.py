@@ -31,11 +31,10 @@ class BlockEvent:
 @dataclass(slots=True)
 class BarState:
     """Fresh per bar. Phases write here via the engine; engine fires from the typed lists."""
-    # `eligible` is RESERVED for a future real per-bar filter phase (the champion under Y
-    # applies its floors at the selection gate, so nothing writes this today). Kept as a
-    # documented no-op slot rather than churning the dataclass. The universe phase emits
-    # ranked_candidates (the live-selected floored+ranked+capped order ∩ active).
-    eligible: list[str] = field(default_factory=list)
+    # The universe phase emits ranked_candidates (the live-selected floored+ranked+capped
+    # order ∩ active; floors+rank computed at the selection gate, lean_entry, under Y). A
+    # future real per-bar filter phase (the `filter` KNOWN_KIND seam) would re-add an
+    # `eligible` field here — a one-liner if/when needed (YAGNI: not carried today).
     ranked_candidates: list[str] = field(default_factory=list)
     sized_orders: list[OrderIntent] = field(default_factory=list)
     add_intents: list[OrderIntent] = field(default_factory=list)
