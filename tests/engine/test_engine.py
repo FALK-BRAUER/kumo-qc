@@ -161,3 +161,143 @@ def _recorder(phase: object, kind: str, sink: list[str]):
         return orig(ctx)
 
     return wrapped
+
+
+# ---------------------------------------------------------------------------
+# #245 — _fire order-submission assertions. The stub phases never populate the
+# typed intent lists, so the engine's _fire methods (src ~:225-263) were never
+# asserted: this is the unit cousin of the liveness gate. Here we populate a
+# BarState directly and drive _fire, asserting the broker order + _position_meta.
+# ---------------------------------------------------------------------------
+from engine.context import BarState, OrderIntent  # noqa: E402
+
+
+class _Sym:
+    """Minimal LEAN-symbol stand-in: hashable, has `.value` (what _fire keys on)."""
+
+    def __init__(self, value: str) -> None:
+        self.value = value
+
+    def __hash__(self) -> int:
+        return hash(self.value)
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, _Sym) and other.value == self.value
+
+
+class _FireSecurity:
+    def __init__(self, price: float) -> None:
+        self.price = price
+
+
+def _fire_qc(*symbols: tuple[str, float]) -> FakeQC:
+    """A FakeQC primed with active symbols + priced securities for _fire."""
+    qc = FakeQC()
+    for value, price in symbols:
+        sym = _Sym(value)
+        qc._active.add(sym)
+        qc.securities[sym] = _FireSecurity(price)
+    return qc
+
+
+def _sym_in(qc: FakeQC, value: str) -> Any:
+    return next(s for s in qc._active if s.value == value)
+
+
+def _intent(ticker: str, qty: int, price: float = 0.0) -> OrderIntent:
+    return OrderIntent(ticker=ticker, qty=qty, price=price, stop=0.0, module="t", risk_dollars=0.0)
+
+
+def _ctx_with(qc: FakeQC, bar: BarState) -> PhaseContext:
+    return PhaseContext(qc=qc, time=datetime(2025, 1, 2), data=None, bar_state=bar)
+
+
+def test_fire_entries_submits_order_and_records_meta() -> None:
+    qc = _fire_qc(("AAPL", 150.0))
+    eng = make_engine(qc)
+    bar = BarState(sized_orders=[_intent("AAPL", 10)])
+    eng._fire(FIRE_ENTRIES, _ctx_with(qc, bar))
+
+    sym = _sym_in(qc, "AAPL")
+    assert qc.orders == [(sym, 10)]               # market-on-open submitted with the sized qty
+    assert eng._fired_entries == 1
+    assert sym in qc._position_meta
+    assert qc._position_meta[sym]["entry_price"] == 150.0
+    assert qc._position_meta[sym]["entry_date"] == datetime(2025, 1, 2)
+
+
+def test_fire_entries_skips_nonpositive_qty() -> None:
+    qc = _fire_qc(("AAPL", 150.0))
+    eng = make_engine(qc)
+    bar = BarState(sized_orders=[_intent("AAPL", 0)])  # qty<=0 → not submitted
+    eng._fire(FIRE_ENTRIES, _ctx_with(qc, bar))
+    assert qc.orders == []
+    assert eng._fired_entries == 0
+
+
+def test_fire_exits_submits_and_pops_meta() -> None:
+    qc = _fire_qc(("MSFT", 300.0))
+    eng = make_engine(qc)
+    sym = _sym_in(qc, "MSFT")
+    qc._position_meta[sym] = {"entry_date": datetime(2025, 1, 1), "entry_price": 290.0}
+    bar = BarState(exit_intents=[_intent("MSFT", -5)])  # negative qty = sell
+    eng._fire(FIRE_EXITS, _ctx_with(qc, bar))
+
+    assert qc.orders == [(sym, -5)]
+    assert eng._fired_exits == 1
+    assert sym not in qc._position_meta  # meta popped on exit
+
+
+def test_fire_adds_submits_positive_qty() -> None:
+    qc = _fire_qc(("GOOG", 200.0))
+    eng = make_engine(qc)
+    sym = _sym_in(qc, "GOOG")
+    bar = BarState(add_intents=[_intent("GOOG", 3)])
+    eng._fire(FIRE_ADDS, _ctx_with(qc, bar))
+    assert qc.orders == [(sym, 3)]
+    assert eng._fired_adds == 1
+
+
+def test_blocked_bar_suppresses_entries_and_adds_but_runs_exits() -> None:
+    # Integration of the block-scope + _fire submission: on a regime-blocked bar the engine
+    # skips FIRE_ENTRIES/FIRE_ADDS sentinels but still runs FIRE_EXITS. We populate the bar
+    # via custom signal/exit/adds stub wrappers so the typed lists are non-empty, then assert
+    # ONLY the exit order reaches the broker.
+    qc = _fire_qc(("AAPL", 150.0), ("MSFT", 300.0), ("GOOG", 200.0))
+    sym_msft = _sym_in(qc, "MSFT")
+    qc._position_meta[sym_msft] = {"entry_date": datetime(2025, 1, 1), "entry_price": 290.0}
+
+    eng = make_engine(
+        qc,
+        regime=slot("regime", blocked=True),
+        portfolio_risk=slot("portfolio_risk"),
+        adds=slot("adds"),
+        exit_hard=slot("exit_hard"),
+    )
+
+    # Inject intents the way upstream phases would, by wrapping the relevant stubs' evaluate.
+    def _populate(kind: str) -> None:
+        phase = eng.phases[kind][0]
+        orig = phase.evaluate
+
+        def wrapped(ctx: PhaseContext):
+            if kind == "signal":
+                ctx.bar_state.sized_orders = [_intent("AAPL", 10)]
+            elif kind == "adds":
+                ctx.bar_state.add_intents = [_intent("GOOG", 4)]
+            elif kind == "exit_hard":
+                ctx.bar_state.exit_intents = [_intent("MSFT", -5)]
+            return orig(ctx)
+
+        phase.evaluate = wrapped  # type: ignore[method-assign]
+
+    for k in ("signal", "adds", "exit_hard"):
+        _populate(k)
+
+    eng.on_data_with_ctx(_ctx_with(qc, BarState()))
+
+    # Only the exit reached the broker; entries + adds were suppressed by the block.
+    assert qc.orders == [(sym_msft, -5)]
+    assert eng._fired_exits == 1
+    assert eng._fired_entries == 0
+    assert eng._fired_adds == 0

@@ -172,3 +172,71 @@ def test_cloud_exit_only_when_enabled():
     ctx2 = make_ctx(qc)
     result2 = phase2.evaluate(ctx2)
     assert len(ctx2.bar_state.exit_intents) == 1
+
+
+# ---------------------------------------------------------------------------
+# Weekly-kijun exit branch (#245, src ~:128). This is the LAST elif: it fires only
+# when close >= daily kijun (first elif false), cloud_exit doesn't trigger, and
+# weekly_kijun_exit is enabled with a READY w_ichi whose weekly kijun > close. The
+# existing fakes always set w_ichi=None, so this branch was never exercised.
+# ---------------------------------------------------------------------------
+def _wk_qc(close):
+    sym = make_symbol("WKLY")
+    qc = FakeQC()
+    qc.portfolio[sym] = FakeHolding(invested=True, quantity=100)
+    qc.securities[sym] = FakeSecurity(close=close)
+    qc._indicators[sym] = {
+        # daily: kijun=100, cloud_top=105 → close=110 is above both (daily stops inert)
+        "d_ichi": FakeIndicator(kijun=100.0, senkou_a=105.0, senkou_b=95.0),
+        # weekly kijun = 120 → close 110 < 120 triggers the weekly-kijun stop
+        "w_ichi": FakeIndicator(kijun=120.0, senkou_a=125.0, senkou_b=115.0),
+    }
+    return qc, sym
+
+
+def test_weekly_kijun_exit_fires_when_enabled_and_below_weekly_kijun():
+    qc, sym = _wk_qc(close=110.0)  # above daily kijun(100)+cloud_top(105), below weekly kijun(120)
+    phase = KijunG3Exits(KijunG3Exits.Params(weekly_kijun_exit_enabled=True), logger=None)
+    ctx = make_ctx(qc)
+    result = phase.evaluate(ctx)
+
+    assert result.blocked is False
+    assert len(ctx.bar_state.exit_intents) == 1
+    intent = ctx.bar_state.exit_intents[0]
+    assert intent.ticker == "WKLY"
+    assert intent.qty == -100
+    assert intent.stop == 120.0  # weekly kijun is the stop level
+
+
+def test_weekly_kijun_exit_does_not_fire_when_disabled():
+    # DECLINE: identical setup but the flag is OFF → no exit (default behavior).
+    qc, sym = _wk_qc(close=110.0)
+    phase = KijunG3Exits(KijunG3Exits.Params(weekly_kijun_exit_enabled=False), logger=None)
+    ctx = make_ctx(qc)
+    result = phase.evaluate(ctx)
+    assert len(ctx.bar_state.exit_intents) == 0
+
+
+def test_weekly_kijun_exit_does_not_fire_when_close_above_weekly_kijun():
+    # DECLINE: flag ON but close (130) >= weekly kijun (120) → condition unmet, no exit.
+    qc, sym = _wk_qc(close=130.0)
+    phase = KijunG3Exits(KijunG3Exits.Params(weekly_kijun_exit_enabled=True), logger=None)
+    ctx = make_ctx(qc)
+    result = phase.evaluate(ctx)
+    assert len(ctx.bar_state.exit_intents) == 0
+
+
+def test_weekly_kijun_exit_skipped_when_w_ichi_not_ready():
+    # EDGE: flag ON, close below weekly kijun, but w_ichi NOT ready → w_kijun is None → no exit.
+    sym = make_symbol("NRDY")
+    qc = FakeQC()
+    qc.portfolio[sym] = FakeHolding(invested=True, quantity=100)
+    qc.securities[sym] = FakeSecurity(close=110.0)
+    qc._indicators[sym] = {
+        "d_ichi": FakeIndicator(kijun=100.0, senkou_a=105.0, senkou_b=95.0),
+        "w_ichi": FakeIndicator(kijun=120.0, ready=False),  # not ready → w_kijun None
+    }
+    phase = KijunG3Exits(KijunG3Exits.Params(weekly_kijun_exit_enabled=True), logger=None)
+    ctx = make_ctx(qc)
+    result = phase.evaluate(ctx)
+    assert len(ctx.bar_state.exit_intents) == 0

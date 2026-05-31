@@ -190,3 +190,92 @@ def test_already_invested_excluded():
         mock_score.assert_not_called()
 
     assert len(ctx.bar_state.sized_orders) == 0
+
+
+# ---------------------------------------------------------------------------
+# DECLINE — parabolic block (#245): a candidate that scores >= min_score but whose
+# maintained 13-day ROC exceeds parabolic_threshold (src ~:94) is EXCLUDED and counted
+# in the `parabolic_blocked` fact. The default FakeIndicator dict omits roc13, so we add
+# one with a value above the threshold to drive the block branch.
+# ---------------------------------------------------------------------------
+def test_parabolic_block_excludes_and_counts():
+    qc, sym = _setup_qc_with_symbol("NVDA", price=200.0, sma200=100.0)
+    # roc13 ready, value 0.40 > parabolic_threshold 0.25 → parabolic block.
+    qc._indicators[sym]["roc13"] = FakeIndicator(0.40, ready=True)
+    phase = BctScoreFull(BctScoreFull.Params(min_score=7, parabolic_threshold=0.25), logger=None)
+    ctx = make_ctx(qc, ["NVDA"])
+
+    with patch("phases.signal.bct_score_full.bct_score_full.score_symbol_native") as mock_score:
+        mock_score.return_value = {"score": 8, "rating": "+++"}
+        result = phase.evaluate(ctx)
+
+    # Scored >= 7 but parabolic → not emitted, counted as a parabolic block.
+    assert len(ctx.bar_state.sized_orders) == 0
+    assert result.facts["candidate_count"] == 0
+    assert result.facts["parabolic_blocked"] == 1
+
+
+def test_parabolic_below_threshold_still_enters():
+    # Same setup but roc13 below threshold → NOT blocked (the correct-include path).
+    qc, sym = _setup_qc_with_symbol("AMD", price=200.0, sma200=100.0)
+    qc._indicators[sym]["roc13"] = FakeIndicator(0.10, ready=True)  # 0.10 < 0.25
+    phase = BctScoreFull(BctScoreFull.Params(min_score=7, parabolic_threshold=0.25), logger=None)
+    ctx = make_ctx(qc, ["AMD"])
+
+    with patch("phases.signal.bct_score_full.bct_score_full.score_symbol_native") as mock_score:
+        mock_score.return_value = {"score": 8, "rating": "+++"}
+        result = phase.evaluate(ctx)
+
+    assert len(ctx.bar_state.sized_orders) == 1
+    assert ctx.bar_state.sized_orders[0].ticker == "AMD"
+    assert result.facts["parabolic_blocked"] == 0
+
+
+def test_parabolic_boundary_equal_threshold_not_blocked():
+    # `roc13 > parabolic_threshold` is strict-greater → at exactly the threshold, NOT blocked.
+    qc, sym = _setup_qc_with_symbol("ORCL", price=200.0, sma200=100.0)
+    qc._indicators[sym]["roc13"] = FakeIndicator(0.25, ready=True)  # == threshold
+    phase = BctScoreFull(BctScoreFull.Params(min_score=7, parabolic_threshold=0.25), logger=None)
+    ctx = make_ctx(qc, ["ORCL"])
+
+    with patch("phases.signal.bct_score_full.bct_score_full.score_symbol_native") as mock_score:
+        mock_score.return_value = {"score": 8, "rating": "+++"}
+        result = phase.evaluate(ctx)
+
+    assert len(ctx.bar_state.sized_orders) == 1
+    assert result.facts["parabolic_blocked"] == 0
+
+
+def test_parabolic_not_ready_does_not_block():
+    # roc13 present but NOT ready → block check skipped (the not-ready edge).
+    qc, sym = _setup_qc_with_symbol("INTC", price=200.0, sma200=100.0)
+    qc._indicators[sym]["roc13"] = FakeIndicator(0.99, ready=False)  # huge but not ready
+    phase = BctScoreFull(BctScoreFull.Params(min_score=7, parabolic_threshold=0.25), logger=None)
+    ctx = make_ctx(qc, ["INTC"])
+
+    with patch("phases.signal.bct_score_full.bct_score_full.score_symbol_native") as mock_score:
+        mock_score.return_value = {"score": 8, "rating": "+++"}
+        result = phase.evaluate(ctx)
+
+    assert len(ctx.bar_state.sized_orders) == 1  # not ready → not blocked
+    assert result.facts["parabolic_blocked"] == 0
+
+
+def test_indicators_none_skips_symbol():
+    # EDGE: `ind is None` (src — getattr(qc, "_indicators", {}).get(symbol) is None) → symbol skipped,
+    # score never computed, no order. Symbol is active + priced but has NO indicator entry.
+    qc = FakeQC()
+    sym = make_symbol("CRM")
+    qc._active.add(sym)
+    qc.securities[sym] = FakeSecurity(200.0)
+    # deliberately NO qc._indicators[sym] entry → ind is None
+    phase = BctScoreFull(BctScoreFull.Params(min_score=7), logger=None)
+    ctx = make_ctx(qc, ["CRM"])
+
+    with patch("phases.signal.bct_score_full.bct_score_full.score_symbol_native") as mock_score:
+        mock_score.return_value = {"score": 8, "rating": "+++"}
+        result = phase.evaluate(ctx)
+        mock_score.assert_not_called()  # short-circuited before scoring
+
+    assert len(ctx.bar_state.sized_orders) == 0
+    assert result.facts["candidate_count"] == 0
