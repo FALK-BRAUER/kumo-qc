@@ -151,6 +151,19 @@ def test_champion_config_fires_orders() -> None:
 # ---------------------------------------------------------------------------------------------
 
 
+def test_champion_entry_config_fires_orders() -> None:
+    """LIVENESS (#253): champion_entry (champion-asis + the §4 Gate-2 entry-confirm gate) STILL
+    fires orders > 0 on the triggering bar. The entry-confirm gate makes entries FEWER (it gates
+    on confirmation) but NOT zero — the liveness floor still passes. The WINNER all_pass set
+    confirms C1 regime + C3 MACD + C4 volume (3/4, regime+volume mandatory) → qualifies → fires.
+    """
+    from strategies.champion_entry import CONFIG as CHAMPION_ENTRY_CONFIG
+
+    orders = _run_one_entry_bar(CHAMPION_ENTRY_CONFIG)
+    assert orders > 0, "champion_entry must still fire >0 orders (entry-confirm gates, not kills)"
+    assert_liveness(orders)
+
+
 def test_dead_config_fires_zero_orders() -> None:
     """The impossible-threshold config produces ZERO orders (the silent-regression condition)."""
     orders = _run_one_entry_bar(_dead_config())

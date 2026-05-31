@@ -128,7 +128,12 @@ def test_on_securities_changed_registers_active_and_disposes() -> None:
 
     def fake_register(sym):
         registered.append(sym)
-        algo._indicators[sym] = {"consolidator": f"cons_{sym.value}"}
+        # #253: the contract now carries a daily_consolidator alongside the weekly one; the
+        # unsubscribe path disposes BOTH.
+        algo._indicators[sym] = {
+            "consolidator": f"cons_{sym.value}",
+            "daily_consolidator": f"daily_{sym.value}",
+        }
     algo._register_indicators = fake_register  # type: ignore[method-assign]
 
     aapl, msft = FakeSym("AAPL"), FakeSym("MSFT")
@@ -137,11 +142,11 @@ def test_on_securities_changed_registers_active_and_disposes() -> None:
     assert algo._active == {aapl, msft}
     assert registered == [aapl, msft]
     assert set(algo._indicators) == {aapl, msft}
-    # remove one
+    # remove one — both the weekly and the #253 daily consolidator are disposed.
     algo.on_securities_changed(FakeChanges([], [FakeSec(aapl)]))
     assert algo._active == {msft}
     assert aapl not in algo._indicators
-    assert algo.subscription_manager.removed == [(aapl, "cons_AAPL")]
+    assert algo.subscription_manager.removed == [(aapl, "cons_AAPL"), (aapl, "daily_AAPL")]
 
 
 def test_on_data_skips_engine_during_warmup() -> None:

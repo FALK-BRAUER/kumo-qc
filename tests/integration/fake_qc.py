@@ -99,7 +99,26 @@ def all_pass_indicators() -> dict[str, Any]:
         "adx": _Adx(adx=25.0, pdi=30.0, ndi=10.0),
         "adx_window": _Window([25.0, 24.0, 23.0, 22.0]),
         "roc13": _Ind(0.10),
+        # #253 entry_selection (BctEntryConfirm §4 Gate 2) — ADDITIVE; an ENTRY-CONFIRMING set at
+        # price 100: C1 regime (price>cloud-top 85 AND tenkan 90>kijun 88), C2 T-Bounce (price
+        # within 0.5% of tenkan? tenkan 90 -> NOT near; this set confirms C1/C3/C4 = 3/4 with
+        # regime+volume mandatory -> qualifies). MACD positive+turning-up (C3); vol 200k>=1.0x
+        # avg 100k (C4); tbounce clean (0 sessions below, no gap). The signal/exit phases ignore
+        # these keys (champion-asis behavior unchanged).
+        "macd": _Ind(0.5),  # is_ready proxy (only .is_ready is read for macd)
+        "macd_hist_window": _Window([0.5, 0.2]),  # positive, turning up
+        "vol_sma20": _Ind(100_000.0),
+        "tbounce": _TBounce(sessions=0, gap=0.0),
+        "daily_consolidator": object(),
     }
+
+
+class _TBounce:
+    """TBounceTracker-shape: the C2 degrade state the entry phase reads (sessions + gap)."""
+
+    def __init__(self, sessions: int = 0, gap: float = 0.0) -> None:
+        self.sessions_below_tenkan = sessions
+        self.gap_up_frac = gap
 
 
 def below_sma200_indicators() -> dict[str, Any]:
@@ -135,9 +154,12 @@ class FakeSecurity:
     without disturbing the entry-side `.price` reads.
     """
 
-    def __init__(self, price: float, close: float | None = None) -> None:
+    def __init__(self, price: float, close: float | None = None, volume: float = 200_000.0) -> None:
         self.price = price
         self.close = close if close is not None else price
+        # #253: the entry_selection phase (C4 volume) reads `.volume`. Default 200k clears the
+        # 1.0x gate vs the all_pass vol_sma20 (100k); existing tests ignore it.
+        self.volume = volume
 
 
 class FakeHolding:

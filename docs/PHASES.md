@@ -204,54 +204,64 @@ parabolic, not already invested/pending).
 
 ## 5. entry_selection (kind: `entry_selection`)
 
-**Purpose:** Pick which ranked candidates to actually attempt entry on (top-N, slot logic).
+**Purpose:** GATE the qualified+ranked candidates down to those CONFIRMING an entry (the
+methodology entry trigger). Selection + confirmation, NOT slot logic.
 
-**Engine order:** After ranking.
+**Engine order:** Between `ranking` and `entry_timing` (PHASE_ORDER), ENTRY_ONLY (suppressed
+when the bar is regime/cash-blocked).
 
-**Input:** `ctx.ranked_candidates`.
+**Input:** `ctx.bar_state.sized_orders` (the signal's qty=0 OrderIntent stubs).
 
-**Output:** `ctx.entry_candidates: list[Candidate]` — subset chosen for entry.
+**Output:** the SAME `sized_orders` list, FILTERED in place to confirmed candidates. A per-symbol
+confirmation score is published on `qc._entry_confirm[ticker]` (+ `PhaseResult.facts['scores']`)
+for a downstream methodology sizer to consume.
 
-**Params:**
-| Impl | Params |
-|---|---|
-| `take_all` | (no params; pass through all) |
-| `top_n_by_rank` | `n: int` |
-| `score_threshold` | `min_score: int` (e.g. only 8/8) |
+**Impls (catalog: `phases/entry_selection/library.py` → `ENTRY_SELECTION_PHASES`):**
+| Impl | Marker | Params (sweepable axes) | Role |
+|---|---|---|---|
+| `BctEntryConfirm` (#253) | `bct_entry_confirm_v1` | `tenkan_pullback_tol`, `volume_gate_mult`, `macd_signal`, `min_confirm` (grid 81) | §4 Gate-2 X/4 confirmation (C1 regime, C2 T-Bounce, C3 MACD, C4 volume); qualify ≥`min_confirm`/4 with regime+volume MANDATORY |
 
-**Required upstream:** `ranking`.
-**Provides downstream:** entry-eligible candidate list.
+Phase-2 variants (planned, own classes): `ResistanceZoneFilter` (#148), `RiskRewardFilter`
+(#150), `DojiDelay` (#64).
+
+**Required upstream:** `signal`.
+**Provides downstream:** `sized_orders` (gated).
 
 **Contract:**
-- NO count caps with hardcoded values. Use risk-based or score-based logic.
-- If using `top_n_by_rank`, n MUST come from config (parameterized).
+- NO count caps / fixed slots — the gate is principled (methodology component confirmation),
+  not a top-N cap. Thresholds (`min_confirm`, `volume_gate_mult`, `tenkan_pullback_tol`) are
+  parameterized + swept.
+- `blocked` is ALWAYS False — entry_selection gates candidates, it never blocks the bar.
+- Reads MAINTAINED `qc._indicators` (O(1)/candidate) — NO per-bar history (isolator-timeout rule).
+- Methodology↔code mapping + golden-master: `research/methodology/bct-entry-confirm-reconciliation.md`.
 
 ---
 
 ## 6. entry_timing (kind: `entry_timing`)
 
-**Purpose:** Decide order type + price for each entry candidate.
+**Purpose:** Decide the order mechanics (type + price) for each confirmed candidate.
 
-**Engine order:** After entry_selection.
+**Engine order:** After `entry_selection`, before `sizing` (so a price-rewriting variant feeds
+sizing the entry price). ENTRY_ONLY.
 
-**Input:** `ctx.entry_candidates`, `ctx.qc_algo.Securities`.
+**Input / Output:** `ctx.bar_state.sized_orders` (pass-through; a non-baseline variant rewrites
+`intent.price`/`intent.stop`). The actual order placement is the engine's `FIRE_ENTRIES` sentinel
+(market-on-open) — phases never touch LEAN directly.
 
-**Output:** `ctx.entry_intents: list[EntryIntent]` — order specs (ticker, type, price).
+**Impls (catalog: `phases/entry_timing/library.py` → `ENTRY_TIMING_PHASES`):**
+| Impl | Marker | Params | Role |
+|---|---|---|---|
+| `MarketOnOpenEntry` (#253) | `market_on_open_entry_v1` | (none — baseline, empty `space()`) | §4 Gate-5 default: market-on-open (today's implicit engine behavior, made explicit) |
 
-**Params:**
-| Impl | Params |
-|---|---|
-| `buy_stop_kijun` | `offset_pct: float` (above kijun, e.g. 0.75) |
-| `market_open` | (no params; market order at open) |
-| `limit_pullback` | `pullback_pct: float` (limit below prior close) |
-| `daytype_aware` | `gap_threshold_pct: float`, `wait_minutes: int` |
+Phase-2 variants (planned, own classes): `BuyStopEntry` (#149), `LimitPullbackEntry`.
 
-**Required upstream:** `entry_selection`.
-**Provides downstream:** entry intent list.
+**Required upstream:** `signal`.
+**Provides downstream:** `sized_orders`.
 
 **Contract:**
-- MUST set stop price hint for downstream sizing phase.
-- MUST emit `ENTRY_INTENT|<ticker>|type=<x>|price=<y>|stop_hint=<z>` log.
+- The baseline rewrites NOTHING (market-on-open uses the open as the fill reference). A
+  buy-stop/limit variant rewrites `intent.price`/`intent.stop` here.
+- `blocked` is ALWAYS False.
 
 ---
 

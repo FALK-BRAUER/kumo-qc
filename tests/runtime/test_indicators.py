@@ -75,6 +75,50 @@ def test_weekly_aggregate_empty_or_missing_cols():
 def test_indicator_keys_contract():
     # The documented qc._indicators[symbol] contract (lifecycle populates these; phases read them).
     # #213f added adx/adx_window/roc13 so the signal reads maintained indicators (no per-bar history).
+    # #253 added macd/macd_hist_window/vol_sma20/tbounce/daily_consolidator for the entry_selection
+    # phase (§4 Gate 2) — ADDITIVE (signal/exit phases don't read them, champion-asis parity intact).
     assert INDICATOR_KEYS == (
         "d_ichi", "w_ichi", "w_close", "sma200", "adx", "adx_window", "roc13", "consolidator",
+        "macd", "macd_hist_window", "vol_sma20", "tbounce", "daily_consolidator",
     )
+
+
+# --- #253 TBounceTracker: the pure C2 degrade-state machine (sessions-below-Tenkan + gap-up). ---
+
+
+def test_tbounce_sessions_below_tenkan_counts_consecutive():
+    from runtime.indicators import TBounceTracker
+    t = TBounceTracker()
+    t.update(open_=100.0, close=95.0, tenkan=98.0)   # below -> 1
+    assert t.sessions_below_tenkan == 1
+    t.update(open_=95.0, close=94.0, tenkan=98.0)    # below -> 2
+    assert t.sessions_below_tenkan == 2
+    t.update(open_=94.0, close=99.0, tenkan=98.0)    # back above -> reset 0
+    assert t.sessions_below_tenkan == 0
+
+
+def test_tbounce_gap_up_fraction():
+    from runtime.indicators import TBounceTracker
+    t = TBounceTracker()
+    t.update(open_=100.0, close=100.0, tenkan=90.0)   # first bar: no prior close -> gap 0
+    assert t.gap_up_frac == 0.0
+    t.update(open_=106.0, close=107.0, tenkan=90.0)   # open 106 vs prev close 100 -> +6%
+    assert abs(t.gap_up_frac - 0.06) < 1e-9
+
+
+def test_tbounce_gap_down_is_zero():
+    from runtime.indicators import TBounceTracker
+    t = TBounceTracker()
+    t.update(open_=100.0, close=100.0, tenkan=90.0)
+    t.update(open_=95.0, close=96.0, tenkan=90.0)     # gap DOWN -> 0.0 (only up-gaps matter)
+    assert t.gap_up_frac == 0.0
+
+
+def test_tbounce_deterministic_replay():
+    from runtime.indicators import TBounceTracker
+    bars = [(100.0, 95.0, 98.0), (95.0, 99.0, 98.0), (104.0, 105.0, 100.0)]
+    a, b = TBounceTracker(), TBounceTracker()
+    for o, c, tk in bars:
+        a.update(open_=o, close=c, tenkan=tk)
+        b.update(open_=o, close=c, tenkan=tk)
+    assert (a.sessions_below_tenkan, a.gap_up_frac) == (b.sessions_below_tenkan, b.gap_up_frac)
