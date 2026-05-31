@@ -238,10 +238,11 @@ def test_charting_is_inert_sized_orders_unchanged():
     qc = FakeQCRich(spy_price=500.0, spy_ma200=480.0)
     orders = [_order("AAPL"), _order("MSFT")]
     ctx = _ctx(qc, sized_orders=orders)
-    before = list(ctx.bar_state.sized_orders)
+    same_list = ctx.bar_state.sized_orders          # the live list object
+    before = list(same_list)                        # contents snapshot
     ChartEmit(ChartEmit.Params(), logger=None).evaluate(ctx)
-    assert ctx.bar_state.sized_orders == before
-    assert ctx.bar_state.sized_orders is not before or before == orders  # contents preserved
+    assert ctx.bar_state.sized_orders is same_list  # evaluate did NOT swap the list object
+    assert ctx.bar_state.sized_orders == before     # ...nor mutate its contents
 
 
 def test_config_hash_unchanged_champion_pin():
