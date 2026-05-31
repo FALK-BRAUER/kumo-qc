@@ -283,13 +283,24 @@ Phase-2 variants (planned, own classes): `BuyStopEntry` (#149), `LimitPullbackEn
 | `atr_normalized` | `atr_mult: float`, `risk_pct: float` |
 | `score_tiered` | `tier_map: dict` (e.g. `{7: 200, 8: 300}`) |
 
-**Required upstream:** `entry_timing` (needs stop_hint for risk math).
+**Implemented impls (`SIZING_PHASES` catalog, `phases/sizing/library.py`):**
+| Impl | Params | Behavior |
+|---|---|---|
+| `flat_pct_heatcap` | `position_pct` | Flat `position_pct` per name + committed-cash heat-cap. IGNORES the X/4 score (champion-asis sizer). |
+| `score_tier_heatcap` | `position_pct`, `full`, `three_quarter`, `half`, `min_score` | The X/4 entry-confirm score (`qc._entry_confirm[ticker]`) BINDS on size via the methodology tiers — **4/4 → full · 3/4 → 75% · 2/4 → 50% · <`min_score` → no entry** — composed WITH the same committed-cash heat-cap (tier sets the per-name target; heat-cap bounds total gross). A candidate with NO published score is DECLINED (no flat fall-back — a wiring bug must fail visibly). |
+
+**Required upstream:** `entry_timing` (needs stop_hint for risk math). `score_tier_heatcap` also
+requires `entry_selection` (the published X/4 score).
 **Provides downstream:** sized orders.
 
 **Contract:**
-- Formula: `qty = risk_dollars / (entry_price - stop_price)`.
+- `flat_pct_heatcap` / `score_tier_heatcap` formula: `qty = floor(target_value / price)` where
+  `target_value = position_pct × [tier ×] portfolio_value`, filled until the cash heat-cap is hit.
+- (Risk-based impls) Formula: `qty = risk_dollars / (entry_price - stop_price)`.
 - MUST round to whole shares (floor).
 - MUST skip if computed qty == 0 (log skip).
+- CHARTER: exposure governed by the % gross-exposure heat-cap only — NO count caps / fixed slots /
+  time exits.
 
 ---
 
