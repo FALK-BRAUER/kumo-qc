@@ -142,7 +142,7 @@ The 2026-05-29 P0 incident proved the regime above is ignored without enforcemen
    ```
    It exits 1 (abort) if the worker is in the shared main tree, with the exact worktree-creation commands. Exit 0 only inside an isolated worktree.
 
-2. **Dispatch template (orchestrator side).** Every BT/main.py task dispatch MUST embed the worktree setup and require an ack. Use `docs/worker-dispatch-protocol.md`. No BT task is dispatched without it; no worker starts BT work until it has replied "PREFLIGHT OK in worktree <path>".
+2. **Dispatch template (orchestrator side).** Every BT/main.py task dispatch MUST embed the worktree setup and require an ack. Use `docs/notes/worker-dispatch-protocol.md`. No BT task is dispatched without it; no worker starts BT work until it has replied "PREFLIGHT OK in worktree <path>".
 
 3. **Data-integrity rule (worker side).** Any reported result (orders, fills, diffs, Sharpe) MUST come from a real artifact — a backtest output dir, an order-events file, or a verified API response. NEVER infer/assume parity or fill in expected values. If a fetch returns empty, report "no data retrieved", never fabricate. Orchestrators spot-check critical findings against ground truth (e.g. QC API `/backtests/orders/read`).
 

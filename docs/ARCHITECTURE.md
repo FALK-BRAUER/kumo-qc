@@ -72,3 +72,75 @@ dist/ ──▶ QC cloud deploy        (via QC API /files/update)     ⇒ SAME a
 
 ## 8. References
 v1 history: `git show <pre-v2>:docs/ARCHITECTURE.md`. Design session 2026-05-30 (web + Perplexity + Gemini). Related: #183 harness fidelity, #194 CI, #202 G5, #203 acceptance contract, PHASES.md (per-phase contracts).
+
+## 9. Variant Strategy (entry/exit/sizing/regime proliferation)
+We experiment with many entry/exit/sizing/regime algorithms; this section is the rule for **when to extend a phase, when to build a new variant, and when to control behaviour via parameters vs new code** — so variation stays cheap, type-safe, and reproducible without the library rotting into flag-soup or copy-paste sprawl. Each phase **kind** owns a library of interchangeable implementations, each with its own nested typed `.Params`; a strategy composes them by direct class reference (`Slot(impl=SomePhase, params=SomePhase.Params(...))`). The variant catalog lives in [research/catalog/variant-catalog.md](../research/catalog/variant-catalog.md); the prior-art survey backing these rules is in [research/methodology/variant-architecture-references.md](../research/methodology/variant-architecture-references.md). (Drivers: Falk; synthesis of in-house + Perplexity + Gemini analysis, all three converged.)
+
+### D1 — The boundary: PARAM vs NEW IMPL vs EXTEND
+**Default verdict is NEW IMPL.** Reach for a parameter only for same-algorithm tuning; reach for extension almost never.
+
+| You observe | Verdict | Why |
+|---|---|---|
+| A number/threshold/window/multiplier changes; code path identical | **PARAM** (field on the impl's `.Params`) | same algorithm, different magnitude; sweepable on a continuous axis |
+| `if self.params.mode == "A": … else: …` branching over **algorithms** | **NEW IMPL** | each branch *is* an algorithm wearing a param's clothes — split it |
+| A param is meaningful to A but **nonsense for B** (disjoint param sets) | **NEW IMPL** | disjoint `.Params` ⇒ disjoint classes |
+| Different **inputs** or different **output shape** | **NEW IMPL** | not the same computation |
+| You want to **sweep {A, B, C} categorically** | **NEW IMPL** | impls *are* the categorical axis of the sweep |
+| Optional **guard/clamp**, default-OFF, same math, leaves past results byte-identical | **EXTEND** | strictly additive sub-mode of one algorithm |
+| A boolean that toggles which of two algorithms runs | **NEW IMPL**, never a flag | bool-flag-soup → impossible states |
+
+**The one-line tests (use in code review):**
+- "Can I describe the change **without** the words *if* or *instead*?" → yes ⇒ PARAM; no ⇒ NEW IMPL.
+- \> 2–3 `Literal`/enum modes with different code paths, **or** branch-on-type in > 2–3 places, **or** a phase class bloating past ~150–200 LOC purely from variant logic ⇒ split into impls.
+
+**Failure modes this prevents:** treating new logic as a param → god-phase / boolean-flag soup (3 bools = 8 states, most invalid); treating a param as a variant → copy-paste sprawl (`AtrStop_2x`, `AtrStop_2_5x` as classes — a continuous knob you can no longer sweep continuously); over-extending → fragile base class (a small base change breaks N descendants).
+
+### D2 — Co-locate the sweep space with the code (`space()` on `.Params`)
+The searchable space **lives on the `.Params` dataclass**, never in the sweep driver (which is how it drifts — the LEAN `config.json`-separate-from-code failure mode).
+
+```python
+@dataclass(frozen=True)
+class Params:
+    atr_period: int = 22
+    atr_mult: float = 3.0
+
+    @classmethod
+    def space(cls) -> dict[str, ParamAxis]:
+        # the ONLY source of truth for this phase's sweepable axes
+        return {
+            "atr_period": IntAxis(low=14, high=40, step=2),
+            "atr_mult":   FloatAxis(low=1.5, high=5.0, step=0.25),
+        }
+```
+
+- **Drift-proof under mypy:** `space()` keys are field names — a typo or a field that doesn't exist fails at check/attribute time. Adding a field without adding it to `space()` is a one-file reviewable change.
+- **Axis type, not raw tuples:** a small `ParamAxis` abstraction (`IntAxis`/`FloatAxis`/`CategoricalAxis`), **structurally compatible with optuna distributions** so the runner can later swap grid-search → Bayesian (TPE/CMA-ES) **without touching any phase**.
+- **Named presets** for human-meaningful points (`AGGRESSIVE = Params(atr_mult=4.0)`), separate from the sweep grid.
+
+### D3 — Enumerate variants with explicit typed catalogs, NOT a string registry
+Per kind, one typed tuple is the sweep driver's enumeration source: `EXIT_PHASES: tuple[type[ExitPhase], ...] = (KijunTrailExit, WeeklyCloudBreachExit, ...)`.
+
+- Keeps the direct-reference wins: mypy verifies each member satisfies the kind's Protocol; rename breaks loudly at check time; dead variants are detectable; a serialized run references a concrete versioned class (reproducible).
+- Recovers the only thing a registry gave us — enumeration — with zero of its costs. A string registry is added **only** at a future external-config edge (a non-Python tool writing a sweep grid as YAML), confined to a thin `resolve(name) -> type[Phase]` adapter that immediately yields a typed `Slot`; strings never enter core (Nautilus's split: typed configs in-process, importable config only at the serialization boundary).
+- A **`StrategySpace`** object models a sweep as the cartesian set of `Slot` choices × each impl's `space()` → a list of fully-typed, reproducible `StrategyConfig`s.
+
+### D4 — Composition over inheritance for shared mechanics
+Shared machinery (EOD stop evaluation, ATR computation, weekly-bar seeding) lives in **free helper functions** or thin mixins consumed by impls — **not** a fat `BaseStop` template-method base. The phase contract is a `Protocol`; impls share *code*, never *inheritance state* (backtrader's 1,700-line `Strategy` god-base is the cautionary tale).
+
+### D5 — The mass runner must defend against overfitting BY DESIGN
+The architecture makes param/structure explosion easy; the dominant real-world risk is therefore **curve-fitting noise**, not engineering elegance. The runner (#214) bakes in:
+1. **No single-number results** — every config's output is the distribution across the mandatory 6 windows, never one backtest.
+2. **Rank by stability, not peak** — primary score ≈ `mean(Sharpe) / std(Sharpe)` across windows, not best-window Sharpe.
+3. **Complexity penalty (Occam)** — each phase declares a `complexity`; the leaderboard shows a complexity-adjusted score so the optimizer prefers the simpler config at equal performance.
+4. **Robustness surface** — for top-N candidates, auto-run a local grid around the optimum; prefer flat regions, reject knife-edges.
+5. **DoF budget per strategy** — a soft cap on total swept parameters, logged loudly when exceeded.
+6. Inherits the charter invariants: no count caps, no time-based exits, no fixed slots, out-of-window validation.
+
+### Decision summary (the rules, one screen)
+1. **NEW IMPL by default.** Param only for same-algorithm scalars. `if mode==` over algorithms ⇒ split. Extend only for default-off orthogonal guards.
+2. **`space()` on every `.Params`** — single, drift-proof, optuna-compatible source of the sweepable axes. Named presets for human points.
+3. **Typed `*_PHASES` catalog tuple per kind** for enumeration. No string registry in core; only at a future external edge.
+4. **Composition over inheritance** — Protocols + free helpers, no fat bases.
+5. **Runner defends against overfitting** — 6-window distributions, rank by stability not peak, complexity penalty, robustness surface, DoF budget; charter invariants hold.
+
+The enforceable subset of D1–D3 is a PR gate in [CONVENTIONS.md](../CONVENTIONS.md).
