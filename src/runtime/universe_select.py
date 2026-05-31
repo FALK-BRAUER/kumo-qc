@@ -41,8 +41,11 @@ arithmetic itself is golden-mastered: mean(window) == mean(inputs[-20:]) on iden
 """
 from __future__ import annotations
 
+import math
 from collections import deque
 from dataclasses import dataclass, field
+
+from engine.base import DegradedDataError
 
 ADV_WINDOW: int = 20  # trailing trading-day window for the maintained mean-DV decision
 
@@ -100,7 +103,25 @@ def apply_floors(
     min_avg_dollar_volume: float = 100_000_000.0,
 ) -> list[str]:
     """PRECISE tradeability floors on the trailing metrics. Returns eligible tickers
-    (close >= min_price AND trailing_dv >= min_avg_dollar_volume), SORTED for determinism."""
+    (close >= min_price AND trailing_dv >= min_avg_dollar_volume), SORTED for determinism.
+
+    FAIL-LOUD GUARD (#261-1): a non-finite (NaN/Inf) dollar-volume, or a non-finite/negative
+    close, is DEGRADED data — it must RAISE, never silently rank/admit. An Inf DV would pass
+    `dv >= floor` AND dominate the DV-desc rank (Inf > any real DV → garbage selected #1); a
+    NaN would silently vanish (comparison False) — both are the silent-mirage class. The floor
+    arithmetic runs only on FINITE, sign-sane metrics; anything else crashes with the offending
+    ticker + value so the degraded feed is diagnosable, not absorbed into the universe."""
+    for t, (close, dv) in bar_metrics.items():
+        if not math.isfinite(dv):
+            raise DegradedDataError(
+                f"non-finite trailing dollar_volume at selection gate: ticker={t!r} dv={dv!r} "
+                f"(close={close!r}); degraded data must fail loud, never rank/admit (#261-1)"
+            )
+        if not math.isfinite(close) or close < 0.0:
+            raise DegradedDataError(
+                f"non-finite/negative close at selection gate: ticker={t!r} close={close!r} "
+                f"(dv={dv!r}); degraded data must fail loud, never rank/admit (#261-1)"
+            )
     return sorted(
         t for t, (close, dv) in bar_metrics.items()
         if close >= min_price and dv >= min_avg_dollar_volume

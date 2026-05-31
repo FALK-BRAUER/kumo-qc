@@ -20,6 +20,22 @@ class UniverseLoadError(Exception):
     """Raised when the universe is empty/unresolved — fail loud, never trade-everything."""
 
 
+class DegradedDataError(Exception):
+    """Raised (#261) when the live engine path hits degraded / malformed / missing / not-ready
+    data that would otherwise produce a SILENT-0 / wrong-set / cold-score MIRAGE.
+
+    The anti-mirage contract (Falk's mandate): an outage/degraded state must CRASH loudly with
+    diagnosable context (symbol / day / value), NEVER silently pass a 0, a wrong set, or a cold
+    score (the empty-warmup mirage faked the −0.616 baseline because nothing crashed). Carries
+    the offending context in its message — not a bare assert.
+
+    Fires ONLY on broken-data scenarios (the guards are dormant on the valid happy path):
+      - a non-finite / negative dollar-volume or price entering the selection gate (#261-1/2);
+      - QC firing the coarse callback on a trading day with a missing/empty feed (#261-5);
+      - a populated coarse feed collapsing to a ZERO selection — degraded data (#261-6);
+      - an invested position with a cold daily-Ichimoku at stop-evaluation time (#261-8)."""
+
+
 class UniverseFingerprintError(Exception):
     """Raised when a loaded universe artifact's recomputed fingerprint != the pinned value.
     The structural anti-#182 guard: same key but DIFFERENT bytes (cloud ObjectStore !=

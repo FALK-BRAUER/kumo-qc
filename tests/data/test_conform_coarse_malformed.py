@@ -8,20 +8,19 @@ the on-disk CSV into coarse objects is NOT Python — its contract is pinned at 
 engine owns in tests/runtime/test_coarse_parse.py (the 8-col row → coarse-object adapter).
 
 Falk's #263 mandate: degraded / malformed / missing / zero-row data must FAIL LOUD (raise or
-loud-skip with a LOGGED reason) — NEVER a silent-0 / empty-set mirage. Where conform_coarse is
-SILENTLY-LENIENT (drops a ticker with no logged reason, or emits a malformed row) that is a
-FINDING: the test asserts the CORRECT fail-loud behavior + is marked xfail + reported as a #261
-line-item. We do NOT change engine/conform behavior here (test-only ticket).
+loud-skip with a LOGGED reason) — NEVER a silent-0 / empty-set mirage.
 
-ACTUAL behavior probed before writing (read the code, test reality):
-  - `_read_daily_zip` wraps the parse in `except (BadZipFile, IndexError, ValueError): return
-    None` — so ANY single malformed row (non-numeric close, truncated row, a header line)
-    drops the ENTIRE ticker to None with NO logged reason. SILENT-SKIP finding (#261).
-  - `build_row` emits a row from whatever `_read_daily_zip` returned with NO finite/sign
-    validation — a negative or non-finite close yields a malformed-but-written coarse row.
-    SILENT-EMIT finding (#261). (The downstream floor rejects it, but the gap is real.)
-  - Missing map_file / missing daily zip → `build_row`/`_read_daily_zip` → None (correct skip:
-    no data == no row; this is correct-0 at the per-ticker grain, not a broken-0).
+#261 RESOLUTION (this file was test-only under #263; #261 LANDED the conform fail-loud change):
+  - `_read_daily_zip` no longer wraps the whole loop in a blanket `except → None` that silently
+    dropped the ENTIRE ticker (incl. valid bars after a bad row). It now loud-SKIPS the bad ROW
+    with a logged reason (ticker + row + why → stderr) and KEEPS every valid bar (#261-3).
+  - `build_row` now loud-SKIPS a non-finite / non-positive close with a logged reason instead of
+    silently EMITTING a malformed (negative close / negative DV) coarse row (#261-4).
+  - Missing map_file / missing daily zip → None (correct skip: no data == no row; correct-0 at
+    the per-ticker grain). A corrupt (non-zip) file → loud-WARN + None (whole-file unreadable).
+conform_coarse is an OFFLINE data-prep tool, so #261 uses loud-SKIP-WITH-LOG at the row grain
+(not a hard raise that would abort a multi-thousand-ticker conform) — the live engine path
+(#261-1/2/5/6/8) hard-RAISES. The drop is VISIBLE in every case, never silent.
 """
 from __future__ import annotations
 
@@ -132,81 +131,91 @@ def test_read_daily_zip_empty_file_yields_empty_dict(coarse_env) -> None:
 # ── WRONG-SHAPED ROWS: ACTUAL silent-skip behavior + the #261 fail-loud findings ─
 
 
-def test_read_daily_zip_corrupt_zip_returns_none(coarse_env) -> None:
-    # A corrupt (non-zip) file -> None. The BadZipFile branch. (Arguably should log a reason —
-    # see the silent-skip finding below; but a None here at least doesn't emit a junk row.)
+def test_read_daily_zip_corrupt_zip_loud_returns_none(coarse_env, capsys) -> None:
+    # A corrupt (non-zip) file -> None, now with a LOUD logged reason (#261-3): the whole file is
+    # unreadable (not one bad row), so there are no rows to salvage — but the ticker drop is
+    # VISIBLE in stderr, not silent.
     coarse_env.write_corrupt_zip("corrupt")
     assert conform_coarse._read_daily_zip("corrupt") is None
+    err = capsys.readouterr().err
+    assert "corrupt" in err and "BadZipFile" in err and "#261-3" in err
 
 
-@pytest.mark.xfail(
-    reason="#261 FAIL-LOUD GAP: _read_daily_zip catches ValueError on a single non-numeric "
-    "close and returns None for the ENTIRE ticker with NO logged reason — one bad row silently "
-    "drops a whole name from every coarse day. Falk's mandate: a malformed row must fail loud "
-    "or loud-SKIP-with-a-logged-reason, never a silent drop. DESIRED: raise (or log+skip the "
-    "ROW, not the ticker). #261 owns the conform fail-loud change.",
-    strict=True,
-)
-def test_read_daily_zip_nonnumeric_close_fails_loud(coarse_env) -> None:
-    # DESIRED behavior: a non-numeric close raises (or skips only that row with a logged reason).
-    # ACTUAL: returns None silently for the whole ticker.
-    coarse_env.write_daily("badclose", ["20250103 00:00,o,h,l,NOTANUM,1000000"])
-    with pytest.raises(ValueError):
-        conform_coarse._read_daily_zip("badclose")
+def test_read_daily_zip_nonnumeric_close_loud_skips_row_keeps_ticker(coarse_env, capsys) -> None:
+    # #261-3 (FLIPPED from strict-xfail): a non-numeric close no longer drops the WHOLE ticker
+    # silently. The bad ROW is loud-SKIPPED-WITH-A-LOGGED-REASON (to stderr) and any VALID bar
+    # is kept. Here the only bar is bad → {} (not None: the file IS readable, it just has no
+    # usable bar), and the drop reason is VISIBLE in stderr (ticker + the offending row).
+    coarse_env.write_daily("badclose", ["20250103 00:00,1,1,1,NOTANUM,1000000"])
+    result = conform_coarse._read_daily_zip("badclose")
+    assert result == {}  # bad row skipped, no valid bars remain (readable file → {} not None)
+    err = capsys.readouterr().err
+    assert "badclose" in err and "non-numeric daily row" in err and "#261-3" in err
 
 
-@pytest.mark.xfail(
-    reason="#261 FAIL-LOUD GAP: a TRUNCATED daily row triggers IndexError, caught -> None for "
-    "the whole ticker, no logged reason (silent drop). Should fail loud / loud-skip the row.",
-    strict=True,
-)
-def test_read_daily_zip_truncated_row_fails_loud(coarse_env) -> None:
-    coarse_env.write_daily("trunc", ["20250103 00:00,5391000"])  # missing high/low/close/vol
-    with pytest.raises((ValueError, IndexError)):
-        conform_coarse._read_daily_zip("trunc")
+def test_read_daily_zip_bad_row_keeps_following_valid_bar(coarse_env, capsys) -> None:
+    # #261-3: the KEY regression — a bad row no longer loses the VALID bars after it. A
+    # non-numeric row FOLLOWED by a valid bar yields the valid bar (the prior blanket-except
+    # would have dropped BOTH). The skip of the bad row is logged loudly.
+    coarse_env.write_daily("mix", ["20250102 00:00,1,1,1,NOTANUM,1000000", _VALID_BAR])
+    result = conform_coarse._read_daily_zip("mix")
+    assert result == {"20250103": (539.1, 1_000_000)}  # the valid bar SURVIVES
+    assert "mix" in capsys.readouterr().err  # bad row's drop was logged
 
 
-@pytest.mark.xfail(
-    reason="#261 FAIL-LOUD GAP: a HEADER row mixed into a daily zip (e.g. 'Date,Open,...') is "
-    "non-numeric -> ValueError caught -> None for the whole ticker, silently. The valid bars "
-    "after the header are lost too. Should loud-skip the header row, keep the real bars.",
-    strict=True,
-)
-def test_read_daily_zip_header_row_fails_loud(coarse_env) -> None:
+def test_read_daily_zip_truncated_row_loud_skips_row(coarse_env, capsys) -> None:
+    # #261-3 (FLIPPED): a truncated row (too few cols) is loud-skipped-with-log, not a silent
+    # whole-ticker drop. A following valid bar survives.
+    coarse_env.write_daily("trunc", ["20250102 00:00,5391000", _VALID_BAR])  # row 1 truncated
+    result = conform_coarse._read_daily_zip("trunc")
+    assert result == {"20250103": (539.1, 1_000_000)}  # valid bar kept
+    err = capsys.readouterr().err
+    assert "trunc" in err and "malformed daily row" in err and "#261-3" in err
+
+
+def test_read_daily_zip_header_row_loud_skips_keeps_real_bars(coarse_env, capsys) -> None:
+    # #261-3 (FLIPPED): a stray HEADER row mixed into a daily zip is loud-skipped, and the REAL
+    # bars after it SURVIVE (the prior blanket-except dropped the header AND every real bar).
     coarse_env.write_daily("hdr", ["Date,Open,High,Low,Close,Volume", _VALID_BAR])
-    # DESIRED: the real bar survives (header skipped with a reason), OR a loud raise.
     result = conform_coarse._read_daily_zip("hdr")
-    assert result == {"20250103": (539.1, 1_000_000)}  # ACTUAL: None (whole ticker dropped)
+    assert result == {"20250103": (539.1, 1_000_000)}  # the real bar survives
+    assert "hdr" in capsys.readouterr().err  # header row's skip was logged
 
 
-@pytest.mark.xfail(
-    reason="#261 SILENT-EMIT GAP: build_row performs NO finite/sign validation on close — a "
-    "NEGATIVE close (corrupt daily bar) is emitted as a malformed coarse row "
-    "(negative close + negative dollar_volume). The downstream floor rejects it, but conform "
-    "should fail loud / loud-skip rather than WRITE a degraded row into the universe file. "
-    "#261 owns the conform validation.",
-    strict=True,
-)
-def test_build_row_rejects_negative_close(coarse_env) -> None:
+def test_read_daily_zip_valid_bars_no_warn(coarse_env, capsys) -> None:
+    # HAPPY-PATH REGRESSION (#261-3): a clean daily zip parses with NO warning (the guard is not
+    # over-eager — valid rows never trigger the loud-skip log).
+    coarse_env.write_daily("clean", [_VALID_BAR])
+    assert conform_coarse._read_daily_zip("clean") == {"20250103": (539.1, 1_000_000)}
+    assert capsys.readouterr().err == ""
+
+
+def test_build_row_skips_negative_close_loud(coarse_env, capsys) -> None:
+    # #261-4 (FLIPPED from strict-xfail + the ACTUAL-pin): build_row no longer EMITS a
+    # negative-close / negative-DV row. A negative close is loud-SKIPPED-WITH-A-LOGGED-REASON
+    # (returns None), so no degraded row is written into the universe file. The reason is VISIBLE.
     coarse_env.write_map("negc")
-    coarse_env.write_daily("negc", ["20250103 00:00,-5391000,1,1,-5391000,1000000"])
-    daily = conform_coarse._read_daily_zip("negc")
-    # DESIRED: build_row refuses to emit a negative-close row (returns None or raises).
+    daily = {"20250103": (-539.1, 1_000_000)}  # negative close (a corrupt bar)
     assert conform_coarse.build_row("negc", "20250103", daily) is None
+    err = capsys.readouterr().err
+    assert "negc" in err and "non-finite/non-positive close" in err and "#261-4" in err
 
 
-def test_build_row_negative_close_actual_emits_malformed_row(coarse_env) -> None:
-    # PIN the ACTUAL (silently-lenient) behavior so the #261 finding is concrete: build_row
-    # currently EMITS a negative-close / negative-DV row. This is the exact silent-emit the
-    # fail-loud guard must close. (Not xfail — it documents reality for the #261 line-item.)
-    coarse_env.write_map("negc")
-    coarse_env.write_daily("negc", ["20250103 00:00,-5391000,1,1,-5391000,1000000"])
-    daily = conform_coarse._read_daily_zip("negc")
-    row = conform_coarse.build_row("negc", "20250103", daily)
-    assert row is not None
-    cols = row.split(",")
-    assert float(cols[2]) < 0  # negative close written
-    assert float(cols[4]) < 0  # negative dollar_volume written
+def test_build_row_skips_nonfinite_close_loud(coarse_env, capsys) -> None:
+    # #261-4: a non-finite (inf/nan) close is also loud-skipped (never written).
+    coarse_env.write_map("infc")
+    assert conform_coarse.build_row("infc", "20250103", {"20250103": (float("inf"), 1_000_000)}) is None
+    assert conform_coarse.build_row("infc", "20250103", {"20250103": (float("nan"), 1_000_000)}) is None
+    assert "non-finite/non-positive close" in capsys.readouterr().err
+
+
+def test_build_row_valid_close_no_warn_emits_row(coarse_env, capsys) -> None:
+    # HAPPY-PATH REGRESSION (#261-4): a valid positive finite close emits the 8-col row with NO
+    # warning (the guard is not over-eager).
+    coarse_env.write_map("good")
+    row = conform_coarse.build_row("good", "20250103", {"20250103": (539.1, 1_000_000)})
+    assert row is not None and len(row.split(",")) == 8
+    assert capsys.readouterr().err == ""
 
 
 # ── SID encoding edge (the parse path's identity column) ───────────────────────

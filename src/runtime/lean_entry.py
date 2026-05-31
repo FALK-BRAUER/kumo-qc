@@ -51,6 +51,7 @@ verified on a LEAN run — pragma:no cover, not unit-testable in the dev venv.
 """
 from __future__ import annotations
 
+import math
 from collections.abc import Iterable
 from datetime import timedelta
 from hashlib import sha256
@@ -58,6 +59,7 @@ from typing import Any
 
 import pandas as pd
 
+from engine.base import DegradedDataError
 from engine.context import PhaseContext
 from engine.engine import StrategyEngine
 from runtime.indicators import INDICATOR_KEYS, TBounceTracker, weekly_aggregate
@@ -83,7 +85,16 @@ def coarse_to_dollar_volume(coarse: Iterable[Any]) -> dict[str, float]:
     out: dict[str, float] = {}
     for c in coarse:
         ticker = str(c.symbol.value).lower()
-        out[ticker] = float(c.dollar_volume)
+        dv = float(c.dollar_volume)
+        # FAIL-LOUD GUARD (#261-2): a NaN/Inf single-day DV must NOT enter the rolling-DV window
+        # (it would poison the trailing mean, then pass apply_floors / dominate the DV-desc rank
+        # — the silent-garbage-selected mirage). Crash with the offending ticker + value.
+        if not math.isfinite(dv):
+            raise DegradedDataError(
+                f"non-finite coarse dollar_volume: ticker={ticker!r} dollar_volume={dv!r}; "
+                f"degraded data must fail loud, never enter the rolling-DV window (#261-2)"
+            )
+        out[ticker] = dv
     return out
 
 
@@ -101,7 +112,16 @@ def coarse_to_close(coarse: Iterable[Any]) -> dict[str, float]:
     out: dict[str, float] = {}
     for c in coarse:
         ticker = str(c.symbol.value).lower()
-        out[ticker] = float(c.price)
+        price = float(c.price)
+        # FAIL-LOUD GUARD (#261-2): a NaN/Inf coarse close is degraded data — it must NOT feed
+        # the price floor (NaN silently fails the floor → name vanishes; Inf silently passes).
+        # Crash with the offending ticker + value rather than absorb it into the gate.
+        if not math.isfinite(price):
+            raise DegradedDataError(
+                f"non-finite coarse price (close): ticker={ticker!r} price={price!r}; "
+                f"degraded data must fail loud, never feed the price floor (#261-2)"
+            )
+        out[ticker] = price
     return out
 
 
@@ -169,6 +189,17 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
     MIN_AVG_DOLLAR_VOLUME: float = 100_000_000.0
     COARSE_MAX: int = 9999
     ADV_WINDOW: int = 20  # trailing trading-day window for the maintained mean-DV decision
+
+    # FAIL-LOUD threshold (#261-6, broken-0 guard) — EXPLICIT + parameterized, never a hidden
+    # cap. A real QC coarse session delivers THOUSANDS of names (FY2025 feeds carry >10k rows);
+    # a feed of >= this many names that COLLAPSES to a zero selection is the −0.616 mirage and
+    # must fail loud. Below this count the feed is too sparse to call a collapse "broken" (an
+    # early/thin synthetic or genuinely-sparse day → benign correct-0, no raise). This is a
+    # diagnostic guard threshold, NOT a strategy knob: it is NOT in STRATEGY_CONFIG and does
+    # NOT enter the config_hash (the happy path — a populated feed selecting names — is
+    # byte-unchanged). Conservative default (100) sits far below the real feed size and far
+    # above any legitimate sparse day.
+    BROKEN_ZERO_MIN_FEED: int = 100
 
     # Indicator warmup length — DERIVED, not copied (the 750d was an un-derived "exact legacy"
     # carve in #213c). Binding constraint = the WEEKLY IchimokuKinkoHyo(9,26,26,52,26,26).
@@ -278,6 +309,27 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         coarse_dv = coarse_to_dollar_volume(coarse)
         coarse_close = coarse_to_close(coarse)
 
+        # FAIL-LOUD GUARD (#261-5): missing-coarse-on-a-known-trading-day. QC's
+        # CoarseFundamentalUniverseSelection callback fires ONCE PER TRADING DAY — and ONLY when
+        # there is a coarse data file for that session. On a market holiday there is no session,
+        # so QC never invokes this callback (the local conform's clean_orphan_files confirms the
+        # contract: it PURGES non-session days so the native reader never trips on them, and the
+        # FY2025 session feeds carry >10k rows each). Therefore reaching this callback with an
+        # EMPTY feed means "QC fired on a real trading day but the coarse data is missing" = a
+        # DATA GAP that would otherwise read as a silent empty/holiday feed (the #173 mirage).
+        # Empty == ALWAYS broken here → RAISE with the day, never silently select [].
+        # (Reconciled with #263's correct-0 contract: there is NO legitimate empty-feed case —
+        # QC does not fire the callback on a non-trading day — so the prior "empty = correct-0"
+        # pin is FLIPPED to assert this raise; see tests/data/test_active_set_nonempty.py.)
+        n_in = len(coarse_dv)
+        if n_in == 0:
+            raise DegradedDataError(
+                f"empty coarse feed on a trading day: date={date_str} (QC fired the coarse "
+                f"selection callback — a real session — but 0 names arrived). A missing/empty "
+                f"feed on a known trading day is a DATA GAP that must fail loud, never read as a "
+                f"silent holiday/empty universe (the #173 empty-warmup mirage) (#261-5)"
+            )
+
         # MAINTAIN the rolling 20-day DV from today's coarse feed (NO history()). Monotonic
         # day-index drives stale-eviction (a name absent >= ADV_WINDOW days is dropped).
         self._dv_day_index += 1
@@ -304,6 +356,25 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         )
         dv_by_ticker = {t: bar_metrics[t][1] for t in eligible}
         ranked = rank_and_cap(eligible, dv_by_ticker, coarse_max=self.COARSE_MAX)
+
+        # FAIL-LOUD GUARD (#261-6): broken-0. A POPULATED coarse feed (>= BROKEN_ZERO_MIN_FEED
+        # names — a real session delivers thousands) that COLLAPSES to a ZERO ranked selection is
+        # DEGRADED data, not a legitimate holiday: e.g. the DV column corrupted to tiny values so
+        # every name falls below the prefilter/floor, or the price column zeroed. This is exactly
+        # the −0.616 mirage (a full feed in, an empty universe out, nothing crashing). The (n_in,
+        # ranked) pair distinguishes it from correct-0: correct-0 (n_in == 0) already raised
+        # above; here n_in is substantial yet 0 selected → RAISE with the input count so the
+        # degradation is diagnosable. A SPARSE feed (n_in < the threshold) collapsing to zero is
+        # too thin to call "broken" — benign correct-0, no raise. On healthy real data this never
+        # fires (FY2025 sessions select hundreds).
+        if not ranked and n_in >= self.BROKEN_ZERO_MIN_FEED:
+            raise DegradedDataError(
+                f"broken-0 selection on a populated coarse feed: date={date_str} "
+                f"names_in={n_in} eligible={len(eligible)} ranked=0 — a full feed collapsed to "
+                f"an EMPTY universe (degraded data: DV/price column corrupted, every name below "
+                f"the floor?). A non-empty feed yielding zero selection must fail loud, never a "
+                f"silent empty universe (the −0.616 empty-universe mirage) (#261-6)"
+            )
 
         # Store the selected+ranked+capped set + the dv view (signal tiebreak) + the full
         # survivor map (diff-ladder only; no phase reads _bar_metrics under Y).

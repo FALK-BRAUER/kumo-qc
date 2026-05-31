@@ -48,19 +48,21 @@ def test_spy_at_ma200_passes():
     assert result.blocked is False  # strictly less than, matches oracle
 
 
-def test_sma200_not_ready_passes():
+def test_sma200_not_ready_blocks():
+    # #261-7: a not-ready regime SMA now BLOCKS (fail-closed), not the old fail-open pass.
     qc = FakeQC(spy_price=400.0, ma200=450.0)
     qc.spy_sma200 = FakeSma(450.0, ready=False)
     phase = SpySma200(SpySma200.Params(), logger=None)
     result = phase.evaluate(make_ctx(qc))
-    assert result.blocked is False  # not ready → pass (safe fallback)
+    assert result.blocked is True  # not ready → BLOCK until warm (#261-7)
 
 
-def test_spy_none_passes():
+def test_spy_none_blocks():
+    # #261-7: a missing spy / spy_sma200 also blocks — never wave entries through on partial state.
     class NoSpyQC:
         spy = None
         spy_sma200 = None
-        securities = {}
+        securities: dict[object, object] = {}
     phase = SpySma200(SpySma200.Params(), logger=None)
     result = phase.evaluate(PhaseContext(qc=NoSpyQC(), time=datetime(2025, 1, 2), data=None))
-    assert result.blocked is False
+    assert result.blocked is True

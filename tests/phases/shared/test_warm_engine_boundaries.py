@@ -1,41 +1,28 @@
-"""#264 — the WARM-READINESS boundaries OUTSIDE the two maintained scorers (the #261 line-items).
+"""#264/#261 — the WARM-READINESS boundaries OUTSIDE the two maintained scorers.
 
 The two maintained SCORE-EMITTERS (score_symbol_native, BctEntryConfirm._score_candidate) already
 fail-loud correctly on every not-ready input — proven exhaustively in test_warm_at_score_time.py.
-This file pins the TWO OTHER readiness boundaries the #264 audit surfaced. Per the #264 ticket
-constraint: where the engine is silently-lenient (acts on a not-ready / not-warm indicator) but
-the anti-mirage mandate wants fail-LOUD, the CORRECT behavior is asserted as xfail(strict=True)
-and FLAGGED for #261 (#261 owns the engine fail-loud change; #264 is test-only and must NOT
-pre-empt it). Where the lenient behavior is a judgment call (not a clear mirage), the ACTUAL
-behavior is pinned as a passing regression test with a precise #261 flag in the docstring.
+This file pins the TWO OTHER readiness boundaries the #264 audit surfaced. #264 was test-only and
+asserted the TARGET fail-loud behavior (one strict-xfail, one ACTUAL-behavior pin); #261 LANDED
+the engine fail-loud changes, so these tests are now FLIPPED to assert the implemented behavior.
 
 ================= #261 LINE-ITEMS (precise file:line) =================
 
-GAP 1 (FAIL-OPEN regime, xfail strict below):
+GAP 1 → #261-7 (FAIL-OPEN regime → BLOCK-until-ready, implemented):
   src/phases/regime/spy_200ma/spy_200ma.py:39-40
-    `if spy_sma200 is None or not spy_sma200.is_ready or spy is None:
-         return PhaseResult(decision="pass", blocked=False, reason="spy_sma200 not ready", ...)`
-  A NOT-READY regime SMA returns blocked=False (PASS) -> entries fire UNGATED while the regime
-  filter is cold. Today this is unreachable in production (WARMUP_DAYS=560 >> the 200d SMA, and
-  on_data skips scoring during warmup), so it is latent — but it is a fail-OPEN: the safe anti-
-  mirage behavior is to BLOCK (or skip-loud) entries until the regime gate is warm, never to
-  silently wave them through on partial/empty state. #261 should decide: block-until-ready.
+  A NOT-READY regime SMA used to return blocked=False (PASS) → entries fired UNGATED while the
+  regime filter was cold (fail-OPEN). #261-7 makes a not-ready gate BLOCK (blocked=True) until
+  warm — never silently wave entries through on partial state. Latent on the champion path
+  (WARMUP_DAYS=560 ≫ the 200d SMA), a dormant defense-in-depth net.
 
-GAP 2 (SILENT-SKIP exit, regression-pinned below, NOT xfail):
+GAP 2 → #261-8 (SILENT-SKIP exit → RAISE, implemented):
   src/phases/exit/kijun_g3_exits/kijun_g3_exits.py:67-69
-    `d_ichi = ind.get("d_ichi")
-     if d_ichi is None or not d_ichi.is_ready: continue`
-  An invested position whose d_ichi is NOT ready is SILENTLY skipped — its Kijun/cloud stop is
-  never evaluated that bar, so a stop breach goes unactioned (the position rides unprotected).
-  Unlike GAP 1 this is not a score-emission mirage and "can't compute a stop without the
-  indicator" is defensible, so #264 pins the ACTUAL behavior (skip, no exit) rather than
-  asserting a raise. #261 judgment call: should a held-but-cold position fail-loud (log+alert)
-  rather than skip silently? Flagged, not pre-empted.
-
-NOTE: a fresh post-warmup entrant cannot reach GAP 2 with a cold d_ichi in practice — #259's
-_seed_daily warms d_ichi the day it is subscribed, and the engine only OPENS a position after
-the SIGNAL scorer (which requires d_ichi.is_ready) qualified it. GAP 2 is a defense-in-depth
-boundary, not an observed live path.
+  An invested position whose d_ichi was NOT ready was SILENTLY skipped — its Kijun/cloud stop
+  was never evaluated that bar, so a breach went unactioned (the position rode unprotected).
+  HQ ruling: RAISE (DegradedDataError) with the symbol. The engine only OPENS a position after
+  the SIGNAL scorer (which requires d_ichi.is_ready, #264) qualified it, and #259's _seed_daily
+  warms d_ichi the day a name is subscribed — so an invested name SHOULD have a warm d_ichi; a
+  cold one is a genuine break, not a benign warmup edge. Defense-in-depth, not an observed path.
 """
 from __future__ import annotations
 
@@ -44,6 +31,7 @@ from typing import Any
 
 import pytest
 
+from engine.base import DegradedDataError
 from engine.context import PhaseContext
 from phases.exit.kijun_g3_exits.kijun_g3_exits import KijunG3Exits
 from phases.regime.spy_200ma.spy_200ma import SpySma200
@@ -133,27 +121,22 @@ def _ctx(qc: Any) -> PhaseContext:
 # ======================================================================================
 # GAP 1 — spy_200ma regime fail-OPEN when the SMA is not ready (#261 line-item)
 # ======================================================================================
-def test_regime_not_ready_currently_passes_actual_behavior():
-    # ACTUAL (pin the status quo): a not-ready spy_sma200 -> blocked=False (PASS). This is the
-    # fail-OPEN. Pinned so the #261 fix is a DELIBERATE, reviewed change (this test flips then).
-    qc = _RegimeQC(spy_price=300.0, ma200=400.0, ma_ready=False)  # price<ma200 would normally BLOCK
-    res = SpySma200(SpySma200.Params(), logger=None).evaluate(_ctx(qc))
-    assert res.blocked is False
-    assert res.reason == "spy_sma200 not ready"
-
-
-@pytest.mark.xfail(
-    strict=True,
-    reason="#261 line-item: spy_200ma.py:39-40 fail-OPENs (PASS) when the regime SMA is not "
-    "ready, so entries fire UNGATED on a cold regime gate. Anti-mirage mandate wants "
-    "block-until-ready (skip-loud), never silently wave entries through on partial state. "
-    "#261 owns the engine fail-loud change; this asserts the TARGET behavior.",
-)
-def test_regime_not_ready_should_block_until_warm_TARGET():
-    # TARGET (the anti-mirage behavior #261 should implement): a not-ready regime gate must NOT
-    # pass entries through — it must BLOCK (or otherwise skip-loud) until warm. Strict-xfail:
-    # this turns GREEN automatically the moment #261 makes the regime block-until-ready.
+def test_regime_not_ready_now_blocks_until_warm():
+    # #261-7 (FLIPPED from the fail-OPEN pin): a not-ready spy_sma200 now BLOCKS (blocked=True),
+    # never silently passes entries through on partial/cold regime state. This is the anti-mirage
+    # block-until-ready fix; the reason carries the #261-7 context.
     qc = _RegimeQC(spy_price=300.0, ma200=400.0, ma_ready=False)
+    res = SpySma200(SpySma200.Params(), logger=None).evaluate(_ctx(qc))
+    assert res.blocked is True
+    assert res.decision == "block"
+    assert "#261-7" in res.reason
+    assert res.facts["regime_ready"] is False
+
+
+def test_regime_missing_sma_attr_blocks():
+    # #261-7: a totally MISSING regime SMA (attr absent) also blocks — fail-closed, not fail-open.
+    qc = _RegimeQC(spy_price=300.0, ma200=400.0, ma_ready=False)
+    qc.spy_sma200 = None  # type: ignore[assignment]
     res = SpySma200(SpySma200.Params(), logger=None).evaluate(_ctx(qc))
     assert res.blocked is True
 
@@ -174,22 +157,52 @@ def test_regime_ready_above_ma_passes_control():
 # ======================================================================================
 # GAP 2 — kijun_g3_exits SILENTLY skips an invested position with a cold d_ichi (#261 line-item)
 # ======================================================================================
-def test_exit_cold_d_ichi_silently_skips_actual_behavior():
-    # ACTUAL (pin the status quo): an INVESTED position whose d_ichi is NOT ready is SKIPPED —
-    # no exit intent emitted even though close (50) is far below where a Kijun stop would fire.
-    # The stop is simply never evaluated this bar. Pinned as the #261 judgment-call boundary.
+def test_exit_cold_d_ichi_raises_loud():
+    # #261-8 (FLIPPED from the silent-skip pin): an INVESTED position whose d_ichi is NOT ready
+    # now FAILS LOUD (DegradedDataError) instead of silently skipping the stop eval. A cold stop
+    # on an invested position = unevaluated risk (the position rides unprotected) — HQ ruling is
+    # RAISE, with the symbol + readiness context.
     qc = _ExitQC()
     sym = _Sym("FOO")
     qc.portfolio[sym] = _Holding(invested=True, quantity=100)
     qc.securities[sym] = _Sec(close=50.0)  # would breach any reasonable kijun
     qc._indicators[sym] = {"d_ichi": _Ichi(kijun=90.0, sa=85.0, sb=80.0, ready=False)}  # COLD
     ctx = _ctx(qc)
+    with pytest.raises(DegradedDataError) as ei:
+        KijunG3Exits(KijunG3Exits.Params(), logger=None).evaluate(ctx)
+    msg = str(ei.value)
+    assert "cold/missing daily Ichimoku" in msg
+    assert "FOO" in msg  # the symbol context
+    assert "#261-8" in msg
+
+
+def test_exit_missing_d_ichi_raises_loud():
+    # #261-8: an invested position whose indicator bundle has NO d_ichi at all also raises (the
+    # missing-indicator break), not a silent skip.
+    qc = _ExitQC()
+    sym = _Sym("BAR")
+    qc.portfolio[sym] = _Holding(invested=True, quantity=100)
+    qc.securities[sym] = _Sec(close=50.0)
+    qc._indicators[sym] = {"d_ichi": None}  # missing
+    ctx = _ctx(qc)
+    with pytest.raises(DegradedDataError) as ei:
+        KijunG3Exits(KijunG3Exits.Params(), logger=None).evaluate(ctx)
+    assert "d_ichi_present=False" in str(ei.value)
+
+
+def test_exit_not_invested_cold_d_ichi_does_not_raise():
+    # HAPPY-PATH BOUNDARY (#261-8): the guard fires ONLY on an INVESTED position. A non-invested
+    # holding with a cold d_ichi is skipped by the `not holding.invested` continue BEFORE the
+    # guard — no raise (the guard is not over-eager on flat positions).
+    qc = _ExitQC()
+    sym = _Sym("FLAT")
+    qc.portfolio[sym] = _Holding(invested=False, quantity=0)
+    qc.securities[sym] = _Sec(close=50.0)
+    qc._indicators[sym] = {"d_ichi": _Ichi(kijun=90.0, sa=85.0, sb=80.0, ready=False)}
+    ctx = _ctx(qc)
     res = KijunG3Exits(KijunG3Exits.Params(), logger=None).evaluate(ctx)
-    # No exit emitted (silently skipped) — the #261 flag: should a held-but-cold position
-    # fail-loud rather than ride unprotected? Pinned, NOT asserted-as-target (judgment call).
     assert ctx.bar_state.exit_intents == []
     assert res.facts["exit_count"] == 0
-    assert res.blocked is False  # exits never block, even on the skip
 
 
 def test_exit_ready_d_ichi_below_kijun_fires_control():

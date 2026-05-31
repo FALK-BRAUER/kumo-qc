@@ -78,10 +78,20 @@ from __future__ import annotations
 
 import argparse
 import datetime as _dt
+import math
 import sys
 import zipfile
 from functools import lru_cache
 from pathlib import Path
+
+
+def _warn(msg: str) -> None:
+    """Loud, visible drop/skip log (#261-3/4). conform_coarse is an OFFLINE data-prep tool, so a
+    malformed ROW is loud-SKIPPED-WITH-A-LOGGED-REASON (to stderr, so it survives stdout being a
+    count) rather than aborting the whole multi-thousand-ticker conform — but the drop is NEVER
+    silent. The anti-mirage rule (Falk): a degraded drop must be VISIBLE + diagnosable
+    (ticker/row/why), never a silent whole-ticker disappearance (the prior blanket except → None)."""
+    print(f"[conform_coarse WARN] {msg}", file=sys.stderr)
 
 # ── LEAN SecurityIdentifier constants (Common/SecurityIdentifier.cs) ──────────
 # Field layout in the base-36 `properties` integer (offsets are products of widths).
@@ -210,27 +220,55 @@ def factor_for(ticker: str, on: _dt.date) -> tuple[float, float]:
 
 
 def _read_daily_zip(ticker: str) -> dict[str, tuple[float, int]] | None:
-    """{YYYYMMDD: (real_close, volume)} for a ticker's daily zip, or None if absent."""
+    """{YYYYMMDD: (real_close, volume)} for a ticker's daily zip, or None if absent/unreadable.
+
+    FAIL-LOUD (#261-3): the prior implementation wrapped the WHOLE parse loop in
+    `except (BadZipFile, IndexError, ValueError): return None`, so a SINGLE malformed row (a
+    non-numeric close, a truncated/half row, a stray header line) silently dropped the ENTIRE
+    ticker — including every VALID bar after the bad row — with no logged reason. That is the
+    silent-drop class the anti-mirage mandate forbids. Now:
+      - a BadZipFile (the whole file is corrupt, not one row) → loud-WARN + return None (no rows
+        to salvage; the named ticker drop is at least VISIBLE);
+      - a malformed individual ROW → loud-WARN with the ticker + the offending row + why, and
+        SKIP ONLY THAT ROW, keeping every valid bar. No whole-ticker silent disappearance.
+    Offline-tool judgment (per the ticket): a row-level loud-SKIP-WITH-LOG is acceptable here
+    (vs a hard raise in the live engine path) because conform is data-prep — but the skip is
+    LOGGED, never silent."""
     fp = _DAILY / f"{ticker.lower()}.zip"
     if not fp.is_file():
         return None
     out: dict[str, tuple[float, int]] = {}
     try:
-        with zipfile.ZipFile(fp) as zf:
-            name = zf.namelist()[0]
-            with zf.open(name) as fh:
-                for raw in fh:
-                    line = raw.decode("ascii", "ignore").strip()
-                    if not line:
-                        continue
-                    parts = line.split(",")
-                    # "YYYYMMDD HH:MM,open,high,low,close,volume"
+        zf = zipfile.ZipFile(fp)
+    except zipfile.BadZipFile:
+        _warn(f"ticker={ticker!r}: corrupt/unreadable daily zip (BadZipFile) — DROPPED (#261-3)")
+        return None
+    with zf:
+        name = zf.namelist()[0]
+        with zf.open(name) as fh:
+            for raw in fh:
+                line = raw.decode("ascii", "ignore").strip()
+                if not line:
+                    continue
+                parts = line.split(",")
+                # "YYYYMMDD HH:MM,open,high,low,close,volume" (6 cols)
+                if len(parts) < 6:
+                    _warn(
+                        f"ticker={ticker!r}: malformed daily row (need 6 cols, got "
+                        f"{len(parts)}): {line!r} — ROW SKIPPED, ticker kept (#261-3)"
+                    )
+                    continue
+                try:
                     ymd = parts[0].split(" ")[0]
                     close = float(parts[4]) / _PRICE_SCALE
                     volume = int(float(parts[5]))
-                    out[ymd] = (close, volume)
-    except (zipfile.BadZipFile, IndexError, ValueError):
-        return None
+                except ValueError as exc:
+                    _warn(
+                        f"ticker={ticker!r}: non-numeric daily row ({exc}): {line!r} — "
+                        f"ROW SKIPPED, ticker kept (#261-3)"
+                    )
+                    continue
+                out[ymd] = (close, volume)
     return out
 
 
@@ -251,11 +289,26 @@ def _fmt_num(x: float) -> str:
 
 
 def build_row(ticker: str, ymd: str, daily: dict[str, tuple[float, int]]) -> str | None:
-    """One QC-standard 8-col coarse row for ticker on ymd, or None if no bar that day."""
+    """One QC-standard 8-col coarse row for ticker on ymd, or None if no bar / degraded bar.
+
+    FAIL-LOUD (#261-4): the prior implementation emitted a row from whatever close it was handed
+    with NO finite/sign validation — a NEGATIVE or non-finite close (a corrupt daily bar) was
+    WRITTEN into the universe file as a malformed coarse row (negative close → negative
+    dollar_volume). The downstream live floor rejects it, but conform must not SHIP a degraded
+    row in the first place. Now a non-finite or negative close is loud-SKIPPED-WITH-A-LOGGED-
+    REASON (offline-tool judgment: skip-with-log, not a hard raise, so one bad ticker/day does
+    not abort the whole conform — but the skip is VISIBLE, never a silent emit). A zero close is
+    also skipped (a $0 print is a degraded/halted bar, never a tradeable coarse row)."""
     bar = daily.get(ymd)
     if bar is None:
         return None
     close, volume = bar
+    if not math.isfinite(close) or close <= 0.0:
+        _warn(
+            f"ticker={ticker!r} day={ymd}: non-finite/non-positive close ({close!r}) — coarse "
+            f"row SKIPPED (degraded bar must not be written to the universe file) (#261-4)"
+        )
+        return None
     fd = map_first_date(ticker)
     if fd is None:
         return None

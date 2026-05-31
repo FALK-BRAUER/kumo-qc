@@ -28,6 +28,7 @@ from pathlib import Path
 import pytest
 
 import runtime.lean_entry as lean_entry
+from engine.base import DegradedDataError
 from runtime.lean_entry import BctEngineAlgorithm
 
 _ROOT = Path(__file__).resolve().parents[2]
@@ -138,35 +139,41 @@ def test_selection_nonempty_across_full_warmup_stream(monkeypatch) -> None:
 # ── CORRECT-0 vs BROKEN-0: the distinguishability the mandate requires ─────────
 
 
-def test_correct_zero_genuinely_empty_feed_yields_empty_not_raise(monkeypatch) -> None:
-    # CORRECT-0: a genuinely-empty coarse feed (e.g. a non-session day with no data) -> [] and
-    # _ranked_today == [] (NOT None). The universe phase then emits empty WITHOUT raising. This
-    # is the legitimate zero — it must be a clean empty, distinguishable from the broken case.
+def test_empty_feed_on_trading_day_raises_loud(monkeypatch) -> None:
+    # #261-5 (FLIPPED from the #263 "correct-0 = empty []" pin): an empty coarse feed reaching
+    # _coarse_selection means QC fired the callback on a REAL trading day with MISSING data — a
+    # data gap, NOT a legitimate holiday (QC does not fire the coarse callback on a non-session
+    # day; the local conform purges non-session orphan files). Empty == ALWAYS broken here → it
+    # MUST fail loud with the date, never silently select [] (the #173 empty-warmup mirage).
+    # #261 OWNS this contract: there is no legitimate empty-feed case, so the prior correct-0
+    # pin is replaced by this raise assertion.
     algo = _make_algo(monkeypatch)
-    ranked = algo._coarse_selection([])
-    assert ranked == []
-    assert algo._ranked_today == []  # [] not None — the phase treats this as a zero-candidate day
-    assert algo._bar_metrics == {}
+    with pytest.raises(DegradedDataError) as ei:
+        algo._coarse_selection([])
+    msg = str(ei.value)
+    assert "empty coarse feed on a trading day" in msg
+    assert "2025-01-02" in msg  # the date context is in the message
+    assert "#261-5" in msg
 
 
-def test_broken_zero_full_feed_below_prefilter_is_visibly_empty(monkeypatch) -> None:
-    # BROKEN-0 surrogate: a FULL feed where every name is below the prefilter (a degraded-data
-    # scenario — e.g. DV column corrupted to tiny values) collapses to an empty selection. The
-    # engine does NOT raise (it can't tell intent), so the SELECTION yields [] — which is why
-    # the per-real-day non-empty assertion ABOVE is the actual guard: on real data this must
-    # never happen. Here we PIN that such a collapse IS observable (empty ranked + empty metrics)
-    # so a monitor/diff-ladder can flag it. (Fail-loud-on-populated-but-empty is a #261 candidate.)
+def test_broken_zero_full_feed_below_prefilter_raises_loud(monkeypatch) -> None:
+    # #261-6 (FLIPPED from the #263 "visibly empty, not raise" pin): a FULL feed (2000 names)
+    # where every name is below the prefilter/floor (degraded data — e.g. the DV column
+    # corrupted to tiny values) COLLAPSES to a zero selection. This is the −0.616 mirage (full
+    # feed in, empty universe out, nothing crashing). The (names_in, ranked) pair distinguishes
+    # it from correct-0 (which already raised on names_in==0): here names_in >> 0 yet 0 selected
+    # → RAISE broken-0 with the input count, never a silent empty universe.
     algo = _make_algo(monkeypatch)
     below = [
         type("C", (), {"symbol": _Sym(f"t{i}"), "price": 50.0, "dollar_volume": 1.0e6})()
         for i in range(2000)
     ]
-    ranked = algo._coarse_selection(below)
-    assert ranked == []          # collapsed despite a full feed
-    assert algo._bar_metrics == {}  # nothing cleared the prefilter -> visibly empty (not None)
-    # CONTRAST with correct-0: the feed was NON-empty (2000 names) yet selection is empty — a
-    # monitor distinguishes this (input_count >> 0, ranked == 0) from a holiday (input_count==0).
-    assert len(below) > 1000
+    with pytest.raises(DegradedDataError) as ei:
+        algo._coarse_selection(below)
+    msg = str(ei.value)
+    assert "broken-0 selection on a populated coarse feed" in msg
+    assert "names_in=2000" in msg  # the input-count context distinguishes it from correct-0
+    assert "#261-6" in msg
 
 
 def test_empty_coarse_file_zero_rows_reads_to_empty_feed(tmp_path) -> None:
@@ -179,22 +186,31 @@ def test_empty_coarse_file_zero_rows_reads_to_empty_feed(tmp_path) -> None:
     assert rows == []  # 0 rows -> empty feed (correct-0, distinguishable from a populated day)
 
 
-# NOTE: the MISSING-coarse-file-on-a-known-trading-day fail-loud case (data gap that must RAISE,
-# not silently read as an empty/holiday feed) is a #261 deliverable — it needs the day-loop guard
-# that knows a date is a real session, which the selection gate alone cannot. #261 owns that guard
-# AND its negative test. Not pinned here (no current function to drive); see the #263 report.
+# #261 RESOLUTION (was a #263 deferral): the MISSING-coarse-file-on-a-known-trading-day fail-loud
+# case is now implemented in the selection gate itself. INVESTIGATION RESULT: QC's
+# CoarseFundamentalUniverseSelection callback fires ONCE PER TRADING DAY and ONLY when a coarse
+# file exists for that session — it is NEVER invoked on a non-trading day (the local conform's
+# clean_orphan_files purges non-session files precisely so the native reader cannot trip on them,
+# and every real FY2025 session feed carries >10k rows). So the callback firing AT ALL means QC
+# already determined it is a real session; an EMPTY feed at that point == a data gap, not a
+# holiday. The day-loop knowledge the #263 note wanted lives IN QC's callback contract — the gate
+# can rely on it. The guard therefore lives in _coarse_selection (no external day-loop needed),
+# tested by test_empty_feed_on_trading_day_raises_loud above (#261-5).
 
 
-def test_real_day_distinguishable_from_holiday_by_input_count(monkeypatch) -> None:
-    # The distinguisher the mandate asks for, made explicit: on a REAL session the INPUT feed is
-    # large (>1000) and the SELECTION is non-empty; a holiday/no-data day has an EMPTY input
-    # feed and an empty selection. The (input_count, ranked_count) pair separates correct-0
-    # (0, 0) from broken-0 (large, 0) from healthy (large, >0).
+def test_real_day_distinguishable_from_degraded_by_input_count(monkeypatch) -> None:
+    # The distinguisher the mandate asks for, made explicit AFTER #261: on a REAL session the
+    # INPUT feed is large (>1000) and the SELECTION is non-empty (healthy: large, >0). Under
+    # #261 there is NO silent-empty path — both degraded ends now RAISE: an empty input feed
+    # (names_in==0, the missing-data gap, #261-5) and a full feed collapsing to zero (large, 0,
+    # the broken-0, #261-6). The (input_count, ranked_count) pair still separates the cases; the
+    # difference is the degraded ones fail loud rather than silently yielding [].
     algo = _make_algo(monkeypatch)
     real_feed = _feed_for(_FY_DAYS[0])
     real_ranked = algo._coarse_selection(real_feed)
     assert (len(real_feed) > 1000) and (len(real_ranked) > 0)  # healthy: (large, >0)
 
+    # empty input is no longer a silent correct-0 — it is the #261-5 data-gap raise.
     algo2 = _make_algo(monkeypatch)
-    holiday_ranked = algo2._coarse_selection([])
-    assert len(holiday_ranked) == 0  # correct-0: empty input -> empty selection (no raise)
+    with pytest.raises(DegradedDataError):
+        algo2._coarse_selection([])

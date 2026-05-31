@@ -31,6 +31,7 @@ from pathlib import Path
 
 import pytest
 
+from engine.base import DegradedDataError
 from runtime.lean_entry import coarse_to_close, coarse_to_dollar_volume
 from runtime.universe_select import apply_floors
 
@@ -162,38 +163,34 @@ def test_extractors_raise_on_non_numeric_price() -> None:
         coarse_to_close([_FakeCoarse("AAPL", 5.0e9, "xyz")])
 
 
-# --- NaN / Inf / negative: ACTUAL behavior asserted; FINDINGS marked xfail (#261). ---
+# --- NaN / Inf / negative: #261 FLIPPED these to fail-loud (DegradedDataError). ---
 
-@pytest.mark.xfail(
-    reason="#261 FAIL-LOUD GAP: coarse_to_dollar_volume silently passes NaN through "
-    "(float('nan')) instead of raising/loud-skipping. A NaN DV is degraded data that must "
-    "fail loud, not enter the rolling-DV window. Engine fail-loud change is #261's.",
-    strict=True,
-)
 def test_extractors_reject_nan_dollar_volume() -> None:
-    # DESIRED (fail-loud) behavior: a NaN dollar_volume must raise. ACTUAL: it passes through
-    # as {'aapl': nan}. xfail until #261 adds the finite-guard at the selection gate.
-    with pytest.raises((ValueError, FloatingPointError)):
+    # #261-2 (FLIPPED from strict-xfail): a NaN dollar_volume must FAIL LOUD — it must never
+    # enter the rolling-DV window (it would poison the trailing mean). The guard raises
+    # DegradedDataError with the offending ticker + value.
+    with pytest.raises(DegradedDataError) as ei:
         coarse_to_dollar_volume([_FakeCoarse("AAPL", float("nan"), 50.0)])
+    assert "non-finite coarse dollar_volume" in str(ei.value)
+    assert "aapl" in str(ei.value)
 
 
-@pytest.mark.xfail(
-    reason="#261 FAIL-LOUD GAP: coarse_to_dollar_volume silently passes Inf through. An Inf "
-    "DV would dominate the DV-desc rank (Inf > any real DV) AND pass apply_floors — a garbage "
-    "name could be selected #1. Must fail loud / be filtered. #261 owns the engine guard.",
-    strict=True,
-)
 def test_extractors_reject_inf_dollar_volume() -> None:
-    with pytest.raises((ValueError, OverflowError)):
+    # #261-2 (FLIPPED from strict-xfail): an Inf DV would dominate the DV-desc rank (Inf > any
+    # real DV) AND pass apply_floors — a garbage name selected #1. Must fail loud at the extractor.
+    with pytest.raises(DegradedDataError) as ei:
         coarse_to_dollar_volume([_FakeCoarse("AAPL", float("inf"), 50.0)])
+    assert "non-finite coarse dollar_volume" in str(ei.value)
+    assert "inf" in str(ei.value).lower()
 
 
-def test_extractors_pass_negative_dv_through_but_floors_reject_it() -> None:
-    # A negative DV is nonsensical but NOT silently selected: it passes the extractor (no guard)
-    # yet apply_floors rejects it (neg < 100M). So the SELECTION outcome is correct-reject. We
-    # pin BOTH facts: the extractor is lenient (documented) AND the floor is the safety net.
+def test_extractors_reject_negative_dv_NO_anymore() -> None:
+    # A negative finite DV is NOT non-finite, so the extractor passes it through (the finite
+    # guard is for NaN/Inf only). apply_floors is the safety net for a negative DV: it is finite
+    # (no raise) and simply fails the `dv >= 100M` comparison → excluded. Pin BOTH facts: the
+    # extractor stays lenient on a FINITE-but-negative value, the floor rejects it (correct-0).
     dv = coarse_to_dollar_volume([_FakeCoarse("AAPL", -5.0e8, 50.0)])
-    assert dv == {"aapl": -5.0e8}  # extractor lenient (no finite/sign guard) — documented
+    assert dv == {"aapl": -5.0e8}  # finite negative — extractor lenient (only NaN/Inf raise)
     assert apply_floors({"aapl": (50.0, -5.0e8)},
                         min_price=10.0, min_avg_dollar_volume=1.0e8) == []  # floor rejects
 
@@ -201,34 +198,46 @@ def test_extractors_pass_negative_dv_through_but_floors_reject_it() -> None:
 # ── 4. apply_floors with NaN / Inf / negative metrics (selection gate defence) ──
 
 
-def test_apply_floors_nan_dv_excluded() -> None:
-    # NaN fails the `dv >= floor` comparison (NaN comparisons are False) -> excluded. This is a
-    # benign correct-reject (degraded name dropped), so NOT a fail-loud gap on its own — but the
-    # name vanishing silently is why #261 should fail-loud upstream at the extractor.
-    assert apply_floors({"a": (50.0, float("nan"))},
-                        min_price=10.0, min_avg_dollar_volume=1.0e8) == []
+def test_apply_floors_raises_on_nan_dv() -> None:
+    # #261-1 (FLIPPED from silent-exclude): a NaN trailing DV is degraded data — apply_floors
+    # must FAIL LOUD (it used to silently exclude via the False NaN comparison, the mirage).
+    with pytest.raises(DegradedDataError) as ei:
+        apply_floors({"a": (50.0, float("nan"))}, min_price=10.0, min_avg_dollar_volume=1.0e8)
+    assert "non-finite trailing dollar_volume" in str(ei.value)
 
 
-def test_apply_floors_nan_price_excluded() -> None:
-    assert apply_floors({"a": (float("nan"), 5.0e8)},
-                        min_price=10.0, min_avg_dollar_volume=1.0e8) == []
+def test_apply_floors_raises_on_nan_price() -> None:
+    # #261-1: a NaN close is degraded data — fail loud, not a silent exclude.
+    with pytest.raises(DegradedDataError) as ei:
+        apply_floors({"a": (float("nan"), 5.0e8)}, min_price=10.0, min_avg_dollar_volume=1.0e8)
+    assert "non-finite/negative close" in str(ei.value)
 
 
-def test_apply_floors_negative_price_and_dv_excluded() -> None:
-    assert apply_floors({"a": (-5.0, 5.0e8)},
-                        min_price=10.0, min_avg_dollar_volume=1.0e8) == []
+def test_apply_floors_raises_on_negative_price() -> None:
+    # #261-1: a NEGATIVE close is a corrupt bar — fail loud (was silently excluded). A negative
+    # DV stays a benign correct-reject (finite → no raise → fails the floor comparison).
+    with pytest.raises(DegradedDataError) as ei:
+        apply_floors({"a": (-5.0, 5.0e8)}, min_price=10.0, min_avg_dollar_volume=1.0e8)
+    assert "non-finite/negative close" in str(ei.value)
+    # finite negative DV with a sane close: NO raise, floor rejects it (correct-0, not a mirage).
     assert apply_floors({"a": (50.0, -5.0e8)},
                         min_price=10.0, min_avg_dollar_volume=1.0e8) == []
 
 
-@pytest.mark.xfail(
-    reason="#261 FAIL-LOUD GAP: apply_floors ADMITS an Inf dollar_volume (Inf >= 100M is True), "
-    "so a name whose trailing DV is Inf would PASS the liquidity floor AND rank #1 (DV-desc). "
-    "A non-finite metric must be rejected/fail-loud at the gate, not selected. #261 owns the "
-    "finite-guard (apply_floors or the extractor). Asserting the DESIRED reject here.",
-    strict=True,
-)
 def test_apply_floors_rejects_inf_dv() -> None:
-    # DESIRED: an Inf dv is NOT eligible (it is degraded data). ACTUAL: it passes the floor.
-    assert apply_floors({"a": (50.0, float("inf"))},
-                        min_price=10.0, min_avg_dollar_volume=1.0e8) == []
+    # #261-1 (FLIPPED from strict-xfail): an Inf dv must NOT be eligible — it would PASS the
+    # liquidity floor (Inf >= 100M) AND rank #1 (DV-desc). The guard raises with the ticker+value.
+    with pytest.raises(DegradedDataError) as ei:
+        apply_floors({"a": (50.0, float("inf"))}, min_price=10.0, min_avg_dollar_volume=1.0e8)
+    assert "non-finite trailing dollar_volume" in str(ei.value)
+
+
+def test_apply_floors_happy_path_unchanged() -> None:
+    # HAPPY-PATH REGRESSION (#261-1): the guard is NOT over-eager — valid finite, positive
+    # metrics flow through unchanged (the byte-identical champion path). A name above both
+    # floors is selected; one below either floor is correctly excluded.
+    out = apply_floors(
+        {"keep": (50.0, 5.0e8), "lowdv": (50.0, 1.0e6), "lowpx": (5.0, 5.0e8)},
+        min_price=10.0, min_avg_dollar_volume=1.0e8,
+    )
+    assert out == ["keep"]
