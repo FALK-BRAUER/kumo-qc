@@ -1,8 +1,0 @@
-{
-    "algorithm-language": "Python",
-    "parameters": {},
-    "description": "Minimal BCT baseline - SPY QQQ AAPL hardcoded universe no Morningstar filter",
-    "local-id": 354395344,
-    "cloud-id": 32099988,
-    "organization-id": "8167a04384265855060312cc22fdbdc6"
-}
