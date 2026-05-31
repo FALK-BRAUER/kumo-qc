@@ -20,8 +20,68 @@ resulting qc._ranked_today; it neither floors nor ranks.
 
 Both helpers are PURE (no QC types): unit-tested + golden-mastered vs an inline reference on
 identical bars. The QC history fetch + add_universe wiring live in lean_entry.
+
+SCALING FIX (incremental-DV): the trailing-DV that feeds apply_floors is no longer rebuilt
+by a per-day history() fan-out (~20x slower on cloud). It is MAINTAINED as a rolling 20-day
+window per coarse name, pushed ONCE per day from the COARSE feed's single-day DV (GATE 1
+proved coarse single-day DV == RAW close*volume locally, and DV is split-invariant so the
+cloud-adjusted-vendor case is robust for a liquidity floor). `rolling_dv_mean` /
+`update_dv_windows` below are the pure cores; lean_entry maintains qc._dv_windows with them.
+The rolling-mean semantics are IDENTICAL to the old path's mean(close*volume over 20 bars):
+mean(window) == mean(inputs[-20:]) (golden-mastered).
 """
 from __future__ import annotations
+
+from collections import deque
+from dataclasses import dataclass, field
+
+ADV_WINDOW: int = 20  # trailing trading-day window for the maintained mean-DV decision
+
+
+@dataclass(slots=True)
+class DvWindow:
+    """Per-ticker maintained rolling DV state. `dv` is the bounded (maxlen=ADV_WINDOW) deque of
+    daily dollar-volumes (index 0 = oldest, [-1] = today); `last_seen` is the day_index of the
+    most recent coarse-feed appearance, used to evict long-absent names (memory bound)."""
+
+    dv: deque[float] = field(default_factory=lambda: deque(maxlen=ADV_WINDOW))
+    last_seen: int = -1
+
+
+def rolling_dv_mean(window: deque[float]) -> float:
+    """Mean of a maintained rolling DV deque == the OLD path's mean(close*volume over the
+    trailing window). Empty window -> 0.0 (a name with no observed DV is never tradeable)."""
+    n = len(window)
+    if n == 0:
+        return 0.0
+    return sum(window) / n
+
+
+def update_dv_windows(
+    windows: dict[str, DvWindow],
+    coarse_dv: dict[str, float],
+    *,
+    day_index: int,
+    maxlen: int = ADV_WINDOW,
+) -> None:
+    """Maintain qc._dv_windows for ONE day (in place). For every ticker in today's coarse feed,
+    push its single-day DV (the deque auto-drops the 21-days-ago value at maxlen) and stamp
+    last_seen=day_index. A name ABSENT today simply does not update (a 1-day gap injects no
+    zero — the trailing mean is over OBSERVED days, matching the history() path which also only
+    saw real bars). Names absent for >= maxlen consecutive days are STALE (their window would
+    have fully aged out) and are evicted to bound memory. Pure: no QC types, deterministic."""
+    for ticker, sdv in coarse_dv.items():
+        w = windows.get(ticker)
+        if w is None:
+            w = DvWindow(dv=deque(maxlen=maxlen))
+            windows[ticker] = w
+        w.dv.append(float(sdv))
+        w.last_seen = day_index
+    # Evict names not seen for >= maxlen days (memory bound). A still-present name has
+    # last_seen == day_index, so it never trips this.
+    stale = [t for t, w in windows.items() if day_index - w.last_seen >= maxlen]
+    for t in stale:
+        del windows[t]
 
 
 def apply_floors(
