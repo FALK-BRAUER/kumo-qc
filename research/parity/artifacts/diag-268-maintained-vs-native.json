@@ -1,0 +1,450 @@
+{
+  "ticker_set": [
+    "DRI",
+    "CME",
+    "AMZN",
+    "COST",
+    "CRWD",
+    "KGC"
+  ],
+  "warmup_days": 560,
+  "fy_start": "2025-01-01",
+  "fy_end": "2025-12-31",
+  "ichimoku": "9,26,26,52,26,26 (weekly)",
+  "note": "RAW conformed daily zips only. NATIVE = single clean weekly_aggregate. The #265 probes all have daily history predating warmup-start (2023-06-21) and clear the floors, so they are AUTO-WARMED in warmup (is_warming_up guard skips _seed_weekly) \u2192 realistic maintained==native (zero diff). forced_seed_overlap_diff FORCES a mid-week (Wed 2025-03-12) _seed_weekly to MEASURE the seed-overlap defect magnitude as if the name were a post-warmup mid-FY entrant: the forward-only Ichimoku keeps the seed's PARTIAL current week (the same-Monday full-week re-emit is rejected).",
+  "probes": {
+    "DRI": {
+      "first_active_fy": "2025-06-09",
+      "fy_score_days": 497,
+      "data_starts": "2021-05-12",
+      "history_predates_warmup_start_2023_06_21": true,
+      "realistic_path": "AUTO_WARMED (maintained==native; no _seed_weekly)",
+      "weekly_bar_count_check": {
+        "native_total_weeks": 191,
+        "native_completed_pre_fy": 190,
+        "seed_total_weeks": 81,
+        "seed_completed_pre_fy": 80,
+        "weekly_pole": 78,
+        "native_clears_pole": true,
+        "seed_clears_pole": true,
+        "count_delta_seed_minus_native": -110
+      },
+      "realistic_maintained_vs_native_diff": {
+        "fy_weeks_compared": 53,
+        "fy_weeks_with_any_diff": 0,
+        "max_abs_diff": {
+          "tenkan": 0.0,
+          "kijun": 0.0,
+          "senkou_a": 0.0,
+          "senkou_b": 0.0,
+          "w_close": 0.0
+        },
+        "max_rel_diff_pct": {
+          "tenkan": 0.0,
+          "kijun": 0.0,
+          "senkou_a": 0.0,
+          "senkou_b": 0.0,
+          "w_close": 0.0
+        },
+        "worst_per_line": {}
+      },
+      "forced_midweek_seed_day": "2025-03-12",
+      "forced_seed_overlap_diff": {
+        "fy_weeks_compared": 46,
+        "fy_weeks_with_any_diff": 25,
+        "max_abs_diff": {
+          "tenkan": 2.234999999999985,
+          "kijun": 0.39185000000000514,
+          "senkou_a": 1.1174999999999784,
+          "senkou_b": 0.0,
+          "w_close": 3.3600000000000136
+        },
+        "max_rel_diff_pct": {
+          "tenkan": 1.161280266029297,
+          "kijun": 0.19395154304947418,
+          "senkou_a": 0.594067301047248,
+          "senkou_b": 0.0,
+          "w_close": 1.7745854019224745
+        },
+        "worst_per_line": {
+          "w_close": {
+            "friday": "2025-03-14",
+            "maintained": 189.34,
+            "native": 185.98,
+            "abs_diff": 3.3600000000000136,
+            "rel_diff_pct": 1.7745854019224745
+          },
+          "tenkan": {
+            "friday": "2025-04-04",
+            "maintained": 197.845,
+            "native": 195.61,
+            "abs_diff": 2.234999999999985,
+            "rel_diff_pct": 1.161280266029297
+          },
+          "kijun": {
+            "friday": "2025-08-08",
+            "maintained": 204.63685,
+            "native": 204.245,
+            "abs_diff": 0.39185000000000514,
+            "rel_diff_pct": 0.19395154304947418
+          },
+          "senkou_a": {
+            "friday": "2025-09-26",
+            "maintained": 190.4675,
+            "native": 189.35000000000002,
+            "abs_diff": 1.1174999999999784,
+            "rel_diff_pct": 0.594067301047248
+          }
+        }
+      }
+    },
+    "CME": {
+      "first_active_fy": "2025-01-02",
+      "fy_score_days": 497,
+      "data_starts": "2021-05-12",
+      "history_predates_warmup_start_2023_06_21": true,
+      "realistic_path": "AUTO_WARMED (maintained==native; no _seed_weekly)",
+      "weekly_bar_count_check": {
+        "native_total_weeks": 191,
+        "native_completed_pre_fy": 190,
+        "seed_total_weeks": 81,
+        "seed_completed_pre_fy": 80,
+        "weekly_pole": 78,
+        "native_clears_pole": true,
+        "seed_clears_pole": true,
+        "count_delta_seed_minus_native": -110
+      },
+      "realistic_maintained_vs_native_diff": {
+        "fy_weeks_compared": 53,
+        "fy_weeks_with_any_diff": 0,
+        "max_abs_diff": {
+          "tenkan": 0.0,
+          "kijun": 0.0,
+          "senkou_a": 0.0,
+          "senkou_b": 0.0,
+          "w_close": 0.0
+        },
+        "max_rel_diff_pct": {
+          "tenkan": 0.0,
+          "kijun": 0.0,
+          "senkou_a": 0.0,
+          "senkou_b": 0.0,
+          "w_close": 0.0
+        },
+        "worst_per_line": {}
+      },
+      "forced_midweek_seed_day": "2025-03-12",
+      "forced_seed_overlap_diff": {
+        "fy_weeks_compared": 46,
+        "fy_weeks_with_any_diff": 1,
+        "max_abs_diff": {
+          "tenkan": 0.0,
+          "kijun": 0.0,
+          "senkou_a": 0.0,
+          "senkou_b": 0.0,
+          "w_close": 1.8700000000000045
+        },
+        "max_rel_diff_pct": {
+          "tenkan": 0.0,
+          "kijun": 0.0,
+          "senkou_a": 0.0,
+          "senkou_b": 0.0,
+          "w_close": 0.717905405405407
+        },
+        "worst_per_line": {
+          "w_close": {
+            "friday": "2025-03-14",
+            "maintained": 260.48,
+            "native": 258.61,
+            "abs_diff": 1.8700000000000045,
+            "rel_diff_pct": 0.717905405405407
+          }
+        }
+      }
+    },
+    "AMZN": {
+      "first_active_fy": "2025-01-02",
+      "fy_score_days": 497,
+      "data_starts": "2021-05-12",
+      "history_predates_warmup_start_2023_06_21": true,
+      "realistic_path": "AUTO_WARMED (maintained==native; no _seed_weekly)",
+      "weekly_bar_count_check": {
+        "native_total_weeks": 191,
+        "native_completed_pre_fy": 190,
+        "seed_total_weeks": 81,
+        "seed_completed_pre_fy": 80,
+        "weekly_pole": 78,
+        "native_clears_pole": true,
+        "seed_clears_pole": true,
+        "count_delta_seed_minus_native": -110
+      },
+      "realistic_maintained_vs_native_diff": {
+        "fy_weeks_compared": 53,
+        "fy_weeks_with_any_diff": 0,
+        "max_abs_diff": {
+          "tenkan": 0.0,
+          "kijun": 0.0,
+          "senkou_a": 0.0,
+          "senkou_b": 0.0,
+          "w_close": 0.0
+        },
+        "max_rel_diff_pct": {
+          "tenkan": 0.0,
+          "kijun": 0.0,
+          "senkou_a": 0.0,
+          "senkou_b": 0.0,
+          "w_close": 0.0
+        },
+        "worst_per_line": {}
+      },
+      "forced_midweek_seed_day": "2025-03-12",
+      "forced_seed_overlap_diff": {
+        "fy_weeks_compared": 46,
+        "fy_weeks_with_any_diff": 1,
+        "max_abs_diff": {
+          "tenkan": 0.0,
+          "kijun": 0.0,
+          "senkou_a": 0.0,
+          "senkou_b": 0.0,
+          "w_close": 1.4300000000000068
+        },
+        "max_rel_diff_pct": {
+          "tenkan": 0.0,
+          "kijun": 0.0,
+          "senkou_a": 0.0,
+          "senkou_b": 0.0,
+          "w_close": 0.7277353689567465
+        },
+        "worst_per_line": {
+          "w_close": {
+            "friday": "2025-03-14",
+            "maintained": 196.5,
+            "native": 197.93,
+            "abs_diff": 1.4300000000000068,
+            "rel_diff_pct": 0.7277353689567465
+          }
+        }
+      }
+    },
+    "COST": {
+      "first_active_fy": "2025-01-02",
+      "fy_score_days": 497,
+      "data_starts": "2021-05-12",
+      "history_predates_warmup_start_2023_06_21": true,
+      "realistic_path": "AUTO_WARMED (maintained==native; no _seed_weekly)",
+      "weekly_bar_count_check": {
+        "native_total_weeks": 191,
+        "native_completed_pre_fy": 190,
+        "seed_total_weeks": 81,
+        "seed_completed_pre_fy": 80,
+        "weekly_pole": 78,
+        "native_clears_pole": true,
+        "seed_clears_pole": true,
+        "count_delta_seed_minus_native": -110
+      },
+      "realistic_maintained_vs_native_diff": {
+        "fy_weeks_compared": 53,
+        "fy_weeks_with_any_diff": 0,
+        "max_abs_diff": {
+          "tenkan": 0.0,
+          "kijun": 0.0,
+          "senkou_a": 0.0,
+          "senkou_b": 0.0,
+          "w_close": 0.0
+        },
+        "max_rel_diff_pct": {
+          "tenkan": 0.0,
+          "kijun": 0.0,
+          "senkou_a": 0.0,
+          "senkou_b": 0.0,
+          "w_close": 0.0
+        },
+        "worst_per_line": {}
+      },
+      "forced_midweek_seed_day": "2025-03-12",
+      "forced_seed_overlap_diff": {
+        "fy_weeks_compared": 46,
+        "fy_weeks_with_any_diff": 9,
+        "max_abs_diff": {
+          "tenkan": 14.178999999999974,
+          "kijun": 0.0,
+          "senkou_a": 7.089500000000044,
+          "senkou_b": 3.0950000000000273,
+          "w_close": 26.289999999999964
+        },
+        "max_rel_diff_pct": {
+          "tenkan": 1.5248532037080822,
+          "kijun": 0.0,
+          "senkou_a": 0.7325831318329349,
+          "senkou_b": 0.29886633577319255,
+          "w_close": 2.8273073365882997
+        },
+        "worst_per_line": {
+          "senkou_b": {
+            "friday": "2025-02-21",
+            "maintained": 717.99,
+            "native": 714.895,
+            "abs_diff": 3.0950000000000273,
+            "rel_diff_pct": 0.29886633577319255
+          },
+          "tenkan": {
+            "friday": "2025-03-14",
+            "maintained": 994.0764999999999,
+            "native": 979.8974999999999,
+            "abs_diff": 14.178999999999974,
+            "rel_diff_pct": 1.5248532037080822
+          },
+          "w_close": {
+            "friday": "2025-03-14",
+            "maintained": 929.86,
+            "native": 903.57,
+            "abs_diff": 26.289999999999964,
+            "rel_diff_pct": 2.8273073365882997
+          },
+          "senkou_a": {
+            "friday": "2025-09-12",
+            "maintained": 983.387,
+            "native": 976.2974999999999,
+            "abs_diff": 7.089500000000044,
+            "rel_diff_pct": 0.7325831318329349
+          }
+        }
+      }
+    },
+    "CRWD": {
+      "first_active_fy": "2025-01-02",
+      "fy_score_days": 497,
+      "data_starts": "2021-05-12",
+      "history_predates_warmup_start_2023_06_21": true,
+      "realistic_path": "AUTO_WARMED (maintained==native; no _seed_weekly)",
+      "weekly_bar_count_check": {
+        "native_total_weeks": 191,
+        "native_completed_pre_fy": 190,
+        "seed_total_weeks": 81,
+        "seed_completed_pre_fy": 80,
+        "weekly_pole": 78,
+        "native_clears_pole": true,
+        "seed_clears_pole": true,
+        "count_delta_seed_minus_native": -110
+      },
+      "realistic_maintained_vs_native_diff": {
+        "fy_weeks_compared": 53,
+        "fy_weeks_with_any_diff": 0,
+        "max_abs_diff": {
+          "tenkan": 0.0,
+          "kijun": 0.0,
+          "senkou_a": 0.0,
+          "senkou_b": 0.0,
+          "w_close": 0.0
+        },
+        "max_rel_diff_pct": {
+          "tenkan": 0.0,
+          "kijun": 0.0,
+          "senkou_a": 0.0,
+          "senkou_b": 0.0,
+          "w_close": 0.0
+        },
+        "worst_per_line": {}
+      },
+      "forced_midweek_seed_day": "2025-03-12",
+      "forced_seed_overlap_diff": {
+        "fy_weeks_compared": 46,
+        "fy_weeks_with_any_diff": 2,
+        "max_abs_diff": {
+          "tenkan": 0.0,
+          "kijun": 0.0,
+          "senkou_a": 0.0,
+          "senkou_b": 1.704499999999996,
+          "w_close": 24.00999999999999
+        },
+        "max_rel_diff_pct": {
+          "tenkan": 0.0,
+          "kijun": 0.0,
+          "senkou_a": 0.0,
+          "senkou_b": 0.41938341165760296,
+          "w_close": 7.282598804937969
+        },
+        "worst_per_line": {
+          "senkou_b": {
+            "friday": "2025-02-21",
+            "maintained": 271.85355,
+            "native": 270.14905,
+            "abs_diff": 1.704499999999996,
+            "rel_diff_pct": 0.41938341165760296
+          },
+          "w_close": {
+            "friday": "2025-03-14",
+            "maintained": 329.69,
+            "native": 353.7,
+            "abs_diff": 24.00999999999999,
+            "rel_diff_pct": 7.282598804937969
+          }
+        }
+      }
+    },
+    "KGC": {
+      "first_active_fy": "2025-01-10",
+      "fy_score_days": 497,
+      "data_starts": "2021-05-12",
+      "history_predates_warmup_start_2023_06_21": true,
+      "realistic_path": "AUTO_WARMED (maintained==native; no _seed_weekly)",
+      "weekly_bar_count_check": {
+        "native_total_weeks": 191,
+        "native_completed_pre_fy": 190,
+        "seed_total_weeks": 81,
+        "seed_completed_pre_fy": 80,
+        "weekly_pole": 78,
+        "native_clears_pole": true,
+        "seed_clears_pole": true,
+        "count_delta_seed_minus_native": -110
+      },
+      "realistic_maintained_vs_native_diff": {
+        "fy_weeks_compared": 53,
+        "fy_weeks_with_any_diff": 0,
+        "max_abs_diff": {
+          "tenkan": 0.0,
+          "kijun": 0.0,
+          "senkou_a": 0.0,
+          "senkou_b": 0.0,
+          "w_close": 0.0
+        },
+        "max_rel_diff_pct": {
+          "tenkan": 0.0,
+          "kijun": 0.0,
+          "senkou_a": 0.0,
+          "senkou_b": 0.0,
+          "w_close": 0.0
+        },
+        "worst_per_line": {}
+      },
+      "forced_midweek_seed_day": "2025-03-12",
+      "forced_seed_overlap_diff": {
+        "fy_weeks_compared": 46,
+        "fy_weeks_with_any_diff": 1,
+        "max_abs_diff": {
+          "tenkan": 0.0,
+          "kijun": 0.0,
+          "senkou_a": 0.0,
+          "senkou_b": 0.0,
+          "w_close": 0.4750000000000014
+        },
+        "max_rel_diff_pct": {
+          "tenkan": 0.0,
+          "kijun": 0.0,
+          "senkou_a": 0.0,
+          "senkou_b": 0.0,
+          "w_close": 4.254366323331853
+        },
+        "worst_per_line": {
+          "w_close": {
+            "friday": "2025-03-14",
+            "maintained": 11.165,
+            "native": 11.64,
+            "abs_diff": 0.4750000000000014,
+            "rel_diff_pct": 4.254366323331853
+          }
+        }
+      }
+    }
+  }
+}
