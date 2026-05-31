@@ -107,27 +107,42 @@ class PhaseResult:
 
 ## 2. signal (kind: `signal`)
 
-**Purpose:** Score each universe ticker for entry quality.
+**Purpose:** QUALIFY each universe candidate — *"does this name qualify?"* — by scoring it for
+entry quality. This is the **qualify lane only**. Entry TIMING (T-Bounce / MACD / volume
+confluence) is a SEPARATE downstream `entry_timing` phase, NOT the signal phase.
 
 **Engine order:** After universe.
 
-**Input:** `ctx.universe`, `ctx.qc_algo.Securities` (indicators).
+**Input:** `ctx.bar_state.ranked_candidates`, `qc._indicators` (maintained Ichimoku/ADX/SMA).
 
-**Output:** `ctx.signal_scores: dict[str, int]` — ticker → score.
+**Output:** qualified candidates emitted as entry-priority-ordered `OrderIntent` stubs on
+`ctx.bar_state.sized_orders` (qty=0; the sizing phase sets quantity).
 
-**Params:**
-| Impl | Params |
-|---|---|
-| `bct_score` | `min_score: int` (filter threshold, default 7) |
-| `bct_relaxed` | `min_score: int` (default 6) |
-| `composite_breakout` | `lookback: int`, `min_breakout_pct: float` |
+**Catalog (ADR D3):** `phases/signal/library.py` exposes
+`SIGNAL_PHASES: tuple[type[BasePhase], ...]` — direct class refs (no string registry) for
+sweep discovery. Strategy wiring still uses explicit `Slot(impl=..., params=...)`.
+
+**Impls / Params:**
+| Impl | Params | `space()` axes | `COMPLEXITY` |
+|---|---|---|---|
+| `bct_score_full` | `min_score: int` (default 7), `parabolic_threshold: float` (default 0.25) | `min_score∈(6,7,8)` × `parabolic_threshold∈(0.20,0.25,0.30,0.35)` (grid 12) | `free_params=2` |
+
+**Template patterns (set by `bct_score_full`, #228 — every later phase follows):**
+- `Params.space() -> ParamSpace` (ADR D2): typed `{field: Sequence[candidate]}` sweep axes.
+  Non-swept wiring toggles (e.g. `enabled`) are excluded.
+- `COMPLEXITY: ComplexityDecl` (ADR D5): declared free-param count for the overfitting penalty;
+  `ComplexityDecl.validate(space())` enforces `free_params == len(space().axes)` (no hidden knobs).
+- Primitives live in `phases/shared/param_space.py`.
 
 **Required upstream:** `universe`.
-**Provides downstream:** `ctx.signal_scores` (only tickers meeting `min_score`).
+**Provides downstream:** `sized_orders` (only candidates meeting `score ≥ min_score`, not
+parabolic, not already invested/pending).
 
 **Contract:**
-- MUST return only tickers with score ≥ min_score.
-- MUST emit per-ticker dump on request (diagnostics phase consumes this).
+- MUST emit only candidates with `score ≥ min_score` AND not parabolic-blocked.
+- MUST be golden-mastered to the methodology (the CLAUDE.md BCT Signal Stack 8-condition
+  checklist) on identical bars — logic correctness, never champion-number matching. See
+  `research/methodology/bct-signal-reconciliation.md`.
 
 ---
 
