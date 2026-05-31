@@ -1,134 +1,56 @@
-"""Tests for runtime.lean_entry — the #182 site. The pure loader is hard-tested here.
+"""Tests for runtime.lean_entry — the #182 site, now LIVE-coarse (#238).
 
-The two anti-#182 failure modes:
-  1. missing key            -> UniverseLoadError (never fall through to trade-everything)
-  2. present-but-DIFFERENT-bytes under the same key -> UniverseFingerprintError (cloud
-     ObjectStore bytes != local -> scream, don't silently diverge)
-plus the happy path (state assigned) and active_set_hash determinism.
+The pure, extractable logic is unit-tested here:
+  - coarse_to_dollar_volume: coarse feed → {ticker: single-day DV}, lowercased (the
+    prefilter input to select_live_universe).
+  - active_set_hash: determinism + order-independence (the diff-ladder rung).
+  - on_securities_changed: indicator-lifecycle bookkeeping (register/dispose).
+  - on_data warmup guard.
+
+The QC-runtime glue (the _coarse_selection history() fan-out, add_universe, Symbol
+construction) is integration-verified on a LEAN run — pragma:no cover, not unit-testable
+without QC.
 """
 from __future__ import annotations
 
-import json
-
-import pytest
-
-from engine.base import UniverseFingerprintError, UniverseLoadError
-from runtime.fingerprints import membership_hash, order_hash
-from runtime.lean_entry import active_set_hash, load_universe, ranked_for_date
-
-# Small synthetic artifacts (as build_filter / build_universe would emit, incl. a meta block).
-ELIGIBLE = {
-    "2025-01-02": {"aaa": 2.0e7, "zzz": 1.0e8},
-    "2025-01-03": {"mmm": 5.0e7},
-    "_filter_meta": {"min_price": 10.0},
-}
-UNIVERSE = {
-    "2025-01-02": ["zzz", "aaa"],   # rank order (DV desc)
-    "2025-01-03": ["mmm"],
-    "_universe_meta": {"coarse_max": 9999},
-}
-# Pinned fps = hash of the date-keyed entries only (meta stripped), via the shared module.
-_ELIG_DATED = {k: v for k, v in ELIGIBLE.items() if not k.startswith("_")}
-_UNI_DATED = {k: v for k, v in UNIVERSE.items() if not k.startswith("_")}
-MEMBERSHIP_FP = membership_hash(_ELIG_DATED)
-ORDER_FP = order_hash(_UNI_DATED)
+from runtime.lean_entry import active_set_hash, coarse_to_dollar_volume
 
 
-class FakeObjectStore:
-    def __init__(self, blobs: dict[str, str]) -> None:
-        self._blobs = blobs
+class FakeSymbolValue:
+    """Mimics QC Symbol exposing `.value` (the ticker)."""
 
-    def contains_key(self, key: str) -> bool:
-        return key in self._blobs
-
-    def read(self, key: str) -> str:
-        return self._blobs[key]
+    def __init__(self, value: str) -> None:
+        self.value = value
 
 
-class FakeQC:
-    def __init__(self, blobs: dict[str, str]) -> None:
-        self.object_store = FakeObjectStore(blobs)
+class FakeCoarse:
+    """Mimics a CoarseFundamental / Fundamental row: `.symbol.value` + `.dollar_volume`."""
+
+    def __init__(self, ticker: str, dollar_volume: float) -> None:
+        self.symbol = FakeSymbolValue(ticker)
+        self.dollar_volume = dollar_volume
 
 
-def _blobs(eligible=ELIGIBLE, universe=UNIVERSE) -> dict[str, str]:
-    return {"elig.json": json.dumps(eligible), "uni.json": json.dumps(universe)}
+def test_coarse_to_dollar_volume_extracts_and_lowercases() -> None:
+    # QC coarse tickers are uppercase; we lower-case to the zip-stem / qc._active convention
+    # so the downstream case-insensitive intersection (universe + signal phases) hits.
+    coarse = [FakeCoarse("AAPL", 5.0e9), FakeCoarse("MSFT", 4.0e9)]
+    dv = coarse_to_dollar_volume(coarse)
+    assert dv == {"aapl": 5.0e9, "msft": 4.0e9}
 
 
-def _load(qc) -> None:
-    load_universe(
-        qc,
-        eligible_key="elig.json",
-        universe_key="uni.json",
-        expected_membership_fp=MEMBERSHIP_FP,
-        expected_order_fp=ORDER_FP,
-    )
+def test_coarse_to_dollar_volume_empty_feed() -> None:
+    assert coarse_to_dollar_volume([]) == {}
 
 
-def test_happy_path_assigns_state_meta_stripped():
-    qc = FakeQC(_blobs())
-    _load(qc)
-    assert qc._eligible == _ELIG_DATED          # meta stripped
-    assert qc._universe == _UNI_DATED
-    assert "_filter_meta" not in qc._eligible
-    assert qc._universe["2025-01-02"] == ["zzz", "aaa"]  # rank order preserved
+def test_coarse_to_dollar_volume_coerces_float() -> None:
+    # dollar_volume may arrive as an int-like; coerce to float for the prefilter comparison.
+    dv = coarse_to_dollar_volume([FakeCoarse("nvda", 3)])
+    assert dv == {"nvda": 3.0}
+    assert isinstance(dv["nvda"], float)
 
 
-def test_missing_eligible_key_fails_loud():
-    qc = FakeQC({"uni.json": json.dumps(UNIVERSE)})  # no elig.json
-    with pytest.raises(UniverseLoadError, match="missing"):
-        _load(qc)
-
-
-def test_missing_universe_key_fails_loud():
-    qc = FakeQC({"elig.json": json.dumps(ELIGIBLE)})  # no uni.json
-    with pytest.raises(UniverseLoadError, match="missing"):
-        _load(qc)
-
-
-def test_tampered_eligible_bytes_fail_fingerprint():
-    # THE anti-#182 test: same key, DIFFERENT bytes (an extra eligible ticker) -> the
-    # recomputed membership fp != pinned -> raise. Cloud-bytes != local-bytes is caught.
-    tampered = {**ELIGIBLE, "2025-01-02": {"aaa": 2.0e7, "zzz": 1.0e8, "EXTRA": 9.0e9}}
-    qc = FakeQC(_blobs(eligible=tampered))
-    with pytest.raises(UniverseFingerprintError, match="membership"):
-        _load(qc)
-
-
-def test_tampered_universe_order_fails_fingerprint():
-    # Same members, DIFFERENT rank order -> membership fp still matches but order fp differs
-    # -> raise. Proves the order fingerprint catches a rank divergence the membership misses.
-    reordered = {**UNIVERSE, "2025-01-02": ["aaa", "zzz"]}  # was ["zzz","aaa"]
-    qc = FakeQC(_blobs(universe=reordered))
-    with pytest.raises(UniverseFingerprintError, match="order"):
-        _load(qc)
-
-
-def test_nondict_json_fails_loud():
-    qc = FakeQC({"elig.json": json.dumps([1, 2, 3]), "uni.json": json.dumps(UNIVERSE)})
-    with pytest.raises(UniverseLoadError):
-        _load(qc)
-
-
-def test_no_state_assigned_on_failure():
-    # Fail-loud must leave qc clean — no half-loaded _eligible without _universe.
-    qc = FakeQC({"elig.json": json.dumps(ELIGIBLE)})  # uni missing -> raises after elig read
-    with pytest.raises(UniverseLoadError):
-        _load(qc)
-    assert not hasattr(qc, "_universe")
-    # _eligible must not be assigned either — assignment happens only after BOTH verify.
-    assert not hasattr(qc, "_eligible")
-
-
-def test_ranked_for_date_is_the_artifact_list():
-    # Artifact-driven: the subscription source is OUR ranked artifact[date], verbatim
-    # (rank order preserved), NOT QC's coarse feed. Out-of-range/non-trading -> empty.
-    uni = {"2025-01-02": ["zzz", "aaa"], "2025-01-03": []}
-    assert ranked_for_date(uni, "2025-01-02") == ["zzz", "aaa"]
-    assert ranked_for_date(uni, "2025-01-03") == []
-    assert ranked_for_date(uni, "2099-01-01") == []
-
-
-def test_on_securities_changed_registers_active_and_disposes():
+def test_on_securities_changed_registers_active_and_disposes() -> None:
     # Lifecycle control-flow (#213c): added → _active.add + _register_indicators; removed →
     # _active.discard + remove_consolidator + del. QC-type construction (_register_indicators
     # body) is integration-verified; here we test the bookkeeping with a stubbed register.
@@ -175,7 +97,7 @@ def test_on_securities_changed_registers_active_and_disposes():
     assert algo.subscription_manager.removed == [(aapl, "cons_AAPL")]
 
 
-def test_on_data_skips_engine_during_warmup():
+def test_on_data_skips_engine_during_warmup() -> None:
     # WARMUP GUARD (#213d): the engine must NOT run while warming up — LEAN rejects orders
     # during warm-up, and running the pipeline over the 750d warmup is wrong + far too slow.
     from datetime import datetime as _dt
@@ -199,14 +121,14 @@ def test_on_data_skips_engine_during_warmup():
     assert algo.engine.calls == 1  # runs once warmup finishes
 
 
-def test_active_set_hash_deterministic_order_independent():
+def test_active_set_hash_deterministic_order_independent() -> None:
     c1, h1 = active_set_hash(["GOOG", "AAPL", "MSFT"])
     c2, h2 = active_set_hash(["MSFT", "GOOG", "AAPL"])  # different order, same set
     assert (c1, h1) == (c2, h2)
     assert c1 == 3 and len(h1) == 64
 
 
-def test_active_set_hash_changes_on_membership():
+def test_active_set_hash_changes_on_membership() -> None:
     _, h1 = active_set_hash(["AAPL", "MSFT"])
     _, h2 = active_set_hash(["AAPL", "MSFT", "NVDA"])
     assert h1 != h2

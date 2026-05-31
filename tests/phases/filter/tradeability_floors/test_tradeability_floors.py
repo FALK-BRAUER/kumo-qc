@@ -1,9 +1,10 @@
-"""Phase tests for TradeabilityFloors — the filter consumer (#233).
+"""Phase tests for TradeabilityFloors — the filter consumer (#233 / #238).
 
-Constructor: TradeabilityFloors(TradeabilityFloors.Params(...), logger=None). Reads the
-precomputed `qc._eligible` (date -> {ticker: dv}) and emits bar_state.eligible = eligible
-∩ active. Floor math lives in build_filter; these cover the consumer contract + #182
-fail-loud / no-raise branches.
+Constructor: TradeabilityFloors(TradeabilityFloors.Params(...), logger=None). The floors
+are applied LIVE inside runtime.universe_select.select_live_universe (run by lean_entry);
+this phase EMITS the live-selected eligible set: `qc._ranked_today` ∩ active, sorted. These
+cover the consumer contract + the #182 fail-loud / no-raise branches. The Params remain as
+provenance for the floor values applied live.
 """
 from datetime import datetime
 
@@ -25,21 +26,13 @@ class FakeSymbol:
 
 
 class FakeQC:
-    def __init__(self, eligible=None, active=None) -> None:
-        self._eligible = eligible
+    def __init__(self, ranked_today=None, active=None) -> None:
+        self._ranked_today = ranked_today
         self._active = {FakeSymbol(s) for s in (active or [])}
 
 
 def make_ctx(qc, when=datetime(2025, 1, 2)):
     return PhaseContext(qc=qc, time=when, data=None)
-
-
-# Filter artifact form: date -> {ticker: dv}.
-SAMPLE = {
-    "2025-01-02": {"AAPL": 9e8, "MSFT": 8e8, "GOOG": 7e8},
-    "2025-01-03": {"AAPL": 9e8, "TSLA": 6e8},
-    "2025-01-06": {"MSFT": 8e8, "AMZN": 5e8},
-}
 
 
 def _phase():
@@ -55,70 +48,48 @@ def test_params_defaults():
 
 
 def test_sets_eligible_intersected_with_active_sorted():
-    qc = FakeQC(eligible=SAMPLE, active=["AAPL", "MSFT", "GOOG", "TSLA"])
+    # ranked_today is the LIVE-selected set (already cleared the floors). Filter emits it ∩
+    # active, sorted (rank is the universe phase's job).
+    qc = FakeQC(ranked_today=["MSFT", "AAPL", "GOOG"], active=["AAPL", "MSFT", "GOOG", "TSLA"])
     ctx = make_ctx(qc)
     result = _phase().evaluate(ctx)
     assert result.blocked is False
     assert result.decision == "eligible"
-    # eligible has no rank -> sorted for determinism; GOOG/MSFT/AAPL all active.
-    assert ctx.bar_state.eligible == ["AAPL", "GOOG", "MSFT"]
+    assert ctx.bar_state.eligible == ["AAPL", "GOOG", "MSFT"]  # sorted, TSLA not selected
     assert result.facts["count"] == 3
 
 
 def test_active_intersection_excludes_inactive():
-    qc = FakeQC(eligible={"2025-01-02": {"AAPL": 1.0, "MSFT": 1.0, "NVDA": 1.0}}, active=["AAPL", "MSFT"])
+    qc = FakeQC(ranked_today=["AAPL", "MSFT", "NVDA"], active=["AAPL", "MSFT"])
     ctx = make_ctx(qc)
     _phase().evaluate(ctx)
-    assert ctx.bar_state.eligible == ["AAPL", "MSFT"]  # NVDA eligible but not active
+    assert ctx.bar_state.eligible == ["AAPL", "MSFT"]  # NVDA selected but not yet subscribed
 
 
-def test_accepts_list_form_too():
-    # Robust to a list-valued artifact (membership only), not just the {ticker: dv} dict.
-    qc = FakeQC(eligible={"2025-01-02": ["MSFT", "AAPL"]}, active=["AAPL", "MSFT"])
+def test_case_insensitive_lowercase_ranked_uppercase_active():
+    # ranked lowercase (zip stems / coarse lowered), QC _active uppercase — match
+    # case-insensitively, emit canonical value (sorted).
+    qc = FakeQC(ranked_today=["aaa", "msft"], active=["AAA", "MSFT"])
     ctx = make_ctx(qc)
     _phase().evaluate(ctx)
-    assert ctx.bar_state.eligible == ["AAPL", "MSFT"]
+    assert ctx.bar_state.eligible == ["AAA", "MSFT"]
 
 
-def test_case_insensitive_lowercase_artifact_uppercase_active():
-    # Artifact lowercase, QC _active uppercase — match case-insensitively, emit canonical value.
-    qc = FakeQC(eligible={"2025-01-02": {"aaa": 1.0, "msft": 2.0}}, active=["AAA", "MSFT"])
-    ctx = make_ctx(qc)
-    _phase().evaluate(ctx)
-    assert ctx.bar_state.eligible == ["AAA", "MSFT"]  # sorted, canonical (uppercase)
-
-
-def test_none_eligible_fails_loud():
+def test_none_ranked_today_fails_loud():
     from engine.base import UniverseLoadError
-    qc = FakeQC(eligible=None, active=["AAPL"])
+    qc = FakeQC(ranked_today=None, active=["AAPL"])
     with pytest.raises(UniverseLoadError):
         _phase().evaluate(make_ctx(qc))
 
 
-def test_missing_date_returns_empty_no_raise():
-    # 2025-01-04 within range but absent (weekend/holiday) -> empty, NEVER raise (#182).
-    qc = FakeQC(eligible=SAMPLE, active=["AAPL"])
-    ctx = make_ctx(qc, when=datetime(2025, 1, 4))
-    result = _phase().evaluate(ctx)
-    assert result.blocked is False
-    assert ctx.bar_state.eligible == []
-    assert result.decision == "empty"
-
-
-def test_below_range_returns_empty():
-    qc = FakeQC(eligible=SAMPLE, active=["AAPL"])
-    ctx = make_ctx(qc, when=datetime(2024, 12, 1))
-    result = _phase().evaluate(ctx)
-    assert ctx.bar_state.eligible == []
-    assert result.decision == "empty"
-
-
-def test_zero_eligible_day_is_empty_not_blocked():
-    qc = FakeQC(eligible={"2025-01-02": {}}, active=["AAPL", "MSFT"])
+def test_empty_ranked_today_returns_empty_no_raise():
+    # Zero-candidate / pre-warmup day -> empty, NEVER raise. The live selection assigns [].
+    qc = FakeQC(ranked_today=[], active=["AAPL", "MSFT"])
     ctx = make_ctx(qc)
     result = _phase().evaluate(ctx)
     assert result.blocked is False
     assert ctx.bar_state.eligible == []
+    assert result.decision == "empty"
 
 
 def test_version_marker():

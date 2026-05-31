@@ -35,7 +35,6 @@ class BctScoreFull(BasePhase):
 
     def evaluate(self, ctx: PhaseContext) -> PhaseResult:
         qc = ctx.qc
-        date_str = ctx.time.strftime("%Y-%m-%d")
         min_score = self.p.min_score
         parabolic_threshold = self.p.parabolic_threshold
 
@@ -45,10 +44,12 @@ class BctScoreFull(BasePhase):
         # Build symbol lookup from qc._active
         active_by_value = {s.value: s for s in getattr(qc, "_active", set())}
 
-        # #213f: dollar-volume tiebreak from the precomputed filter artifact (trailing-20d
-        # mean DV), NOT a per-bar qc.history(20) — keeps on_data history-free. Artifact keys
-        # are lowercase (zip stems); candidate tickers are canonical (upper).
-        eligible_today = getattr(qc, "_eligible", {}).get(date_str) or {}
+        # #238: dollar-volume tiebreak from the LIVE per-ticker trailing-mean DV
+        # (qc._trailing_dv, computed once-daily by lean_entry._coarse_selection), NOT the
+        # retired qc._eligible artifact and NOT a per-bar qc.history(20) — keeps on_data
+        # history-free. Keys are lowercase (zip stems / coarse value lowered); candidate
+        # tickers are canonical (upper).
+        trailing_dv = getattr(qc, "_trailing_dv", {})
 
         candidates: list[tuple[Any, int, float]] = []  # (symbol, score, dollar_volume)
         blocked_log: list[str] = []
@@ -94,8 +95,8 @@ class BctScoreFull(BasePhase):
                 blocked_log.append(ticker)
                 continue
 
-            # Dollar-volume tiebreak from the artifact (no per-bar history). 0.0 if absent.
-            dollar_volume = float(eligible_today.get(ticker.lower(), 0.0))
+            # Dollar-volume tiebreak from the live trailing DV (no per-bar history). 0.0 if absent.
+            dollar_volume = float(trailing_dv.get(ticker.lower(), 0.0))
 
             candidates.append((symbol, result["score"], dollar_volume))
 

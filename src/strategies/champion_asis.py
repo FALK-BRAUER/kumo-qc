@@ -1,4 +1,4 @@
-"""champion-asis — the carve's phase stack on the filter -> rank+cap dynamic universe.
+"""champion-asis — the carve's phase stack on the LIVE filter -> rank+cap dynamic universe.
 
 The proven per-ticker BCT LOGIC (8-condition signal / SPY+VIX regime / flat-% sizing /
 Kijun+G3 exits / version-marker) wired over the v2 universe pipeline:
@@ -7,12 +7,18 @@ Kijun+G3 exits / version-marker) wired over the v2 universe pipeline:
     -> regime (spy_200ma, vix_percentile) -> sizing (flat_pct_heatcap)
     -> exit_hard (kijun_g3_exits) -> diagnostics (version_marker)
 
-NOT the 326 oracle, NO fixed slots, NO top-N artifact: a dynamic, point-in-time,
-survivorship-clean candidate set (floors gate tradeability; DV-desc rank+coarse_max cap;
-BCT score>=7 selects). Run fresh -> gate-validate (G1-G5/DSR-PBO) -> first honest baseline.
-Every result pins to (git commit + this config hash + substrate fingerprint 90f2d7e3).
+NOT the 326 oracle, NO fixed slots, NO top-N artifact, NO stored universe file: a dynamic,
+point-in-time, survivorship-clean candidate set computed LIVE once-daily from QC's coarse
+feed (#238 — runtime.universe_select.select_live_universe: floors gate tradeability; DV-desc
+rank+coarse_max cap; BCT score>=7 selects). Run fresh -> gate-validate (G1-G5/DSR-PBO) ->
+first honest baseline. Every result pins to (git commit + this config hash + substrate
+fingerprint 90f2d7e3).
 
-Direct-ref Slots, typed Params. One active strategy per build.
+Direct-ref Slots, typed Params. One active strategy per build. NO UNIVERSE_SPEC: #238
+retired the stored-universe-file ObjectStore artifact + its fingerprint-verify (the 326
+scar) — the universe is computed live, so there is no file to pin/verify. The lean_entry
+universe knobs (PREFILTER_DV / MIN_PRICE / MIN_AVG_DOLLAR_VOLUME / COARSE_MAX / ADV_WINDOW)
+mirror the filter+universe phase Params below (they MUST stay in sync).
 """
 from __future__ import annotations
 
@@ -68,16 +74,14 @@ CONFIG = StrategyConfig(
     },
 )
 
-# Universe artifact binding for the LEAN entry (#213). The loader (runtime.lean_entry)
-# reads these ObjectStore keys, recomputes each fingerprint, and FAILS LOUD unless it
-# equals the pinned value below — the structural anti-#182 guard (same key, different
-# bytes => raise). Fingerprints pinned to substrate 90f2d7e3, floors p10/adv100M/w20,
-# coarse_max 9999 (LIQUIDITY threshold 100M = ~943 names/day FY2025; fintrack ruling —
-# see tradeability_floors header). Re-pin (regenerate + paste from the .meta.json) when
-# substrate or universe params change — that is how results stay tied to the data state.
-UNIVERSE_SPEC = {
-    "eligible_key": "universe/floors_p10_adv100000000_w20.filter.json",
-    "universe_key": "universe/universe_ranked_n9999.json",
-    "membership_fp": "c4bf02c04a1fe1d3c63925db66bbce7c4e3e3dc7919da25855aaf51523ea5444",
-    "order_fp": "c43fef288aa2a0c0780f71c1ca49f818ea9a8d99c30de6253cdb5819c984e370",
-}
+# NO UNIVERSE_SPEC (#238): the stored-universe-file mechanism (ObjectStore eligible/universe
+# JSON + the load-time fingerprint-verify) is RETIRED. The universe is computed LIVE
+# once-daily from QC's coarse feed (runtime.universe_select.select_live_universe, wired in
+# runtime.lean_entry._coarse_selection) — there is no file to pin or verify. The universe
+# knobs are class attributes on the lean_entry subclass (PREFILTER_DV / MIN_PRICE /
+# MIN_AVG_DOLLAR_VOLUME / COARSE_MAX / ADV_WINDOW), mirroring the phase Params above.
+
+# LEAN_ENTRY: this strategy is LEAN-DEPLOYABLE — the build (build/cloud_package.py) seeds
+# runtime.lean_entry + emits the BctEngineAlgorithm subclass in dist/main.py. Config-only
+# fixtures (sample/example) omit this flag.
+LEAN_ENTRY = True

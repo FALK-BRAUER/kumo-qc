@@ -1,30 +1,31 @@
-"""LEAN entry (#213) — the single code path that runs the engine LOCAL and CLOUD.
+"""LEAN entry (#213 / #238) — the single code path that runs the engine LOCAL and CLOUD.
 
 This is the historic #182 divergence site. The legacy main.py diverged because it loaded
-the universe from DISK locally but ObjectStore on cloud, AND silently fell through when
-the cloud key was missing — so cloud and local selected different stocks from day 1. This
-module kills that at the source:
+the universe from DISK locally but ObjectStore on cloud, AND silently fell through when the
+cloud key was missing — so cloud and local selected different stocks from day 1.
 
-  - ONE loader, ObjectStore both sides (qc.object_store works identically under local LEAN
-    and cloud). NO `if cloud:` branch.
-  - FAIL-LOUD on a missing key (UniverseLoadError) — never fall through to trade-everything.
-  - FINGERPRINT-VERIFY on load: recompute the loaded artifact's fingerprint with the SAME
-    function used at build time (runtime.fingerprints) and assert it equals the pinned
-    value. Same key but DIFFERENT bytes (cloud ObjectStore != local) raises
-    UniverseFingerprintError instead of silently diverging. This is the structural guarantee
-    that local and cloud loaded the SAME artifact.
+#238 replaces the stored-universe-file mechanism (the 326 scar — a frozen date→ticker file
+shipped to ObjectStore) with a LIVE once-daily computation:
+
+  - QC's coarse-fundamental feed is GROUND TRUTH. `add_universe(coarse_selection)` runs the
+    SAME `runtime.universe_select.select_live_universe` filter→rank→cap each day. NO stored
+    universe file, NO ObjectStore universe artifact, NO fingerprint-verify-on-file (those
+    guarded the file mechanism that no longer exists).
+  - LOCAL SIMULATES CLOUD: local runs the IDENTICAL coarse_selection over conformed-coarse
+    data (the local-coarse conform is a separate HQ decision — see #238 step E flag). NO
+    `if cloud:` branch — one code path both sides.
   - RAW normalization on every subscription (the 2649e2e lesson — adjusted prices corrupt
-    Ichimoku).
-  - ACTIVE-SET hash logged each rebalance (count + sha256 of the sorted subscribed symbols)
-    — the diff-ladder rung between order-fp and trades for divergence-debug.
+    Ichimoku). The once-daily survivor history() that feeds select_live_universe is RAW too.
+  - ACTIVE-SET hash logged each rebalance (count + sha256 of the sorted ranked tickers) —
+    the diff-ladder rung between the universe selection and the trades for divergence-debug.
 
-The pure functions (load_universe / verify_fingerprint / active_set_hash) carry the
-#182-critical logic and are unit-tested with a fake qc. BctEngineAlgorithm is a thin
-QCAlgorithm shell (QC runtime only); its wiring is integration-verified on a LEAN run.
+`coarse_to_dollar_volume` is PURE (no QC types) and unit-tested with a fake coarse list.
+`select_live_universe` (runtime.universe_select) is golden-mastered. The QC-runtime glue
+(coarse_selection's history() + add_universe + Symbol construction) is integration-verified
+on a LEAN run — pragma:no cover, not unit-testable in the dev venv.
 """
 from __future__ import annotations
 
-import json
 from collections.abc import Iterable
 from datetime import timedelta
 from hashlib import sha256
@@ -32,93 +33,43 @@ from typing import Any
 
 import pandas as pd
 
-from engine.base import UniverseFingerprintError, UniverseLoadError
 from engine.context import PhaseContext
 from engine.engine import StrategyEngine
-from runtime.fingerprints import membership_hash, order_hash
 from runtime.indicators import INDICATOR_KEYS, weekly_aggregate
+from runtime.universe_select import select_live_universe
 
 
-def _read_object_store(qc: Any, key: str) -> Any:
-    """Read + JSON-parse an ObjectStore artifact. FAIL-LOUD if the key is absent — the
-    legacy silent-fallback (trade-everything / SPY-ETF) is exactly the #182 bug. A missing
-    key at runtime is a deploy/upload error and must stop the algorithm."""
-    store = qc.object_store
-    if not store.contains_key(key):
-        raise UniverseLoadError(
-            f"ObjectStore key '{key}' missing — refusing to run (upload the artifact both "
-            f"sides; never fall through to trade-everything). This is the #182 guard."
-        )
-    raw = store.read(key)
-    parsed = json.loads(raw)
-    if not isinstance(parsed, dict):
-        raise UniverseLoadError(f"ObjectStore key '{key}' is not a JSON object")
-    return parsed
+def coarse_to_dollar_volume(coarse: Iterable[Any]) -> dict[str, float]:
+    """Extract {ticker -> single-day dollar volume} from a coarse-fundamental feed.
 
-
-def _strip_meta(payload: dict[str, Any]) -> dict[str, Any]:
-    """Drop the leading-underscore meta block(s); keep only date-keyed entries."""
-    return {k: v for k, v in payload.items() if not k.startswith("_")}
-
-
-def verify_fingerprint(name: str, recomputed: str, expected: str) -> None:
-    """Assert a recomputed artifact fingerprint equals the pinned build-time value.
-    Mismatch => same key, DIFFERENT bytes (the silent-divergence #182 failure mode) => raise."""
-    if recomputed != expected:
-        raise UniverseFingerprintError(
-            f"{name} fingerprint mismatch: loaded artifact hashes to {recomputed} but the "
-            f"pinned value is {expected}. ObjectStore bytes differ from the build — local "
-            f"and cloud are NOT running the same universe. Refusing to run (the #182 guard)."
-        )
-
-
-def load_universe(
-    qc: Any,
-    *,
-    eligible_key: str,
-    universe_key: str,
-    expected_membership_fp: str,
-    expected_order_fp: str,
-) -> None:
-    """Load + verify both universe artifacts from ObjectStore and assign them onto qc.
-
-    Sets qc._eligible (filter artifact, date -> {ticker: dv}) and qc._universe (ranked
-    artifact, date -> [ranked tickers]). IDENTICAL code + IDENTICAL artifacts both sides.
-    Recomputes each fingerprint and verifies it against the pinned value before assigning —
-    on any mismatch or missing key it RAISES and the algorithm does not run.
+    PURE (no QC types): each `c` is any object exposing `.symbol.value` (the ticker) and
+    `.dollar_volume` (single-day $). Ticker is lower-cased to the on-disk/zip-stem convention
+    so it matches qc._active.value.lower() downstream (the universe phase + signal compare
+    case-insensitively). This is the prefilter input to select_live_universe — a LOOSE
+    perf-bound on the once-daily history() fan-out, NOT a strategy threshold.
     """
-    eligible_payload = _strip_meta(_read_object_store(qc, eligible_key))
-    universe_payload = _strip_meta(_read_object_store(qc, universe_key))
-
-    verify_fingerprint("membership (filter)", membership_hash(eligible_payload), expected_membership_fp)
-    verify_fingerprint("order (universe)", order_hash(universe_payload), expected_order_fp)
-
-    qc._eligible = eligible_payload
-    qc._universe = universe_payload
-
-
-def ranked_for_date(universe: dict[str, list[str]], date_str: str) -> list[str]:
-    """Today's ranked candidate tickers from OUR artifact — the SINGLE source of the active
-    set (artifact-driven, fintrack ruling). Empty for a non-trading / out-of-range date.
-    The subscription is built from THIS list, never from QC's coarse-fundamental feed (that
-    would be a second universe source that can diverge local-vs-cloud — the #182 class)."""
-    return list(universe.get(date_str, []))
+    out: dict[str, float] = {}
+    for c in coarse:
+        ticker = str(c.symbol.value).lower()
+        out[ticker] = float(c.dollar_volume)
+    return out
 
 
 def active_set_hash(symbols: Iterable[str]) -> tuple[int, str]:
-    """(count, sha256-of-sorted-symbols) for the subscribed active set. Logged each
-    rebalance so divergence-debug can diff the active set local-vs-cloud — the rung between
-    the order fingerprint and the trade list. A small delta is the accepted cloud-vendor
-    residual; a material delta gets root-caused."""
+    """(count, sha256-of-sorted-symbols) for the live-selected ranked set. Logged each
+    rebalance so divergence-debug can diff the selection local-vs-cloud — the rung between
+    the universe selection and the trade list. A small delta is the accepted cloud-vendor
+    coverage residual; a material delta gets root-caused."""
     syms = sorted(symbols)
     h = sha256(",".join(syms).encode("utf-8")).hexdigest()
     return len(syms), h
 
 
 # --------------------------------------------------------------------------------------
-# QCAlgorithm shell — QC runtime only. Thin: delegates the #182-critical work to the pure
-# functions above. Integration-verified on a LEAN run, not unit-tested (no QC locally).
-# main.py (generated by build/cloud_package.py) sets the class attributes below.
+# QCAlgorithm shell — QC runtime only. Thin: delegates the pure work (coarse_to_dollar_volume,
+# select_live_universe) to the tested functions above. Integration-verified on a LEAN run,
+# not unit-tested (no QC locally). main.py (generated by build/cloud_package.py) sets the
+# class attributes below.
 # --------------------------------------------------------------------------------------
 try:  # pragma: no cover - QC runtime import; absent in the dev venv / unit tests
     from AlgorithmImports import (
@@ -141,16 +92,23 @@ except ImportError:  # pragma: no cover
 
 
 class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
-    """Thin LEAN wrapper. Subclass in main.py sets STRATEGY_CONFIG / UNIVERSE_SPEC / dates /
-    cash. initialize() subscribes RAW, fail-loud + fp-verify loads the universe, schedules on
-    the trading calendar, and runs StrategyEngine per scheduled bar."""
+    """Thin LEAN wrapper. Subclass in main.py sets STRATEGY_CONFIG / dates / cash / the
+    universe-selection knobs. initialize() subscribes SPY+VIX RAW, registers the live
+    coarse-driven universe (add_universe), and runs StrategyEngine per scheduled bar."""
 
     # set by the generated main.py subclass
     STRATEGY_CONFIG: Any = None
-    UNIVERSE_SPEC: dict[str, str] = {}  # eligible_key, universe_key, membership_fp, order_fp
     START_DATE: tuple[int, int, int] = (2025, 1, 1)
     END_DATE: tuple[int, int, int] = (2025, 12, 31)
     CASH: int = 100_000
+
+    # Live universe selection knobs — MUST mirror runtime.universe_select.select_live_universe
+    # defaults (the strategy floors live there; these are the wired-in values for this deploy).
+    PREFILTER_DV: float = 25_000_000.0
+    MIN_PRICE: float = 10.0
+    MIN_AVG_DOLLAR_VOLUME: float = 100_000_000.0
+    COARSE_MAX: int = 9999
+    ADV_WINDOW: int = 20  # trailing trading-day window for the precise mean-DV decision
 
     # Indicator warmup length — EXACT legacy value (750d). Warmup drives first-ready ->
     # first-trade date -> parity; must match the champion.
@@ -184,48 +142,92 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self._indicators: dict[Any, dict[str, Any]] = {}
         self._position_meta: dict[Any, Any] = {}
 
-        # FAIL-LOUD + FP-VERIFY universe load (the #182 guard). Raises before any trading.
-        spec = self.UNIVERSE_SPEC
-        load_universe(
-            self,
-            eligible_key=spec["eligible_key"],
-            universe_key=spec["universe_key"],
-            expected_membership_fp=spec["membership_fp"],
-            expected_order_fp=spec["order_fp"],
-        )
+        # LIVE universe state (#238). _ranked_today = today's ranked ticker order (lowercase,
+        # the universe phase + signal key off this); _trailing_dv = {ticker -> trailing-mean
+        # DV} for the signal's dollar-volume tiebreak (replaces the qc._eligible artifact).
+        self._ranked_today: list[str] = []
+        self._trailing_dv: dict[str, float] = {}
 
-        # Artifact-driven subscription (fintrack ruling): a scheduled universe selector that
-        # returns OUR ranked symbols for the date — NOT QC's coarse feed. Every ranked ticker
-        # has substrate data by construction, so coverage is complete both sides; the only
-        # residual is data-vendor price differences. self.universe.dollar_volume etc. are NOT
-        # used — the artifact IS the universe.
-        self.add_universe(self._select_universe)
+        # LIVE once-daily universe (#238): add_universe runs coarse_selection each day. NO
+        # stored file, NO ObjectStore artifact, NO fp-verify-on-file — the universe is
+        # computed from QC's coarse feed (ground truth), identically local and cloud.
+        self.add_universe(self._coarse_selection)
 
         self.engine = StrategyEngine(config=self.STRATEGY_CONFIG, qc=self)
 
-        # Pin provenance on startup (substrate + both universe fps + config-hash + commit
-        # live in dist/_metadata.py, logged by the engine's STRATEGY_INIT).
+        # Pin provenance on startup (substrate fingerprint + config-hash + commit live in
+        # dist/_metadata.py, logged by the engine's STRATEGY_INIT).
         self.log(
-            f"LEAN_ENTRY_INIT|membership_fp={spec['membership_fp']}|"
-            f"order_fp={spec['order_fp']}|start={self.START_DATE}|end={self.END_DATE}"
+            f"LEAN_ENTRY_INIT|live_coarse|prefilter_dv={self.PREFILTER_DV}|"
+            f"min_price={self.MIN_PRICE}|min_avg_dv={self.MIN_AVG_DOLLAR_VOLUME}|"
+            f"coarse_max={self.COARSE_MAX}|start={self.START_DATE}|end={self.END_DATE}"
         )
 
-    def _select_universe(self, _trigger: Any) -> Any:
-        """Scheduled-universe selector: build today's subscription DIRECTLY from our ranked
-        artifact (artifact-driven). Returns constructed equity Symbols for today's ranked
-        tickers; QC subscribes them and drops any without data (the natural ∩ substrate).
-        Sets qc._active and logs the active-set hash (the diff-ladder rung). NO coarse feed.
+    def _coarse_selection(self, coarse: Any) -> Any:
+        """Once-daily LIVE universe: coarse feed → filter→rank→cap → ranked Symbols.
 
-        Artifact tickers are canonically lowercase (zip stems); we upper-case to the QC
-        convention before Symbol.create. The phases compare case-insensitively vs qc._active.
-        _active itself is owned by on_securities_changed (the truly-subscribed set); this
-        selector only requests + logs the artifact-driven active-set hash (the diff-ladder rung)."""
+        The SAME select_live_universe core both sides (local simulates cloud). Steps:
+          1. coarse_to_dollar_volume(coarse) → {ticker: single-day DV} (the prefilter input).
+          2. prefilter survivors (>= PREFILTER_DV) → history(survivors, ADV_WINDOW+, RAW) →
+             {ticker: (latest_close, trailing-ADV_WINDOW-mean DV)} (the precise decision data).
+          3. select_live_universe → ranked tickers (DV-desc, ticker-asc tiebreak, capped).
+          4. store qc._ranked_today (rank order) + qc._trailing_dv (the tiebreak DV) for the
+             universe phase + signal, map to Symbols, log the active-set hash, return Symbols.
+        QC subscribes the returned Symbols (on_securities_changed owns qc._active); names
+        without substrate data drop naturally (the ∩-substrate residual)."""
         date_str = self.time.strftime("%Y-%m-%d")
-        tickers = ranked_for_date(self._universe, date_str)
-        symbols = [Symbol.create(t.upper(), SecurityType.EQUITY, Market.USA) for t in tickers]
-        count, h = active_set_hash(t.upper() for t in tickers)
+        coarse_dv = coarse_to_dollar_volume(coarse)
+
+        # Prefilter survivors bound the once-daily history fan-out (loose perf-bound).
+        survivors = [t for t, sdv in coarse_dv.items() if sdv >= self.PREFILTER_DV]
+        raw = self._raw_history_metrics(survivors)
+
+        ranked = select_live_universe(
+            coarse_dv,
+            raw,
+            prefilter_dv=self.PREFILTER_DV,
+            min_price=self.MIN_PRICE,
+            min_avg_dollar_volume=self.MIN_AVG_DOLLAR_VOLUME,
+            coarse_max=self.COARSE_MAX,
+        )
+
+        # Store rank order + per-ticker trailing DV for the universe phase + signal tiebreak.
+        self._ranked_today = ranked
+        self._trailing_dv = {t: raw[t][1] for t in ranked if t in raw}
+
+        count, h = active_set_hash(ranked)
         self.log(f"ACTIVE_SET|{date_str}|count={count}|hash={h}")
-        return symbols
+        return [Symbol.create(t.upper(), SecurityType.EQUITY, Market.USA) for t in ranked]
+
+    def _raw_history_metrics(self, survivors: list[str]) -> dict[str, tuple[float, float]]:
+        """RAW history of the prefilter survivors → {ticker: (latest_close, trailing-mean DV)}.
+
+        ONE history() call for all survivors (ADV_WINDOW bars, RAW normalization — matches the
+        subscription + the champion). trailing DV = mean(close*volume) over the window; latest
+        close = the last bar. A survivor with < ADV_WINDOW bars (insufficient history) is
+        dropped (absent from the map → select_live_universe drops it). Ticker keys lowercased
+        to the zip-stem / qc._active convention."""
+        if not survivors:
+            return {}
+        symbols = [Symbol.create(t.upper(), SecurityType.EQUITY, Market.USA) for t in survivors]
+        hist = self.history(
+            symbols, self.ADV_WINDOW, Resolution.DAILY,
+            data_normalization_mode=DataNormalizationMode.RAW,
+        )
+        if hist is None or hist.empty:
+            return {}
+        hist.columns = [c.lower() for c in hist.columns]
+        out: dict[str, tuple[float, float]] = {}
+        # MultiIndex (symbol, time): group per symbol, require ADV_WINDOW bars.
+        for sym, frame in hist.groupby(level=0):
+            ticker = str(getattr(sym, "value", sym)).lower()
+            f = frame.droplevel(0) if isinstance(frame.index, pd.MultiIndex) else frame
+            if len(f) < self.ADV_WINDOW:
+                continue
+            close = float(f["close"].iloc[-1])
+            trailing_dv = float((f["close"] * f["volume"]).mean())
+            out[ticker] = (close, trailing_dv)
+        return out
 
     def on_securities_changed(self, changes: Any) -> None:
         """Register indicators for newly-subscribed symbols, dispose on removal — EXACT

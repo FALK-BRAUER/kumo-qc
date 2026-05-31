@@ -1,4 +1,4 @@
-"""Filter phase: tradeability FLOORS (#233) — eligibility gate, runs BEFORE the universe.
+"""Filter phase: tradeability FLOORS (#233 / #238) — eligibility gate, runs BEFORE universe.
 
 Kind:    filter
 Marker:  tradeability_floors_v1
@@ -13,33 +13,32 @@ LIQUIDITY THRESHOLD — min_avg_dollar_volume=100M (fintrack ruling, data-inform
   2700. Picked on principle, NOT to match the champion (v2 is the corrected pipeline, not a
   clone). If LOCAL infra OOMs at 943, that is a local-RAM limit — validate on cloud or use a
   temp HIGHER local-only floor; do NOT lower the strategy floor to fit local RAM.
-         (mirror scripts/build_filter.py — the phase CONSUMES the precomputed
-          date->eligible artifact; the floor math lives in the precompute. Params carried
-          for provenance/fingerprint.)
 
-MODEL (#233, Falk — filter is its OWN phase with its OWN params):
-  - Pure eligibility gate: a name is tradeable on date D iff its latest close >= min_price
-    AND its trailing-adv_window mean dollar-volume >= min_avg_dollar_volume. No rank, no
-    cap, no Ichimoku — those are downstream (universe ranks+caps; signal scores+selects).
-  - Emits `bar_state.eligible` (the eligible set ∩ active). The universe phase reads its
-    OWN ranked artifact (built FROM this filter's artifact offline) and emits
-    `ranked_candidates` — the seam is two artifacts, true separation (faster #182-class
-    divergence root-causing: diff the eligible-set fingerprint first, then the ranked one).
-  - NOT the existing entry-side `eligibility` phase kind (which gates positions after
-    sizing) — this is the pre-universe tradeability filter.
-  - POINT-IN-TIME, survivorship-clean: each date's eligible set was built only from bars
-    dated <= that date. Delisted names drop after their last bar.
+MODEL (#238 live-coarse integration — the floors are APPLIED LIVE, this phase REPORTS):
+  - The tradeability floors (min_price, min_avg_dollar_volume) are now applied LIVE inside
+    runtime.universe_select.select_live_universe (run once-daily by lean_entry._coarse_
+    selection). Every ticker the live selection keeps has ALREADY cleared the floors. There
+    is no longer a precomputed `qc._eligible` artifact (the stored-file mechanism the #238
+    work retired — the 326 scar).
+  - This phase therefore EMITS the live-selected eligible set: qc._ranked_today ∩ qc._active
+    (the names that passed the floors AND are truly subscribed). The Params remain as the
+    PROVENANCE of the floor values applied live (fingerprint/config-hash); the floor MATH
+    moved to select_live_universe, mirrored by these params (they MUST stay in sync — the
+    lean_entry MIN_PRICE / MIN_AVG_DOLLAR_VOLUME / ADV_WINDOW wire the same numbers).
+  - Keeps the filter→universe seam (filter emits the eligible set; universe ranks+caps),
+    preserving REQUIRED_PHASES("filter") and the engine's phase ordering. NOT the entry-side
+    `eligibility` phase kind (which gates positions after sizing).
+  - POINT-IN-TIME, survivorship-clean by construction (the live coarse feed is the day's
+    tradeable set; delisted names simply never appear in the coarse feed for that day).
 
 Fail-loud (the #182 lessons):
-  - `_eligible` is None  -> FAIL LOUD (raise). Never pass-through-all (the 19k
-                            fall-through trap). Absent at runtime = a load/wiring bug.
-  - date not in the dict -> empty, NO raise (non-trading day / pre-listing / post-
-                            substrate). build_filter emits EVERY substrate trading date,
-                            so a missing date is never a silent gap.
+  - `_ranked_today` is None -> FAIL LOUD (raise). Never pass-through-all (the 19k
+                              fall-through trap). Absent at runtime = a live-selection wiring
+                              bug (lean_entry must always assign it, [] on a zero day).
+  - empty ranked list      -> empty eligible, NO raise (zero-candidate / pre-warmup day).
 """
 from __future__ import annotations
 
-from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
@@ -66,37 +65,34 @@ class TradeabilityFloors(BasePhase):
     def evaluate(self, ctx: PhaseContext) -> PhaseResult:
         qc = ctx.qc
         date_str = ctx.time.strftime("%Y-%m-%d")
-        eligible = getattr(qc, "_eligible", None)
+        ranked_today = getattr(qc, "_ranked_today", None)
 
-        if eligible is None:
+        if ranked_today is None:
             raise UniverseLoadError(
-                f"tradeability_floors: _eligible not loaded on {date_str} — refusing to "
-                f"trade-everything (load/wiring bug; fix Initialize). Never pass-through-all."
+                f"tradeability_floors: _ranked_today not set on {date_str} — refusing to "
+                f"trade-everything (live selection wiring bug; fix lean_entry._coarse_"
+                f"selection). Never pass-through-all."
             )
 
-        today = eligible.get(date_str)
-        if today is None:
-            # Non-trading day / pre-listing / post-substrate. Empty, NO per-day raise
-            # (the #182 weekend trap). build_filter emits every trading date → no silent gap.
+        if not ranked_today:
+            # Zero-candidate day / pre-warmup (the live selection assigns [] not None).
             ctx.bar_state.eligible = []
             return PhaseResult(
                 decision="empty",
                 blocked=False,
-                reason=f"no eligible entry for {date_str} (non-trading day / out of range)",
+                reason=f"no eligible (live) for {date_str}",
                 facts={"date": date_str, "count": 0},
                 metrics={},
             )
 
-        # `today` is the filter artifact's per-date value: {ticker: dv} (dict) — its keys
-        # are the eligible names. Accept any iterable of tickers (dict or list). The
-        # eligible set has NO rank here (rank is the universe phase's job); sort for a
-        # deterministic, order-stable `eligible` list.
-        members: Iterable[str] = today.keys() if isinstance(today, dict) else today
-        # CASE: artifact tickers lowercase, QC Symbol.value uppercase — match case-insensitively
+        # The live-selected set already cleared the floors (applied in select_live_universe).
+        # Emit it ∩ the truly-subscribed active set, sorted for a deterministic, order-stable
+        # `eligible` list (rank is the universe phase's job).
+        # CASE: ranked tickers lowercase, QC Symbol.value uppercase — match case-insensitively
         # and emit the canonical _active value (consistent with the universe phase + signal).
         active_by_lower = {s.value.lower(): s.value for s in getattr(qc, "_active", set())}
         ctx.bar_state.eligible = sorted(
-            active_by_lower[t.lower()] for t in members if t.lower() in active_by_lower
+            active_by_lower[t.lower()] for t in ranked_today if t.lower() in active_by_lower
         )
         return PhaseResult(
             decision="eligible",

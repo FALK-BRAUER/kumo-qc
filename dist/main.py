@@ -27,4 +27,3 @@ STRATEGY_CONFIG = StrategyConfig(
 
 class BCTAlgorithm(BctEngineAlgorithm):
     STRATEGY_CONFIG = STRATEGY_CONFIG
-    UNIVERSE_SPEC = {'eligible_key': 'universe/floors_p10_adv100000000_w20.filter.json', 'universe_key': 'universe/universe_ranked_n9999.json', 'membership_fp': 'c4bf02c04a1fe1d3c63925db66bbce7c4e3e3dc7919da25855aaf51523ea5444', 'order_fp': 'c43fef288aa2a0c0780f71c1ca49f818ea9a8d99c30de6253cdb5819c984e370'}

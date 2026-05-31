@@ -9,7 +9,6 @@
     "config.py",
     "context.py",
     "engine.py",
-    "fingerprints.py",
     "indicators.py",
     "lean_entry.py",
     "logger.py",
@@ -22,9 +21,10 @@
     "phase_signal_bct_score_full.py",
     "phase_sizing_flat_pct_heatcap.py",
     "phase_universe_dv_rank_cap.py",
-    "shared_oracle_helpers.py"
+    "shared_oracle_helpers.py",
+    "universe_select.py"
   ],
-  "git_commit": "345834db64acb5890a8d395275a83c00a183a0a4",
+  "git_commit": "8d1bb51bd215b652e9579a50cfaed10398e357ec",
   "phase_markers": {
     "diagnostics": "version_marker_v1",
     "exit_hard": "kijun_g3_exits_v1",

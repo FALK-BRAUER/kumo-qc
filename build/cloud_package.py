@@ -116,26 +116,23 @@ def _load_config(strategy_module: str) -> Any:
     raise ValueError(f"{strategy_module}: no StrategyConfig found (CONFIG/STRATEGY_CONFIG/EXAMPLE_CONFIG)")
 
 
-def _load_universe_spec(strategy_module: str) -> dict[str, str] | None:
-    """Return the strategy module's UNIVERSE_SPEC (ObjectStore keys + pinned fps) if it
-    declares one. Strategies that don't bind a universe artifact (the sample/example) omit
-    it, and the generated main.py then carries only STRATEGY_CONFIG."""
+def _is_deployable(strategy_module: str) -> bool:
+    """Whether the strategy is LEAN-DEPLOYABLE (#238): it gets the LEAN entry subclass
+    (runtime.lean_entry.BctEngineAlgorithm) + the live-coarse universe wiring in the
+    generated main.py. A strategy opts in by declaring `LEAN_ENTRY = True`.
+
+    #238 retired UNIVERSE_SPEC (the stored-universe-file ObjectStore keys + pinned
+    fingerprints — the 326 scar): the universe is computed LIVE from QC's coarse feed, so
+    there is no artifact to bind/verify. The discriminator is now a plain flag, not a spec.
+    Config-only fixtures (sample/example) omit LEAN_ENTRY → config-only main.py, no entry."""
     src = _src_root()
     if str(src) not in sys.path:
         sys.path.insert(0, str(src))
     mod = importlib.import_module(strategy_module)
-    spec = getattr(mod, "UNIVERSE_SPEC", None)
-    if spec is None:
-        return None
-    if not isinstance(spec, dict):
-        raise ValueError(f"{strategy_module}: UNIVERSE_SPEC must be a dict, got {type(spec).__name__}")
-    # Validate at BUILD time (fail-fast) — a malformed spec would otherwise only KeyError at
-    # QC runtime inside initialize(), post-deploy.
-    required = ("eligible_key", "universe_key", "membership_fp", "order_fp")
-    missing = [k for k in required if not spec.get(k)]
-    if missing:
-        raise ValueError(f"{strategy_module}: UNIVERSE_SPEC missing/empty keys {missing} (need {list(required)})")
-    return spec
+    flag = getattr(mod, "LEAN_ENTRY", False)
+    if not isinstance(flag, bool):
+        raise ValueError(f"{strategy_module}: LEAN_ENTRY must be a bool, got {type(flag).__name__}")
+    return flag
 
 
 def _enabled_slots(config: Any) -> list[tuple[str, Any]]:
@@ -181,7 +178,7 @@ def build(strategy_module: str, *, dist_dir: Path | None = None, verbose: bool =
     src = _src_root()
     dist = dist_dir if dist_dir is not None else src.parent / "dist"
     config = _load_config(strategy_module)
-    universe_spec = _load_universe_spec(strategy_module)
+    deployable = _is_deployable(strategy_module)
     enabled = _enabled_slots(config)
 
     # seed = enabled phase module files + engine core
@@ -193,10 +190,10 @@ def build(strategy_module: str, *, dist_dir: Path | None = None, verbose: bool =
         seeds.append(f)
     for m in ENGINE_CORE:
         seeds.append(src / "engine" / f"{m}.py")
-    # The LEAN entry (#213) is seeded only for deployable strategies (those binding a
-    # UNIVERSE_SPEC); it pulls runtime.fingerprints (the load-time fp-verify) transitively.
-    # Config-only fixtures (sample/example) stay minimal — no LEAN entry.
-    if universe_spec is not None:
+    # The LEAN entry (#213/#238) is seeded only for deployable strategies (LEAN_ENTRY=True);
+    # it pulls runtime.universe_select (the live filter→rank→cap) transitively. Config-only
+    # fixtures (sample/example) stay minimal — no LEAN entry.
+    if deployable:
         seeds.append(src / "runtime" / "lean_entry.py")
 
     closure = _closure(seeds, src)
@@ -212,7 +209,7 @@ def build(strategy_module: str, *, dist_dir: Path | None = None, verbose: bool =
         included.append(flat)
 
     # generated flat entry + manifest + metadata
-    phase_markers = _emit_main(config, enabled, dist, src, universe_spec)
+    phase_markers = _emit_main(config, enabled, dist, src, deployable)
     result = BuildResult(
         config_hash=_config_hash(config),
         data_fingerprint=_data_fingerprint(),
@@ -238,11 +235,12 @@ def _emit_main(
     enabled: list[tuple[str, Any]],
     dist: Path,
     src: Path,
-    universe_spec: dict[str, str] | None = None,
+    deployable: bool = False,
 ) -> dict[str, str]:
     """Generate dist/main.py: flat imports of enabled phases + rebuilt enabled config.
-    If the strategy binds a UNIVERSE_SPEC, also emit the LEAN entry subclass (#213) so the
-    same dist artifact runs on QC; otherwise emit only the config (sample/example)."""
+    If the strategy is LEAN-deployable (#238 LEAN_ENTRY=True), also emit the LEAN entry
+    subclass so the same dist artifact runs on QC (the universe is computed live — no
+    UNIVERSE_SPEC); otherwise emit only the config (sample/example)."""
     markers: dict[str, str] = {}
     # engine __init__ is dropped in flat dist; import the flat modules directly instead
     imports = [
@@ -286,21 +284,21 @@ def _emit_main(
             except Exception:
                 marker_texts.append(_flat_name(_module_to_file(s.impl.__module__, src), src)[:-3])
         markers[kind] = ",".join(marker_texts)
-    if universe_spec is not None:
+    if deployable:
         imports.append("from lean_entry import BctEngineAlgorithm")
     body = "\n".join(imports) + "\n\n"
     body += f'STRATEGY_CONFIG = StrategyConfig(\n    name={config.name!r},\n    version={config.version!r},\n    phases={{\n'
     body += "\n".join(slot_lines) + "\n    },\n)\n\n"
-    if universe_spec is not None:
-        # The LEAN entry subclass (#213). QC instantiates this top-level QCAlgorithm; it
-        # fail-loud + fp-verify loads the universe from ObjectStore and runs the engine.
+    if deployable:
+        # The LEAN entry subclass (#213/#238). QC instantiates this top-level QCAlgorithm; it
+        # registers the LIVE coarse-driven universe (add_universe → select_live_universe) and
+        # runs the engine. No UNIVERSE_SPEC: the universe is computed live, not loaded.
         body += (
             "\nclass BCTAlgorithm(BctEngineAlgorithm):\n"
             "    STRATEGY_CONFIG = STRATEGY_CONFIG\n"
-            f"    UNIVERSE_SPEC = {universe_spec!r}\n"
         )
     else:
-        body += "# No UNIVERSE_SPEC — config-only build (sample/example); no LEAN entry emitted.\n"
+        body += "# Not LEAN-deployable — config-only build (sample/example); no LEAN entry emitted.\n"
     (dist / "main.py").write_text(body)
     return markers
 
