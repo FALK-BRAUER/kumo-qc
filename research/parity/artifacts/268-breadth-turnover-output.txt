@@ -1,0 +1,91 @@
+
+=== CLOUD (8ddbe2b..., 291 orders) ===
+  n_filled                : 286
+  n_buys                  : 148
+  n_sells                 : 138
+  distinct_symbols        : 111
+  distinct_entered        : 111
+  round_trips_total       : 148
+  round_trips_closed      : 138
+  open_at_end             : 10
+  hold_median             : 16.5
+  hold_mean               : 23.0
+  hold_max                : 148
+  hold_min                : 1
+  max_concurrent          : 20
+  max_concurrent_trading  : 20
+  median_concurrent_trading: 11
+  first_entry             : 2025-01-02
+  last_fill               : 2025-12-26
+
+=== LOCAL (1158674033, 244 orders) ===
+  n_filled                : 243
+  n_buys                  : 126
+  n_sells                 : 117
+  distinct_symbols        : 93
+  distinct_entered        : 93
+  round_trips_total       : 126
+  round_trips_closed      : 117
+  open_at_end             : 9
+  hold_median             : 20
+  hold_mean               : 24.2
+  hold_max                : 105
+  hold_min                : 1
+  max_concurrent          : 20
+  max_concurrent_trading  : 20
+  median_concurrent_trading: 10.0
+  first_entry             : 2025-01-03
+  last_fill               : 2025-12-26
+
+=== GAP attribution ===
+  order(filled) gap: cloud 286 - local 243 = 43
+  buy gap:  22   sell gap: 21
+  distinct-symbol gap: 18
+  round-trip gap: 22
+  max-concurrent: cloud 20 vs local 20
+
+=== ENTRY breadth ===
+  cloud entered: 111  local entered: 93
+  overlap: 74
+  cloud-only: 37  -> ['ALL', 'AMZN', 'BECN', 'BRK.B', 'CAH', 'CDNS', 'CHWY', 'CMA', 'CME', 'COST', 'CRWD', 'CTVA', 'DRI', 'EBAY', 'ED', 'EXC', 'ITCI', 'IVV', 'JCI', 'KGC', 'KRE', 'MO', 'NOC', 'RBA', 'SHY', 'SLV', 'SMH', 'SNOW', 'SPGI', 'TMUS', 'TWLO', 'USO', 'VOO', 'VRSK', 'XEL', 'XLK', 'XYZ']
+  local-only: 19  -> ['AIG', 'ALNY', 'COR', 'DIA', 'EEM', 'EXPE', 'HIG', 'HLN', 'HYG', 'IBIT', 'IWM', 'KR', 'MCO', 'NET', 'RSP', 'SGOV', 'TJX', 'XLI', 'XLP']
+
+=== OVERLAP exit-timing (first round-trip per shared symbol) ===
+  shared symbols: 74
+  shared with BOTH closed: 69
+  cloud exits EARLIER: 12  | local earlier: 11  | same: 46
+  median hold (shared) cloud=14  local=17
+  mean hold   (shared) cloud=21.9  local=22.7
+
+  Top shared names where LOCAL held longer than CLOUD (delta = local_hold - cloud_hold days):
+  sym   c_entry    c_exit     c_hold l_entry    l_exit     l_hold  delta
+  JPM   2025-01-02 2025-01-03      1 2025-01-03 2025-02-25     53     52
+  C     2025-01-02 2025-01-03      1 2025-01-03 2025-02-24     52     51
+  IBM   2025-02-25 2025-03-12     15 2025-05-13 2025-07-18     66     51
+  SPY   2025-01-06 2025-01-08      2 2025-07-07 2025-08-04     28     26
+  GOOG  2025-01-06 2025-01-28     22 2025-08-27 2025-10-13     47     25
+  GOOGL 2025-01-06 2025-01-28     22 2025-08-27 2025-10-13     47     25
+  PLTR  2025-01-06 2025-01-08      2 2025-05-13 2025-06-06     24     22
+  CEG   2025-08-05 2025-08-14      9 2025-01-03 2025-01-28     25     16
+  QQQ   2025-01-06 2025-01-08      2 2025-07-17 2025-08-04     18     16
+  V     2025-01-02 2025-01-07      5 2025-02-18 2025-03-07     17     12
+  UAL   2025-01-02 2025-01-03      1 2025-01-15 2025-01-24      9      8
+  NFLX  2025-02-04 2025-02-28     24 2025-01-29 2025-02-28     30      6
+
+  Top shared names where CLOUD held longer than LOCAL:
+  AZO   2025-03-25 2025-04-07     13 2025-01-03 2025-01-08      5     -8
+  ET    2025-01-02 2025-02-10     39 2025-01-15 2025-02-10     26    -13
+  MA    2025-05-13 2025-06-16     34 2025-03-03 2025-03-05      2    -32
+  GDX   2025-09-04 2025-10-22     48 2025-03-25 2025-04-07     13    -35
+  SPOT  2025-05-13 2025-07-11     59 2025-01-03 2025-01-06      3    -56
+  RBLX  2025-05-13 2025-10-08    148 2025-01-03 2025-02-10     38   -110
+
+=== SUBMIT-TIME / FILL-LATENCY (the localized driver) ===
+  CLOUD submit-time-of-day: {'05:00': 31, '21:00': 77, '21:15': 19, '20:00': 106, '20:15': 28, '04:00': 27, '18:00': 1}
+  LOCAL submit-time-of-day: {'21:00': 78, '21:15': 29, '20:00': 102, '20:15': 33, '17:00': 1, '18:00': 1}
+  CLOUD open-bar (04/05h) submissions: buys=58 sells=0
+  CLOUD submit->fill day-latency: {0: 53, 1: 184, 3: 46, 2: 1}
+  LOCAL submit->fill day-latency: {1: 203, 3: 35, 4: 3, 2: 2}
+  -> LOCAL has ZERO open-bar submissions; every local order submits
+     at the close and fills next day. Cloud fires 58 entries at the
+     OPEN (same-day fill) = 1-bar entry-execution lead.
