@@ -392,8 +392,22 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         # With the derived warmup (WARMUP_DAYS, 560d -> ~78 weekly bars) the consolidator
         # receives enough weekly bars automatically; only seed manually outside warmup (a name
         # added mid-run after warmup) — avoid N× history() calls at init.
+        #
+        # #259 (the amplifier fix): a name that enters the universe AFTER warmup ends (the
+        # dynamic mid-FY entrant) gets FRESHLY-registered daily indicators that would otherwise
+        # accumulate LIVE from scratch — d_ichi/sma200/adx/roc need ~52/200/~30/13 daily bars
+        # to become is_ready, so score_symbol_native returns None for ~9-10 months and the name
+        # never qualifies (the #173 "wakes up in October" tell). DURING warmup QC auto-warms
+        # the subscribed indicators (PART A ensures names ARE subscribed in warmup), so the seed
+        # is ONLY for the post-warmup entrant — exactly mirroring the weekly-seed guard. Seed the
+        # WEEKLY ichimoku AND the full DAILY suite from history so the name can qualify the day
+        # it is first subscribed. NO if-cloud branch — single code path, RAW (history default
+        # follows universe_settings.data_normalization_mode = RAW set in initialize()).
         if not self.is_warming_up:
             self._seed_weekly(sym, w_ichi, w_close)
+            self._seed_daily(
+                sym, d_ichi, sma200, adx, adx_window, roc13, macd, vol_sma20, tbounce
+            )
 
         self._indicators[sym] = {
             "d_ichi": d_ichi,
@@ -439,6 +453,83 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             )
             w_ichi.update(bar)
             w_close.add(float(wb["close"]))
+
+    def _seed_daily(
+        self,
+        sym: Any,
+        d_ichi: Any,
+        sma200: Any,
+        adx: Any,
+        adx_window: Any,
+        roc13: Any,
+        macd: Any,
+        vol_sma20: Any,
+        tbounce: Any,
+    ) -> None:
+        """History-seed the DAILY indicator suite for a name subscribed AFTER warmup (#259).
+
+        Mirrors _seed_weekly's idiom: pull WARMUP_DAYS of daily bars and replay them in
+        chronological order, feeding each indicator the SAME way its live subscription would,
+        so the suite is is_ready immediately rather than ~9-10 months later (the empty-warmup
+        amplifier, #173).
+
+        Per-indicator feed (matching the live wiring in _register_indicators):
+          - d_ichi / adx  : consume the full TradeBar (.update(bar)). adx.updated fires the
+            adx_window lambda automatically, so the rolling ADX window fills as a side effect.
+          - sma200        : price-series indicator — .update(time, close).
+          - roc13         : price-series indicator — .update(time, close).
+          - macd          : price-series indicator — .update(time, close). macd.updated fires
+            the macd_hist_window lambda automatically.
+          - vol_sma20     : VOLUME-field SMA — .update(time, volume).
+          - tbounce       : the daily consolidator's _on_daily feeds it OHLC + the live daily
+            Tenkan; replay the same (using d_ichi's tenkan once d_ichi.is_ready, else 0.0).
+
+        FORWARD-ONLY GUARD (the daily analogue of _seed_weekly's Monday-seed lesson, #213f):
+        IchimokuKinkoHyo + ADX are forward-only — an .update() with a timestamp <= the
+        indicator's last sample is REJECTED ("This is a forward only indicator"). On the day a
+        name is subscribed, QC has ALREADY fed the live daily bar (timed at the session close,
+        e.g. 16:00Z) to the auto-updated d_ichi/adx BEFORE on_securities_changed runs the seed,
+        and history() returns that same current day as its LAST row at the intraday data time
+        (e.g. 13:00Z) → seeding it would be a backward update (13:00 < 16:00) → rejected + a
+        polluted partial bar. FIX: drop any history row dated >= the current algorithm DAY, so
+        the seed feeds ONLY strictly-earlier complete bars and the live feed owns today's bar.
+        This keeps the seed monotonic with the live stream (same invariant the Monday-seed
+        gives the weekly path). Single code path, RAW (history inherits RAW). No cloud branch.
+        """
+        hist = self.history(sym, self.WARMUP_DAYS, Resolution.DAILY)
+        if hist is None or hist.empty:
+            return
+        if isinstance(hist.index, pd.MultiIndex):
+            hist = hist.droplevel(0)
+        hist.columns = [c.lower() for c in hist.columns]
+        # Forward-only guard: seed only bars STRICTLY BEFORE today (the live feed owns today's
+        # bar, already fed to the auto-updated d_ichi/adx → seeding it = a backward update).
+        today = self.time.date()
+        hist = hist[[ts.date() < today for ts in hist.index]]
+        if hist.empty:
+            return
+        for ts, row in hist.iterrows():
+            t = ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts
+            o, h, lo, c, v = (
+                float(row["open"]),
+                float(row["high"]),
+                float(row["low"]),
+                float(row["close"]),
+                float(row.get("volume", 0.0)),
+            )
+            bar = TradeBar(t, sym, o, h, lo, c, v, timedelta(days=1))
+            # Full-bar consumers (adx.updated cascades into adx_window).
+            d_ichi.update(bar)
+            adx.update(bar)
+            # Price-series consumers (macd.updated cascades into macd_hist_window).
+            sma200.update(t, c)
+            roc13.update(t, c)
+            macd.update(t, c)
+            # Volume-field consumer.
+            vol_sma20.update(t, v)
+            # T-Bounce tracker: replay the live _on_daily feed (OHLC + live daily Tenkan).
+            tk = d_ichi.tenkan.current.value if d_ichi.is_ready else 0.0
+            tbounce.update(o, h, lo, c, float(tk))
 
     def on_data(self, data: Any) -> None:
         """Per-bar entry: build the PhaseContext and run the engine. The engine fires on the

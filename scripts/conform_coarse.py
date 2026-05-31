@@ -53,11 +53,26 @@ local-approximation limit (cloud=truth validates true breadth) — we do NOT pre
 
 Idempotent + deterministic: re-running overwrites cleanly; rows are sorted by ticker.
 
+WARMUP WINDOW (#259 — the empty-warmup parity fix):
+  The mainV2 engine calls `set_warmup(timedelta(days=560))` (WARMUP_DAYS=560 CALENDAR days)
+  before the FY2025 start (2025-01-01). 560 cal days before 2025-01-01 = 2023-06-21, so the
+  warmup span is 2023-06-20 → 2024-12-31 (06-20 floor = a 1-day safety margin). BEFORE #259
+  this window held the OLD ~201-row 5-col-HEADER synthetic coarse format LEAN's native reader
+  CANNOT parse → the local warmup universe was EMPTY for 18 months → zero subscriptions → the
+  maintained daily indicators never warmed → score_symbol_native returned None → local barely
+  traded until ~Oct-2025 (the −0.616/+3.9% empty-warmup ARTIFACT vs cloud −11.8%, #173). The
+  `--warmup` flag conforms this span to the SAME 8-col headerless QC-native format as FY2025
+  (identical logic — daily-zip close/volume/DV, hand-rolled Path-A SID, RAW), OVERWRITING the
+  old synthetic files in place and DELETING orphan old-format files on non-session dates
+  (holidays) in the span so the native reader never trips on a stale 5-col header.
+
 Usage:
   # smoke (one ticker, one day):
   python3 scripts/conform_coarse.py --smoke --ticker NVDA --date 20250103
   # full FY2025 (session calendar derived from the daily data, not hardcoded):
   python3 scripts/conform_coarse.py --start 20250102 --end 20251231
+  # WARMUP window (the #259 fix) — derives 2023-06-20 → 2024-12-31 + cleans orphans:
+  python3 scripts/conform_coarse.py --warmup
 """
 from __future__ import annotations
 
@@ -65,6 +80,7 @@ import argparse
 import datetime as _dt
 import sys
 import zipfile
+from functools import lru_cache
 from pathlib import Path
 
 # ── LEAN SecurityIdentifier constants (Common/SecurityIdentifier.cs) ──────────
@@ -89,6 +105,12 @@ _OA_EPOCH = _dt.date(1899, 12, 30)  # OLE Automation date epoch
 
 # Local daily-equity price scale (LEAN stores deci-cents: real_price = raw / 10000).
 _PRICE_SCALE = 10000.0
+
+# WARMUP window (#259). The engine warms 560 CALENDAR days before the FY2025 start
+# (2025-01-01); 560 cal days back = 2023-06-21. We floor the span lower bound to 2023-06-20
+# (1-day margin) and end at 2024-12-31 (the day before the live window).
+_WARMUP_START = "20230620"
+_WARMUP_END = "20241231"
 
 _DATA = Path("data/equity/usa")
 _DAILY = _DATA / "daily"
@@ -140,17 +162,18 @@ def map_first_date(ticker: str) -> _dt.date | None:
     return _dt.datetime.strptime(ymd, "%Y%m%d").date()
 
 
-def factor_for(ticker: str, on: _dt.date) -> tuple[float, float]:
-    """(price_factor, split_factor) from factor_files as-of `on`, else (1.0, 1.0).
+@lru_cache(maxsize=None)
+def _factor_rows(ticker: str) -> tuple[tuple[_dt.date, float, float], ...]:
+    """Parsed+sorted factor rows for a ticker, MEMOISED (each file read+parsed once).
 
-    Factor file rows: YYYYMMDD,price_factor,split_factor (effective on/before that date).
-    We take the latest row with date >= `on` (LEAN factor lookup is forward-looking from
-    the bar date); fall back to the last row, else (1,1). RAW prices mean these are emitted
-    for format-completeness, not applied to close.
+    A full-span conform calls factor_for for every (ticker × session) pair — re-parsing the
+    same file thousands of times without a cache. lru_cache keyed on the ticker reads+parses
+    each factor file exactly once (empty tuple = no file / unparseable). Returned as a tuple
+    so it stays hashable + immutable in the cache.
     """
     fp = _FACTORS / f"{ticker.lower()}.csv"
     if not fp.is_file():
-        return 1.0, 1.0
+        return ()
     rows: list[tuple[_dt.date, float, float]] = []
     with fp.open() as fh:
         for line in fh:
@@ -165,9 +188,21 @@ def factor_for(ticker: str, on: _dt.date) -> tuple[float, float]:
                 rows.append((d, float(parts[1]), float(parts[2])))
             except ValueError:
                 continue
+    rows.sort()
+    return tuple(rows)
+
+
+def factor_for(ticker: str, on: _dt.date) -> tuple[float, float]:
+    """(price_factor, split_factor) from factor_files as-of `on`, else (1.0, 1.0).
+
+    Factor file rows: YYYYMMDD,price_factor,split_factor (effective on/before that date).
+    We take the latest row with date >= `on` (LEAN factor lookup is forward-looking from
+    the bar date); fall back to the last row, else (1,1). RAW prices mean these are emitted
+    for format-completeness, not applied to close. File parse is memoised in _factor_rows.
+    """
+    rows = _factor_rows(ticker)
     if not rows:
         return 1.0, 1.0
-    rows.sort()
     for d, pf, sf in rows:
         if d >= on:
             return pf, sf
@@ -252,7 +287,7 @@ def session_dates(start: str, end: str) -> list[str]:
     return days
 
 
-def write_day(ymd: str, pool: list[str], daily_cache: dict[str, dict | None]) -> int:
+def write_day(ymd: str, pool: list[str], daily_cache: dict[str, dict[str, tuple[float, int]] | None]) -> int:
     """Write one YYYYMMDD.csv for all pool tickers with a bar that day. Returns row count."""
     rows: list[str] = []
     for tk in pool:
@@ -272,6 +307,46 @@ def write_day(ymd: str, pool: list[str], daily_cache: dict[str, dict | None]) ->
     return len(rows)
 
 
+def clean_orphan_files(start: str, end: str, sessions: list[str]) -> list[str]:
+    """Delete coarse CSVs in [start,end] that are NOT trading sessions (stale holiday files).
+
+    The session calendar (derived from SPY) excludes market holidays, so a conform run never
+    writes/overwrites a coarse file on e.g. 2023-07-04. The pre-#259 synthetic feed DID emit
+    those days as 5-col-header files; left behind they are stale orphans the native reader
+    could still trip on. Removing them keeps the span uniformly 8-col QC-native. Returns the
+    list of removed YYYYMMDD stems.
+    """
+    session_set = set(sessions)
+    removed: list[str] = []
+    if not _COARSE_OUT.is_dir():
+        return removed
+    for fp in _COARSE_OUT.glob("*.csv"):
+        ymd = fp.stem
+        if start <= ymd <= end and ymd not in session_set:
+            fp.unlink()
+            removed.append(ymd)
+    return sorted(removed)
+
+
+def _run_span(start: str, end: str, clean: bool) -> None:
+    """Conform every session in [start, end]; optionally purge non-session orphans first."""
+    pool = _local_pool()
+    sessions = session_dates(start, end)
+    if not sessions:
+        sys.exit(f"no sessions in [{start}..{end}] — check daily calendar source")
+    print(f"local pool = {len(pool)} tickers (daily ∩ map_file); sessions = {len(sessions)} "
+          f"[{sessions[0]}..{sessions[-1]}]")
+    if clean:
+        removed = clean_orphan_files(start, end, sessions)
+        print(f"removed {len(removed)} orphan non-session coarse files: {removed}")
+    daily_cache: dict[str, dict[str, tuple[float, int]] | None] = {}
+    total = 0
+    for ymd in sessions:
+        n = write_day(ymd, pool, daily_cache)
+        total += n
+    print(f"wrote {len(sessions)} files, {total} rows total, avg {total // max(1, len(sessions))} rows/day")
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--smoke", action="store_true", help="emit a single ticker/day row (gate)")
@@ -279,6 +354,10 @@ def main() -> None:
     p.add_argument("--date", help="smoke or single-day: YYYYMMDD")
     p.add_argument("--start", help="full: first session YYYYMMDD")
     p.add_argument("--end", help="full: last session YYYYMMDD")
+    p.add_argument(
+        "--warmup", action="store_true",
+        help=f"conform the #259 WARMUP span ({_WARMUP_START}..{_WARMUP_END}) + clean orphans",
+    )
     args = p.parse_args()
 
     if args.smoke:
@@ -296,18 +375,14 @@ def main() -> None:
         print(f"SMOKE wrote {out} :\n  {row}")
         return
 
+    if args.warmup:
+        # The #259 warmup conform: clean the stale 5-col orphans + write the 8-col span.
+        _run_span(_WARMUP_START, _WARMUP_END, clean=True)
+        return
+
     if not (args.start and args.end):
-        sys.exit("full run requires --start and --end (YYYYMMDD)")
-    pool = _local_pool()
-    sessions = session_dates(args.start, args.end)
-    print(f"local pool = {len(pool)} tickers (daily ∩ map_file); sessions = {len(sessions)} "
-          f"[{sessions[0]}..{sessions[-1]}]" if sessions else "no sessions")
-    daily_cache: dict[str, dict | None] = {}
-    total = 0
-    for ymd in sessions:
-        n = write_day(ymd, pool, daily_cache)
-        total += n
-    print(f"wrote {len(sessions)} files, {total} rows total, avg {total // max(1, len(sessions))} rows/day")
+        sys.exit("full run requires --start and --end (YYYYMMDD), or use --warmup")
+    _run_span(args.start, args.end, clean=False)
 
 
 if __name__ == "__main__":
