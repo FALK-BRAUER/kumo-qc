@@ -1,6 +1,6 @@
 {
   "build_script_version": "1.0.0",
-  "config_hash": "999ec7745455",
+  "config_hash": "90c8fc6103ca",
   "data_fingerprint": "90f2d7e3fb80d0a4d2eb286f6a43199e1519495a3ce9d787a4d7d0dfc70c535c",
   "files": [
     "_manifest.json",
@@ -21,13 +21,13 @@
     "phase_regime_spy_200ma.py",
     "phase_regime_vix_percentile.py",
     "phase_signal_bct_score_full.py",
-    "phase_sizing_flat_pct_heatcap.py",
+    "phase_sizing_score_tier_heatcap.py",
     "phase_universe_dv_rank_cap.py",
     "shared_oracle_helpers.py",
     "shared_param_space.py",
     "universe_select.py"
   ],
-  "git_commit": "99323ad1e530ceefdb4fcc776c0851b845d397f1",
+  "git_commit": "6e0a0540365b3f50876f68d5b69333f5a04e26fd",
   "phase_markers": {
     "diagnostics": "version_marker_v1,chart_emit_v1",
     "entry_selection": "bct_entry_confirm_v1",
@@ -35,7 +35,7 @@
     "exit_hard": "kijun_g3_exits_v1",
     "regime": "spy_200ma_v1,vix_percentile_v1",
     "signal": "bct_score_full_v1",
-    "sizing": "flat_pct_heatcap_v1",
+    "sizing": "score_tier_heatcap_v1",
     "universe": "dv_rank_cap_v1"
   }
 }
