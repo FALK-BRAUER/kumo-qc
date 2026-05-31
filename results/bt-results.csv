@@ -1,0 +1,9 @@
+config_hash,data_fingerprint,commit,bt_id,marker,sharpe,ret_pct,dd_pct,orders,window,verdict
+e573e84b1ce1,90f2d7e3,369b5d9,local:2026-05-31_20-46-41,base-baseline-asis,-0.616,3.899,3.4,75,FY2025,LOCAL-ARTIFACT-INVALID(empty-warmup-coarse;not-a-baseline;see first-divergence-diff-2025)
+e573e84b1ce1,90f2d7e3,369b5d9,cloud:8cd94678f037055e1bf4263ee4c9315f,base-baseline-asis,-0.787,-11.848,21.9,324,FY2025,CLOUD-GROUND-TRUTH-PARITY-FAIL-vs-local(warmup-coarse root-cause; fix before trusting)
+e573e84b1ce1,90f2d7e3,369b5d9,local:2026-05-31_20-48-06,base-baseline-asis,-8.234,-0.104,0.2,4,FY2025-W1-jan-feb,window-local-noisy
+e573e84b1ce1,90f2d7e3,369b5d9,local:2026-05-31_20-48-42,base-baseline-asis,0.0,0.0,0.0,0,FY2025-W2-mar-apr,window-local-noisy
+e573e84b1ce1,90f2d7e3,369b5d9,local:2026-05-31_20-49-06,base-baseline-asis,-4.784,0.396,0.2,1,FY2025-W3-may-jun,window-local-noisy
+e573e84b1ce1,90f2d7e3,369b5d9,local:2026-05-31_20-49-31,base-baseline-asis,-5.482,0.331,0.2,3,FY2025-W4-jul-aug,window-local-noisy
+e573e84b1ce1,90f2d7e3,369b5d9,local:2026-05-31_20-50-02,base-baseline-asis,-6.177,0.214,0.3,3,FY2025-W5-sep-oct,window-local-noisy
+e573e84b1ce1,90f2d7e3,369b5d9,local:2026-05-31_20-50-36,base-baseline-asis,-11.336,0.041,0.2,1,FY2025-W6-nov-dec,window-local-noisy
