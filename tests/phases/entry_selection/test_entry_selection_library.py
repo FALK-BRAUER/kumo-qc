@@ -43,11 +43,16 @@ def test_every_catalogued_phase_exposes_space_and_complexity() -> None:
 
 def test_bct_entry_confirm_space_shape() -> None:
     space = BctEntryConfirm.Params.space()
-    assert set(space.axes) == {"tenkan_pullback_tol", "volume_gate_mult", "macd_signal", "min_confirm"}
-    assert 1.0 in space.axes["volume_gate_mult"]   # canonical gate is in the sweep
-    assert 9 in space.axes["macd_signal"]          # canonical signal period
-    assert 2 in space.axes["min_confirm"]          # canonical qualify floor
-    assert space.grid_size == 81                   # 3x3x3x3
-    assert "macd_fast" not in space.axes, "canonical 12/26 NOT swept (no per-ticker MACD opt)"
+    assert set(space.axes) == {
+        "tenkan_pullback_tol", "flat_eps", "volume_gate_mult", "gap_up_threshold", "min_confirm"
+    }
+    assert 1.0 in space.axes["volume_gate_mult"]    # canonical gate is in the sweep
+    assert 0.002 in space.axes["flat_eps"]          # canonical Tenkan-flat eps
+    assert 0.01 in space.axes["gap_up_threshold"]   # HQ-ruled 1% gap-up degrade default
+    assert 2 in space.axes["min_confirm"]           # canonical qualify floor
+    assert space.grid_size == 243                   # 3^5
+    # macd_fast/macd_slow/macd_signal are ALL frozen-canonical (macd_signal's old sweep was inert).
+    assert "macd_fast" not in space.axes
     assert "macd_slow" not in space.axes
+    assert "macd_signal" not in space.axes, "inert axis dropped (#253-P1) — frozen canonical 9"
     assert "enabled" not in space.axes

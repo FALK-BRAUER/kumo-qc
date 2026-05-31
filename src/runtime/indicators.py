@@ -46,45 +46,60 @@ INDICATOR_KEYS: tuple[str, ...] = (
 
 
 class TBounceTracker:
-    """Maintained §2-Component-2 (T-Bounce) degrade state — pure, history-free, daily-updated.
+    """Maintained §2-Component-2 (T-Bounce) state — pure, history-free, DAILY-OHLC-fed.
 
-    The T-Bounce sub-conditions that need RECENT context (not just today's bar) are:
-      - "was above Tenkan, not a bounce off a downtrend" -> `sessions_below_tenkan` (consecutive
-        daily closes below the daily Tenkan; degrade C2 when > 3, the methodology Rule).
-      - "first test after a large gap-up (Rule #10)" -> `gap_up_frac` = today's open vs the prior
-        close as a fraction (the entry phase degrades C2 when >= its gap_up_threshold).
+    HQ ruling (#253-P1): C2 must read the latest DAILY OHLC BAR (open/high/low/close), NOT the
+    live close-snapshot — the pullback (C2b) is a daily-LOW touch and the bounce (C2c) is a
+    daily-candle bullish-close / lower-wick rejection. This tracker stores the LATEST completed
+    daily bar so the entry phase reads it O(1) (no per-bar history). It also maintains the two
+    recent-context degrade inputs:
+      - `sessions_below_tenkan` (consecutive daily closes below daily Tenkan; degrade C2 when >3).
+      - `gap_up_frac` = today's open vs the PRIOR daily close (degrade C2 when > gap_up_threshold,
+        the Rule #10 first-test-after-gap-up guard; HQ default 1%).
 
-    update(open_, close, tenkan) is called once per completed daily bar (a daily consolidator in
-    lean_entry feeds it). It is a plain state machine over floats — golden-masterable with no QC
-    types — so the entry phase reads O(1) maintained state, never a per-bar history() (the
-    single-code-path / no-isolator-timeout rule). `prev_close` carries across bars for the gap.
+    update(open_, high, low, close, tenkan) is called once per completed daily bar (the daily
+    consolidator in lean_entry feeds it). Pure float state — golden-masterable, no QC types.
+    `last_*` are None until the first bar (the phase declines a candidate with no daily bar yet).
     """
 
-    __slots__ = ("sessions_below_tenkan", "gap_up_frac", "prev_close")
+    __slots__ = (
+        "sessions_below_tenkan", "gap_up_frac", "prev_close",
+        "last_open", "last_high", "last_low", "last_close",
+    )
 
     def __init__(self) -> None:
         self.sessions_below_tenkan: int = 0
         self.gap_up_frac: float = 0.0
         self.prev_close: float | None = None
+        self.last_open: float | None = None
+        self.last_high: float | None = None
+        self.last_low: float | None = None
+        self.last_close: float | None = None
 
-    def update(self, open_: float, close: float, tenkan: float) -> None:
+    def update(self, open_: float, high: float, low: float, close: float, tenkan: float) -> None:
         """Fold one completed daily bar into the maintained T-Bounce state.
 
-        sessions_below_tenkan: increment while close < Tenkan, reset to 0 the day close >= Tenkan
-          (consecutive count of sessions the name sat under its Tenkan-sen).
-        gap_up_frac: (open - prev_close)/prev_close, clamped at >= 0 (only UP gaps matter for the
-          Rule #10 degrade; a gap-down is 0.0). First bar (no prior close) -> 0.0.
+        Stores the bar as `last_open/high/low/close` (C2 reads these), then updates:
+        sessions_below_tenkan: increment while close < Tenkan, reset to 0 the day close >= Tenkan.
+        gap_up_frac: (open - prev_close)/prev_close, clamped at >= 0 (only UP gaps matter; a
+          gap-down is 0.0). First bar (no prior close) -> 0.0. Uses the PRIOR close (set last bar).
         """
-        if tenkan > 0.0 and close < tenkan:
-            self.sessions_below_tenkan += 1
-        else:
-            self.sessions_below_tenkan = 0
-
+        # gap uses the PRIOR bar's close — compute BEFORE overwriting prev_close.
         if self.prev_close is not None and self.prev_close > 0.0:
             frac = (open_ - self.prev_close) / self.prev_close
             self.gap_up_frac = frac if frac > 0.0 else 0.0
         else:
             self.gap_up_frac = 0.0
+
+        if tenkan > 0.0 and close < tenkan:
+            self.sessions_below_tenkan += 1
+        else:
+            self.sessions_below_tenkan = 0
+
+        self.last_open = open_
+        self.last_high = high
+        self.last_low = low
+        self.last_close = close
         self.prev_close = close
 
 

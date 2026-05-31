@@ -55,9 +55,24 @@ class _Macd:
 
 
 class _TBounce:
-    def __init__(self, sessions: int = 0, gap: float = 0.0) -> None:
+    """TBounceTracker-shape: the last daily OHLC bar + the C2 degrade state. Defaults = a clean
+    pullback-and-bounce bar at the all-confirm reference (low touches Tenkan 99.7, bullish close)."""
+
+    def __init__(
+        self,
+        sessions: int = 0,
+        gap: float = 0.0,
+        last_open: float = 99.6,
+        last_high: float = 100.2,
+        last_low: float = 99.5,
+        last_close: float = 100.0,
+    ) -> None:
         self.sessions_below_tenkan = sessions
         self.gap_up_frac = gap
+        self.last_open = last_open
+        self.last_high = last_high
+        self.last_low = last_low
+        self.last_close = last_close
 
 
 class _Sym:

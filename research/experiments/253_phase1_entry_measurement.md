@@ -6,12 +6,46 @@
 deltas vs the LOCAL baseline run on the IDENTICAL code path + data, NOT vs the 0.778 adjusted
 champion.
 
+## RE-MEASUREMENT after the HQ #253-P1 C2 daily-OHLC fix (2026-05-31)
+
+The C2 correctness fix (read the latest DAILY OHLC bar — low-touch pullback + bullish-close /
+lower-wick bounce — NOT the close-snapshot) + the 5 ruled flags + the C3 positive-flat fix + the
+dropped inert macd_signal axis are ALL applied (config_hash now `999ec7745455`). Re-running FY2025:
+
+| Config | Sharpe | Net % | DD % | Orders |
+|---|---|---|---|---|
+| champion_entry (PRE-fix, close-snapshot C2) | −1.016 | +0.194 | 4.4 | 70 |
+| **champion_entry (POST-fix, daily-OHLC C2)** | **−1.016** | **+0.194** | **4.4** | **70** |
+
+**The corrected C2 did NOT move the FY trio — and that is a real STRUCTURAL finding, verified:**
+- The fix IS live + correct: with an impossible C4 gate (`volume_gate_mult=100`) orders → **0**
+  (confirmed:0 every bar) → the entry_selection gate provably binds. The X/4 score distribution is
+  now rich (many 3/4 and 4/4 — the C2+C3 fixes produce more confirmations), confirmed in the BT log.
+- min_confirm=2 vs **min_confirm=3** → **identical** (−1.016 / 70 orders). So C2/C3 do NOT change
+  the FIRED-order set at the canonical params.
+- ROOT CAUSE: at min_confirm=2 with C1(regime)+C4(volume) MANDATORY, **C1+C4 alone already = 2/4 →
+  qualifies**, so C2/C3 only matter at min_confirm≥3 — AND even at 3, the names that actually FIRE
+  are the top-of-rank ≥3/4 candidates the sizing CASH HEAT-CAP fills first; the marginal 2/4-only
+  names the gate drops are beyond the cash cap anyway, so dropping them changes no fill. The gate's
+  binding margin for the FIRED set is the mandatory **regime+volume** pair (which removes 5 of 75,
+  75→70) — and that pair is identical under close-snapshot vs daily-OHLC C2.
+
+**Net:** the C2 daily-OHLC fix is correct + necessary (the close-snapshot was a genuine bug, now
+fixed + golden-mastered), but it does not rescue the −0.40 degradation because **C2 is not the
+binding constraint on the orders that fire** — the sizing cash-cap truncates before the C2-marginal
+names matter. The trigger still does not earn its place at default params on the local approximation.
+FLAG for HQ: to make C2 actually bind on the fired set, the gate's X/4 score would need to drive
+SIZING (the methodology's 4/4-full · 3/4-75% · 2/4-50% tiers) — i.e. a methodology SIZER consuming
+`qc._entry_confirm`, which is Phase-2 scope (the baseline `flat_pct_heatcap` ignores the score).
+
+The headline table below is unchanged by the fix (numbers identical); kept for the full record.
+
 ## Configs
 
 | Config | config_hash | What | Orders fire? |
 |---|---|---|---|
 | `champion_asis` | `e573e84b1ce1` | the −0.616 BLIND-ENTRY baseline (no entry trigger) | 75 (FY) |
-| `champion_entry` | `1b665ab98f13` | champion-asis stack VERBATIM + entry_selection(BctEntryConfirm) + entry_timing(MarketOnOpenEntry) | 70 (FY) — liveness PASS (>0) |
+| `champion_entry` | `999ec7745455` (was 1b665ab98f13 pre-fix) | champion-asis stack VERBATIM + entry_selection(BctEntryConfirm) + entry_timing(MarketOnOpenEntry) | 70 (FY) — liveness PASS (>0) |
 
 Only delta between them = the §4 Gate-2 entry-confirmation gate (controlled measurement).
 

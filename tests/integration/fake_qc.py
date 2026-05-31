@@ -106,19 +106,34 @@ def all_pass_indicators() -> dict[str, Any]:
         # avg 100k (C4); tbounce clean (0 sessions below, no gap). The signal/exit phases ignore
         # these keys (champion-asis behavior unchanged).
         "macd": _Ind(0.5),  # is_ready proxy (only .is_ready is read for macd)
-        "macd_hist_window": _Window([0.5, 0.2]),  # positive, turning up
+        "macd_hist_window": _Window([0.5, 0.2]),  # positive (C3 confirms)
         "vol_sma20": _Ind(100_000.0),
-        "tbounce": _TBounce(sessions=0, gap=0.0),
+        # daily bar (low 99 > tenkan 90 -> no pullback touch -> C2 fails); 3/4 with regime+volume
+        # mandatory -> still QUALIFIES (the liveness floor). The entry-confirm gate makes entries
+        # FEWER (C2 rarely confirms), NOT zero — exactly the #244-D liveness expectation.
+        "tbounce": _TBounce(sessions=0, gap=0.0, last_open=99.5, last_high=100.5, last_low=99.0, last_close=100.0),
         "daily_consolidator": object(),
     }
 
 
 class _TBounce:
-    """TBounceTracker-shape: the C2 degrade state the entry phase reads (sessions + gap)."""
+    """TBounceTracker-shape: the last daily OHLC bar + the C2 degrade state the entry phase reads."""
 
-    def __init__(self, sessions: int = 0, gap: float = 0.0) -> None:
+    def __init__(
+        self,
+        sessions: int = 0,
+        gap: float = 0.0,
+        last_open: float = 99.6,
+        last_high: float = 100.2,
+        last_low: float = 99.5,
+        last_close: float = 100.0,
+    ) -> None:
         self.sessions_below_tenkan = sessions
         self.gap_up_frac = gap
+        self.last_open = last_open
+        self.last_high = last_high
+        self.last_low = last_low
+        self.last_close = last_close
 
 
 def below_sma200_indicators() -> dict[str, Any]:

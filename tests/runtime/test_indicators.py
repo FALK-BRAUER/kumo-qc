@@ -89,36 +89,50 @@ def test_indicator_keys_contract():
 def test_tbounce_sessions_below_tenkan_counts_consecutive():
     from runtime.indicators import TBounceTracker
     t = TBounceTracker()
-    t.update(open_=100.0, close=95.0, tenkan=98.0)   # below -> 1
+    t.update(open_=100.0, high=101.0, low=94.0, close=95.0, tenkan=98.0)   # close<tenkan -> 1
     assert t.sessions_below_tenkan == 1
-    t.update(open_=95.0, close=94.0, tenkan=98.0)    # below -> 2
+    t.update(open_=95.0, high=96.0, low=93.0, close=94.0, tenkan=98.0)     # below -> 2
     assert t.sessions_below_tenkan == 2
-    t.update(open_=94.0, close=99.0, tenkan=98.0)    # back above -> reset 0
+    t.update(open_=94.0, high=100.0, low=94.0, close=99.0, tenkan=98.0)    # close>=tenkan -> reset 0
     assert t.sessions_below_tenkan == 0
+
+
+def test_tbounce_stores_last_daily_ohlc():
+    # HQ #253-P1: C2 reads the latest daily OHLC bar — the tracker stores it.
+    from runtime.indicators import TBounceTracker
+    t = TBounceTracker()
+    assert t.last_close is None  # no bar yet -> phase declines
+    t.update(open_=99.6, high=100.2, low=99.5, close=100.0, tenkan=99.7)
+    assert (t.last_open, t.last_high, t.last_low, t.last_close) == (99.6, 100.2, 99.5, 100.0)
 
 
 def test_tbounce_gap_up_fraction():
     from runtime.indicators import TBounceTracker
     t = TBounceTracker()
-    t.update(open_=100.0, close=100.0, tenkan=90.0)   # first bar: no prior close -> gap 0
+    t.update(open_=100.0, high=101.0, low=99.0, close=100.0, tenkan=90.0)  # first bar -> gap 0
     assert t.gap_up_frac == 0.0
-    t.update(open_=106.0, close=107.0, tenkan=90.0)   # open 106 vs prev close 100 -> +6%
+    t.update(open_=106.0, high=108.0, low=105.0, close=107.0, tenkan=90.0)  # open 106 vs prev 100 -> +6%
     assert abs(t.gap_up_frac - 0.06) < 1e-9
 
 
 def test_tbounce_gap_down_is_zero():
     from runtime.indicators import TBounceTracker
     t = TBounceTracker()
-    t.update(open_=100.0, close=100.0, tenkan=90.0)
-    t.update(open_=95.0, close=96.0, tenkan=90.0)     # gap DOWN -> 0.0 (only up-gaps matter)
+    t.update(open_=100.0, high=101.0, low=99.0, close=100.0, tenkan=90.0)
+    t.update(open_=95.0, high=97.0, low=94.0, close=96.0, tenkan=90.0)     # gap DOWN -> 0.0
     assert t.gap_up_frac == 0.0
 
 
 def test_tbounce_deterministic_replay():
     from runtime.indicators import TBounceTracker
-    bars = [(100.0, 95.0, 98.0), (95.0, 99.0, 98.0), (104.0, 105.0, 100.0)]
+    bars = [
+        (100.0, 101.0, 94.0, 95.0, 98.0),
+        (95.0, 100.0, 94.0, 99.0, 98.0),
+        (104.0, 106.0, 103.0, 105.0, 100.0),
+    ]
     a, b = TBounceTracker(), TBounceTracker()
-    for o, c, tk in bars:
-        a.update(open_=o, close=c, tenkan=tk)
-        b.update(open_=o, close=c, tenkan=tk)
-    assert (a.sessions_below_tenkan, a.gap_up_frac) == (b.sessions_below_tenkan, b.gap_up_frac)
+    for o, h, lo, c, tk in bars:
+        a.update(open_=o, high=h, low=lo, close=c, tenkan=tk)
+        b.update(open_=o, high=h, low=lo, close=c, tenkan=tk)
+    assert (a.sessions_below_tenkan, a.gap_up_frac, a.last_close) == (
+        b.sessions_below_tenkan, b.gap_up_frac, b.last_close)

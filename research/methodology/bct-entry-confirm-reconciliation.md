@@ -27,11 +27,15 @@ Each component maps to a boolean in `evaluate_gate2` (a PURE float-in scorer —
 so the golden-master is a unit test). The phase's `_score_candidate` reads the maintained
 `qc._indicators[sym]` suite and calls `evaluate_gate2`.
 
+**HQ #253-P1 ruling applied — C2 reads the latest DAILY OHLC bar** (from the `TBounceTracker`,
+fed by the daily consolidator), NOT the live close-snapshot. The old close-snapshot C2 was the
+correctness bug; this is the fix.
+
 | # | Methodology (§2 component) | Coded condition (`evaluate_gate2`) |
 |---|---|---|
-| **C1 Regime** | price above cloud AND Tenkan > Kijun → BULL | `price > d_cloud_top AND d_tenkan > d_kijun` |
-| **C2 T-Bounce** | (a) was above Tenkan; (b) pullback within 0.3–0.5% of Tenkan; (c) bounced (lower wick / bullish close); (d) T > K; (e) NOT inside cloud. Degrade → don't count if below-Tenkan >3 sessions / Tenkan flattened / first test after large gap-up (Rule #10) | `was_above(sessions_below_tenkan<=3) AND near_tenkan(|price/tenkan−1|<=tol) AND bounced(price>=tenkan) AND t_over_k AND not_in_cloud(not cloud_bottom<=price<=cloud_top) AND not tenkan_flat AND not large_gap_up` |
-| **C3 MACD** | 12/26/9 daily (NOT per-ticker optimized): hist positive+turning-up = full; positive-flat = valid; negative-turning-up = half (divergence); **negative-turning-down = NO** | `hist>0 → confirm; elif hist[0]>hist[1] (turning up) → confirm; else → NO` |
+| **C1 Regime** | live price above cloud AND Tenkan > Kijun → BULL | `price > d_cloud_top AND d_tenkan > d_kijun` |
+| **C2 T-Bounce** (daily OHLC) | (a) was above Tenkan; (b) PULLBACK = daily LOW touched/penetrated Tenkan OR within ≤tol ABOVE (a CEILING); (c) BOUNCE = bullish close OR lower-wick rejection; (d) T > K; (e) NOT inside cloud. Degrade if below-Tenkan >3 sessions / Tenkan flat (\|T/K−1\|≤flat_eps OR T<K) / gap-up (open vs prior close > thr) | `was_above(sessions<=3) AND pullback(daily_low<=tenkan OR (daily_low−tenkan)/tenkan<=tol) AND bounce(daily_close>daily_open OR lower_wick>=0.5*range) AND t_over_k AND not_in_cloud AND not tenkan_flat AND not (gap_up_frac>gap_up_threshold)` |
+| **C3 MACD** | 12/26/9 daily (frozen-canonical): **hist ≥ 0 (positive OR FLAT)** = confirm; negative-turning-up = confirm (divergence); **only negative-turning-down/flat = NO** (flat is a SIZING nuance, not a gate fail) | `hist>=0 → confirm; elif hist[0]>hist[1] (turning up) → confirm; else → NO` |
 | **C4 Volume** | entry candle volume ≥ **1.0×** 20-day avg (the GATE; 1.5× is the full-SIZE tier, NOT the gate) | `volume >= volume_gate_mult * vol_avg20` (default mult = 1.0) |
 
 **Gate-2 SCORING (NOT binary):** `score = C1+C2+C3+C4` ∈ 0..4. **Qualify rule** =
@@ -45,42 +49,51 @@ pass"). The bible's size tiers (4/4 full · 3/4 75% · 2/4 50%) are emitted as t
 
 | Param | Default | Role | Swept (`space()`)? |
 |---|---|---|---|
-| `macd_fast` | 12 | MACD fast EMA | **NO** — canonical (§2 "NOT per-ticker optimized") |
-| `macd_slow` | 26 | MACD slow EMA | **NO** — canonical |
-| `macd_signal` | 9 | MACD signal-line EMA | yes `(8,9,12)` |
+| `macd_fast` | 12 | MACD fast EMA | **NO** — frozen canonical (§2 "NOT per-ticker optimized") |
+| `macd_slow` | 26 | MACD slow EMA | **NO** — frozen canonical |
+| `macd_signal` | 9 | MACD signal-line EMA | **NO** — frozen canonical (#253-P1: dropped the INERT sweep) |
 | `volume_gate_mult` | 1.0 | C4 gate multiple | yes `(1.0,1.25,1.5)` |
-| `tenkan_pullback_tol` | 0.005 | C2 pullback band | yes `(0.003,0.005,0.008)` |
-| `gap_up_threshold` | 0.05 | C2 large-gap-up degrade | not swept (degrade guard, not a strategy axis) |
+| `tenkan_pullback_tol` | 0.005 | C2(b) pullback CEILING above Tenkan | yes `(0.003,0.005,0.008)` |
+| `flat_eps` | 0.002 | C2 Tenkan-flat degrade band (\|T/K−1\|≤eps) | yes `(0.001,0.002,0.005)` |
+| `gap_up_threshold` | 0.01 | C2 gap-up degrade (open vs prior close >) | yes `(0.005,0.01,0.02)` |
 | `min_confirm` | 2 | X/4 qualify floor | yes `(2,3,4)` |
 | `enabled` | True | wiring toggle | NO |
 
-Sweep grid = 3×3×3×3 = **81**. `COMPLEXITY = ComplexityDecl(free_params=4)`, kept in lockstep
-with `space()` by `ComplexityDecl.validate` (no hidden knobs). **Judgment call — the swept axes:**
-chose the 4 genuinely-tunable confirmation thresholds; deliberately FROZE `macd_fast`/`macd_slow`
-because §2 forbids per-ticker MACD optimization (sweeping the MACD periods would BE that).
+Sweep grid = 3⁵ = **243**. `COMPLEXITY = ComplexityDecl(free_params=5)`, kept in lockstep with
+`space()` by `ComplexityDecl.validate` (no hidden knobs). **Judgment calls:** (a) FROZE all three
+MACD periods (§2 forbids per-ticker MACD opt); (b) **DROPPED `macd_signal` from the sweep** — the
+#214 reviewer caught it was INERT (the MACD indicator is built 12/26/9 in lean_entry and the phase
+never read `Params.macd_signal`), so sweeping it burned 3× budget for a no-op; (c) `flat_eps` +
+`gap_up_threshold` are now first-class swept axes (the degrade thresholds the methodology defines).
 
-## 3. CANONICAL-SOURCE FLAGS (for HQ — could not byte-confirm vs the bible from this repo)
+## 3. CANONICAL-SOURCE FLAGS — RULED by HQ (#253-P1)
 
-Implemented to the GH#253 authoritative comment + standard defs; the following nuances need HQ's
-canonical §4 Gate-2 ruling (built to a defensible default + FLAGGED, did NOT invent a bespoke rule):
+The 5 flags raised in the first cut are now **RULED** (recorded here; the uncertainty is removed).
+The C2 correctness fix (read the DAILY OHLC bar, not the close-snapshot) is applied across all five.
 
-1. **C2 pullback band — `0.3–0.5%` is a RANGE or a CEILING?** §2 says "within 0.3–0.5% of
-   Tenkan". Implemented as a single symmetric `<= tenkan_pullback_tol` band (default 0.5% = the
-   upper edge). If the bible means "reject pullbacks CLOSER than 0.3%" (a band floor), C2 needs a
-   two-sided test. **FLAGGED.**
-2. **C2 "Tenkan flattened (~Kijun)" epsilon.** "~Kijun" needs a numeric tolerance; used Tenkan
-   within `tenkan_pullback_tol` of Kijun as the flat proxy. **FLAGGED** (the bible may define a
-   slope-based flatness, not a T≈K proximity).
-3. **C3 turning-up/down/flat thresholds.** Used strict `hist[0] vs hist[1]` sign-of-delta (flat =
-   exactly equal). The bible's "flat" may carry a tolerance band. **FLAGGED.** Also: negative-flat
-   and zero-flat are treated as NO (only positive OR negative-turning-up confirm).
-4. **C2 "large gap-up (Rule #10)" magnitude + "below Tenkan >3 sessions" count.** Used the
-   methodology-stated `>3` sessions and a `gap_up_threshold` (default 5%) for the degrade. The
-   exact Rule #10 gap magnitude is **FLAGGED.**
-5. **C2 "bounced (lower wick OR bullish close)".** Implemented as `price >= tenkan` (a reclaim of
-   the line) since the maintained suite exposes the live price, not the intraday wick. A
-   wick-based test would need the daily bar's low/open/close — available via the daily
-   consolidator if HQ wants the literal wick rule. **FLAGGED.**
+1. **FLAG 1 — C2(b) pullback is a CEILING, not a floor-band.** C2(b) fires if the daily **LOW** ≤
+   Tenkan (touched/penetrated) **OR** the low sits within ≤ `tenkan_pullback_tol` ABOVE Tenkan:
+   `daily_low <= tenkan OR (daily_low − tenkan)/tenkan <= tol`. A closer/deeper touch is BETTER,
+   never rejected. Default 0.5%, kept as a `space()` axis.
+2. **FLAG 2 — C2 "Tenkan flattened" = T≈K proximity.** Degrade (don't count C2) if
+   `|tenkan/kijun − 1| <= flat_eps` (default 0.2%) **OR** `tenkan < kijun`. `flat_eps` is a new
+   `.Params` field + `space()` axis (replaces the old `tenkan_pullback_tol`-reuse for flatness).
+3. **FLAG 3 — C3 "flat" is a SIZING nuance, NOT a gate fail.** C3 confirms if `hist >= 0`
+   (positive **OR flat** both count) OR (`hist < 0 AND Δhist > 0`, divergence). C3 fails ONLY if
+   `hist < 0 AND Δhist <= 0` (negative turning down/flat). The old code wrongly failed positive-flat
+   / zero-flat — fixed.
+4. **FLAG 4 — sessions + gap.** `sessions_below_tenkan > 3` = downtrend (don't count). Gap-up
+   degrade = today's `open` vs the PRIOR daily `close` > `gap_up_threshold` (default **1%**, NOT
+   5%). `gap_up_threshold` is a `space()` axis.
+5. **FLAG 5 — C2(c) literal daily-candle bounce.** Bullish close (`close > open`) OR lower-wick
+   rejection (`lower_wick >= 0.5*candle_range`, where `lower_wick = min(open,close) − low`,
+   `candle_range = high − low`, guard `range > 0`). Replaces the old `price >= tenkan` close proxy.
+
+**Data plumbing for the C2 daily-OHLC read:** `runtime/indicators.py::TBounceTracker` now stores
+`last_open/high/low/close` (fed each completed daily bar by the `daily_consolidator` in
+`lean_entry._register_indicators`) plus `sessions_below_tenkan` + `gap_up_frac` (open vs PRIOR
+close). The phase declines a candidate with no daily bar yet (`last_close is None`). Unit-tested in
+`tests/runtime/test_indicators.py`.
 
 ## 4. Golden-master (the methodology anchor)
 
