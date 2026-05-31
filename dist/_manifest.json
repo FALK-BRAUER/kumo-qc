@@ -22,9 +22,10 @@
     "phase_sizing_flat_pct_heatcap.py",
     "phase_universe_dv_rank_cap.py",
     "shared_oracle_helpers.py",
+    "shared_param_space.py",
     "universe_select.py"
   ],
-  "git_commit": "7da1a572defecf03f7d7d4ea0795119b9251ea15",
+  "git_commit": "042265d0baa2ae0dd15da9142e715941a82aeaa0",
   "phase_markers": {
     "diagnostics": "version_marker_v1,chart_emit_v1",
     "exit_hard": "kijun_g3_exits_v1",

@@ -3,10 +3,24 @@
 Kind: signal
 Marker: bct_score_full_v1
 Tested params: min_score=7, parabolic_threshold=0.25 (champion-asis-v1)
+Sweep space (space()): min_score in (6,7,8) x parabolic_threshold in (0.20,0.25,0.30,0.35) — grid 12.
+Complexity (COMPLEXITY): 2 free params (min_score, parabolic_threshold).
 Charter: single code path, no count caps, no time exits. Faithful carve of oracle
 _rebalance L527-590 (baseline-oracle-v0). Reads ranked_candidates from universe phase,
 writes sized_orders (qty=0 stubs for the sizing phase).
+
+Methodology (the in-project canonical BCT Signal Stack — CLAUDE.md): this phase = the
+SIGNAL/QUALIFY phase ("does the name qualify"). The 8-condition Blue Flag checklist is
+scored by score_symbol_native (phases.shared.oracle_helpers); FIRE = score>=min_score AND
+not parabolic AND not invested/pre-filtered; DECLINE otherwise. The component<->condition
+mapping + golden-master fixtures live in research/methodology/bct-signal-reconciliation.md.
+Entry TIMING (T-Bounce / MACD / volume) is a SEPARATE downstream phase, NOT this one.
+
 DO NOT modify evaluate() logic — breaks champion-asis-v1 parity (ARCH-C ±0.01 gate).
+
+Changelog:
+  v1  carve of oracle _rebalance L527-590 (8-condition score, pre-filter, parabolic, DV tiebreak).
+  #228  + space()/COMPLEXITY template patterns + methodology golden-master (NO scoring change).
 """
 from __future__ import annotations
 
@@ -16,6 +30,7 @@ from typing import Any
 from base import BasePhase, PhaseResult
 from context import OrderIntent, PhaseContext
 from shared_oracle_helpers import score_symbol_native
+from shared_param_space import ComplexityDecl, ParamSpace
 
 
 class BctScoreFull(BasePhase):
@@ -23,11 +38,38 @@ class BctScoreFull(BasePhase):
     REQUIRES_UPSTREAM = ["universe"]
     PROVIDES_DOWNSTREAM = ["sized_orders"]
 
+    # ADR D5 overfitting-defense: this phase exposes 2 free params to a sweep (== space() axes).
+    # The runner sums COMPLEXITY.free_params across the active stack into a complexity penalty.
+    COMPLEXITY = ComplexityDecl(
+        free_params=2,
+        note="min_score (qualify threshold) + parabolic_threshold (overextension block).",
+    )
+
     @dataclass(slots=True)
     class Params:
         min_score: int = 7
         parabolic_threshold: float = 0.25
         enabled: bool = True
+
+        @classmethod
+        def space(cls) -> ParamSpace:
+            """Sweepable axes of this phase's params (ADR D2 — THE template `space()`).
+
+            Returns a typed ParamSpace: a mapping of swept `.Params` field name -> the explicit,
+            finite Sequence of candidate values. `enabled` is NOT swept (it is a wiring toggle,
+            not a strategy axis). Grid cardinality = 3 x 4 = 12. Keep this in lockstep with
+            COMPLEXITY.free_params (ComplexityDecl.validate enforces it).
+
+            min_score: 6 (=++, looser), 7 (champion), 8 (=+++, strictest 8/8 only).
+            parabolic_threshold: the maintained 13-day ROC ceiling above which an
+              over-extended name is blocked (0.20..0.35 spans the plausible band).
+            """
+            return ParamSpace(
+                axes={
+                    "min_score": (6, 7, 8),
+                    "parabolic_threshold": (0.20, 0.25, 0.30, 0.35),
+                }
+            )
 
     def __init__(self, params: "BctScoreFull.Params", logger: Any) -> None:
         super().__init__(params, logger)
