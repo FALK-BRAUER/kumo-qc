@@ -1,8 +1,8 @@
 """Tests for runtime.lean_entry — the #182 site, now LIVE-coarse selection gate (#238 / Y).
 
 The pure, extractable logic is unit-tested here:
-  - coarse_to_dollar_volume: coarse feed → {ticker: single-day DV}, lowercased (the
-    prefilter input to build_bar_metrics).
+  - coarse_to_dollar_volume: coarse feed → {ticker: single-day DV}, lowercased (the prefilter
+    input + the per-day value pushed into the maintained rolling-20d-DV windows).
   - active_set_hash: determinism + order-independence (the diff-ladder selection rung).
   - the selection-gate FLOOR KNOBS (the floors live on this class under Y, not a phase).
   - on_securities_changed: indicator-lifecycle bookkeeping (register/dispose).

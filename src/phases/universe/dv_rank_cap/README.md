@@ -4,8 +4,9 @@ The universe phase: **exposes the live-selected ranked order** (#220 / #238 / Y)
 
 - **What it holds:** `dv_rank_cap.py` (the exposer phase) + its test mirror.
 - **Model (Y, Falk):** consumes `qc._ranked_today` — the floored+ranked+capped selection
-  computed once-daily at the SELECTION GATE (`lean_entry._coarse_selection`: `build_bar_metrics`
-  → `apply_floors` → `rank_and_cap`, then subscribe only the qualifying set). Emits
+  computed once-daily at the SELECTION GATE (`lean_entry._coarse_selection`: prefilter →
+  maintained rolling-20d-DV (`qc._dv_windows`) → `apply_floors` → `rank_and_cap`, then
+  subscribe only the qualifying set). Emits
   `ranked_candidates` IN RANK ORDER ∩ the truly-subscribed active set — the #182 fix (iterate
   the ranked list, never the active set). NO stored universe file (the 326 scar).
 - **Upstream:** `REQUIRES_UPSTREAM = []` — it reads qc runtime state (`_ranked_today`, set by

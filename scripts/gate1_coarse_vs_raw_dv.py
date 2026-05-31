@@ -2,9 +2,24 @@
 mean DV computed each way, on real artifacts.
 
 The incremental-DV design accumulates the COARSE single-day DV into a rolling 20-day window;
-the OLD path computed trailing DV from RAW history close*volume. This script proves the two
-agree closely enough that NO liquidity-floor (>=100M) decision and NO price-floor (>=$10)
-decision flips across a real sample of liquid 2025 names/dates.
+the OLD path computed trailing DV from RAW history close*volume.
+
+SCOPE — READ THIS BEFORE TRUSTING THE 0.000% RESULT:
+  This is a LOCAL check, and the 0.000% / 0-flips outcome is TAUTOLOGICAL. The #238 conform
+  built the local coarse DollarVolume as raw_close * raw_volume from the SAME daily source
+  this script reads back — so coarse DV is bit-identical to raw_close*raw_volume and coarse
+  Price is bit-identical to the raw close BY CONSTRUCTION. 0.000% divergence is therefore
+  GUARANTEED locally and proves NOTHING about cloud. What it DOES confirm: the parser, the
+  field mapping (coarse col2=Price, col4=DollarVolume), and the trailing-20d-mean arithmetic
+  are correct — i.e. the rolling-DV math is wired to the right inputs.
+
+  The CLOUD case (QC's vendor coarse feed, potentially split/dividend-ADJUSTED) is NOT proven
+  here. Its robustness is ARGUED, not gated: dollar-volume is split-invariant (a k:1 split
+  scales price /k and volume *k -> product constant), which is sound for a LIQUIDITY floor
+  (a coarse gate, not a price-precision signal like Ichimoku/ATR). CAVEAT: this argument does
+  NOT cover dividend adjustment, nor a vendor that derives DV from already-adjusted inputs.
+  Those residuals get EMPIRICALLY validated at the post-#240 cloud Step-A active-set parity
+  (cloud selection hash vs local), not by this script.
 
 Reads ONLY real artifacts:
   - conformed coarse CSVs: data/equity/usa/fundamental/coarse/YYYYMMDD.csv
@@ -212,8 +227,18 @@ def main() -> int:
     for f in floor_flips:
         print(f"  {f}")
     print("=" * 100)
-    verdict = "PASS" if not floor_flips and max_trailing_div <= 5.0 and max_close_div <= 5.0 else "REVIEW"
-    print(f"VERDICT (heuristic): {verdict}")
+    local_ok = not floor_flips and max_trailing_div <= 5.0 and max_close_div <= 5.0
+    verdict = "LOCAL-OK" if local_ok else "REVIEW"
+    print(f"VERDICT: {verdict}")
+    print(
+        "  NOTE: this is a LOCAL check only. 0.000% / 0-flips is TAUTOLOGICAL — the #238 "
+        "conform built local coarse DV as raw_close*raw_volume from the SAME source, so it is\n"
+        "  bit-identical by construction. It confirms the field-mapping + rolling-mean wiring "
+        "are correct; it is NOT cloud proof.\n"
+        "  The cloud (vendor-adjusted) case rests on DV being split-invariant (sound for a "
+        "liquidity floor; does NOT cover dividend-adjust / adjusted-derived DV) and is\n"
+        "  EMPIRICALLY validated at the post-#240 cloud Step-A active-set parity, not here."
+    )
     return 0
 
 
