@@ -18,13 +18,18 @@ The liveness gate catches a **silent stop-trading regression**: a change that ma
 strategy fire zero (or near-zero) orders without any test failing. It has two arms — a fast
 per-PR arm and a periodic full-FY arm.
 
-### Per-PR arm (fast, pytest, CI-enforced — Tier 2 / #194)
+### Per-PR arm (fast, pytest-collected — CI workflow PENDING, #194 follow-up)
+
+These tests are READY and run in the standard `pytest` collection, but no `.github/workflows/`
+exists yet (see the flag below), so nothing runs `pytest` on a PR today — a failing liveness
+test cannot turn a PR red until the CI workflow lands. The gate is real + ready; it is just not
+AUTOMATED yet.
 
 | Criterion | Enforcer | Fail action |
 |---|---|---|
-| The real `champion_asis` CONFIG fires `orders > 0` on a triggering bar | `tests/acceptance/test_liveness.py::test_champion_config_fires_orders` (drives the real CONFIG through `StrategyEngine` on the #247 FakeQC harness) | PR red |
-| A deliberately-dead config (impossible `min_score=99`) fires ZERO orders | `::test_dead_config_fires_zero_orders` | PR red |
-| The SAME gate function (`assert_liveness`) that passes the champion FAILS on the dead config | `::test_liveness_gate_catches_dead_config` | PR red |
+| The real `champion_asis` CONFIG fires `orders > 0` on a triggering bar | `tests/acceptance/test_liveness.py::test_champion_config_fires_orders` (drives the real CONFIG through `StrategyEngine` on the #247 FakeQC harness) | pytest fails → PR-red ONCE the CI workflow lands |
+| A deliberately-dead config (impossible `min_score=99`) fires ZERO orders | `::test_dead_config_fires_zero_orders` | pytest fails → PR-red ONCE the CI workflow lands |
+| The SAME gate function (`assert_liveness`) that passes the champion FAILS on the dead config | `::test_liveness_gate_catches_dead_config` | pytest fails → PR-red ONCE the CI workflow lands |
 
 The shared `assert_liveness(order_count)` gate (raises `LivenessError` on `order_count <= 0`)
 is exercised by BOTH the champion (passes) and the dead config (fails). The 0-trades guard is

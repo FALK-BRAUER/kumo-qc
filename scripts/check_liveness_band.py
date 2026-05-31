@@ -18,8 +18,9 @@ Exit 0 = within band; exit 1 = collapse (anti-0 / anti-turnover-collapse). NOT a
 ==75 (that breaks on every legitimate #228 signal change); it catches a SILENT regression to
 zero / near-zero trading, which is the intent.
 
-The order-count / round-trip JSON paths mirror scripts/validate_parity.py (the single canonical
-place these LEAN result keys are read).
+Reads the standard LEAN summary keys statistics."Total Orders" +
+totalPerformance.tradeStatistics.totalNumberOfTrades (with a statistics."Total Trades" fallback
+for the round-trip count, in case a summary populates that instead).
 """
 from __future__ import annotations
 
@@ -37,9 +38,13 @@ ORDERS_FLOOR_FRAC = 0.50
 ORDERS_FLOOR = int(BASELINE_ORDERS * ORDERS_FLOOR_FRAC)          # 37
 ROUND_TRIPS_FLOOR = int(BASELINE_ROUND_TRIPS * ORDERS_FLOOR_FRAC)  # 16
 
-# Canonical LEAN result-JSON paths (same source as validate_parity.py METRIC_PATHS).
+# Standard LEAN result-JSON paths. Round-trips: prefer the tradeStatistics count, fall back to
+# statistics."Total Trades" (some summaries populate that instead).
 ORDER_PATHS = ("statistics.Total Orders",)
-ROUND_TRIP_PATHS = ("totalPerformance.tradeStatistics.totalNumberOfTrades",)
+ROUND_TRIP_PATHS = (
+    "totalPerformance.tradeStatistics.totalNumberOfTrades",
+    "statistics.Total Trades",
+)
 
 
 def get_nested(data: dict[str, Any], path: str) -> Any:
