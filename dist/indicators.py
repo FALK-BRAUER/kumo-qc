@@ -33,7 +33,59 @@ import pandas as pd
 # verified on the LEAN run, flagged for confirmation.
 INDICATOR_KEYS: tuple[str, ...] = (
     "d_ichi", "w_ichi", "w_close", "sma200", "adx", "adx_window", "roc13", "consolidator",
+    # #253 entry_selection (BctEntryConfirm §4 Gate 2). ADDITIVE — the SIGNAL/exit phases do
+    # NOT read these, so champion-asis scoring/sizing/exit is byte-unchanged (parity intact);
+    # only a strategy that wires the entry_selection phase reads them.
+    #   macd            daily MACD(12/26/9) (C3 confluence)
+    #   macd_hist_window RollingWindow[float](2) of MACD histogram (C3 turning up/down)
+    #   vol_sma20       daily SMA(20) of VOLUME (C4 volume >= mult x 20d avg)
+    #   tbounce         TBounceTracker — daily sessions-below-Tenkan + gap-up state (C2 degrade)
+    #   daily_consolidator  daily TradeBarConsolidator feeding the tbounce tracker (disposed on unsub)
+    "macd", "macd_hist_window", "vol_sma20", "tbounce", "daily_consolidator",
 )
+
+
+class TBounceTracker:
+    """Maintained §2-Component-2 (T-Bounce) degrade state — pure, history-free, daily-updated.
+
+    The T-Bounce sub-conditions that need RECENT context (not just today's bar) are:
+      - "was above Tenkan, not a bounce off a downtrend" -> `sessions_below_tenkan` (consecutive
+        daily closes below the daily Tenkan; degrade C2 when > 3, the methodology Rule).
+      - "first test after a large gap-up (Rule #10)" -> `gap_up_frac` = today's open vs the prior
+        close as a fraction (the entry phase degrades C2 when >= its gap_up_threshold).
+
+    update(open_, close, tenkan) is called once per completed daily bar (a daily consolidator in
+    lean_entry feeds it). It is a plain state machine over floats — golden-masterable with no QC
+    types — so the entry phase reads O(1) maintained state, never a per-bar history() (the
+    single-code-path / no-isolator-timeout rule). `prev_close` carries across bars for the gap.
+    """
+
+    __slots__ = ("sessions_below_tenkan", "gap_up_frac", "prev_close")
+
+    def __init__(self) -> None:
+        self.sessions_below_tenkan: int = 0
+        self.gap_up_frac: float = 0.0
+        self.prev_close: float | None = None
+
+    def update(self, open_: float, close: float, tenkan: float) -> None:
+        """Fold one completed daily bar into the maintained T-Bounce state.
+
+        sessions_below_tenkan: increment while close < Tenkan, reset to 0 the day close >= Tenkan
+          (consecutive count of sessions the name sat under its Tenkan-sen).
+        gap_up_frac: (open - prev_close)/prev_close, clamped at >= 0 (only UP gaps matter for the
+          Rule #10 degrade; a gap-down is 0.0). First bar (no prior close) -> 0.0.
+        """
+        if tenkan > 0.0 and close < tenkan:
+            self.sessions_below_tenkan += 1
+        else:
+            self.sessions_below_tenkan = 0
+
+        if self.prev_close is not None and self.prev_close > 0.0:
+            frac = (open_ - self.prev_close) / self.prev_close
+            self.gap_up_frac = frac if frac > 0.0 else 0.0
+        else:
+            self.gap_up_frac = 0.0
+        self.prev_close = close
 
 
 def weekly_friday(ts: pd.Timestamp) -> pd.Timestamp:

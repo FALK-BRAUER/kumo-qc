@@ -60,7 +60,7 @@ import pandas as pd
 
 from context import PhaseContext
 from engine import StrategyEngine
-from indicators import INDICATOR_KEYS, weekly_aggregate
+from indicators import INDICATOR_KEYS, TBounceTracker, weekly_aggregate
 from universe_select import (
     DvWindow,
     apply_floors,
@@ -127,8 +127,10 @@ try:  # pragma: no cover - QC runtime import; absent in the dev venv / unit test
     from AlgorithmImports import (
         Calendar,
         DataNormalizationMode,
+        Field,
         IchimokuKinkoHyo,
         Market,
+        MovingAverageType,
         QCAlgorithm,
         Resolution,
         RollingWindow,
@@ -141,6 +143,7 @@ except ImportError:  # pragma: no cover
     QCAlgorithm = object
     DataNormalizationMode = Resolution = SecurityType = Market = Symbol = None
     Calendar = IchimokuKinkoHyo = RollingWindow = TradeBar = TradeBarConsolidator = None
+    Field = MovingAverageType = None
 
 
 class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
@@ -328,6 +331,10 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                 self.subscription_manager.remove_consolidator(
                     sym, self._indicators[sym]["consolidator"]
                 )
+                # #253: dispose the daily consolidator too (added alongside the weekly one).
+                self.subscription_manager.remove_consolidator(
+                    sym, self._indicators[sym]["daily_consolidator"]
+                )
                 del self._indicators[sym]
 
     def _register_indicators(self, sym: Any) -> None:
@@ -346,6 +353,16 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         adx_window = RollingWindow[float](5)
         adx.updated += lambda _s, _pt: adx_window.add(adx.current.value)
         roc13 = self.roc(sym, 13)
+        # #253 entry_selection (BctEntryConfirm §4 Gate 2) — ADDITIVE maintained indicators the
+        # SIGNAL/exit phases never read (champion-asis parity intact). MACD(12/26/9) for C3, a
+        # 20-day VOLUME SMA for C4, a 2-deep MACD-histogram window for the C3 turning direction,
+        # and the daily-fed T-Bounce tracker for the C2 degrade state. All auto-warm during
+        # warmup like the rest of the suite (O(1)/candidate, no per-bar history in the phase).
+        macd = self.macd(sym, 12, 26, 9, MovingAverageType.EXPONENTIAL, Resolution.DAILY)
+        macd_hist_window = RollingWindow[float](2)
+        macd.updated += lambda _s, _pt: macd_hist_window.add(macd.histogram.current.value)
+        vol_sma20 = self.sma(sym, 20, Resolution.DAILY, Field.VOLUME)
+        tbounce = TBounceTracker()
         w_ichi = IchimokuKinkoHyo(9, 26, 26, 52, 26, 26)
         w_close = RollingWindow[float](28)
         consolidator = TradeBarConsolidator(Calendar.WEEKLY)
@@ -356,6 +373,18 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
 
         consolidator.data_consolidated += _on_weekly
         self.subscription_manager.add_consolidator(sym, consolidator)
+
+        # Daily consolidator feeds the T-Bounce tracker the completed daily bar + the live daily
+        # Tenkan (the C2 sessions-below-Tenkan + gap-up degrade state). Separate from the weekly
+        # consolidator; disposed alongside it on unsubscribe.
+        daily_consolidator = TradeBarConsolidator(timedelta(days=1))
+
+        def _on_daily(_: Any, bar: TradeBar) -> None:
+            t = d_ichi.tenkan.current.value if d_ichi.is_ready else 0.0
+            tbounce.update(float(bar.open), float(bar.close), float(t))
+
+        daily_consolidator.data_consolidated += _on_daily
+        self.subscription_manager.add_consolidator(sym, daily_consolidator)
 
         # With the derived warmup (WARMUP_DAYS, 560d -> ~78 weekly bars) the consolidator
         # receives enough weekly bars automatically; only seed manually outside warmup (a name
@@ -372,6 +401,12 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             "adx_window": adx_window,
             "roc13": roc13,
             "consolidator": consolidator,
+            # #253 entry_selection additions (additive — see INDICATOR_KEYS note).
+            "macd": macd,
+            "macd_hist_window": macd_hist_window,
+            "vol_sma20": vol_sma20,
+            "tbounce": tbounce,
+            "daily_consolidator": daily_consolidator,
         }
         assert set(self._indicators[sym]) == set(INDICATOR_KEYS)  # contract guard
 

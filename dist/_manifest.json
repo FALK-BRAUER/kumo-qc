@@ -1,6 +1,6 @@
 {
   "build_script_version": "1.0.0",
-  "config_hash": "e573e84b1ce1",
+  "config_hash": "1b665ab98f13",
   "data_fingerprint": "90f2d7e3fb80d0a4d2eb286f6a43199e1519495a3ce9d787a4d7d0dfc70c535c",
   "files": [
     "_manifest.json",
@@ -15,6 +15,8 @@
     "main.py",
     "phase_diagnostics_chart_emit.py",
     "phase_diagnostics_version_marker.py",
+    "phase_entry_selection_bct_entry_confirm.py",
+    "phase_entry_timing_market_on_open_entry.py",
     "phase_exit_kijun_g3_exits.py",
     "phase_regime_spy_200ma.py",
     "phase_regime_vix_percentile.py",
@@ -25,9 +27,11 @@
     "shared_param_space.py",
     "universe_select.py"
   ],
-  "git_commit": "c3ca6dfaccc8dfd1f71cea61a5b5d8d48a1171d9",
+  "git_commit": "58db8640bc65374eff8218430bb229736d902dfe",
   "phase_markers": {
     "diagnostics": "version_marker_v1,chart_emit_v1",
+    "entry_selection": "bct_entry_confirm_v1",
+    "entry_timing": "market_on_open_entry_v1",
     "exit_hard": "kijun_g3_exits_v1",
     "regime": "spy_200ma_v1,vix_percentile_v1",
     "signal": "bct_score_full_v1",
