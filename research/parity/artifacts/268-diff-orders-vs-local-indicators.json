@@ -1,0 +1,147 @@
+{
+  "backtest": "8ddbe2b449df87edba5d3fd50b48bea1",
+  "totals": {
+    "cloud_orders": 291,
+    "cloud_buys": 153,
+    "cloud_sells": 138,
+    "local_total_orders": "244",
+    "local_trio": {
+      "sharpe": "-0.139",
+      "net_return_pct": "3.620%",
+      "drawdown_pct": "14.800%",
+      "total_orders": "244"
+    }
+  },
+  "d_regime_timing": {
+    "local_blocked_day_count": 42,
+    "local_blocked_window": [
+      "2025-03-10",
+      "2025-05-09"
+    ],
+    "cloud_buys_on_local_blocked_days": 0,
+    "share_of_cloud_buys": 0.0,
+    "examples": [],
+    "cloud_indicators_direct_diff": null
+  },
+  "c_scoring": {
+    "qualify_threshold": 7,
+    "probe_rows": [
+      {
+        "probe": "DRI",
+        "cloud_buy_date": "2025-01-02",
+        "local_score": -1.0,
+        "note": "exact-date",
+        "local_qualified(>=7)": false,
+        "local_regime_blocked": false,
+        "local_spy_close": 584.58,
+        "local_spy_ma200": 554.058,
+        "local_n_qualifying": 10.0
+      },
+      {
+        "probe": "DRI",
+        "cloud_buy_date": "2025-03-25",
+        "local_score": -1.0,
+        "note": "exact-date",
+        "local_qualified(>=7)": false,
+        "local_regime_blocked": false,
+        "local_spy_close": 575.36,
+        "local_spy_ma200": 573.9201,
+        "local_n_qualifying": 0.0
+      },
+      {
+        "probe": "CME",
+        "cloud_buy_date": "2025-08-04",
+        "local_score": 7.0,
+        "note": "exact-date",
+        "local_qualified(>=7)": true,
+        "local_regime_blocked": false,
+        "local_spy_close": 631.09,
+        "local_spy_ma200": 588.6544,
+        "local_n_qualifying": 4.0
+      },
+      {
+        "probe": "AMZN",
+        "cloud_buy_date": "2025-01-03",
+        "local_score": 7.0,
+        "note": "exact-date",
+        "local_qualified(>=7)": true,
+        "local_regime_blocked": false,
+        "local_spy_close": 591.87,
+        "local_spy_ma200": 554.4385,
+        "local_n_qualifying": 0.0
+      },
+      {
+        "probe": "COST",
+        "cloud_buy_date": "2025-02-12",
+        "local_score": 8.0,
+        "note": "exact-date",
+        "local_qualified(>=7)": true,
+        "local_regime_blocked": false,
+        "local_spy_close": 603.36,
+        "local_spy_ma200": 565.5617,
+        "local_n_qualifying": 0.0
+      },
+      {
+        "probe": "CRWD",
+        "cloud_buy_date": "2025-02-13",
+        "local_score": 8.0,
+        "note": "exact-date",
+        "local_qualified(>=7)": true,
+        "local_regime_blocked": false,
+        "local_spy_close": 609.69,
+        "local_spy_ma200": 566.0689,
+        "local_n_qualifying": 0.0
+      },
+      {
+        "probe": "KGC",
+        "cloud_buy_date": "2025-03-25",
+        "local_score": 8.0,
+        "note": "exact-date",
+        "local_qualified(>=7)": true,
+        "local_regime_blocked": false,
+        "local_spy_close": 575.36,
+        "local_spy_ma200": 573.9201,
+        "local_n_qualifying": 0.0
+      }
+    ],
+    "summary": {
+      "DRI": {
+        "cloud_buy_dates": [
+          "2025-01-02",
+          "2025-03-25"
+        ],
+        "any_buy": true
+      },
+      "CME": {
+        "cloud_buy_dates": [
+          "2025-08-04"
+        ],
+        "any_buy": true
+      },
+      "AMZN": {
+        "cloud_buy_dates": [
+          "2025-01-03"
+        ],
+        "any_buy": true
+      },
+      "COST": {
+        "cloud_buy_dates": [
+          "2025-02-12"
+        ],
+        "any_buy": true
+      },
+      "CRWD": {
+        "cloud_buy_dates": [
+          "2025-02-13"
+        ],
+        "any_buy": true
+      },
+      "KGC": {
+        "cloud_buy_dates": [
+          "2025-03-25"
+        ],
+        "any_buy": true
+      }
+    }
+  }
+}
