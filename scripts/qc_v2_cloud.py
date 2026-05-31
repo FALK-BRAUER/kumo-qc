@@ -47,7 +47,10 @@ MARKER = "champion-asis"  # present in dist/main.py STRATEGY_CONFIG name — dep
 # Step A short window = local run 4's EXACT window (the #182 parity comparison point). v2
 # BctEngineAlgorithm reads START_DATE/END_DATE class attrs; inject them into the DEPLOYED
 # main.py content (keeps local dist clean — no throwaway file edit). None → full-year default.
-STEP_A_WINDOW = "    START_DATE = (2025, 6, 2)\n    END_DATE = (2025, 6, 16)\n"
+# #243: nulled for the full-FY2025 chart-capture deploy (the BctEngineAlgorithm defaults
+# to START=(2025,1,1)/END=(2025,12,31) when no window is injected). Set to the Step-A
+# string again only for a short-window parity comparison.
+STEP_A_WINDOW = None
 
 
 def _inject_window(content: str) -> str:
