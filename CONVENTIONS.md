@@ -58,6 +58,7 @@ The #218 retrofit experiments often USED forbidden mechanics (fixed slots, max-p
 - `dist/` is **generated + git-tracked + NOT linted** (mypy excludes it). Never hand-edit it.
 - The build (`build/cloud_package.py`) packages ONLY the active config's phase closure, and is itself unit-tested.
 - Every result is pinned to **(git commit + config-hash + data-fingerprint)** via `dist/_metadata.py`, logged on startup. No result without that pinning enters `results/bt-results.csv`.
+- **`dist/` ALWAYS tracks the ACTIVE CHAMPION (`champion_asis`).** Variant/experiment MEASUREMENTS build into a THROWAWAY dir (`dist_tmp/`, gitignored), NEVER committed over `dist/`. A variant build must never displace the champion's deployable. `src/strategies/<variant>.py` configs stay (opt-in); only `dist/` tracks the champion.
 
 ## Data (local backtest substrate)
 - `data/` = RAW daily OHLCV only, built from Massive SIP parquet (`scripts/build_daily_from_parquet.py`). **Never back-adjusted, never mixed** (adjusted corrupts Ichimoku — the 7x-calibration lesson).

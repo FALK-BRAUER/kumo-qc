@@ -13,6 +13,8 @@ venv/
 # NOTE (v2 #208): dist/ and build/ are NOT ignored here.
 #   build/ = source (cloud_package.py).  dist/ = generated but git-TRACKED
 #   (deploy-from-git + diff visibility). dist/ is excluded from mypy, not git.
+# dist_tmp/ = throwaway variant/experiment build dir; NEVER committed over dist/.
+dist_tmp/
 
 # Node / Next.js
 node_modules/
