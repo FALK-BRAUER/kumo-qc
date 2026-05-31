@@ -7,3 +7,5 @@ e573e84b1ce1,90f2d7e3,369b5d9,local:2026-05-31_20-49-06,base-baseline-asis,-4.78
 e573e84b1ce1,90f2d7e3,369b5d9,local:2026-05-31_20-49-31,base-baseline-asis,-5.482,0.331,0.2,3,FY2025-W4-jul-aug,window-local-noisy
 e573e84b1ce1,90f2d7e3,369b5d9,local:2026-05-31_20-50-02,base-baseline-asis,-6.177,0.214,0.3,3,FY2025-W5-sep-oct,window-local-noisy
 e573e84b1ce1,90f2d7e3,369b5d9,local:2026-05-31_20-50-36,base-baseline-asis,-11.336,0.041,0.2,1,FY2025-W6-nov-dec,window-local-noisy
+e573e84b1ce1,90f2d7e3,8e80cc3,local:2026-05-31_21-43-05,champion-asis-post259,-0.139,3.62,14.8,244,FY2025,LOCAL-POST259-WARMUP-FIXED(93sym;mirage-gone;optimistic-approx-Δ+0.544-vs-cloud;NOT-baseline;see residual-root-cause-2025)
+e573e84b1ce1,90f2d7e3,8e80cc3,cloud:b40551526c27537834bda25da58521ec,champion-asis-post259,-0.683,-9.05,20.5,291,FY2025,CLOUD-GROUND-TRUTH-TRUE-BASELINE(113sym;residual=signal-layer-FIXABLE-not-vendor;BRK.B-only-breadth-miss;see residual-root-cause-2025)

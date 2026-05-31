@@ -1,0 +1,420 @@
+{
+  "summary": {
+    "local_traded_count": 93,
+    "cloud_traded_count": 113,
+    "overlap": 75,
+    "cloud_only": 38,
+    "local_only": 18,
+    "cloud_only_by_layer": {
+      "SIGNAL_OR_SIZING": 37,
+      "SELECTION_VENDOR_BREADTH": 1
+    },
+    "local_ranked_universe_union_size": 1626,
+    "fy_ranked_days": 250
+  },
+  "overlap_symbols": [
+    "AAPL",
+    "ABBV",
+    "AEP",
+    "AG",
+    "AJG",
+    "AON",
+    "APP",
+    "AXP",
+    "AZO",
+    "BAC",
+    "BE",
+    "BSX",
+    "C",
+    "CDE",
+    "CEG",
+    "CSCO",
+    "CVS",
+    "DAL",
+    "DASH",
+    "DE",
+    "DUK",
+    "EEM",
+    "EQT",
+    "ET",
+    "FEZ",
+    "FXI",
+    "GDX",
+    "GE",
+    "GILD",
+    "GLD",
+    "GOOG",
+    "GOOGL",
+    "GS",
+    "HALO",
+    "HPE",
+    "IAU",
+    "IBM",
+    "ICE",
+    "JPM",
+    "KMI",
+    "LNG",
+    "MA",
+    "MCK",
+    "MELI",
+    "META",
+    "MMM",
+    "MP",
+    "MRVL",
+    "MSFT",
+    "NFLX",
+    "PLTR",
+    "QQQ",
+    "RBLX",
+    "RTX",
+    "SE",
+    "SHOP",
+    "SMR",
+    "SO",
+    "SPOT",
+    "SPY",
+    "T",
+    "TRV",
+    "TSM",
+    "UAL",
+    "UBER",
+    "V",
+    "VCIT",
+    "VRNA",
+    "VST",
+    "WBD",
+    "WELL",
+    "WFC",
+    "WMB",
+    "XLF",
+    "XLU"
+  ],
+  "cloud_only_symbols": [
+    "ALL",
+    "AMZN",
+    "BECN",
+    "BRK.B",
+    "CAH",
+    "CDNS",
+    "CHWY",
+    "CMA",
+    "CME",
+    "COST",
+    "CRWD",
+    "CTVA",
+    "DRI",
+    "EBAY",
+    "ED",
+    "EXC",
+    "ISRG",
+    "ITCI",
+    "IVV",
+    "JCI",
+    "KGC",
+    "KRE",
+    "MO",
+    "NOC",
+    "RBA",
+    "SHY",
+    "SLV",
+    "SMH",
+    "SNOW",
+    "SPGI",
+    "TMUS",
+    "TWLO",
+    "USO",
+    "VOO",
+    "VRSK",
+    "XEL",
+    "XLK",
+    "XYZ"
+  ],
+  "local_only_symbols": [
+    "AIG",
+    "ALNY",
+    "COR",
+    "DIA",
+    "EXPE",
+    "HIG",
+    "HLN",
+    "HYG",
+    "IBIT",
+    "IWM",
+    "KR",
+    "MCO",
+    "NET",
+    "RSP",
+    "SGOV",
+    "TJX",
+    "XLI",
+    "XLP"
+  ],
+  "gap_classification": {
+    "ALL": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-03-24",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "AMZN": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-01-03",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "BECN": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-03-25",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 42,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "BRK.B": {
+      "layer": "SELECTION_VENDOR_BREADTH",
+      "cloud_first_buy": "2025-03-24",
+      "in_local_ranked_any_day": false,
+      "n_ranked_days": 0,
+      "passed_floors_on_or_after_buymonth": false
+    },
+    "CAH": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-01-14",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "CDNS": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-08-04",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "CHWY": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-01-15",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "CMA": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-10-14",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 109,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "CME": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-08-04",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "COST": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-02-12",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "CRWD": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-02-13",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "CTVA": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-01-15",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "DRI": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-01-02",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "EBAY": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-08-05",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "ED": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-03-25",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "EXC": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-10-14",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "ISRG": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-05-13",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "ITCI": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-03-06",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 55,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "IVV": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-01-03",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "JCI": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-11-06",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "KGC": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-03-25",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 246,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "KRE": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-09-04",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "MO": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-08-05",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "NOC": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-08-05",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "RBA": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-05-12",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 63,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "SHY": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-10-14",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "SLV": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-12-26",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "SMH": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-06-17",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "SNOW": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-09-03",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "SPGI": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-08-05",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "TMUS": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-02-26",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "TWLO": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-11-07",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "USO": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-01-15",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "VOO": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-01-06",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "VRSK": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-05-12",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "XEL": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-11-07",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "XLK": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-01-06",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 250,
+      "passed_floors_on_or_after_buymonth": true
+    },
+    "XYZ": {
+      "layer": "SIGNAL_OR_SIZING",
+      "cloud_first_buy": "2025-01-03",
+      "in_local_ranked_any_day": true,
+      "n_ranked_days": 239,
+      "passed_floors_on_or_after_buymonth": true
+    }
+  }
+}
