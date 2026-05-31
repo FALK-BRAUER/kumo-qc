@@ -10,9 +10,10 @@ Params:  enabled=True
 
 MODEL (#238 / Y, Falk — floors+rank+cap computed at SELECTION, no per-bar filter phase):
   - runtime.lean_entry._coarse_selection computes the universe ONCE-DAILY from QC's coarse
-    feed (ground truth): prefilter → build_bar_metrics → apply_floors (the floors that used to
-    be a per-bar filter phase, now AT SELECTION so only qualifying names get subscribed) →
-    rank_and_cap → stores the ranked ticker order on `qc._ranked_today` (DV-desc, ticker-asc
+    feed (ground truth): prefilter → maintained rolling-20d-DV (qc._dv_windows) → apply_floors
+    (the floors that used to be a per-bar filter phase, now AT SELECTION so only qualifying
+    names get subscribed) → rank_and_cap → stores the ranked ticker order on `qc._ranked_today`
+    (DV-desc, ticker-asc
     tiebreak, capped). NO stored universe file (the 326 scar). This phase reads that live
     ranked order and emits `ranked_candidates` IN RANK ORDER, intersected with the truly-
     subscribed set.

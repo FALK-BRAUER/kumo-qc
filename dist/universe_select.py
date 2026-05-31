@@ -23,12 +23,21 @@ identical bars. The QC history fetch + add_universe wiring live in lean_entry.
 
 SCALING FIX (incremental-DV): the trailing-DV that feeds apply_floors is no longer rebuilt
 by a per-day history() fan-out (~20x slower on cloud). It is MAINTAINED as a rolling 20-day
-window per coarse name, pushed ONCE per day from the COARSE feed's single-day DV (GATE 1
-proved coarse single-day DV == RAW close*volume locally, and DV is split-invariant so the
-cloud-adjusted-vendor case is robust for a liquidity floor). `rolling_dv_mean` /
-`update_dv_windows` below are the pure cores; lean_entry maintains qc._dv_windows with them.
-The rolling-mean semantics are IDENTICAL to the old path's mean(close*volume over 20 bars):
-mean(window) == mean(inputs[-20:]) (golden-mastered).
+window per coarse name, pushed ONCE per day from the COARSE feed's single-day DV. (Local:
+coarse single-day DV is bit-identical to RAW close*volume by the #238 conform — see GATE 1,
+a local tautology, not cloud proof. Cloud robustness rests on DV being split-invariant, which
+is sound for a LIQUIDITY floor but does not cover dividend-adjust; validated at the cloud
+Step-A active-set parity, not asserted here.) `rolling_dv_mean` / `update_dv_windows` below
+are the pure cores; lean_entry maintains qc._dv_windows with them.
+
+ASSUMPTION (the one residual vs the old history() path): the maintained rolling-20d mean
+equals the old history(20) trailing mean ONLY IF the coarse feed delivers every tradeable
+name on every day it actually trades (so a feed gap == a genuine non-trading day, injecting
+nothing). A 1-19 day coarse-feed gap on a name that DID trade would, on reappearance, blend
+stale DV (the pre-gap days still in the window) — whereas history(20) would fetch the last 20
+ACTUAL bars. Benign under the normal QC coarse contract (liquid names appear every trading
+day); stated here as the assumption rather than a claim of bit-identical semantics. The pure
+arithmetic itself is golden-mastered: mean(window) == mean(inputs[-20:]) on identical inputs.
 """
 from __future__ import annotations
 
