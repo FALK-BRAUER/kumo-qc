@@ -13,8 +13,13 @@ dropped. This is Falk's exact model: "filter selects tickers, passes them to Ich
 
   - QC's coarse-fundamental feed is GROUND TRUTH. `add_universe(coarse_selection)` runs the
     selection ONCE-DAILY:
-      1. loose single-day-DV PREFILTER (perf-bound) → RAW history of survivors →
-         `build_bar_metrics` → {ticker: (close, trailing_dv)};
+      1. MAINTAIN a rolling 20-day dollar-volume per coarse name from the coarse feed's
+         single-day DV (qc._dv_windows; NO history() call) → bar_metrics {ticker: (close,
+         trailing_dv)} where close = the coarse row's close and trailing_dv = mean of the
+         maintained window. (SCALING FIX: replaces the per-day RAW history() fan-out over the
+         survivors — ~20x slower on cloud — with an O(1)/name maintained rolling mean. GATE 1
+         proved coarse single-day DV == RAW close*volume locally and DV is split-invariant so
+         the cloud-adjusted-vendor case is robust for a LIQUIDITY floor.);
       2. `apply_floors` (close >= MIN_PRICE AND trailing_dv >= MIN_AVG_DOLLAR_VOLUME) →
          eligible (the SELECTION GATE — the floor that used to be a per-bar phase);
       3. `rank_and_cap` (DV-desc, ticker-asc tiebreak, cap COARSE_MAX) → ranked.
@@ -28,7 +33,9 @@ dropped. This is Falk's exact model: "filter selects tickers, passes them to Ich
     data (the local-coarse conform is a separate HQ decision — see #238 step E flag). NO
     `if cloud:` branch — one code path both sides.
   - RAW normalization on every subscription (the 2649e2e lesson — adjusted prices corrupt
-    Ichimoku). The once-daily survivor history() that builds the metrics is RAW too.
+    Ichimoku). The maintained rolling-DV needs no history() at all; the rolling window FILLS
+    DURING WARMUP (the coarse callback runs each warmup day too), so with WARMUP_DAYS ≥ 20 the
+    window is full before live trading — NO startup history() seed needed.
   - ACTIVE-SET hash logged each rebalance (count + sha256 of the sorted ranked tickers) —
     the diff-ladder selection rung between the universe selection and the trades.
 
@@ -49,7 +56,13 @@ import pandas as pd
 from engine.context import PhaseContext
 from engine.engine import StrategyEngine
 from runtime.indicators import INDICATOR_KEYS, weekly_aggregate
-from runtime.universe_select import apply_floors, rank_and_cap
+from runtime.universe_select import (
+    DvWindow,
+    apply_floors,
+    rank_and_cap,
+    rolling_dv_mean,
+    update_dv_windows,
+)
 
 
 def coarse_to_dollar_volume(coarse: Iterable[Any]) -> dict[str, float]:
@@ -58,13 +71,30 @@ def coarse_to_dollar_volume(coarse: Iterable[Any]) -> dict[str, float]:
     PURE (no QC types): each `c` is any object exposing `.symbol.value` (the ticker) and
     `.dollar_volume` (single-day $). Ticker is lower-cased to the on-disk/zip-stem convention
     so it matches qc._active.value.lower() downstream (the universe phase + signal compare
-    case-insensitively). This is the prefilter input to the shared-upstream build_bar_metrics
-    — a LOOSE perf-bound on the once-daily history() fan-out, NOT a strategy threshold.
+    case-insensitively). This is the prefilter input AND the per-day value pushed into the
+    maintained rolling-DV windows (qc._dv_windows) — a LOOSE perf-bound on which names build a
+    (close, trailing_dv) metric, NOT a strategy threshold.
     """
     out: dict[str, float] = {}
     for c in coarse:
         ticker = str(c.symbol.value).lower()
         out[ticker] = float(c.dollar_volume)
+    return out
+
+
+def coarse_to_close(coarse: Iterable[Any]) -> dict[str, float]:
+    """Extract {ticker -> RAW close price} from a coarse-fundamental feed for the price floor.
+
+    PURE (no QC types): each `c` exposes `.symbol.value` + `.price`. Uses `.price` (the RAW
+    price — LEAN CoarseFundamental.Price, verified against the LEAN docs) NOT `.adjusted_price`
+    (split/dividend-adjusted prices corrupt the RAW-price contract — the 2649e2e lesson). This
+    replaces the per-day history() close: GATE 1 proved coarse `.price` == RAW history close
+    exactly (0.000% over the 2025 sample). Ticker lower-cased to the zip-stem / qc._active
+    convention. The price floor (apply_floors close-leg) reads this map."""
+    out: dict[str, float] = {}
+    for c in coarse:
+        ticker = str(c.symbol.value).lower()
+        out[ticker] = float(c.price)
     return out
 
 
@@ -109,7 +139,7 @@ except ImportError:  # pragma: no cover
 class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
     """Thin LEAN wrapper. Subclass in main.py sets STRATEGY_CONFIG / dates / cash / the
     universe-selection knobs. initialize() subscribes SPY+VIX RAW, registers the live
-    coarse-driven SELECTION GATE (add_universe → prefilter + build_bar_metrics → apply_floors
+    coarse-driven SELECTION GATE (add_universe → maintain rolling-DV → prefilter → apply_floors
     → rank_and_cap → qc._ranked_today; subscribe ONLY the ranked qualifying set — Falk's Y
     model, floors at selection, no per-bar filter phase), and runs StrategyEngine per
     scheduled bar."""
@@ -123,16 +153,26 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
     # Live universe selection knobs — the floors now live HERE (Y: floors at the selection
     # gate, no per-bar filter phase). MIN_PRICE / MIN_AVG_DOLLAR_VOLUME drive apply_floors;
     # COARSE_MAX caps rank_and_cap; PREFILTER_DV + ADV_WINDOW govern the prefilter + the
-    # trailing-mean window built in build_bar_metrics. The single source for all of them.
+    # maintained rolling-DV window (qc._dv_windows). The single source for all of them.
     PREFILTER_DV: float = 25_000_000.0
     MIN_PRICE: float = 10.0
     MIN_AVG_DOLLAR_VOLUME: float = 100_000_000.0
     COARSE_MAX: int = 9999
-    ADV_WINDOW: int = 20  # trailing trading-day window for the precise mean-DV decision
+    ADV_WINDOW: int = 20  # trailing trading-day window for the maintained mean-DV decision
 
-    # Indicator warmup length — EXACT legacy value (750d). Warmup drives first-ready ->
-    # first-trade date -> parity; must match the champion.
-    WARMUP_DAYS: int = 750
+    # Indicator warmup length — DERIVED, not copied (the 750d was an un-derived "exact legacy"
+    # carve in #213c). Binding constraint = the WEEKLY IchimokuKinkoHyo(9,26,26,52,26,26).
+    # Its EXACT readiness (LEAN source Indicators/IchimokuKinkoHyo.cs):
+    #     WarmUpPeriod = max(tenkan+senkouADelay, kijun+senkouADelay, senkouB+senkouBDelay)
+    #                  = max(9+26, 26+26, 52+26) = 78 bars   (SenkouB = Delay(26) of Max(52))
+    # IsReady requires SenkouA && SenkouB && Tenkan && Kijun -> 78 WEEKLY bars to be fully ready.
+    #   78 weekly-Ichimoku readiness bars = 78 weeks; +1 leading partial-week (no complete bar)
+    #   = 79 weeks x 7 = 553 cal days; +7d (1 week) holiday/Monday-seed-alignment buffer = 560.
+    # Cross-check (weekly is BINDING): daily Ichimoku(78 trading days) ≈ 109 cal days; the
+    # 200-day SMA (200 trading days) ≈ 280 cal days — both < 560. So 560d covers all signals.
+    # NOTE: this is the FULL-SIGNAL warmup. A Step-A-parity-only override may set ~40d; that is
+    # NOT the strategy default and must never be hardcoded here.
+    WARMUP_DAYS: int = 560
 
     def initialize(self) -> None:
         self.set_start_date(*self.START_DATE)
@@ -170,10 +210,19 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self._trailing_dv: dict[str, float] = {}
         self._bar_metrics: dict[str, tuple[float, float]] = {}
 
+        # SCALING FIX (incremental-DV): the MAINTAINED rolling 20-day DV per coarse name.
+        # _dv_windows[ticker] = DvWindow(deque(maxlen=ADV_WINDOW), last_seen). Pushed ONCE per
+        # day from the coarse feed's single-day DV (NO history() fan-out). _dv_day_index is a
+        # monotonic per-selection-day counter driving the stale-eviction (absent >= ADV_WINDOW
+        # days). The window FILLS DURING WARMUP (coarse callback runs each warmup day), so it is
+        # full by the time live trading starts — no startup history() seed.
+        self._dv_windows: dict[str, DvWindow] = {}
+        self._dv_day_index: int = -1
+
         # LIVE once-daily SELECTION GATE (#238 / Y): add_universe runs coarse_selection each
-        # day (prefilter + build_bar_metrics + apply_floors + rank_and_cap → subscribe ONLY
+        # day (maintain rolling-DV + prefilter + apply_floors + rank_and_cap → subscribe ONLY
         # the ranked qualifying set). NO stored file, NO ObjectStore artifact, NO
-        # fp-verify-on-file — computed from QC's coarse feed, identically local+cloud.
+        # fp-verify-on-file, NO history() fan-out — computed from QC's coarse feed, local+cloud.
         self.add_universe(self._coarse_selection)
 
         self.engine = StrategyEngine(config=self.STRATEGY_CONFIG, qc=self)
@@ -189,15 +238,24 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         )
 
     def _coarse_selection(self, coarse: Any) -> Any:
-        """Once-daily LIVE SELECTION GATE (#238 / Y, Falk): coarse feed → prefilter → RAW
-        trailing metrics → FLOORS → RANK+CAP. The floors live HERE (Falk's Y: "filter selects
+        """Once-daily LIVE SELECTION GATE (#238 / Y, Falk): coarse feed → MAINTAIN rolling DV →
+        build metrics → FLOORS → RANK+CAP. The floors live HERE (Falk's Y: "filter selects
         tickers, passes them to Ichimoku") — they bound SUBSCRIPTION, so only qualifying names
         get tracked + Ichimoku'd (no 2x indicator load). NO redundant per-bar filter phase.
 
+        SCALING FIX (incremental-DV): the trailing DV is MAINTAINED as a rolling 20-day window
+        per coarse name (qc._dv_windows), pushed once per day from the coarse feed's single-day
+        DV — NO per-day history() fan-out (that was ~20x slower on cloud). The window fills
+        DURING WARMUP (this callback runs each warmup day too), so with WARMUP_DAYS ≥ ADV_WINDOW
+        it is full before live trading — no startup history() seed. NO history() anywhere here.
+
         One code path both sides (local simulates cloud). Steps:
-          1. coarse_to_dollar_volume(coarse) → {ticker: single-day DV} (the prefilter input).
-          2. prefilter survivors (>= PREFILTER_DV, a loose perf-bound) → build_bar_metrics →
-             {ticker: (latest_close, trailing-ADV_WINDOW-mean DV)} — the metric data.
+          1. coarse_to_dollar_volume(coarse) / coarse_to_close(coarse) → today's single-day DV +
+             RAW close per ticker (the coarse row's `.dollar_volume` / `.price`).
+          2. update_dv_windows(qc._dv_windows, coarse_dv) → push today's DV into each rolling
+             window (drop-oldest at ADV_WINDOW), evict long-absent names. PREFILTER (≥
+             PREFILTER_DV, a loose perf-bound) restricts WHICH names build a (close, trailing)
+             metric — trailing = rolling_dv_mean(window), close = the coarse RAW price.
           3. apply_floors (close >= MIN_PRICE AND trailing_dv >= MIN_AVG_DOLLAR_VOLUME) → the
              SELECTION GATE; then rank_and_cap (DV-desc, ticker-asc tiebreak, cap COARSE_MAX).
           4. store qc._ranked_today (the floored+ranked+capped selection; the universe phase
@@ -208,60 +266,45 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         without substrate data drop naturally (the ∩-substrate residual)."""
         date_str = self.time.strftime("%Y-%m-%d")
         coarse_dv = coarse_to_dollar_volume(coarse)
+        coarse_close = coarse_to_close(coarse)
 
-        # Prefilter survivors bound the once-daily history fan-out (loose perf-bound).
-        survivors = [t for t, sdv in coarse_dv.items() if sdv >= self.PREFILTER_DV]
-        raw = self.build_bar_metrics(survivors)
+        # MAINTAIN the rolling 20-day DV from today's coarse feed (NO history()). Monotonic
+        # day-index drives stale-eviction (a name absent >= ADV_WINDOW days is dropped).
+        self._dv_day_index += 1
+        update_dv_windows(
+            self._dv_windows, coarse_dv, day_index=self._dv_day_index, maxlen=self.ADV_WINDOW,
+        )
+
+        # Build (close, trailing_dv) for the PREFILTER survivors (loose perf-bound) from the
+        # MAINTAINED windows + the coarse RAW close. trailing_dv = rolling mean of the window.
+        bar_metrics: dict[str, tuple[float, float]] = {}
+        for ticker, sdv in coarse_dv.items():
+            if sdv < self.PREFILTER_DV:
+                continue
+            window = self._dv_windows[ticker].dv  # just pushed above
+            close = coarse_close.get(ticker)
+            if close is None:
+                continue
+            bar_metrics[ticker] = (close, rolling_dv_mean(window))
 
         # FLOORS AT THE SELECTION GATE (Y): only qualifying names get subscribed + tracked.
         eligible = apply_floors(
-            raw, min_price=self.MIN_PRICE, min_avg_dollar_volume=self.MIN_AVG_DOLLAR_VOLUME,
+            bar_metrics, min_price=self.MIN_PRICE,
+            min_avg_dollar_volume=self.MIN_AVG_DOLLAR_VOLUME,
         )
-        dv_by_ticker = {t: raw[t][1] for t in eligible}
+        dv_by_ticker = {t: bar_metrics[t][1] for t in eligible}
         ranked = rank_and_cap(eligible, dv_by_ticker, coarse_max=self.COARSE_MAX)
 
         # Store the selected+ranked+capped set + the dv view (signal tiebreak) + the full
         # survivor map (diff-ladder only; no phase reads _bar_metrics under Y).
         self._ranked_today = ranked
-        self._trailing_dv = {t: raw[t][1] for t in ranked if t in raw}
-        self._bar_metrics = raw
+        self._trailing_dv = {t: bar_metrics[t][1] for t in ranked if t in bar_metrics}
+        self._bar_metrics = bar_metrics
 
         # Subscribe ONLY the ranked qualifying set (the whole point of Y — no 2x load).
         count, h = active_set_hash(ranked)
         self.log(f"ACTIVE_SET|{date_str}|count={count}|hash={h}")
         return [Symbol.create(t.upper(), SecurityType.EQUITY, Market.USA) for t in ranked]
-
-    def build_bar_metrics(self, survivors: list[str]) -> dict[str, tuple[float, float]]:
-        """RAW history of the prefilter survivors → {ticker: (latest_close, trailing-mean DV)}.
-
-        The metric build feeding the selection gate (Y): _coarse_selection floors it
-        (apply_floors) then ranks it (rank_and_cap) — this method applies NEITHER itself.
-        ONE history() call for all survivors (ADV_WINDOW bars, RAW normalization — matches the
-        subscription + the champion). trailing DV = mean(close*volume) over the window; latest
-        close = the last bar. A survivor with < ADV_WINDOW bars (insufficient history) is
-        dropped (absent from the map → never subscribed, never floored). Ticker keys lowercased
-        to the zip-stem / qc._active convention."""
-        if not survivors:
-            return {}
-        symbols = [Symbol.create(t.upper(), SecurityType.EQUITY, Market.USA) for t in survivors]
-        hist = self.history(
-            symbols, self.ADV_WINDOW, Resolution.DAILY,
-            data_normalization_mode=DataNormalizationMode.RAW,
-        )
-        if hist is None or hist.empty:
-            return {}
-        hist.columns = [c.lower() for c in hist.columns]
-        out: dict[str, tuple[float, float]] = {}
-        # MultiIndex (symbol, time): group per symbol, require ADV_WINDOW bars.
-        for sym, frame in hist.groupby(level=0):
-            ticker = str(getattr(sym, "value", sym)).lower()
-            f = frame.droplevel(0) if isinstance(frame.index, pd.MultiIndex) else frame
-            if len(f) < self.ADV_WINDOW:
-                continue
-            close = float(f["close"].iloc[-1])
-            trailing_dv = float((f["close"] * f["volume"]).mean())
-            out[ticker] = (close, trailing_dv)
-        return out
 
     def on_securities_changed(self, changes: Any) -> None:
         """Register indicators for newly-subscribed symbols, dispose on removal — EXACT
@@ -307,8 +350,9 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         consolidator.data_consolidated += _on_weekly
         self.subscription_manager.add_consolidator(sym, consolidator)
 
-        # With the 750-day warmup the consolidator receives enough weekly bars automatically;
-        # only seed manually outside warmup (avoid N× history() calls at init).
+        # With the derived warmup (WARMUP_DAYS, 560d -> ~78 weekly bars) the consolidator
+        # receives enough weekly bars automatically; only seed manually outside warmup (a name
+        # added mid-run after warmup) — avoid N× history() calls at init.
         if not self.is_warming_up:
             self._seed_weekly(sym, w_ichi, w_close)
 
@@ -357,9 +401,9 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
 
         WARMUP GUARD (exact legacy _rebalance pattern): skip the engine while warming up.
         Orders can't be submitted during warm-up (LEAN rejects OrderRequest.submit), and
-        running the full pipeline over the 750d warmup × the dynamic universe is both wrong
-        (no trading) and prohibitively slow. QC auto-warms the registered indicators during
-        warm-up independently of on_data, so they are ready when real bars start."""
+        running the full pipeline over the WARMUP_DAYS (560d) warmup × the dynamic universe is
+        both wrong (no trading) and prohibitively slow. QC auto-warms the registered indicators
+        during warm-up independently of on_data, so they are ready when real bars start."""
         if self.is_warming_up:
             return
         ctx = PhaseContext(qc=self, time=self.time, data=data)
