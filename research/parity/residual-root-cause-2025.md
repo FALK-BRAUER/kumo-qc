@@ -7,8 +7,11 @@ in local's conform-coarse ranked universe and pass every floor; only 1 — BRK.B
 irreducible vendor-breadth miss). The residual is **partially-reducible (fixable, signal layer)**,
 not the accepted vendor residual; the cloud number remains GROUND TRUTH.
 
-This closes #262 (the warmup mirage is gone — local now trades all year, tracking cloud's
-monthly cadence) and localizes the next fix to the indicator/score layer (NOT universe).
+This closes the #262 **warmup-mirage sub-goal** (#259 — local now trades all year, tracking
+cloud's monthly cadence) and localizes the next fix to the indicator/score layer (NOT universe).
+**#262 itself stays OPEN:** its acceptance is local≈cloud *within band* + a TRUE baseline recorded.
+Local is still +0.544 Sharpe / +12.67pp out of band (see VERDICT) — the signal-layer residual must
+close before #262's local≈cloud criterion is met.
 
 ## Apples-to-apples runs (both post-#259 dist `e573e84b1ce1`, commit `8e80cc3`)
 
@@ -28,7 +31,7 @@ Provenance: config_hash `e573e84b1ce1` · data_fingerprint `90f2d7e3` · commit 
 | LOCAL | BT dir `algorithm/v2_champion_asis/backtests/2026-05-31_21-43-05/` — `1247415841.json` (stats), `1247415841-order-events.json` (487 events / 243 filled / 93 symbols), `log.txt` (ACTIVE_SET / TRACKED_CANDIDATES / PHASE / BLOCK). Code-verified: `champion-asis` marker present in `code/main.py`. |
 | CLOUD | BT `b40551526c27537834bda25da58521ec`, project `arch2_champion_v2` PID `32319236`. 291 orders via `/backtests/orders/read` (paginated, saved `research/parity/artifacts/cloud_orders_265.json`). 113 symbols. |
 | Coarse | `data/equity/usa/fundamental/coarse/2023*–2025*.csv` (8-col QC-native, #259-conformed). |
-| Replay | `scripts/residual_parity_diff.py` — offline selection-gate replay; reproduces the live ACTIVE_SET counts **249/249 position-aligned exact** (1-session date-label offset only). |
+| Replay | `scripts/residual_parity_diff.py` — offline selection-gate replay of the gap classification. The ACTIVE_SET-vs-replay position cross-check is a MANUAL/out-of-band step (not harness-asserted): under the stated +1-session date-label offset it is **193/193 exact** over the aligned FY days. |
 
 ## The #259 warmup fix is CONFIRMED (the mirage is gone)
 
@@ -61,8 +64,10 @@ each **cloud-only** name (38) by replaying local's IDENTICAL selection gate
 | SELECTION_VENDOR_BREADTH | 1 | Never in local conform-coarse at all. |
 
 - **37 of 38 cloud-only names** (e.g. AMZN, COST, CRWD, DRI, CME) are in local's ranked
-  universe on **all 250 FY days** — subscribed, indicator-tracked, floor-clearing. Local simply
-  did not score them ≥7 on the days cloud entered → **SIGNAL layer**.
+  universe — subscribed, indicator-tracked, floor-clearing — on the days cloud entered them
+  (**31/37 on all 250 FY days; 6 — BECN, ITCI, RBA, CMA, KGC, XYZ — on a subset**, still ≥1 day so
+  correctly SIGNAL, not floor/vendor). Local simply did not score them ≥7 on cloud's entry bars →
+  **SIGNAL layer**.
 - **BRK.B** (the lone vendor-breadth miss): local's conform-coarse carries **BRK.A** (A-shares,
   $788k/share) but **not the B-class** — the only true breadth gap, **1/113 cloud symbols
   (0.9%)**. This is the irreducible vendor residual, and it is negligible.
@@ -88,8 +93,9 @@ each **cloud-only** name (38) by replaying local's IDENTICAL selection gate
 **The residual is dominated by a FIXABLE SIGNAL-layer divergence, not the irreducible vendor
 residual.** Mechanically:
 - **Universe / selection breadth: SOUND.** 37/38 gap names in local's ranked universe; 0 floor
-  failures; the offline gate replay is bit-exact to the live ACTIVE_SET (249/249). The conform
-  pipeline emulates cloud's coarse correctly.
+  failures; the offline gate replay is position-exact to the live ACTIVE_SET (193/193 aligned FY
+  days under the +1-session offset; manual cross-check). The conform pipeline emulates cloud's
+  coarse correctly.
 - **Vendor-breadth residual: NEGLIGIBLE.** Exactly 1 name (BRK.B, B-share class absent from the
   local coarse vendor file) = 0.9% of cloud symbols. This IS irreducible (local vendor ≠ QC-native
   share-class coverage) but it cannot account for a 12.67pp return gap.
@@ -107,10 +113,9 @@ residual closes; it remains valid only as a fast-iteration directional harness.
 
 ### Documented residual BAND (the parity-test guard)
 The proven residual is the regression guard band. The parity test FAILS LOUD if a future local
-run diverges from the recorded cloud ground truth by MORE than this band (catches a re-broken
-warmup like the mirage), and ALSO fails if local diverges by LESS in a way that implies the
-results silently converged via a forbidden `if cloud` workaround is not asserted — the band is a
-documented envelope, not a pass:
+run diverges from the recorded cloud ground truth by MORE than this band — catching a re-broken
+warmup like the mirage. The band is a documented envelope of the current unclosed residual, NOT a
+parity pass:
 
 | Metric | Cloud GT | Local (current) | Band (|local − cloud| max) |
 |---|---|---|---|
