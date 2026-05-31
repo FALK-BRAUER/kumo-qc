@@ -6,8 +6,10 @@ without all three. This module:
 
   - Provenance: stamps a scored result with the git commit, the config-hash (from the
     SweepConfig itself), and the data fingerprint (the substrate the run used). Reuses the
-    dist/_metadata provenance triple shape (GIT_COMMIT / CONFIG_HASH / DATA_FINGERPRINT) so a
-    sweep row is comparable to a built-dist row.
+    dist/_metadata provenance triple SHAPE (GIT_COMMIT / CONFIG_HASH / DATA_FINGERPRINT) and
+    digest discipline — but the config-hash is NOT cross-matchable to a built-dist config-hash
+    (different inputs: the dist hash also folds name+version+per-slot enabled). Same format,
+    not interchangeable; compare sweep-to-sweep and dist-to-dist, never across.
   - Ledger: writes the master results rows to results/ in the canonical schema
     (results/README): config_hash · data_fingerprint · commit · bt_id · marker · sharpe ·
     ret_pct · dd_pct · orders · window · verdict. Round-trips (write -> read -> identical).

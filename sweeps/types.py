@@ -103,8 +103,10 @@ class SweepConfig:
     """One fully-enumerated strategy variant = a choice per kind, hashed for provenance.
 
     Phase-agnostic: a tuple of PhaseChoice. `config_hash` is a deterministic 12-hex digest
-    over (kind, impl, sorted params) — the same shape as build/cloud_package._config_hash,
-    so a sweep config-hash is comparable to a built-dist config-hash.
+    over (kind, impl, sorted params). It uses the same sha256[:12] digest FORMAT/discipline
+    as build/cloud_package._config_hash, but is NOT cross-matchable to it: the dist hash also
+    folds in name+version+per-slot enabled, so the same logical config yields a DIFFERENT
+    digest in each. Compare sweep-hash to sweep-hash and dist-hash to dist-hash, never across.
     """
 
     choices: tuple[PhaseChoice, ...]
