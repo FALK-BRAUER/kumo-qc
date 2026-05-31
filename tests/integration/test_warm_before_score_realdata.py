@@ -50,6 +50,18 @@ def _available(ticker: str) -> bool:
     return (_DAILY / f"{ticker}.zip").is_file()
 
 
+@pytest.mark.skipif(not _DAILY.is_dir(), reason="local LEAN daily tree absent (gitignored data/)")
+def test_data_tree_not_fully_pruned() -> None:
+    # FAIL-LOUD on a coverage mirage: if the daily dir EXISTS but every _LIQUID zip is pruned, the
+    # parametrized HALF-1 tests below all per-ticker-skip and the file passes as a silent no-op.
+    # This guard makes that state RAISE instead of green — at least one liquid name must be present
+    # when the tree is present, so HALF 1 genuinely exercises the seed path.
+    assert any(_available(t) for t in _LIQUID), (
+        f"daily tree present at {_DAILY} but none of {_LIQUID} on disk — HALF-1 seed coverage "
+        f"would silently no-op (a coverage mirage). Restore the data symlink / liquid zips."
+    )
+
+
 def _read_daily(ticker: str) -> pd.DataFrame:
     """Real on-disk daily OHLCV -> the lowercased frame the seed path consumes. LEAN daily zips
     are `yyyymmdd HH:MM,open,high,low,close,volume` with prices in deci-cents (/10000)."""
