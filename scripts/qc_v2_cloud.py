@@ -219,13 +219,28 @@ def chart(bid: str, chart_name: str = "Universe", out_path: str | None = None) -
     return None
 
 
-def orders(bid: str) -> None:
+def orders(bid: str) -> list[dict]:
+    """Read ALL orders for a backtest. /backtests/orders/read only honors a window of <= 100
+    indices per call — a wide window (start:0/end:1000) silently returns 0 orders (the silent-0
+    trap that made this command report nothing for a 291-order BT). Paginate in 100-index
+    windows until a short page; FAIL LOUD on an API error rather than reporting an empty list."""
     _require_pid()
-    r = post("/backtests/orders/read", {"projectId": PID, "backtestId": bid, "start": 0, "end": 1000})
-    os_ = r.get("orders", [])
-    print(f"  {len(os_)} orders")
-    for o in os_:
+    all_orders: list[dict] = []
+    start = 0
+    while True:
+        r = post("/backtests/orders/read",
+                 {"projectId": PID, "backtestId": bid, "start": start, "end": start + 100})
+        if not r.get("success", True):
+            sys.exit(f"orders read failed at start={start}: {json.dumps(r)[:300]}")
+        batch = r.get("orders", [])
+        all_orders.extend(batch)
+        if len(batch) < 100:
+            break
+        start += 100
+    print(f"  {len(all_orders)} orders")
+    for o in all_orders:
         print(f"    {o.get('time')} {o.get('symbol', {}).get('value')} qty={o.get('quantity')} {o.get('type')} status={o.get('status')}")
+    return all_orders
 
 
 if __name__ == "__main__":
