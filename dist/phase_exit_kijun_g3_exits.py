@@ -22,7 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from base import BasePhase, PhaseResult
+from base import BasePhase, DegradedDataError, PhaseResult
 from context import OrderIntent, PhaseContext
 
 
@@ -64,9 +64,24 @@ class KijunG3Exits(BasePhase):
             ind = getattr(qc, "_indicators", {}).get(symbol)
             if ind is None:
                 continue
+            # FAIL-LOUD GUARD (#261-8): an INVESTED position whose daily Ichimoku is missing or
+            # COLD at stop-evaluation time is the silent-skip class — the Kijun/cloud stop is
+            # never evaluated that bar, so the position rides UNPROTECTED (unevaluated risk) with
+            # NOTHING crashing. HQ ruling: RAISE. The engine only OPENS a position after the
+            # SIGNAL scorer qualified it (which requires d_ichi.is_ready, #264), and #259's
+            # _seed_daily warms d_ichi the day a name is subscribed — so an invested position
+            # SHOULD have a warm d_ichi. A cold one = a genuine break (lost indicator / wrong
+            # wiring), not a benign warmup edge → fail loud with the symbol so it is diagnosable,
+            # never a silent unprotected ride.
             d_ichi = ind.get("d_ichi")
             if d_ichi is None or not d_ichi.is_ready:
-                continue
+                raise DegradedDataError(
+                    f"invested position with a cold/missing daily Ichimoku at stop-eval: "
+                    f"symbol={symbol.value!r} date={date_str} d_ichi_present={d_ichi is not None} "
+                    f"is_ready={getattr(d_ichi, 'is_ready', None)} — the stop cannot be evaluated, "
+                    f"so the position would ride UNPROTECTED. An invested name must have a warm "
+                    f"d_ichi (entry requires it); a cold one is degraded data, fail loud (#261-8)"
+                )
 
             close = float(qc.securities[symbol].close)
             kijun = d_ichi.kijun.current.value
