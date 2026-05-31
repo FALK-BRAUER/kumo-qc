@@ -1,6 +1,5 @@
 from config import Slot, StrategyConfig
 from engine import StrategyEngine
-from phase_filter_tradeability_floors import TradeabilityFloors
 from phase_universe_dv_rank_cap import DvRankCap
 from phase_signal_bct_score_full import BctScoreFull
 from phase_regime_spy_200ma import SpySma200
@@ -12,9 +11,8 @@ from lean_entry import BctEngineAlgorithm
 
 STRATEGY_CONFIG = StrategyConfig(
     name='champion-asis',
-    version='3.1.0',
+    version='3.2.0',
     phases={
-    'filter': Slot(impl=TradeabilityFloors, params=TradeabilityFloors.Params(min_price=10.0, min_avg_dollar_volume=100000000.0, adv_window=20, enabled=True)),
     'universe': Slot(impl=DvRankCap, params=DvRankCap.Params(enabled=True)),
     'signal': Slot(impl=BctScoreFull, params=BctScoreFull.Params(min_score=7, parabolic_threshold=0.25, enabled=True)),
     'regime': [Slot(impl=SpySma200, params=SpySma200.Params(enabled=True)), Slot(impl=VixPercentile, params=VixPercentile.Params(vix_percentile_enabled=False, vix_percentile_threshold=75.0, vix_percentile_lookback=504, enabled=True))],

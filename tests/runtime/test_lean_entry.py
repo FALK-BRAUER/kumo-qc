@@ -1,19 +1,30 @@
-"""Tests for runtime.lean_entry — the #182 site, now LIVE-coarse (#238).
+"""Tests for runtime.lean_entry — the #182 site, now LIVE-coarse selection gate (#238 / Y).
 
 The pure, extractable logic is unit-tested here:
   - coarse_to_dollar_volume: coarse feed → {ticker: single-day DV}, lowercased (the
-    prefilter input to the shared-upstream build_bar_metrics).
-  - active_set_hash: determinism + order-independence (the diff-ladder rung).
+    prefilter input to build_bar_metrics).
+  - active_set_hash: determinism + order-independence (the diff-ladder selection rung).
+  - the selection-gate FLOOR KNOBS (the floors live on this class under Y, not a phase).
   - on_securities_changed: indicator-lifecycle bookkeeping (register/dispose).
   - on_data warmup guard.
 
-The QC-runtime glue (the _coarse_selection history() fan-out, add_universe, Symbol
-construction) is integration-verified on a LEAN run — pragma:no cover, not unit-testable
-without QC.
+The QC-runtime glue (the _coarse_selection history() fan-out + apply_floors/rank_and_cap +
+add_universe + Symbol construction) is integration-verified on a LEAN run — pragma:no cover,
+not unit-testable without QC.
 """
 from __future__ import annotations
 
-from runtime.lean_entry import active_set_hash, coarse_to_dollar_volume
+from runtime.lean_entry import BctEngineAlgorithm, active_set_hash, coarse_to_dollar_volume
+
+
+def test_selection_gate_floor_knobs_are_the_agreed_defaults() -> None:
+    # Under Y the floors live on the lean_entry class (the selection gate), not a per-bar
+    # filter phase. These are the SINGLE source of the floor + rank + cap values.
+    assert BctEngineAlgorithm.MIN_PRICE == 10.0
+    assert BctEngineAlgorithm.MIN_AVG_DOLLAR_VOLUME == 100_000_000.0  # liquidity (fintrack ~943/day)
+    assert BctEngineAlgorithm.ADV_WINDOW == 20
+    assert BctEngineAlgorithm.PREFILTER_DV == 25_000_000.0
+    assert BctEngineAlgorithm.COARSE_MAX == 9999
 
 
 class FakeSymbolValue:

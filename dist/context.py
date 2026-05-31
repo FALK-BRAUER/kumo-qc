@@ -31,8 +31,10 @@ class BlockEvent:
 @dataclass(slots=True)
 class BarState:
     """Fresh per bar. Phases write here via the engine; engine fires from the typed lists."""
-    # Filter phase output: tradeability-eligible names for the bar (pre-rank). Universe
-    # phase emits ranked_candidates (rank+cap). Separated per the filter->universe seam.
+    # `eligible` is RESERVED for a future real per-bar filter phase (the champion under Y
+    # applies its floors at the selection gate, so nothing writes this today). Kept as a
+    # documented no-op slot rather than churning the dataclass. The universe phase emits
+    # ranked_candidates (the live-selected floored+ranked+capped order ∩ active).
     eligible: list[str] = field(default_factory=list)
     ranked_candidates: list[str] = field(default_factory=list)
     sized_orders: list[OrderIntent] = field(default_factory=list)

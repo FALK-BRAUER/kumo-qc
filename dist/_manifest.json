@@ -1,6 +1,6 @@
 {
   "build_script_version": "1.0.0",
-  "config_hash": "4a5d02385e48",
+  "config_hash": "1ba1902b8bfb",
   "data_fingerprint": "90f2d7e3fb80d0a4d2eb286f6a43199e1519495a3ce9d787a4d7d0dfc70c535c",
   "files": [
     "_manifest.json",
@@ -15,7 +15,6 @@
     "main.py",
     "phase_diagnostics_version_marker.py",
     "phase_exit_kijun_g3_exits.py",
-    "phase_filter_tradeability_floors.py",
     "phase_regime_spy_200ma.py",
     "phase_regime_vix_percentile.py",
     "phase_signal_bct_score_full.py",
@@ -24,11 +23,10 @@
     "shared_oracle_helpers.py",
     "universe_select.py"
   ],
-  "git_commit": "3a6f682eab4b8e5c594116f610d0cea54ce8935b",
+  "git_commit": "ff3948dfe1dbfa337676496e0c12b7007f36271d",
   "phase_markers": {
     "diagnostics": "version_marker_v1",
     "exit_hard": "kijun_g3_exits_v1",
-    "filter": "tradeability_floors_v1",
     "regime": "spy_200ma_v1,vix_percentile_v1",
     "signal": "bct_score_full_v1",
     "sizing": "flat_pct_heatcap_v1",

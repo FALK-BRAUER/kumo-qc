@@ -68,7 +68,10 @@ ENTRY_ONLY_PHASES: frozenset[str] = frozenset({
 ENTRY_ONLY_SENTINELS: frozenset[FireSentinel] = frozenset({FIRE_ENTRIES, FIRE_ADDS})
 ALWAYS_RUN: frozenset[str] = frozenset({"diagnostics", "circuit_breaker"})
 
-REQUIRED_PHASES: tuple[str, ...] = ("filter", "universe", "signal", "sizing")
+# "filter" is INTENTIONALLY not required (Y, Falk): the champion applies its floors at the
+# selection gate (lean_entry._coarse_selection), so there is no per-bar filter phase. "filter"
+# stays a KNOWN_KIND (in PHASE_ORDER) — a future strategy MAY add a real per-bar filter phase.
+REQUIRED_PHASES: tuple[str, ...] = ("universe", "signal", "sizing")
 
 # Every schedulable phase kind = the string items of PHASE_ORDER. A config keyed by any
 # kind NOT in here would instantiate but never be scheduled in the per-bar loop (it reads

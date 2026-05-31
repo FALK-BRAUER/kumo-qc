@@ -1,57 +1,57 @@
-"""Universe phase: RANK + CAP (#220 / #238 / R1) — consumes the FILTER phase's eligible set.
+"""Universe phase: EXPOSE the live-selected ranked order (#220 / #238 / Y) — before signal.
 
 Kind:    universe
 Marker:  dv_rank_cap_v1
 Params:  enabled=True
-         (NO coarse_max — the cap (scan breadth) is the SINGLE source lean_entry.COARSE_MAX,
-          read off qc. A second coarse_max here was dead/drift-prone, #238 dedup.)
+         (NO coarse_max — the floors + DV-desc rank + the COARSE_MAX cap ALL happen at the
+          SELECTION GATE, runtime.lean_entry._coarse_selection (apply_floors → rank_and_cap),
+          the SINGLE source. This phase only EXPOSES the already-floored+ranked+capped live
+          order to the bar_state; it carries no cap param of its own.)
 
-MODEL (#238 / R1 UN-FUSE, Falk — filter floors FIRST, this phase ranks the survivors):
-  - R1 un-fuses the formerly-fused filter+rank. The FILTER phase (tradeability_floors) reads
-    the shared-upstream `qc._bar_metrics`, applies the floors, and emits `bar_state.eligible`
-    (canonical uppercase, ∩ active). This RANK phase consumes that `eligible` list, ranks it
-    DV-desc (ticker-asc tiebreak) using `qc._trailing_dv`, caps to `qc.COARSE_MAX`, and emits
-    `bar_state.ranked_candidates` in rank order. NO stored universe file (the 326 scar).
-  - THE #182 FIX (now at the consumer): the ranked order is produced by ITERATING the ranked
-    list (rank_and_cap's sort output), NOT the active set (iterating qc._active would reorder
-    by the set's hash order = nondeterministic, local≠cloud). SELECTION still happens
-    downstream (bct_score_full, score>=7).
-  - The cap is `qc.COARSE_MAX` (scan breadth — NOT a position count, NOT a frozen 326), read
-    off qc as the single source (lean_entry.COARSE_MAX). This phase carries no cap param.
-
-REQUIRES_UPSTREAM:
-  - Declared as ["filter"] — the engine validates REQUIRES_UPSTREAM against phase KINDS (see
-    engine._validate_dependencies + the existing convention: signal REQUIRES_UPSTREAM=["universe"],
-    sizing=["signal"]). "filter" is the kind that PROVIDES_DOWNSTREAM "eligible"; declaring the
-    KIND (not the provides-string "eligible") is what the validator accepts, and it enforces the
-    R1 ordering: filter (PHASE_ORDER idx 1) precedes universe (idx 2) → validation passes.
-    [Spec asked for ["eligible"]; that is a provides-string, not a kind — the validator would
-     raise DependencyError on it. Used the kind-correct ["filter"], same intent. FLAGGED.]
+MODEL (#238 / Y, Falk — floors+rank+cap computed at SELECTION, no per-bar filter phase):
+  - runtime.lean_entry._coarse_selection computes the universe ONCE-DAILY from QC's coarse
+    feed (ground truth): prefilter → build_bar_metrics → apply_floors (the floors that used to
+    be a per-bar filter phase, now AT SELECTION so only qualifying names get subscribed) →
+    rank_and_cap → stores the ranked ticker order on `qc._ranked_today` (DV-desc, ticker-asc
+    tiebreak, capped). NO stored universe file (the 326 scar). This phase reads that live
+    ranked order and emits `ranked_candidates` IN RANK ORDER, intersected with the truly-
+    subscribed set.
+  - THE #182 FIX (at the consumer): the ranked order is preserved by ITERATING the ranked
+    list, NOT the active set (iterating qc._active would reorder by the set's hash order =
+    nondeterministic, local≠cloud). SELECTION still happens downstream (bct_score_full,
+    score>=7).
+  - REQUIRES_UPSTREAM is [] by design: the selection gate (lean_entry) feeds qc._ranked_today
+    before the engine runs; this phase reads that runtime state, not an upstream bar_state.
 
 Fail-loud (the #182 lessons):
-  - The wiring fail-loud (None → raise) now lives in the FILTER phase (it reads the upstream
-    `_bar_metrics`). This phase consumes a BOUNDED list (`bar_state.eligible`, default []) →
-    no fall-through-all risk: an empty/absent eligible can only ever yield empty candidates.
-  - empty eligible -> empty candidates, NO raise (zero-candidate / pre-warmup day).
+  - `_ranked_today` is None -> FAIL LOUD (raise). Never pass-through-all (the 19k fall-through
+                              trap). Absent at runtime = a selection-gate wiring bug
+                              (lean_entry must always assign it, [] on a zero-candidate day).
+  - empty ranked list      -> empty candidates, NO raise (zero-candidate / pre-warmup day).
+
+Diff-ladder: logs a per-bar TRACKED-CANDIDATE rung (count + sha256 of the emitted
+ranked_candidates) — distinct from the once-daily SELECTION rung (lean_entry ACTIVE_SET):
+the selection rung is what was chosen; this rung is what is actually tracked this bar
+(selection ∩ truly-subscribed active).
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
+from hashlib import sha256
 from typing import Any
 
-from engine.base import BasePhase, PhaseResult
+from engine.base import BasePhase, PhaseResult, UniverseLoadError
 from engine.context import PhaseContext
-from runtime.universe_select import rank_and_cap
 
 
 class DvRankCap(BasePhase):
     PHASE_KIND = "universe"
-    REQUIRES_UPSTREAM: list[str] = ["filter"]  # depends on the filter kind (PROVIDES "eligible")
+    REQUIRES_UPSTREAM: list[str] = []
     PROVIDES_DOWNSTREAM: list[str] = ["ranked_candidates"]
 
     @dataclass(slots=True)
     class Params:
-        enabled: bool = True  # cap (coarse_max) lives in lean_entry.COARSE_MAX (single source)
+        enabled: bool = True  # cap (coarse_max) lives at the selection gate (single source)
 
     def __init__(self, params: "DvRankCap.Params", logger: Any) -> None:
         super().__init__(params, logger)
@@ -60,10 +60,17 @@ class DvRankCap(BasePhase):
     def evaluate(self, ctx: PhaseContext) -> PhaseResult:
         qc = ctx.qc
         date_str = ctx.time.strftime("%Y-%m-%d")
-        eligible = ctx.bar_state.eligible  # always a list (default []), never None
+        ranked_today = getattr(qc, "_ranked_today", None)
 
-        if not eligible:
-            # Zero-candidate / pre-warmup day -> empty, NEVER raise.
+        if ranked_today is None:
+            raise UniverseLoadError(
+                f"dv_rank_cap: _ranked_today not set on {date_str} — refusing to "
+                f"trade-everything (selection-gate wiring bug; fix lean_entry._coarse_"
+                f"selection). Never pass-through-all."
+            )
+
+        if not ranked_today:
+            # Zero-candidate day / pre-warmup (the selection gate assigns [] not None).
             ctx.bar_state.ranked_candidates = []
             return PhaseResult(
                 decision="empty",
@@ -73,17 +80,29 @@ class DvRankCap(BasePhase):
                 metrics={},
             )
 
-        # RANK + CAP: eligible (canonical uppercase, from the filter phase) ranked DV-desc
-        # (ticker-asc tiebreak) via qc._trailing_dv, capped to qc.COARSE_MAX (single source).
-        # rank_and_cap's dv lookup is case-insensitive (eligible uppercase, dv keys lowercase).
-        dv = getattr(qc, "_trailing_dv", {})
-        coarse_max = getattr(qc, "COARSE_MAX", 9999)
-        ctx.bar_state.ranked_candidates = rank_and_cap(eligible, dv, coarse_max=coarse_max)
+        # PRESERVE RANK ORDER: ranked_today is DV-desc ranked (floored+ranked+capped at the
+        # selection gate). Filter to the truly-subscribed active symbols while keeping that
+        # order (iterate the ranked list, not the active set) — the #182 fix. Iterating
+        # qc._active here would reorder by the set's hash order = nondeterministic.
+        # CASE: ranked tickers are lowercase (zip stems / coarse value lowered); QC
+        # Symbol.value is uppercase. Match case-insensitively and EMIT the canonical _active
+        # value (what the signal phase keys its symbol lookup on, active_by_value[ticker]).
+        active_by_lower = {s.value.lower(): s.value for s in getattr(qc, "_active", set())}
+        ctx.bar_state.ranked_candidates = [
+            active_by_lower[t.lower()] for t in ranked_today if t.lower() in active_by_lower
+        ]
+
+        # Diff-ladder TRACKED-CANDIDATE rung: count + sha256 of the emitted ranked_candidates
+        # (what is actually tracked this bar) — distinct from the once-daily SELECTION rung.
+        cands = ctx.bar_state.ranked_candidates
+        h = sha256(",".join(cands).encode("utf-8")).hexdigest()
+        qc.log(f"TRACKED_CANDIDATES|{date_str}|count={len(cands)}|hash={h}")
+
         return PhaseResult(
             decision="ranked",
             blocked=False,
-            reason=f"{len(ctx.bar_state.ranked_candidates)} ranked candidates for {date_str}",
-            facts={"date": date_str, "count": len(ctx.bar_state.ranked_candidates)},
+            reason=f"{len(cands)} ranked candidates for {date_str}",
+            facts={"date": date_str, "count": len(cands)},
             metrics={},
         )
 

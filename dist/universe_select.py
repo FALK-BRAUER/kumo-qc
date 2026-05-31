@@ -1,19 +1,22 @@
-"""Pure floor + rank helpers (#238 / R1 un-fuse) — the live universe, computed ONCE-DAILY.
+"""Pure floor + rank helpers (#238 / Y) — the live universe, computed ONCE-DAILY at selection.
 
 LOCAL SIMULATES CLOUD (charter): the universe is computed LIVE each day from QC's coarse
 feed (cloud = ground truth); local runs this IDENTICAL code on conformed-coarse data to
 approximate cloud. NO precomputed/shipped universe file (a stored date→ticker file is a
 frozen universe — the 326 scar).
 
-R1 UN-FUSE (Falk): the FILTER and the RANK are DISTINCT engine phases now, filter FIRST.
-These two helpers are the pure cores they call:
-  - `apply_floors`  → the FILTER phase (tradeability_floors) applies the PRECISE floors
-                      (close ≥ min_price AND trailing_dv ≥ min_avg_dollar_volume).
-  - `rank_and_cap`  → the RANK phase (dv_rank_cap) ranks the eligible names by trailing DV
-                      DESC (ticker-ASC tiebreak) and caps to coarse_max.
+Y (Falk): the floors + rank are applied AT THE SELECTION GATE (runtime.lean_entry.
+_coarse_selection), NOT in a per-bar phase. These two pure helpers are the cores it calls,
+in sequence, once-daily:
+  - `apply_floors`  → the PRECISE tradeability floors (close ≥ min_price AND
+                      trailing_dv ≥ min_avg_dollar_volume) — the SELECTION GATE that bounds
+                      subscription (only qualifying names get tracked + Ichimoku'd).
+  - `rank_and_cap`  → ranks the eligible names by trailing DV DESC (ticker-ASC tiebreak) and
+                      caps to coarse_max → qc._ranked_today.
 The PREFILTER (loose single-day-DV perf-bound) + the RAW-history trailing-metric build live
-upstream in runtime.lean_entry._coarse_selection, which produces the `bar_metrics` map these
-helpers consume — computed ONCE, never recomputed.
+in runtime.lean_entry._coarse_selection, which produces the `bar_metrics` map these helpers
+consume — computed ONCE, never recomputed. The universe phase (dv_rank_cap) only EXPOSES the
+resulting qc._ranked_today; it neither floors nor ranks.
 
 Both helpers are PURE (no QC types): unit-tested + golden-mastered vs an inline reference on
 identical bars. The QC history fetch + add_universe wiring live in lean_entry.

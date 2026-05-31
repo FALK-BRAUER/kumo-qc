@@ -50,13 +50,15 @@ def test_required_phase_missing_raises() -> None:
         StrategyEngine(config=cfg, qc=FakeQC())
 
 
-def test_filter_required_missing_raises() -> None:
-    # filter is now a REQUIRED phase (explicit eligibility stage cannot be omitted).
+def test_filter_not_required_under_y() -> None:
+    # Y (Falk): "filter" is NO LONGER a required phase — the champion applies its floors at the
+    # selection gate (lean_entry._coarse_selection), not a per-bar filter phase. A config with
+    # universe/signal/sizing and NO filter must be ACCEPTED. "filter" stays a known kind (in
+    # PHASE_ORDER) so a future strategy MAY still add a real per-bar filter phase.
     cfg = StrategyConfig(name="t", version="1.0.0", phases={
         "universe": slot("universe"), "signal": slot("signal"), "sizing": slot("sizing"),
     })
-    with pytest.raises(ConfigError, match="filter"):
-        StrategyEngine(config=cfg, qc=FakeQC())
+    StrategyEngine(config=cfg, qc=FakeQC())  # must not raise
 
 
 def test_single_adds_enforced() -> None:
