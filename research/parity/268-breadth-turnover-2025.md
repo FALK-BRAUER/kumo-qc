@@ -97,7 +97,60 @@ The **43-fill** gap (286 vs 243) and **18-symbol** gap (111 vs 93) are explained
 
 ## What still needs the cloud chart
 
-The order artifacts fully localize the mechanism — **no cloud chart is strictly required** for the breadth finding. To convert this into a fix spec, the open item is confirming WHY cloud's daily bar reaches `on_data` at the open while local's reaches it at the close (LEAN daily-bar emission-time / `extended_market_hours` / consolidator-timing config). The `cloud-indicators-243.json` capture (if it lands) is orthogonal — it covers the already-clean signal path, not this execution path.
+The order artifacts fully localize the mechanism — **no cloud chart is strictly required** for the breadth finding. The open item is now CLOSED: the WHY is `Settings.DailyPreciseEndTime` (`self.settings.daily_precise_end_time`) — LEAN delivers a daily bar to `on_data` at **market close (True)** or the **following midnight (False)** (QC docs, *OnData Method Timing* / *Time Frontier*). We set it NOWHERE (grepped src/build/algorithm → 0 hits), so each engine uses its own default: LOCAL = market-close (16:00 ET) delivery; CLOUD = midnight (00:00 ET) delivery. Proof in the order artifacts: cloud's Jan-02 C/JPM/HPE/T/UAL carry `createdTime=2025-01-02T05:00:00Z` (= 00:00 ET, day OPEN) and `lastFillTime=21:00:00Z` (same-day fill); local's same names `submitted 21:00:00Z` (16:00 ET, close) and `filled` Jan-03. Whole-FY histogram: **60 cloud submissions at 04:00/05:00Z (midnight ET) that LOCAL has ZERO of** — that bucket is the entire divergence. Full mechanism + the both-direction fix spec: **`research/parity/268-fix-spec.md`**. The `cloud-indicators-243.json` capture is orthogonal — it covers the already-clean signal path, not this execution path.
+
+**Two-rebalance-tick (16:00 + 16:15) verdict:** the second daily tick is the **VIX CBOE index** daily bar (`Index-usa-VIX` is on Central Time in the market-hours DB; its 15:15/16:00 CT close maps to 16:15 ET, a separate timeslice from the 16:00-ET equity close). `on_data` fires on any data slice and runs the full engine unconditionally → the engine rebalances TWICE per day and submits two entry batches. **Benign for #268 parity** (the second tick exists identically on BOTH sides — cloud also shows the 20:15/21:15Z bucket), but it IS a genuine intra-day double-submit and should be tracked as its OWN item (gate `on_data` to once-per-day / the equity slice). Not in scope for the grid decision; flagged for Falk. Detail in `268-fix-spec.md` §D1.
+
+---
+
+## METHODOLOGY QUESTION — FOR FALK (the #1 morning item)
+
+**HQ HELD the #268 fix.** It is not a bug to patch — it is a **fork in what counts as ground truth for
+execution timing**, and the answer flips the #262 baseline. Decision needed before any apply.
+
+### The two execution grids, stated plainly
+- **LOCAL** = decide on the **EOD close of day T**, fill at the **open of T+1** (scan-after-close,
+  buy-next-session). LEAN delivers local's daily bar at **market close (16:00 ET)**; the MarketOnOpen
+  order fills the next session's open. **This is how George actually trades BCT** — the day's Ichimoku
+  is only complete at the close, he scans then, and buys the following open. No look-ahead.
+- **CLOUD** = decide at the **open of day T** on **prior-close (T-1) data**, fill at the **open of T**
+  (one bar earlier, on staler decision data). LEAN delivers cloud's daily bar at **midnight (00:00 ET)**;
+  the MarketOnOpen fills that same day's open. Cloud is **exactly one fill-bar ahead** of local.
+
+Root knob: `Settings.DailyPreciseEndTime` — `True`=market-close delivery (local), `False`=midnight
+delivery (cloud). We never set it; the two engines default differently. (Evidence: §"root mechanism"
+above + `268-fix-spec.md` §D1.)
+
+### The stakes — a 12.67pp swing
+LOCAL **+3.62%** (244 orders / 93 symbols / Sharpe −0.139) vs CLOUD **−9.05%** (291 / 113 / −0.683).
+**Which grid is ground-truth decides the #262 baseline.** Same code, same data, same config — the only
+difference is *which bar the daily candle is handed to `on_data` on*, and it is worth 12.67 points of
+return.
+
+### THE INVERSION — surface it, do not assume cloud is right
+The charter says "cloud = ground truth." **For execution timing that premise may be backwards.** If
+LOCAL is George's faithful model (decide after close, buy next open — which it is), then **LOCAL is
+ground-truth and CLOUD is the optimistic artifact**: cloud acts one bar earlier, capturing day-T's open
+move that a decide-after-T's-close trader could not have traded until T+1. Under that reading #262
+should **re-baseline to LOCAL (−0.139 / +3.62% / 244)** and treat cloud's −9.05% as a mis-executed
+(too-early) grid — **NOT** force local→cloud. Do not reflexively chase the cloud number; on execution
+timing the cloud grid is the one that looks like look-ahead-lite.
+
+### The decision Falk needs to make
+**Is the canonical execution grid LOCAL (decide-EOD-T, fill-open-T+1) or CLOUD (decide-open-T, fill-open-T)?**
+
+- **If A — cloud is canonical:** apply `daily_precise_end_time=False` in the LOCAL entry → local
+  converges to cloud (−9.05% / 291 / 113); #262 baselines to cloud. Cost: **every recorded champion BT
+  is invalidated → full re-baseline.** (Spec: `268-fix-spec.md` §D2-A. Confirm: 1-wk local BT, submit
+  times must move to 04:00/05:00Z.)
+- **If B — local is canonical (the faithful BCT model):** #262 baselines to LOCAL (+3.62% / 244 / 93);
+  the cloud deploy (`qc_v2_cloud`) gets `daily_precise_end_time=True` to match (or is quarantined as a
+  known-divergent venue). Lower blast radius — a deploy setting + a baseline ruling, no champion-logic
+  change. (Spec: `268-fix-spec.md` §D2-B. Confirm: cloud BT, created times must move to 20:00/21:00Z.)
+
+Both knobs are the same documented one-liner, applied on opposite sides. **Recommended framing:** B is
+the faithful-model reading and the lower-risk path; A only if Falk rules the cloud venue is the
+ground-truth contract regardless of BCT semantics. **Decision is binary and decision-ready.**
 
 ## Constraints honored
 
