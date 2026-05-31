@@ -15,7 +15,7 @@ STRATEGY_CONFIG = StrategyConfig(
     version='3.0.0',
     phases={
     'filter': Slot(impl=TradeabilityFloors, params=TradeabilityFloors.Params(min_price=10.0, min_avg_dollar_volume=100000000.0, adv_window=20, enabled=True)),
-    'universe': Slot(impl=DvRankCap, params=DvRankCap.Params(coarse_max=9999, enabled=True)),
+    'universe': Slot(impl=DvRankCap, params=DvRankCap.Params(enabled=True)),
     'signal': Slot(impl=BctScoreFull, params=BctScoreFull.Params(min_score=7, parabolic_threshold=0.25, enabled=True)),
     'regime': [Slot(impl=SpySma200, params=SpySma200.Params(enabled=True)), Slot(impl=VixPercentile, params=VixPercentile.Params(vix_percentile_enabled=False, vix_percentile_threshold=75.0, vix_percentile_lookback=504, enabled=True))],
     'sizing': Slot(impl=FlatPctHeatcap, params=FlatPctHeatcap.Params(position_pct=0.1, enabled=True)),

@@ -44,10 +44,11 @@ CONFIG = StrategyConfig(
                 min_price=10.0, min_avg_dollar_volume=100_000_000.0, adv_window=20,
             ),
         ),
-        # Rank eligible by DV desc, cap coarse_max (unbounded baseline). Scan breadth only.
+        # Exposes the LIVE-selected ranked order (filter+DV-rank+cap done in
+        # select_live_universe, capped via lean_entry.COARSE_MAX — the single source).
         "universe": Slot(
             impl=DvRankCap,
-            params=DvRankCap.Params(coarse_max=9999),
+            params=DvRankCap.Params(),
         ),
         # George's 8-condition BCT scorer — the actual stock selector (score>=7).
         "signal": Slot(

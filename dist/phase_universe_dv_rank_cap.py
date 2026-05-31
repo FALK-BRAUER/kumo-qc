@@ -2,19 +2,21 @@
 
 Kind:    universe
 Marker:  dv_rank_cap_v1
-Params:  coarse_max=9999, enabled=True
-         (the tradeability floors live in the filter phase #233 + the live selection
-          runtime.universe_select.select_live_universe. This phase only ranks+caps, reading
-          the live ranked order. coarse_max carried for provenance/fingerprint.)
+Params:  enabled=True
+         (the tradeability floors + the DV-desc rank + the coarse_max cap ALL live in the
+          live selection runtime.universe_select.select_live_universe, capped via
+          lean_entry.COARSE_MAX — the SINGLE source. This phase only EXPOSES the already-
+          filtered+ranked+capped live order to the bar_state; it carries no cap param of its
+          own, #238 dedup: a second coarse_max here was dead/drift-prone.)
 
 MODEL (#238 live-coarse integration, Falk — filter→rank+cap computed LIVE, no file):
   - runtime.lean_entry._coarse_selection computes the universe ONCE-DAILY from QC's coarse
     feed (ground truth) via select_live_universe (filter→rank→cap) and stores the ranked
     ticker order on `qc._ranked_today` (DV-desc, ticker-asc tiebreak, capped). NO stored
     universe file (the 326 scar). This phase reads that live ranked order and emits
-    `ranked_candidates` IN RANK ORDER, intersected with the truly-subscribed set.
-  - coarse_max is scan BREADTH (default 9999 = unbounded), NOT a position/slot count. NOT
-    a frozen 326.
+    `ranked_candidates` IN RANK ORDER, intersected with the truly-subscribed set. The cap
+    (lean_entry.COARSE_MAX, scan breadth — NOT a position count, NOT a frozen 326) is already
+    applied in select_live_universe; this phase does NOT re-cap.
   - THE #182 FIX (now at the consumer): the ranked order is preserved by ITERATING the
     ranked list, NOT the active set (iterating qc._active would reorder by the set's hash
     order = nondeterministic, local≠cloud). SELECTION still happens downstream
@@ -44,8 +46,7 @@ class DvRankCap(BasePhase):
 
     @dataclass(slots=True)
     class Params:
-        coarse_max: int = 9999  # scan breadth after DV-desc rank; 9999 = unbounded
-        enabled: bool = True
+        enabled: bool = True  # cap (coarse_max) lives in lean_entry.COARSE_MAX (single source)
 
     def __init__(self, params: "DvRankCap.Params", logger: Any) -> None:
         super().__init__(params, logger)

@@ -39,9 +39,12 @@ def test_filter_floors_are_the_agreed_defaults() -> None:
     assert p.adv_window == 20
 
 
-def test_universe_is_unbounded_breadth_no_topn() -> None:
+def test_universe_phase_carries_no_cap_param() -> None:
+    # #238 dedup: the cap (coarse_max scan-breadth) lives in lean_entry.COARSE_MAX →
+    # select_live_universe (single source); the universe phase exposes the already-capped
+    # live order and carries no cap param of its own.
     p = CONFIG.phases["universe"].params  # type: ignore[union-attr]
-    assert p.coarse_max == 9999  # unbounded baseline; no top-N artifact
+    assert not hasattr(p, "coarse_max")
 
 
 def test_signal_selects_at_score_7() -> None:

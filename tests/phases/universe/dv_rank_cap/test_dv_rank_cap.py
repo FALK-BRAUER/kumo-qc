@@ -42,12 +42,13 @@ def _phase():
 
 def test_params_defaults():
     p = DvRankCap.Params()
-    assert p.coarse_max == 9999  # scan-breadth cap, unbounded baseline
     assert p.enabled is True
-    # Floors live in the filter phase + select_live_universe; no floor params here.
+    # #238 dedup: NO coarse_max here — the cap (scan breadth) lives in lean_entry.COARSE_MAX
+    # → select_live_universe (single source). A second coarse_max here was dead/drift-prone.
+    assert not hasattr(p, "coarse_max")
+    # Floors live in select_live_universe; no floor/count params here.
     assert not hasattr(p, "min_price")
     assert not hasattr(p, "min_avg_dollar_volume")
-    # coarse_max is scan breadth, NOT a position/slot count cap.
     assert not hasattr(p, "max_positions")
     assert not hasattr(p, "max_slots")
 
