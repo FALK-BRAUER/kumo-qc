@@ -1,0 +1,8 @@
+# Dev tooling for kumo-qc (#221). Install into the project venv:
+#   pip install -r requirements-dev.txt
+#
+# Runtime strategy deps (pandas/numpy) are supplied by LEAN at execution time and
+# are NOT pinned here — this file covers ONLY the local dev/test/CLI toolchain.
+typer>=0.12   # the `kumo` operator CLI (cli/)
+pytest>=8     # test suite (tests/)
+mypy>=1.10    # mypy --strict gate (src/ + cli/)
