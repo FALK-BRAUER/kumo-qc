@@ -1,8 +1,8 @@
 # src/strategies/
 
-Named `STRATEGY_CONFIG`s — first-class, type-checked. Each selects phases from the library via **direct class references** (not strings).
+Strategy configurations — wiring phases into runnable configs.
 
-- **Holds:** `<name>.py`, each exporting a `StrategyConfig` of `Slot(impl=SomePhase, params=SomePhase.Params(...))`.
-- **Active strategy:** ONE at a time (`main.py` selects it); `build/` packages only that strategy's phase closure to `dist/`.
-- **Goes here:** a config you want to deploy or sweep over.
-- **Does NOT:** phase logic (that's `phases/`), raw param dicts (params are typed `.Params` dataclasses).
+- **What's here:** Strategy config modules that instantiate `StrategyConfig` with `Slot(impl=..., params=...)` tuples defining the phase stack. `_example.py` shows the template pattern.
+- **What goes in:** New strategy variants (different phase combinations or param overrides), champion-as-is configurations, sweep candidate configs.
+- **What does NOT go here:** Phase implementation (use `src/phases/`), engine mechanics (use `src/engine/`), backtest execution (use `scripts/local_backtest.py`).
+- **Pattern:** A strategy config = name + version + phases dict keyed by PHASE_ORDER kind strings, with explicit Slot wiring.

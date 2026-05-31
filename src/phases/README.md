@@ -1,8 +1,8 @@
 # src/phases/
 
-The phase LIBRARY — every merged, useful phase implementation. Config switches them on/off; only enabled phases ship to `dist/`.
+BCT strategy phases — one directory per PHASE_KIND.
 
-- **Layout:** `phases/<kind>/<impl>/<impl>.py` (one folder per implementation). Kinds: universe, signal, regime, ranking, entry, sizing, stops, trail, exit, adds, profit, reentry, rebalance, diagnostics, circuit_breaker, ...
-- **Goes here:** a phase that passed the PR gate (tests + parity + charter + header) — merged regardless of champion status.
-- **Does NOT:** experimental/unmerged phases (keep on a feat branch until they pass), strategy configs (`strategies/`).
-- **Each impl:** implements the `PhaseInterface` Protocol, carries a nested typed `.Params` dataclass, owns its mirror test in `tests/phases/<kind>/<impl>/`.
+- **What's here:** `signal/`, `universe/`, `sizing/`, `exit/`, `regime/`, `diagnostics/` — each containing protocol-conforming phase implementations with `.Params` + `space()` + `COMPLEXITY` + `version_marker`.
+- **What goes in:** New phase kinds (add subdir), new phase implementations (add dir under existing kind), shared helpers (use `shared/`).
+- **What does NOT go here:** Engine orchestration (use `src/engine/`), strategy configs (use `src/strategies/`), backtest result parsing (use `scripts/` or `research/`).
+- **Pattern:** Each phase dir = `{phase_name}/{phase_name}.py` + `__init__.py` + optional `README.md`. Follow the `bct_score_full/` template for headers, `.Params.space()`, `COMPLEXITY`, and behavioral tests.
