@@ -73,3 +73,49 @@ Engine logs `count` + `sha256(sorted tickers)` — NOT the member list. Cloud co
 - LOCAL warmup=750d, CLOUD warmup=40d. This does NOT bias the universe rung — selection uses the explicit 20d `history()` fan-out, not `set_warmup` (verified: cloud counts sane+dynamic under 40d). It WOULD bias signal indicators, but those are Step-B (0 trades here).
 - **Scaling flag (carried from the 750d attempt):** the live-coarse daily full-universe `history()` fan-out makes warmup expensive on cloud (750d ≈ 3–4 h; 40d ≈ 35 min). For routine cloud validation, cache trailing-DV across days or keep warmup short.
 - **QC API flag:** user logs + ObjectStore are NOT API-exportable on this tier; custom `self.plot()` chart series is the reliable programmatic egress for per-day diagnostics. Worth baking a tiny optional chart-emit into the engine's diagnostics phase for future cloud parity checks.
+
+---
+
+# POST-#240 ROLLING-DV DEFINITIVE PARITY (git-clean, committed observability)
+
+**Re-run on mainV2 ed0fa8b** = #240 rolling-DV (maintained `qc._dv_windows`, NO per-day `history()` fan-out → fast cloud) + #243 committed `ChartEmit` diagnostics phase (`self.plot("Universe","active_set"/"ranked")` — cloud-observable via `/backtests/chart/read`, NO main.py instrumentation hack). The earlier 1.10× came via an uncommitted main.py hack; THIS is the git-clean, committed-engine version.
+
+## Redeploy (git-as-source restored)
+`python3 scripts/qc_v2_cloud.py deploy` → deployed COMMITTED dist/ (19 files incl. new `phase_diagnostics_chart_emit.py`) to `arch2_champion_v2` (PID 32319236). **MARKER `champion-asis` verified, compile BuildSuccess.** This OVERWROTE the prior uncommitted chart-hack main.py → deployed main.py is now clean committed dist/main.py with `ChartEmit` baked into the diagnostics phase. For the Step-A run, `WARMUP_DAYS = 40` was injected into the deployed `BCTAlgorithm` subclass alongside the committed START/END window (a run-parameter override, same mechanism as the committed `_inject_window`; default is 560d). Recompiled BuildSuccess.
+
+## Cloud run (FAST — #240 confirmed)
+- **BT id: `d47523a376b0bc5a6ea35ed1176ae37a`** ("v2-stepA-rollingdv-w40"), window 2025-06-02..16, WARMUP_DAYS=40.
+- **Completed, 11 tradeable dates, 0 orders** (`/backtests/orders/read` = 0; `Total Orders` stat = 0).
+- Ran in MINUTES (vs the 750d history-path run's 3–4 h) — #240 rolling-DV removed the warmup fan-out. **Scaling fix proven on cloud.**
+- **Cloud active_set retrieved from the COMMITTED chart** (`/backtests/chart/read` → chart "Universe", series "active_set") — **the #243 chart channel works on cloud, git-clean, no hack.** (Series also carries "ranked" = active_set−1.)
+
+## DIFF-LADDER (date-aligned, common trading dates)
+
+| Date | LOCAL active_set | CLOUD active_set | diff | ratio |
+|------|------------------|------------------|------|-------|
+| 2025-06-03 | 914 | 993 | +79 | 1.086 |
+| 2025-06-04 | 917 | 998 | +81 | 1.088 |
+| 2025-06-05 | 918 | 1004 | +86 | 1.094 |
+| 2025-06-06 | 918 | 999 | +81 | 1.088 |
+| 2025-06-10 | 924 | 999 | +75 | 1.081 |
+| 2025-06-11 | 912 | 1005 | +93 | 1.102 |
+| 2025-06-12 | 899 | 1000 | +101 | 1.112 |
+
+Full sequences (the timestamp CONVENTION differs — local `ACTIVE_SET` log fires at the selection-fire time, 06-03..06-14; cloud `self.plot` fires at QC.Time on the data bar, 06-02..06-16 incl. weekend carry — so 7 dates overlap exactly):
+- **LOCAL** (10 days, from ACTIVE_SET log lines): 914, 917, 918, 918, 920, 924, 912, 899, 895, 889 — range 889–924, mean **911**.
+- **CLOUD** (11 days, from chart): 994, 993, 998, 1004, 999, 999, 999, 1005, 1000, 990 (+dup) — range 990–1005, mean **998**.
+- **Mean ratio cloud/local = 1.096** (per-date 1.081–1.112 — tight).
+
+## VERDICT: PARITY PASS — DEFINITIVE (git-clean)
+
+- **Cloud selection SANE + dynamic:** 990–1005/day — hundreds, day-to-day variation, floors active. NOT 0 (select-nothing), NOT ~8k (trade-everything). The #182 fix holds on cloud.
+- **Same logic, stable residual:** cloud tracks local at **1.096×** (per-date 1.08–1.11) — the SAME ~1.10× proportional vendor residual as the earlier history-path run (1.097×). The offset is the cloud QC-native coarse-DV (~8k actively-priced) vs local conformed-DV (~10.7k) feeding identical floors+rank. A bug would give erratic ratios / wrong magnitude — not a steady ~1.10×.
+- **Closes #240 cloud-DV point:** the rolling-DV floor uses the coarse-feed single-day DV on cloud (QC-native vendor DV); the active-set it produces matches the history-path active-set's residual → **GATE-1 (rolling==history, 0.000% locally) confirmed to hold ON CLOUD** at the parity level.
+- **#243 proven on cloud:** committed `ChartEmit` phase populated the "Universe" chart on cloud and was read via `/backtests/chart/read` — git-clean observability, NO uncommitted instrumentation.
+- **Trades 0==0** both sides.
+
+### Judgment calls / flags
+- Local logs ACTIVE_SET hashes; cloud chart carries only the count (numeric series) → name-level Jaccard still not computable (flagged, not fabricated) — counts+ratio are the signal, as specified.
+- Cloud chart had fractional downsample-interpolation points (e.g. 1002.71); used only the integer plotted values (true per-day emit), last-per-date.
+- Date-axis convention differs by one bar between the local log and the cloud chart (selection-fire-time vs QC.Time) — compared on the 7 exactly-overlapping dates + the full sequence stats; both give ratio ≈1.10.
+- WARMUP_DAYS=40 (run override) vs the committed 560d default: universe selection is warmup-INDEPENDENT (rolling-DV fills from the coarse callback, which runs each warmup day; ≥20d suffices). Counts stayed sane+dynamic → confirmed selection does not depend on `set_warmup`. 40d kept the run fast; full-signal indicators (Step-B) are moot here (0 trades).
