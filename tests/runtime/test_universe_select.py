@@ -1,10 +1,12 @@
-"""Tests for runtime.universe_select — the UN-FUSED pure helpers (#238 / R1).
+"""Tests for runtime.universe_select — the pure floor + rank helpers (#238 / Y).
 
 Two helpers, each GOLDEN-MASTERED against an inline independent reference on identical bars:
   - apply_floors(bar_metrics)            == the canonical floor (close>=p AND dv>=adv), sorted
   - rank_and_cap(eligible, dv_by_ticker) == the canonical rank (DV-desc, ticker-asc tiebreak),
                                             capped to coarse_max
-The fused select_live_universe is RETIRED (R1: filter floors FIRST, rank consumes eligible).
+Under Y (Falk) BOTH helpers run, in sequence, inside lean_entry._coarse_selection (the
+selection gate) — apply_floors then rank_and_cap → qc._ranked_today. They are PURE (no QC
+types); the universe phase only exposes the result. The fused select_live_universe is gone.
 """
 from __future__ import annotations
 
@@ -109,7 +111,7 @@ def test_rank_and_cap_truncates_at_coarse_max():
 
 
 def test_rank_and_cap_case_insensitive_dv_lookup():
-    # eligible carries canonical UPPERCASE (from the filter phase); dv keys are LOWERCASE.
+    # eligible may carry canonical UPPERCASE; dv keys are LOWERCASE (case-insensitive lookup).
     eligible = ["ZZZ", "AAA", "MMM"]
     dv = {"zzz": 1.0e9, "aaa": 2.0e8, "mmm": 5.0e8}
     assert rank_and_cap(eligible, dv, coarse_max=9999) == ["ZZZ", "MMM", "AAA"]
