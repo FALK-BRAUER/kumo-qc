@@ -17,9 +17,14 @@ dropped. This is Falk's exact model: "filter selects tickers, passes them to Ich
          single-day DV (qc._dv_windows; NO history() call) → bar_metrics {ticker: (close,
          trailing_dv)} where close = the coarse row's close and trailing_dv = mean of the
          maintained window. (SCALING FIX: replaces the per-day RAW history() fan-out over the
-         survivors — ~20x slower on cloud — with an O(1)/name maintained rolling mean. GATE 1
-         proved coarse single-day DV == RAW close*volume locally and DV is split-invariant so
-         the cloud-adjusted-vendor case is robust for a LIQUIDITY floor.);
+         survivors — ~20x slower on cloud — with an O(1)/name maintained rolling mean. Local:
+         coarse single-day DV is bit-identical to RAW close*volume by the #238 conform (GATE 1
+         — a local tautology, NOT cloud proof). Cloud robustness rests on DV being split-
+         invariant — sound for a LIQUIDITY floor, does not cover dividend-adjust; validated at
+         the cloud Step-A active-set parity, not asserted here. ASSUMPTION: the rolling-20d mean
+         equals the old history(20) mean only if the coarse feed delivers every tradeable name
+         each day it trades; a 1-19d coarse gap would blend stale DV on reappearance — benign
+         under the normal QC coarse contract.);
       2. `apply_floors` (close >= MIN_PRICE AND trailing_dv >= MIN_AVG_DOLLAR_VOLUME) →
          eligible (the SELECTION GATE — the floor that used to be a per-bar phase);
       3. `rank_and_cap` (DV-desc, ticker-asc tiebreak, cap COARSE_MAX) → ranked.
@@ -88,9 +93,11 @@ def coarse_to_close(coarse: Iterable[Any]) -> dict[str, float]:
     PURE (no QC types): each `c` exposes `.symbol.value` + `.price`. Uses `.price` (the RAW
     price — LEAN CoarseFundamental.Price, verified against the LEAN docs) NOT `.adjusted_price`
     (split/dividend-adjusted prices corrupt the RAW-price contract — the 2649e2e lesson). This
-    replaces the per-day history() close: GATE 1 proved coarse `.price` == RAW history close
-    exactly (0.000% over the 2025 sample). Ticker lower-cased to the zip-stem / qc._active
-    convention. The price floor (apply_floors close-leg) reads this map."""
+    replaces the per-day history() close. (LOCAL: coarse `.price` == RAW history close exactly,
+    0.000% over the 2025 sample — but that is bit-identical BY the #238 conform, a tautology
+    that confirms the field mapping, NOT cloud proof. On cloud the price floor reads QC's coarse
+    `.price`, which is the RAW price per the LEAN field contract.) Ticker lower-cased to the
+    zip-stem / qc._active convention. The price floor (apply_floors close-leg) reads this map."""
     out: dict[str, float] = {}
     for c in coarse:
         ticker = str(c.symbol.value).lower()
