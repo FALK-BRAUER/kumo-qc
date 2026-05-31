@@ -6,8 +6,8 @@ attribute must no-op gracefully (no AttributeError) — the getattr-guard for te
 """
 from datetime import datetime
 
-from engine.context import BarState, PhaseContext
-from phases.diagnostics.chart_emit.chart_emit import ChartEmit
+from engine.context import BarState, OrderIntent, PhaseContext
+from phases.diagnostics.chart_emit.chart_emit import _SCORE_PROBES, ChartEmit
 
 
 class FakeQC:
@@ -29,9 +29,58 @@ class FakeQCNoPlot:
         self._ranked_today = ranked_today if ranked_today is not None else []
 
 
-def _ctx(qc, ranked_candidates=None):
+# ---- #243 fakes for the extended regime / signal-breadth / probe-score series ----
+
+
+class _FakeIndicator:
+    def __init__(self, value, ready=True):
+        self.is_ready = ready
+        self.current = type("C", (), {"value": value})()
+
+
+class _FakeSymbol:
+    def __init__(self, value):
+        self.value = value
+
+    def __hash__(self):
+        return hash(self.value)
+
+    def __eq__(self, other):
+        return isinstance(other, _FakeSymbol) and other.value == self.value
+
+
+class _FakeSecurity:
+    def __init__(self, price):
+        self.price = price
+
+
+class FakeQCRich(FakeQC):
+    """FakeQC that also carries spy / spy_sma200 / securities for the Regime block.
+
+    score_symbol_native is monkeypatched in the probe tests, so _active / _indicators
+    only need to be present + the symbol resolvable; the indicator internals are stubbed.
+    """
+
+    def __init__(self, *, spy_price=None, spy_ma200=None, sma_ready=True,
+                 active=None, indicators=None, has_spy=True):
+        super().__init__(ranked_today=[])
+        if has_spy:
+            self.spy = _FakeSymbol("SPY")
+            self.spy_sma200 = _FakeIndicator(spy_ma200, ready=sma_ready)
+            self.securities = {self.spy: _FakeSecurity(spy_price)}
+        self._active = active if active is not None else set()
+        self._indicators = indicators if indicators is not None else {}
+
+
+def _ctx(qc, ranked_candidates=None, sized_orders=None):
     bs = BarState(ranked_candidates=list(ranked_candidates or []))
+    if sized_orders is not None:
+        bs.sized_orders = list(sized_orders)
     return PhaseContext(qc=qc, time=datetime(2025, 1, 2), data=None, bar_state=bs)
+
+
+def _order(ticker):
+    return OrderIntent(ticker=ticker, qty=0, price=1.0, stop=0.0, module="t", risk_dollars=0.0)
 
 
 def test_metadata():
@@ -59,7 +108,8 @@ def test_plots_active_set_from_ranked_today_len():
     # active_set = len(_ranked_today) = 3 ; ranked = len(ranked_candidates) = 2
     assert ("Universe", "active_set", 3) in qc.plots
     assert ("Universe", "ranked", 2) in qc.plots
-    assert result.facts == {"active_set": 3, "ranked": 2}
+    assert result.facts["active_set"] == 3
+    assert result.facts["ranked"] == 2
 
 
 def test_empty_ranked_today_plots_zero():
@@ -100,4 +150,104 @@ def test_no_plot_attr_is_graceful_noop():
     # Must NOT raise AttributeError; still returns facts with the computed counts.
     result = phase.evaluate(_ctx(qc, ["AAPL"]))
     assert result.blocked is False
-    assert result.facts == {"active_set": 2, "ranked": 1}
+    assert result.facts["active_set"] == 2
+    assert result.facts["ranked"] == 1
+
+
+# ============================ #243 extended series ============================
+
+
+def test_regime_series_plotted_when_ready():
+    qc = FakeQCRich(spy_price=500.0, spy_ma200=480.0, sma_ready=True)
+    phase = ChartEmit(ChartEmit.Params(), logger=None)
+    result = phase.evaluate(_ctx(qc))
+    assert ("Regime", "spy_close", 500.0) in qc.plots
+    assert ("Regime", "spy_ma200", 480.0) in qc.plots
+    assert result.facts["regime_charted"] is True
+
+
+def test_regime_skipped_when_sma_not_ready():
+    # not-ready SMA must SKIP the regime series (never plot a misleading 0).
+    qc = FakeQCRich(spy_price=500.0, spy_ma200=480.0, sma_ready=False)
+    phase = ChartEmit(ChartEmit.Params(), logger=None)
+    result = phase.evaluate(_ctx(qc))
+    assert not any(c == "Regime" for c, _s, _v in qc.plots)
+    assert result.facts["regime_charted"] is False
+
+
+def test_regime_skipped_when_spy_missing():
+    qc = FakeQCRich(has_spy=False)
+    phase = ChartEmit(ChartEmit.Params(), logger=None)
+    result = phase.evaluate(_ctx(qc))
+    assert not any(c == "Regime" for c, _s, _v in qc.plots)
+    assert result.facts["regime_charted"] is False
+
+
+def test_signal_breadth_equals_sized_orders_len():
+    qc = FakeQCRich(spy_price=500.0, spy_ma200=480.0)
+    phase = ChartEmit(ChartEmit.Params(), logger=None)
+    orders = [_order("AAPL"), _order("MSFT"), _order("NVDA")]
+    result = phase.evaluate(_ctx(qc, sized_orders=orders))
+    assert ("Signal", "n_qualifying", 3) in qc.plots
+    assert result.facts["n_qualifying"] == 3
+
+
+def test_probe_sentinel_when_not_active():
+    # No probe is subscribed → every probe series plots the -1.0 sentinel.
+    qc = FakeQCRich(spy_price=500.0, spy_ma200=480.0)
+    phase = ChartEmit(ChartEmit.Params(), logger=None)
+    result = phase.evaluate(_ctx(qc))
+    for ticker in _SCORE_PROBES:
+        assert ("Score", ticker, -1.0) in qc.plots
+        assert result.facts["probe_scores"][ticker] == -1.0
+
+
+def test_probe_score_plotted_when_active_and_ready(monkeypatch):
+    # A subscribed probe with ready indicators → its recomputed score is plotted.
+    from phases.diagnostics.chart_emit import chart_emit as ce
+
+    dri = _FakeSymbol("DRI")
+    qc = FakeQCRich(
+        spy_price=500.0, spy_ma200=480.0,
+        active={dri},
+        indicators={dri: {"sentinel": "ind-dict"}},
+    )
+    monkeypatch.setattr(ce, "score_symbol_native", lambda _q, _s, _i: {"score": 7, "rating": "++"})
+    phase = ChartEmit(ChartEmit.Params(), logger=None)
+    result = phase.evaluate(_ctx(qc))
+    assert ("Score", "DRI", 7.0) in qc.plots
+    assert result.facts["probe_scores"]["DRI"] == 7.0
+    # the OTHER probes are still sentinel
+    assert ("Score", "CME", -1.0) in qc.plots
+
+
+def test_probe_sentinel_when_scorer_returns_none(monkeypatch):
+    from phases.diagnostics.chart_emit import chart_emit as ce
+
+    dri = _FakeSymbol("DRI")
+    qc = FakeQCRich(spy_price=500.0, spy_ma200=480.0, active={dri}, indicators={dri: {}})
+    monkeypatch.setattr(ce, "score_symbol_native", lambda _q, _s, _i: None)
+    phase = ChartEmit(ChartEmit.Params(), logger=None)
+    phase.evaluate(_ctx(qc))
+    assert ("Score", "DRI", -1.0) in qc.plots
+
+
+def test_charting_is_inert_sized_orders_unchanged():
+    # CHARTING MUST NOT MUTATE TRADING STATE. Feed a populated sized_orders, run evaluate,
+    # assert the list is byte-identical afterwards (charting is read-only observability).
+    qc = FakeQCRich(spy_price=500.0, spy_ma200=480.0)
+    orders = [_order("AAPL"), _order("MSFT")]
+    ctx = _ctx(qc, sized_orders=orders)
+    before = list(ctx.bar_state.sized_orders)
+    ChartEmit(ChartEmit.Params(), logger=None).evaluate(ctx)
+    assert ctx.bar_state.sized_orders == before
+    assert ctx.bar_state.sized_orders is not before or before == orders  # contents preserved
+
+
+def test_config_hash_unchanged_champion_pin():
+    # config_hash REGRESSION GUARD (#243): the extended ChartEmit must NOT bump the champion
+    # pin. A future Param-creep that perturbs e573e84b1ce1 fails LOUD here.
+    from engine.engine import _config_hash
+    from strategies.champion_asis import CONFIG
+
+    assert _config_hash(CONFIG) == "e573e84b1ce1"

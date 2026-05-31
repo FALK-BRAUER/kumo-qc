@@ -21,6 +21,7 @@ Usage:
   python3 scripts/qc_v2_cloud.py deploy
   python3 scripts/qc_v2_cloud.py run <name> [poll_minutes]
   python3 scripts/qc_v2_cloud.py orders <backtestId>
+  python3 scripts/qc_v2_cloud.py chart <backtestId> [chartName] [outPath]  # #243 chart-read
   python3 scripts/qc_v2_cloud.py stepA      # deploy + run short window
 """
 import base64
@@ -172,6 +173,49 @@ def run(name: str, poll_minutes: int = 30, compile_id: str | None = None) -> dic
     return None
 
 
+def chart(bid: str, chart_name: str = "Universe", out_path: str | None = None) -> dict | None:
+    """Read a custom chart's series via POST /backtests/chart/read (#243).
+
+    ReadChartResponse.chart.series[].values = ascending [time, value] pairs (4000-pt/series
+    cap). The endpoint is FLAKY → retry 5x with exponential backoff. Returns a dict of
+    {seriesName: [[time, value], ...]} using the TRUE plotted int/float values; optionally
+    dumps to out_path. Returns None if all retries fail (NEVER fabricates)."""
+    _require_pid()
+    last_err = ""
+    for attempt in range(5):
+        r = post("/backtests/chart/read", {"projectId": PID, "backtestId": bid, "name": chart_name})
+        if r.get("success"):
+            ch = r.get("chart") or {}
+            series = ch.get("series") or {}
+            # series may be a dict {name: {...,"values":[...]}} or a list of series objects.
+            items = series.items() if isinstance(series, dict) else (
+                (s.get("name", f"s{i}"), s) for i, s in enumerate(series))
+            out: dict[str, list] = {}
+            for name, s in items:
+                vals = s.get("values") or []
+                # values can be [[t,v],...] (line) or [{"x":t,"y":v},...]; normalize to [t, v].
+                norm = []
+                for v in vals:
+                    if isinstance(v, dict):
+                        norm.append([v.get("x"), v.get("y")])
+                    elif isinstance(v, (list, tuple)) and len(v) >= 2:
+                        norm.append([v[0], v[1]])
+                out[name] = norm
+            print(f"  ✅ chart '{chart_name}': {len(out)} series " +
+                  ", ".join(f"{k}({len(v)})" for k, v in out.items()))
+            if out_path:
+                Path(out_path).write_text(json.dumps(
+                    {"backtestId": bid, "chart": chart_name, "series": out}, indent=2))
+                print(f"  wrote {out_path}")
+            return out
+        last_err = json.dumps(r)[:300]
+        wait = 3 * (2 ** attempt)
+        print(f"  chart-read attempt {attempt + 1}/5 failed ({last_err[:120]}); retry in {wait}s")
+        time.sleep(wait)
+    print(f"  ❌ chart-read '{chart_name}' FAILED after 5 retries: {last_err}")
+    return None
+
+
 def orders(bid: str) -> None:
     _require_pid()
     r = post("/backtests/orders/read", {"projectId": PID, "backtestId": bid, "start": 0, "end": 1000})
@@ -189,6 +233,9 @@ if __name__ == "__main__":
         run(sys.argv[2], int(sys.argv[3]) if len(sys.argv) > 3 else 30)
     elif cmd == "orders":
         orders(sys.argv[2])
+    elif cmd == "chart":
+        chart(sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else "Universe",
+              sys.argv[4] if len(sys.argv) > 4 else None)
     elif cmd == "stepA":
         cid = deploy()
         run("v2-stepA-2025-06-02_16", compile_id=cid)
