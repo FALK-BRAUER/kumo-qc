@@ -26,6 +26,7 @@ are the SINGLE source of the floors+rank+cap (applied at the selection gate).
 from __future__ import annotations
 
 from engine.config import Slot, StrategyConfig
+from phases.diagnostics.chart_emit.chart_emit import ChartEmit
 from phases.diagnostics.version_marker.version_marker import VersionMarker
 from phases.exit.kijun_g3_exits.kijun_g3_exits import KijunG3Exits
 from phases.regime.spy_200ma.spy_200ma import SpySma200
@@ -68,8 +69,12 @@ CONFIG = StrategyConfig(
                 phase3_days=56, phase3_pnl=0.15,
             )),
         ],
+        # diagnostics is a list-kind (engine keys by (kind, module)); two sub-phases coexist.
+        # chart_emit (#243) makes the universe counts cloud-observable via self.plot — the
+        # only channel left since QC dropped Log() API + ObjectStore export (non-Institutional).
         "diagnostics": [
             Slot(impl=VersionMarker, params=VersionMarker.Params()),
+            Slot(impl=ChartEmit, params=ChartEmit.Params()),
         ],
     },
 )

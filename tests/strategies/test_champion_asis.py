@@ -50,6 +50,15 @@ def test_signal_selects_at_score_7() -> None:
     assert p.min_score == 7
 
 
+def test_diagnostics_is_two_phases_version_marker_then_chart_emit() -> None:
+    # #243: diagnostics is a list-kind; chart_emit joins version_marker (engine keys by
+    # (kind, module) so two diagnostics sub-phases coexist). The engine still accepts it
+    # (test_engine_accepts_champion instantiates without raising).
+    diagnostics = CONFIG.phases["diagnostics"]
+    assert isinstance(diagnostics, list) and len(diagnostics) == 2
+    assert [s.impl.__name__ for s in diagnostics] == ["VersionMarker", "ChartEmit"]
+
+
 def test_regime_is_two_phases_spy_then_vix() -> None:
     regime = CONFIG.phases["regime"]
     assert isinstance(regime, list) and len(regime) == 2
