@@ -109,6 +109,9 @@ class _ExampleFilter(BasePhase):
 EXAMPLE_CONFIG = StrategyConfig(
     name="_example",
     version="0.0.0",
+    # is_fixture: a doc/scaffolding sample (not a champion) — no entry/exit stack wired,
+    # so it must declare itself a fixture to pass the #272 fail-loud gate.
+    is_fixture=True,
     phases={
         "filter": Slot(impl=_ExampleFilter, params=_ExampleFilter.Params(min_price=10.0)),
         "universe": Slot(impl=_ExampleUniverse, params=_ExampleUniverse.Params(min_dollar_volume=5_000_000.0)),

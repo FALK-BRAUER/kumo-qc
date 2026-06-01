@@ -13,6 +13,9 @@ from phases.signal.sample_bct.sample_bct import SampleBct
 CONFIG = StrategyConfig(
     name="_build_sample",
     version="0.0.0",
+    # is_fixture: a build-packager test sample (not a champion) — declares itself a fixture
+    # to pass the #272 fail-loud entry+exit gate.
+    is_fixture=True,
     phases={
         "signal": Slot(impl=SampleBct, params=SampleBct.Params(min_score=7)),
         "regime": Slot(impl=SampleOff, params=SampleOff.Params(enabled=False), enabled=False),

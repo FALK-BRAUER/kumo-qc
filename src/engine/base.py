@@ -50,6 +50,21 @@ class ConfigError(Exception):
     """Raised at init when a required phase kind is missing/disabled."""
 
 
+class DegradedConfigError(Exception):
+    """Raised (#270/#272) at init when a CHAMPION config is structurally incomplete in a way that
+    would let it trade a phantom/blind execution model — the fail-loud-phase-stack gate, the
+    config-time analogue of DegradedDataError.
+
+    The anti-mirage contract on the CONFIG (Falk's mandate, #270): there is NO implicit execution
+    default. A config that would FIRE entries with no wired entry-confirm phase, or fire exits with
+    no wired exit phase, must CRASH at init — never silently blind-fill the open (the daily-MOO
+    champion_asis traded a phantom model through all of #262/#268 precisely because nothing forced
+    'no entry-confirm wired' to crash). Carries which required execution phase is missing.
+
+    A blind-open / placeholder-entry config is allowed ONLY as an explicitly-declared FIXTURE
+    (`StrategyConfig.is_fixture=True`) for regression/parity scaffolding — never as a champion."""
+
+
 @dataclass(slots=True)
 class PhaseResult:
     decision: Any

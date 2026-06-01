@@ -43,7 +43,10 @@ def base_phases(**extra: Any) -> dict[str, Any]:
 
 
 def make_engine(qc: FakeQC, **extra: Any) -> StrategyEngine:
-    cfg = StrategyConfig(name="t", version="1.0.0", phases=base_phases(**extra))
+    # is_fixture=True: these are engine-MECHANICS unit tests on minimal stacks (no entry/exit
+    # phase wired) — they exercise the tick loop / fire seam / suppression, NOT champion
+    # completeness. The #272 fail-loud entry+exit gate is tested directly in test_invariants.py.
+    cfg = StrategyConfig(name="t", version="1.0.0", phases=base_phases(**extra), is_fixture=True)
     return StrategyEngine(config=cfg, qc=qc)
 
 

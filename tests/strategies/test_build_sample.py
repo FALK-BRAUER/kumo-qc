@@ -39,6 +39,7 @@ def test_disabled_slot_not_in_runtime_phases() -> None:
     merged = StrategyConfig(
         name="_test_disabled",
         version="0.0.0",
+        is_fixture=True,  # sample-merge config (no entry/exit stack) — fixture per the #272 gate
         phases=merged_phases,
     )
     eng = StrategyEngine(config=merged, qc=FakeQC())

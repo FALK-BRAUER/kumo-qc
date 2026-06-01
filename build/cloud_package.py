@@ -298,7 +298,12 @@ def _emit_main(
     if deployable:
         imports.append("from lean_entry import BctEngineAlgorithm")
     body = "\n".join(imports) + "\n\n"
-    body += f'STRATEGY_CONFIG = StrategyConfig(\n    name={config.name!r},\n    version={config.version!r},\n    phases={{\n'
+    body += f'STRATEGY_CONFIG = StrategyConfig(\n    name={config.name!r},\n    version={config.version!r},\n'
+    # #272: carry is_fixture into the deployed config — else a fixture (e.g. champion_asis) would
+    # lose the flag and CRASH the fail-loud entry+exit gate at cloud init (DegradedConfigError).
+    if getattr(config, "is_fixture", False):
+        body += "    is_fixture=True,\n"
+    body += "    phases={\n"
     body += "\n".join(slot_lines) + "\n    },\n)\n\n"
     if deployable:
         # The LEAN entry subclass (#213/#238/Y). QC instantiates this top-level QCAlgorithm;
