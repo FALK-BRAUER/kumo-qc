@@ -297,9 +297,21 @@ def _emit_main(
         markers[kind] = ",".join(marker_texts)
     if deployable:
         imports.append("from lean_entry import BctEngineAlgorithm")
+    # #272: FAIL LOUD if StrategyConfig gains a field this codegen doesn't emit — a dropped
+    # field silently changes the deployed config (the exact bug class that lost is_fixture and
+    # would have crashed the fail-loud gate at cloud init). Keep _EMITTED in lockstep with the
+    # dataclass; an unhandled new field fails the BUILD, not silently at deploy.
+    _EMITTED = {"name", "version", "phases", "is_fixture"}
+    _actual = {f.name for f in dataclasses.fields(config)}
+    if _actual != _EMITTED:
+        raise ValueError(
+            f"cloud_package codegen out of sync with StrategyConfig fields: "
+            f"unhandled {sorted(_actual - _EMITTED)}, stale {sorted(_EMITTED - _actual)} — "
+            f"update _emit_main to emit every field (a dropped field silently changes dist)"
+        )
     body = "\n".join(imports) + "\n\n"
     body += f'STRATEGY_CONFIG = StrategyConfig(\n    name={config.name!r},\n    version={config.version!r},\n'
-    # #272: carry is_fixture into the deployed config — else a fixture (e.g. champion_asis) would
+    # carry is_fixture into the deployed config — else a fixture (e.g. champion_asis) would
     # lose the flag and CRASH the fail-loud entry+exit gate at cloud init (DegradedConfigError).
     if getattr(config, "is_fixture", False):
         body += "    is_fixture=True,\n"

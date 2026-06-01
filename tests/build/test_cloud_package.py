@@ -136,6 +136,22 @@ def test_non_fixture_omits_is_fixture_line(tmp_path: Path) -> None:
     assert "is_fixture" not in main_txt, "is_fixture line emitted for a non-fixture champion"
 
 
+def test_codegen_field_completeness_guard(tmp_path: Path) -> None:
+    # #272: the codegen FAILS LOUD if StrategyConfig gains a field _emit_main doesn't handle
+    # (the bug class that dropped is_fixture). Simulate a config carrying an unknown field and
+    # assert the build raises rather than silently emitting an incomplete dist config.
+    import dataclasses
+    from engine.config import StrategyConfig
+
+    @dataclasses.dataclass(slots=True)
+    class _ExtendedConfig(StrategyConfig):
+        new_field: str = "x"  # a field the emitter doesn't know about
+
+    cfg = _ExtendedConfig(name="_x", version="0.0.0", phases={})
+    with pytest.raises(ValueError, match="out of sync with StrategyConfig"):
+        cp._emit_main(cfg, [], tmp_path / "d", Path("src"))
+
+
 def test_deployable_strategy_emits_lean_entry(tmp_path: Path) -> None:
     # #238: a LEAN-deployable strategy (LEAN_ENTRY=True) gets the LEAN entry — lean_entry.py
     # + runtime.universe_select (the live filter→rank→cap) flattened into dist, and a
