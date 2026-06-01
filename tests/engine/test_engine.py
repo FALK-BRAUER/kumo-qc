@@ -94,6 +94,27 @@ def test_blocked_bar_runs_exits() -> None:
     assert eng.phases["sizing"][0].called is False  # type: ignore[attr-defined] entry-side suppressed
 
 
+def test_blocked_regime_bar_exposes_bar_blocked() -> None:
+    # #277 regime→intraday gate: a regime block must set ctx.bar_state.bar_blocked so the
+    # daily decision (lean_entry) captures an EMPTY candidate snapshot → no intraday entries
+    # that session. Previously the block was confined to the daily clock; intraday gap+loud
+    # entries ignored it (over-traded bad regimes). The engine must expose the block.
+    qc = FakeQC()
+    eng = make_engine(qc, regime=slot("regime", blocked=True))
+    c = ctx()
+    eng.on_data_with_ctx(c)
+    assert c.bar_state.bar_blocked is True
+
+
+def test_unblocked_bar_leaves_bar_blocked_false() -> None:
+    # The mirror: an unblocked bar must NOT raise the gate (else every session is gated).
+    qc = FakeQC()
+    eng = make_engine(qc)
+    c = ctx()
+    eng.on_data_with_ctx(c)
+    assert c.bar_state.bar_blocked is False
+
+
 def test_blocked_bar_runs_diagnostics_tail() -> None:
     qc = FakeQC()
     eng = make_engine(qc, regime=slot("regime", blocked=True),

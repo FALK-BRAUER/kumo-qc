@@ -380,6 +380,7 @@ class StrategyEngine:
                 phases_run.append(item)
                 if result.blocked and item in ("regime", "cash"):
                     bar_blocked = True
+                    ctx.bar_state.bar_blocked = True  # #277: expose to lean_entry (regime→intraday gate)
 
         self.logger.log_tick(
             chain=phases_run,

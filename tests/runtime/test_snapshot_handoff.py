@@ -16,6 +16,7 @@ from datetime import date, datetime
 import pytest
 
 from engine.base import DegradedDataError
+from engine.context import OrderIntent
 from runtime.lean_entry import BctEngineAlgorithm
 
 
@@ -165,3 +166,44 @@ def test_session_end_clear_preserves_snapshot() -> None:
     a.on_end_of_day()
     assert a._entry_confirm == {}
     assert aapl in a._candidate_snapshot, "snapshot must survive the session-end boundary"
+
+
+# ── #277 regime → intraday gate (the load-bearing consumer path) ──
+
+class _FakeEngine:
+    """Stands in for StrategyEngine: produces a signal winner and flags the regime block."""
+    def __init__(self, *, blocked: bool, winner: str) -> None:
+        self._blocked = blocked
+        self._winner = winner
+
+    def on_data_with_ctx(self, ctx: object) -> None:
+        ctx.bar_state.sized_orders.append(  # type: ignore[attr-defined]
+            OrderIntent(ticker=self._winner, qty=1, price=150.0, stop=0.0, module="m", risk_dollars=0.0)
+        )
+        ctx.bar_state.bar_blocked = self._blocked  # type: ignore[attr-defined]
+
+
+def _decision_algo(blocked: bool) -> BctEngineAlgorithm:
+    aapl = FakeSym("AAPL")
+    a = _algo([aapl], ["aapl"], {aapl: {"d_ichi": FakeDIchi(140.0)}}, {aapl: 150.0})
+    a.is_warming_up = False  # type: ignore[assignment]
+    a._sync_intraday_subscriptions = lambda w: None  # type: ignore[assignment,method-assign] isolate the snapshot path
+    a.engine = _FakeEngine(blocked=blocked, winner="aapl")  # type: ignore[assignment]
+    return a
+
+
+def test_regime_blocked_daily_captures_empty_snapshot() -> None:
+    # THE #277 behavior: a regime-blocked daily bar → winners=[] → EMPTY snapshot → zero intraday
+    # entries that session, EVEN THOUGH the daily signal produced a winner (in sized_orders).
+    a = _decision_algo(blocked=True)
+    a._on_after_close_decision()
+    assert a._candidate_snapshot == {}, "regime-blocked bar must capture zero intraday candidates"
+    assert any("REGIME_GATE" in m for m in a.logged)  # type: ignore[attr-defined]
+
+
+def test_regime_unblocked_daily_captures_the_winner() -> None:
+    # The mirror: an unblocked bar snapshots the signal winner (the gate must not suppress normal
+    # sessions — else the strategy never trades).
+    a = _decision_algo(blocked=False)
+    a._on_after_close_decision()
+    assert set(a._candidate_snapshot) == {FakeSym("AAPL")}, "unblocked bar must snapshot the winner"

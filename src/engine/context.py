@@ -49,6 +49,12 @@ class BarState:
     exit_intents: list[OrderIntent] = field(default_factory=list)
     trim_intents: list[OrderIntent] = field(default_factory=list)
     blocks: list[BlockEvent] = field(default_factory=list)
+    # #277: the engine sets this True when a regime/cash phase blocked the bar (entry-side
+    # suppressed). lean_entry reads it so the daily REGIME GATE reaches the INTRADAY entry path —
+    # a regime-blocked daily bar captures an EMPTY candidate snapshot → no intraday entries that
+    # session (the regime gate was previously confined to the daily clock; the intraday gap+loud
+    # entries ignored it → over-traded the bad regimes, the W1/W2 robustness loss).
+    bar_blocked: bool = False
     # phase_outputs accumulates per kind (lists support multi-sub-phase kinds: regime, exit_*, diagnostics)
     phase_outputs: dict[str, list[Any]] = field(default_factory=dict)
     _seen: set[tuple[str, str]] = field(default_factory=set, repr=False)

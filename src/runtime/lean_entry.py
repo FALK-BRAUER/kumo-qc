@@ -883,7 +883,17 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self.engine.on_data_with_ctx(ctx)
         # The daily pipeline's surviving intents == the signal winners (entry_selection/timing/sizing
         # are on the INTRADAY clock for the intraday champion, so the daily bar_state ends at signal).
-        winners = [intent.ticker for intent in ctx.bar_state.sized_orders]
+        # #277 REGIME GATE → INTRADAY: if a regime/cash phase BLOCKED the daily bar, capture NO
+        # candidates → ZERO intraday entries this session. Without this the daily regime gate was
+        # confined to the daily clock; the intraday gap+loud entries ignored it → over-traded the
+        # bad regimes (the W1/W2 robustness loss). A blocked regime now gates the intraday champion.
+        if getattr(ctx.bar_state, "bar_blocked", False):
+            winners: list[str] = []
+            log = getattr(self, "log", None)
+            if callable(log):
+                log(f"REGIME_GATE|{today}|blocked — zero intraday candidates captured (#277)")
+        else:
+            winners = [intent.ticker for intent in ctx.bar_state.sized_orders]
         # subscribe ONLY the winners for T+1's 5-min feed (all fit INTRADAY_SUBSCRIBE_CAP) + held
         # names (handled inside _sync) — so every confirmable candidate actually has intraday data.
         self._sync_intraday_subscriptions(winners)
