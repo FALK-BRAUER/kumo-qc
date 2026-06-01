@@ -199,6 +199,7 @@ Seven standing safeguards, each a test class that must pass on every build (the 
 - **SG6 — provenance pinned.** Every recorded result carries (commit + config-hash + data-fingerprint); an unpinned result fails the ledger gate.
 - **SG7 — clock coherence.** Every phase declares a valid `PHASE_RESOLUTION`; an intraday phase with no intraday subscription → fail-loud; daily decision state hands off to the intraday clock without leakage.
 - **SG8 — NO FILLS ON THE DAILY CLOCK (Falk, explicit).** The daily clock DECIDES ONLY — it produces the candidate list + signal snapshot and fires ZERO orders. Any order (entry/exit/add/trim) submitted from `on_daily_bar` is a violation → fail-loud. ALL fills happen on the intraday execution clock, after intraday confirmation. (This is the structural guarantee that the blind-daily-MOO model cannot creep back: a fill from the daily clock IS the retired model.)
+- **SG9 — NO STATE BLEED ACROSS SESSIONS (Gemini).** Intraday execution state (per-candidate confirmation progress, pending/unfired `OrderIntent`s, the deferred-entry queue) MUST be cleared at session end. `on_intraday_bar` on T+1 starts CLEAN and processes ONLY T's candidate list — a candidate that failed to confirm during T+1's session does NOT bleed into T+2 (the next daily decision produces a fresh list). A stale confirmation/intent surviving the session boundary is a violation → fail-loud. (Without this, an unconfirmed name could fire a day late on a thesis that no longer holds — a silent stale-entry. Test in #278.)
 
 ### 11.2 Per-phase behavioral + fail-loud + outage (mandatory, the testing pillar)
 Each phase has three test layers (CONVENTIONS.md "Testing"):
@@ -232,3 +233,11 @@ The fail-loud guards apply on the daily clock AND the intraday clock: a cold dai
 
 ### 12.4 Degradation is observable
 Where a fail-loud raise would halt a live run undesirably, the alternative is a LOUD-SKIP-WITH-LOGGED-REASON (e.g. the offline conform tool's per-row skip), NEVER a silent drop. Every skip/raise emits a diagnosable marker; the diagnostics phase + chart-emit surface the degraded state so a monitor catches it. Silent truncation/sampling/capping is forbidden — if coverage is bounded, it is logged.
+
+## 13. Known build risks (#270 — eyes-open going in)
+
+The highest-risk parts of the intraday rebuild, mapped to their phase tickets so they get explicit attention (not discovered late, the #268 cost):
+
+- **Dynamic subscription + consolidator LIFECYCLE — HIGHEST RISK (#275).** Mid-run, per-candidate: (a) on subscribe, the intraday indicators must be SEEDED/warmed from minute-history so the first intraday tick isn't cold → DegradedDataError; (b) on a candidate leaving the set, the 5-min consolidator + indicators must be explicitly REMOVED — LEAN does NOT auto-dispose them, so a leak accumulates across the year (the #213e OOM-class scar); (c) the subscribe/unsubscribe CHURN itself has overhead at candidate rotation. This lifecycle is the make-or-break of Phase 3.
+- **Intraday state management (#274/#276).** The all-day standing `ranked_candidates` list + per-candidate signal snapshots + confirmation progress live across the whole T+1 session and must hand off cleanly from the daily clock (SG9 no-state-bleed; the daily→intraday handoff tests). Stale-state bugs live here.
+- **Fill fidelity at re-baseline (#277).** The intraday stop-market + confirmed-market fills depend on LEAN's intrabar fill SIMULATION (which 5-min bar, what price within it). Expect a LARGER backtest-vs-live divergence than the daily-MOO model had — especially in volatile periods where the intrabar fill assumption matters most. Flag this explicitly when recording the #277 re-baseline; the new champion's number carries more execution-model uncertainty than the (retired) MOO number did. (Cloud-confirm on the faithful Docker runtime, not just local.)

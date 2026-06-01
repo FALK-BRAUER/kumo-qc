@@ -23,5 +23,10 @@ No code, no new phase impls, no engine changes — those are Phases 1–5. The d
 - **CONVENTIONS "Execution environment"** — kills the Docker confusion: local LEAN = `lean` CLI in the `quantconnect/lean` Docker image (engine **v2.5.0.0**) with LOCAL data providers (local PROVIDERS, Docker ENGINE — NOT "no Docker"). + the **dual execution model**: Docker lean-CLI = FAITHFUL runtime (tests/validation/parity/cloud-confirm); direct-LEAN = SWEEP runtime (speed), NOT set up yet, gated by a one-time **direct≈Docker reconciliation** (a new parity surface, cross-ref #214) before sweep results are trusted. + the v2.5.0.0 reference-clone pin (cloud version to be confirmed from a cloud log, not assumed equal).
 - **ARCHITECTURE §11.1 SG8 — NO FILLS ON THE DAILY CLOCK** (Falk, explicit, now standalone): the daily clock decides only, fires zero orders; any daily-clock fill → fail-loud. The structural guarantee the blind-daily-MOO model can't creep back.
 
+## Gemini review changes (APPROVE-WITH-CHANGES, folded in — docs-only)
+- **SG9 NO STATE BLEED** (ARCHITECTURE §11.1) — intraday confirmation/pending-intent state cleared at session end; T+1 starts clean on T's candidates; a stale unconfirmed entry must not fire a day late. Test in #278.
+- **PHASES.md data-flow contradiction FIXED** (§2) — signal now QUALIFIES → `ctx.signal_scores` only (does NOT rank, does NOT emit intents); canonical handoff signal→ranking→entry_selection→entry_timing→sizing made explicit + matrix-consistent. Noted that the retired `champion_asis` bct_score_full COLLAPSED signal+ranking+intent (the fixture shortcut), and the intraday champion restores the clean separation.
+- **Known build risks** (ARCHITECTURE §13) — dynamic subscription+consolidator LIFECYCLE = highest risk (seed-on-subscribe, explicit-remove-or-leak, churn) → #275; intraday state mgmt → #274/#276; fill-fidelity higher BT-vs-live divergence → flag at #277 re-baseline.
+
 ## On approval
 PR `docs/270-phase0-intraday-arch` → HQ gate → merge → Phase 1 (#272 fail-loud gate, #273 worktree isolation, #274 two-clock split + smoke BT). #279 closeout sweeps the whole codebase for coherence after Phase 5.
