@@ -217,7 +217,7 @@ def build(strategy_module: str, *, dist_dir: Path | None = None, verbose: bool =
         included=sorted(included + ["main.py", "_manifest.json", "_metadata.py"]),
         phase_markers=phase_markers,
     )
-    _emit_manifest(result, dist)
+    _emit_manifest(result, dist, is_fixture=getattr(config, "is_fixture", False))
     _emit_metadata(result, dist)
 
     # audits
@@ -332,13 +332,14 @@ def _emit_main(
     return markers
 
 
-def _emit_manifest(result: BuildResult, dist: Path) -> None:
+def _emit_manifest(result: BuildResult, dist: Path, is_fixture: bool = False) -> None:
     (dist / "_manifest.json").write_text(json.dumps({
         "config_hash": result.config_hash,
         "data_fingerprint": result.data_fingerprint,
         "git_commit": result.git_commit,
         "build_script_version": BUILD_SCRIPT_VERSION,
         "phase_markers": result.phase_markers,
+        "is_fixture": is_fixture,
         "files": result.included,
     }, indent=2, sort_keys=True))
 
