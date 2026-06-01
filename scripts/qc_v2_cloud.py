@@ -173,7 +173,7 @@ def smoke() -> None:
     print(f"✅ CLOUD-SMOKE CLEAN: {json.dumps(out)} — interop construction paths OK; FY gated-open.")
 
 
-def assert_cloud_clean(bt: dict) -> tuple[bool, str]:
+def assert_cloud_clean(bt: dict, *, reread: Any = None) -> tuple[bool, str]:
     """A cloud BT result is VALID only if it ran to a clean finish (#318 / CONVENTIONS §Parity).
 
     `completed=True` ALONE is NOT sufficient — QC marks a CRASHED partial as completed=True /
@@ -184,19 +184,31 @@ def assert_cloud_clean(bt: dict) -> tuple[bool, str]:
       2. progress == 1 (ran to the end, not a stalled partial).
       3. liveness: orders > 0 (a champion that decides daily must trade; 0 orders ⇒ the engine
          silently no-op'd — override only for a config that is legitimately flat).
+
+    NULL-LIVENESS HARDENING (P1, #277): QC sometimes populates statistics a beat AFTER `completed`
+    flips → Total Orders comes back NULL at poll time. A null liveness field must NEVER pass as
+    clean (the silent-zero-champion hole — a 0-entry config sliding through, which it did once on the
+    hold-confirm smoke). So on a null Total Orders, RE-READ once via `reread()` (callable → fresh bt
+    dict); if STILL null/missing OR unparseable, FAIL LOUD (unverifiable liveness = NOT clean).
     Returns (clean, reason)."""
     err = bt.get("error") or bt.get("stacktrace")
     if err:
         return False, f"runtime error: {str(err)[:300]}"
     if bt.get("progress") != 1:
         return False, f"incomplete: progress={bt.get('progress')}"
-    s = bt.get("statistics", {}) or {}
-    raw_orders = s.get("Total Orders")
+    raw_orders = (bt.get("statistics", {}) or {}).get("Total Orders")
+    if raw_orders is None and reread is not None:
+        bt = reread() or bt   # stats lag `completed` → re-read once for the populated trio
+        raw_orders = (bt.get("statistics", {}) or {}).get("Total Orders")
+    if raw_orders is None:
+        return False, ("liveness UNVERIFIABLE: Total Orders missing after re-read — null != clean "
+                       "(would silently pass a 0-entry champion); fail loud (#277)")
     try:
-        if raw_orders is not None and int(str(raw_orders).replace(",", "")) <= 0:
-            return False, "liveness: 0 orders (override only if the config is legitimately flat)"
+        n = int(str(raw_orders).replace(",", ""))
     except (ValueError, TypeError):
-        pass  # unparseable order count — don't fail on a format quirk; error+progress already gate
+        return False, f"liveness UNVERIFIABLE: unparseable Total Orders {raw_orders!r} — fail loud (#277)"
+    if n <= 0:
+        return False, "liveness: 0 orders (override only if the config is legitimately flat)"
     return True, "clean"
 
 
@@ -221,7 +233,11 @@ def run(name: str, poll_minutes: int = 30, compile_id: str | None = None) -> dic
             print(f"  ❌ {name} ERROR (runtime): {str(err)[:400]}")
             return None
         if b.get("completed"):
-            clean, reason = assert_cloud_clean(b)
+            # #277: pass a re-read so assert_cloud_clean can recover a NULL Total Orders (stats lag
+            # `completed`) — and FAIL LOUD if still unverifiable (never pass a null-liveness run).
+            clean, reason = assert_cloud_clean(
+                b, reread=lambda: post("/backtests/read",
+                                       {"projectId": PID, "backtestId": bid}).get("backtest", {}))
             if not clean:
                 print(f"  ❌ {name} INVALID (completed but not clean): {reason}")
                 return None
