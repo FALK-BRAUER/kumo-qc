@@ -214,6 +214,10 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
     # NOTE: this is the FULL-SIGNAL warmup. A Step-A-parity-only override may set ~40d; that is
     # NOT the strategy default and must never be hardcoded here.
     WARMUP_DAYS: int = 560
+    # #313: the daily DECISION fires on a scheduled AFTER-CLOSE event (decoupled from on_data
+    # bar-presence). Minutes after SPY's close → T's daily data is complete (no T+1 look-ahead),
+    # the daily indicators are warm with T's bar, the universe selection for T is current.
+    AFTER_CLOSE_MIN: int = 10
 
     # #275b INTRADAY execution clock (Option C): the daily selection produces candidates for T+1;
     # on T+1 those names get a 5-min subscription (our Massive is natively 5-min, stored as LEAN
@@ -291,6 +295,17 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         # the ranked qualifying set). NO stored file, NO ObjectStore artifact, NO
         # fp-verify-on-file, NO history() fan-out — computed from QC's coarse feed, local+cloud.
         self.add_universe(self._coarse_selection)
+
+        # #313: schedule the DAILY DECISION as an AFTER-CLOSE event — the proper #270 trigger,
+        # decoupled from on_data bar-presence (the #275b SPY-bar proxy was broken both ways:
+        # over-fire 390/day patched by #311 → under-fire 1/window revealed by the 276b-0 smoke,
+        # because once SPY is intraday-subscribed its on_data slice is the 5-min bar). Fires once
+        # per trading day after SPY's close → on_data carries ONLY the intraday execution clock now.
+        self.schedule.on(
+            self.date_rules.every_day(self.spy.symbol),
+            self.time_rules.after_market_close(self.spy.symbol, self.AFTER_CLOSE_MIN),
+            self._on_after_close_decision,
+        )
 
         self.engine = StrategyEngine(config=self.STRATEGY_CONFIG, qc=self)
 
@@ -744,13 +759,12 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             tbounce.update(o, h, lo, c, float(tk))
 
     def on_data(self, data: Any) -> None:
-        """Two-clock per-bar entry (#274/#275b). on_data fires for BOTH the DAILY bars (the
-        decision clock) and the 5-min "minute" bars (the intraday execution clock, our candidate
-        subscriptions). We route each:
-          - 5-min ("minute") bars present → FEED the intraday indicators that arrived + run the
-            engine's INTRADAY clock (on_intraday_bar). Empty until #276 wires an intraday phase
-            (the on_intraday_bar no-op from #274) → behaviour still unchanged through #275b.
-          - the DAILY bar → run the DECISION clock (on_data_with_ctx), exactly as before.
+        """The INTRADAY execution clock ONLY (#313). on_data feeds the 5-min ("minute") bars to the
+        intraday indicators + runs the engine's INTRADAY clock (on_intraday_bar). The DAILY DECISION
+        clock NO LONGER runs here — it fires on a scheduled AFTER-CLOSE event
+        (`_on_after_close_decision`, wired in initialize). (#274/#275b routed both clocks through
+        on_data via SPY-bar-presence; #313 retired that proxy — it was broken both ways: over-fire
+        390/day patched by #311 → under-fire 1/window revealed by the 276b-0 smoke.)
 
         WARMUP GUARD (exact legacy pattern): skip while warming up. Orders can't submit during
         warm-up, and the full pipeline over WARMUP_DAYS × the dynamic universe is wrong+slow. QC
@@ -779,32 +793,32 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                 ictx.clock = "intraday"
                 self.engine.on_intraday_bar(ictx)
 
-        # --- daily (decision) clock: run ONCE per date on the DAILY-resolution SPY bar ---
-        # #311 FIX (resolution-aware + idempotent): the daily heartbeat is the DAILY SPY bar ONLY.
-        # bars.get(spy) ALSO returns the 5-min SPY bar once SPY is intraday-subscribed (selected as
-        # an ETF candidate) — a 5-min bar must NOT trip the daily decision clock. The #275b
-        # regression fired the daily pipeline (selection/signal/FIRE_ENTRIES) on every 5-min step →
-        # 778 intraday entries/day (an SG8 break). Two guards:
-        #   (1) PRIMARY resolution-aware — gate on the bar PERIOD (a daily bar spans ~1 day; a 5-min
-        #       bar spans 5 min). Only a ~daily-span SPY bar is the heartbeat. Restores pre-bug timing.
-        #   (2) DEFENSE-IN-DEPTH once-per-date — _last_daily_date so the daily block runs <=1x/date
-        #       regardless of what trips the condition.
-        spy_bar = bars.get(self.spy.symbol) if (bars is not None and hasattr(bars, "get")) else None
-        # The daily SPY TradeBar.period is ~1 day (timedelta(days=1)) regardless of the LEAN
-        # `DailyPreciseEndTime` mode (delivery at 16:00 ET vs 00:00 next day shifts WHEN it arrives,
-        # not its 1-day PERIOD) — so the >=12h gate is robust to that setting; a future change there
-        # is not a regression. A 5-min bar's period is 5 min and never trips it.
-        is_daily_spy_bar = spy_bar is not None and \
-            getattr(spy_bar, "period", timedelta(0)) >= timedelta(hours=12)
-        already_decided_today = self.time.date() == getattr(self, "_last_daily_date", None)
-        if (is_daily_spy_bar or not self._intraday) and not already_decided_today:
-            self._last_daily_date = self.time.date()  # (2) once-per-date guard (#311)
-            # #275b-fix (LAG): reconcile the intraday subscription set HERE, on the daily-clock
-            # tick, BEFORE the decision pipeline — qc._active is now CURRENT (on_securities_changed
-            # has fired for the latest selection), so today's ranked candidates resolve to live
-            # symbols with NO 1-day lag → a fresh candidate's 5-min feed is active for its T+1
-            # execution window. (Subscription mgmt is daily-clock housekeeping, two-clock-correct.)
-            self._sync_intraday_subscriptions(getattr(self, "_ranked_today", []))
-            ctx = PhaseContext(qc=self, time=self.time, data=data)
-            ctx.clock = "daily"
-            self.engine.on_data_with_ctx(ctx)
+        # #313: the DAILY DECISION clock is NO LONGER triggered here. on_data carries ONLY the
+        # intraday execution clock (above). The daily decision runs on a scheduled AFTER-CLOSE event
+        # (_on_after_close_decision, wired in initialize) — the #275b SPY-bar-presence trigger was
+        # broken both ways (over-fire 390/day → #311 → under-fire 1/window, the 276b-0 smoke).
+
+    def _on_after_close_decision(self) -> None:
+        """#313 — the DAILY DECISION clock, fired by a SCHEDULED AFTER-CLOSE event (decoupled from
+        on_data / bar-presence). At T's close + AFTER_CLOSE_MIN: T's daily data is COMPLETE (no
+        T+1 look-ahead), the daily indicators are warm with T's bar, and the universe selection for
+        T is current (on_securities_changed has fired). Reconciles the intraday subscription set (so
+        T's ranked candidates get their T+1 5-min feed — the #275b-fix LAG intent), then runs the
+        daily pipeline ONCE. Fires reliably every trading day regardless of whether SPY is
+        intraday-subscribed (kills the bar-presence failure class).
+
+        SG8: this is the DECISION clock — it produces candidates only; it fires ZERO orders (all
+        fills happen on the intraday execution clock). Warm-or-fail-loud: cold daily indicators at
+        fire time raise DegradedDataError inside the phases (#261), never a silent skip."""
+        if self.is_warming_up:
+            return  # no decisions during indicator warmup (#213d)
+        today = self.time.date()
+        if today == getattr(self, "_last_daily_date", None):
+            return  # once-per-date idempotency (defense-in-depth — the scheduled event fires once/day anyway)
+        self._last_daily_date = today
+        # #275b-fix (LAG): reconcile intraday subs BEFORE the pipeline — qc._active/_ranked_today are
+        # CURRENT for T (on_securities_changed has fired), so T's candidates get their T+1 5-min feed.
+        self._sync_intraday_subscriptions(getattr(self, "_ranked_today", []))
+        ctx = PhaseContext(qc=self, time=self.time, data=None)  # scheduled event — no slice; daily phases read maintained indicators
+        ctx.clock = "daily"
+        self.engine.on_data_with_ctx(ctx)
