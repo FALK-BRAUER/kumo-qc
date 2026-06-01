@@ -70,13 +70,13 @@ jobs:
       - name: Verify phase markers in dist
         run: |
           python -c "
-import json, sys
-m = json.load(open('dist/_manifest.json'))
-phases = m.get('phase_markers', {})
-required = ['universe', 'signal', 'sizing', 'exit', 'regime', 'diagnostics']
-missing = [p for p in required if p not in phases or not phases[p]]
-if missing:
-    print(f'ERROR: missing phase markers: {missing}')
-    sys.exit(1)
-print(f'OK: {len(phases)} phase markers present')
-"
+          import json, sys
+          m = json.load(open('dist/_manifest.json'))
+          phases = m.get('phase_markers', {})
+          required = ['universe', 'signal', 'sizing', 'exit', 'regime', 'diagnostics']
+          missing = [p for p in required if p not in phases or not phases[p]]
+          if missing:
+              print(f'ERROR: missing phase markers: {missing}')
+              sys.exit(1)
+          print(f'OK: {len(phases)} phase markers present')
+          "
