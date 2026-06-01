@@ -18,10 +18,12 @@ class StubPhase(BasePhase):
         blocked: bool = False
         requires: tuple[str, ...] = ()
         enabled: bool = True
+        resolution: str = "daily"  # #274: "daily" | "intraday" — the clock this stub runs on
 
     def __init__(self, params: "StubPhase.Params", logger: Any = None) -> None:
         super().__init__(params, logger)
         self.PHASE_KIND = params.kind
+        self.PHASE_RESOLUTION = params.resolution
         self.REQUIRES_UPSTREAM = list(params.requires)
         self.PROVIDES_DOWNSTREAM = []
         self._blocked = params.blocked
@@ -36,5 +38,7 @@ class StubPhase(BasePhase):
         return PhaseResult(decision=None, blocked=self._blocked, reason="stub", facts={}, metrics={})
 
 
-def slot(kind: str, blocked: bool = False, requires: tuple[str, ...] = (), enabled: bool = True) -> Slot[StubPhase.Params]:
-    return Slot(impl=StubPhase, params=StubPhase.Params(kind=kind, blocked=blocked, requires=requires, enabled=enabled), enabled=enabled)
+def slot(kind: str, blocked: bool = False, requires: tuple[str, ...] = (), enabled: bool = True,
+         resolution: str = "daily") -> Slot[StubPhase.Params]:
+    return Slot(impl=StubPhase, params=StubPhase.Params(
+        kind=kind, blocked=blocked, requires=requires, enabled=enabled, resolution=resolution), enabled=enabled)
