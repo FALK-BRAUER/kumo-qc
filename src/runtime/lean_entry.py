@@ -61,7 +61,7 @@ from typing import Any
 import pandas as pd
 
 from engine.base import DegradedDataError, DegradedScheduleError
-from engine.context import PhaseContext
+from engine.context import OrderIntent, PhaseContext
 from engine.engine import StrategyEngine
 from runtime.indicators import INDICATOR_KEYS, TBounceTracker, weekly_aggregate
 from runtime.universe_select import (
@@ -152,6 +152,7 @@ try:  # pragma: no cover - QC runtime import; absent in the dev venv / unit test
         IchimokuKinkoHyo,
         Market,
         MovingAverageType,
+        OrderStatus,
         QCAlgorithm,
         Resolution,
         RollingWindow,
@@ -164,7 +165,7 @@ except ImportError:  # pragma: no cover
     QCAlgorithm = object
     DataNormalizationMode = Resolution = SecurityType = Market = Symbol = None
     Calendar = IchimokuKinkoHyo = RollingWindow = TradeBar = TradeBarConsolidator = None
-    Field = MovingAverageType = None
+    Field = MovingAverageType = OrderStatus = None
 
 
 def _to_decimal(x: Any) -> Decimal:
@@ -321,6 +322,12 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self._candidate_snapshot: dict[Any, dict[str, Any]] = {}
         self._last_daily_date: Any = None
         self._entry_confirm: dict[Any, Any] = {}
+        # #276b-1 candidate-injection PENDING-STATE (Gemini fix #1): syms with an entry order
+        # IN-FLIGHT this session. Injection skips invested ∪ pending so an in-flight entry is not
+        # re-injected (double-entry); a broker REJECT (Canceled/Invalid) drops it from pending →
+        # re-injectable next tick (a transient reject is not a permanently-lost trade). Driven by
+        # on_order_event terminal status; cleared at session end.
+        self._pending_entry_today: set[Any] = set()
 
         # #313 WATCHDOG (the permanent protection vs silent no-fire): the daily decision must keep
         # pace with elapsed trading days. _sched_trading_days counts post-warmup trading days (the
@@ -837,6 +844,9 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             if fed_intraday:
                 ictx = PhaseContext(qc=self, time=self.time, data=data)
                 ictx.clock = "intraday"
+                # #276b-1: seed the standing daily candidates into this fresh per-tick bar_state
+                # BEFORE the intraday clock runs, so entry_selection can gate them (the two-clock seam).
+                self._inject_intraday_candidates(ictx)
                 self.engine.on_intraday_bar(ictx)
 
         # #313: the DAILY DECISION clock is NO LONGER triggered here. on_data carries ONLY the
@@ -971,12 +981,75 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             )
         return snap
 
+    def _inject_intraday_candidates(self, ictx: PhaseContext) -> None:
+        """#276b-1 CANDIDATE INJECTION (the two-clock seam, HQ/Gemini-reviewed). ctx.bar_state is
+        FRESH per 5-min tick; the standing daily candidates live in `_candidate_snapshot` (276b-0).
+        Seed a qty=0 OrderIntent STUB per ELIGIBLE candidate into ictx.bar_state.sized_orders so the
+        intraday entry_selection phases (PreFlightStaleness → BctIntradayConfirm) can gate them, then
+        entry_timing → sizing → FIRE_ENTRIES fire the confirmed/sized ones.
+
+        RANK-PRESERVING (Gemini fix #3): `_candidate_snapshot` is built by iterating `_ranked_today`
+        into an insertion-ordered dict, so iterating it here preserves rank → on a capital-constrained
+        tick, sizing/BP is consumed highest-rank first.
+
+        ELIGIBILITY (Gemini fix #1): inject iff NOT invested AND NOT pending. `invested` blocks
+        re-entry on a held name (its EXITS run on the intraday clock via exit_hard, never re-injected
+        as an entry — SG8). `pending` (an entry order in-flight this session) blocks double-entry; a
+        broker reject drops it from pending (on_order_event) → re-injectable next tick.
+
+        The qty=0 stub is an INTERNAL artifact — FIRE_ENTRIES's `qty <= 0` guard (Gemini fix #2)
+        ensures a stub that no phase sized NEVER reaches the broker."""
+        snapshot = getattr(self, "_candidate_snapshot", {})
+        if not snapshot:
+            return
+        pending = getattr(self, "_pending_entry_today", set())
+        injected = 0
+        for sym in snapshot:  # insertion order == rank order (rank-preserving)
+            if self.portfolio[sym].invested or sym in pending:
+                continue
+            ictx.bar_state.sized_orders.append(
+                OrderIntent(ticker=sym.value.lower(), qty=0, price=0.0, stop=0.0,
+                            module="signal", risk_dollars=0.0)
+            )
+            injected += 1
+        if injected:
+            log = getattr(self, "log", None)
+            if callable(log):
+                log(f"INTRADAY_INJECT|{self.time.date()}|candidates={injected}")
+
+    def _mark_entry_pending(self, sym: Any) -> None:
+        """#276b-1 (Gemini fix #1) — engine hook called when an ENTRY order is SUBMITTED. Marks the
+        sym as having an entry in-flight so `_inject_intraday_candidates` won't re-inject it before
+        the order resolves. Resolved by `on_order_event` (filled → invested covers it; rejected →
+        re-injectable). Optional hook (engine guards with getattr) — no-op if the runtime omits it."""
+        self._pending_entry_today.add(sym)
+
+    def on_order_event(self, order_event: Any) -> None:
+        """#276b-1 (Gemini fix #1) — the entry PENDING-STATE machine. An entry submission is NOT a
+        success: a broker reject (insufficient BP, halt, locate, gross-cap) leaves the position
+        un-invested. Tying re-injection to a binary on-submit flag would permanently lose a
+        transiently-rejected candidate. So: on any TERMINAL status for a pending sym, drop it from
+        pending — Filled/PartiallyFilled → now invested (invested-check blocks re-injection);
+        Canceled/Invalid → re-injectable next tick (gets another chance if the condition cleared).
+        sym-keyed discard is safe: only syms with an in-flight ENTRY are in pending (a held name's
+        exit/stop events find sym absent → no-op)."""
+        sym = getattr(order_event, "symbol", None)
+        if sym is None or sym not in self._pending_entry_today:
+            return
+        status = getattr(order_event, "status", None)
+        terminal = {OrderStatus.Filled, OrderStatus.PartiallyFilled,
+                    OrderStatus.Canceled, OrderStatus.Invalid} if OrderStatus is not None else set()
+        if status in terminal:
+            self._pending_entry_today.discard(sym)
+
     def _clear_intraday_session_state(self) -> None:
-        """#276b-0 H3/SG9 — clear the deferred intraday-confirm PROGRESS at session end so an
-        unconfirmed candidate at T+1 close does NOT bleed into T+2's session. _candidate_snapshot is
-        NOT cleared here (it is overwritten by the next daily decision — a held thesis legitimately
-        survives the same-day boundary); only the per-session confirm progress resets."""
+        """#276b-0 H3/SG9 — clear the deferred intraday-confirm PROGRESS + the entry PENDING set at
+        session end so neither an unconfirmed candidate nor an in-flight-entry marker bleeds into
+        T+2's session. _candidate_snapshot is NOT cleared here (it is overwritten by the next daily
+        decision — a held thesis legitimately survives the same-day boundary); only the per-session
+        confirm progress + pending-entry markers reset."""
         self._entry_confirm = {}
+        self._pending_entry_today = set()
 
     def on_end_of_day(self, symbol: Any = None) -> None:
         """QC session-end hook — clear the intraday-confirm progress (H3/SG9). Idempotent (QC fires

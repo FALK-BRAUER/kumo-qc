@@ -375,6 +375,12 @@ class StrategyEngine:
                         f"lifecycle (#276b) must handle re-entry before this combo is allowed (#276a)"
                     )
                 self._submit(qc, sym, intent)  # the entry, per intent.order_type
+                # #276b-1 (Gemini fix #1): mark the entry IN-FLIGHT so the runtime's intraday
+                # candidate-injection won't re-inject this sym before the order resolves (double-
+                # entry). Optional hook — no-op if the runtime doesn't track pending entries.
+                _mark_pending = getattr(qc, "_mark_entry_pending", None)
+                if callable(_mark_pending):
+                    _mark_pending(sym)
                 price = float(qc.securities[sym].price)
                 if not hasattr(qc, "_position_meta"):
                     qc._position_meta = {}
