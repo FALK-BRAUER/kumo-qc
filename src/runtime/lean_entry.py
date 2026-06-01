@@ -63,6 +63,7 @@ import pandas as pd
 from engine.base import DegradedDataError, DegradedScheduleError
 from engine.context import OrderIntent, PhaseContext
 from engine.engine import StrategyEngine
+from runtime.cost_model import wire_cost_models
 from runtime.indicators import INDICATOR_KEYS, TBounceTracker, weekly_aggregate
 from runtime.universe_select import (
     DvWindow,
@@ -273,6 +274,14 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
     INTRADAY_TENKAN: int = 9
     INTRADAY_VOL_WINDOW: int = 20
 
+    # #321 realistic IBKR cost+slippage. SLIPPAGE_PERCENT = the EXPLICIT, version-pinned per-side
+    # slippage fed to ConstantSlippageModel (5 bps; conservative for the liquid ADV>=$100M universe).
+    # Same treatment as the universe knobs above: a lean_entry class attr (single source), NOT in
+    # STRATEGY_CONFIG → config_hash is byte-unchanged; the GIT COMMIT records the cost change. The
+    # IB fee + this slippage are installed on every equity via a security initializer in initialize()
+    # (runtime.cost_model.wire_cost_models) — local AND cloud, one code path, no `if cloud` branch.
+    SLIPPAGE_PERCENT: float = 0.0005
+
     def initialize(self) -> None:
         self.set_start_date(*self.START_DATE)
         self.set_end_date(*self.END_DATE)
@@ -371,6 +380,11 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             self._on_after_close_decision,
         )
         self._schedule_armed = True  # #313 watchdog engages only in a real armed run (not selection-harness unit tests)
+
+        # #321: realistic IBKR cost+slippage — IB brokerage model + a security initializer that
+        # installs InteractiveBrokersFeeModel + ConstantSlippageModel on every equity (universe,
+        # intraday, SPY); indices (VIX) skipped. Single code path, no `if cloud` branch (charter).
+        wire_cost_models(self, slippage_percent=self.SLIPPAGE_PERCENT)
 
         self.engine = StrategyEngine(config=self.STRATEGY_CONFIG, qc=self)
 
