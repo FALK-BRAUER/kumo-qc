@@ -7,6 +7,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
+import pytest
+
+from engine.base import DegradedDataError
 from engine.context import OrderIntent, PhaseContext
 from phases.portfolio_risk.gross_exposure_cap.gross_exposure_cap import GrossExposureCap
 
@@ -110,6 +113,92 @@ def test_never_blocks_the_bar() -> None:
     res = _phase(1.0).evaluate(ctx)
     assert res.blocked is False
     assert len(ctx.bar_state.sized_orders) == 0  # over ceiling → dropped
+
+
+def test_missing_holdings_attr_fails_loud() -> None:
+    # FAIL-LOUD (#181/#261, the #276a review finding): a portfolio with NO total_holdings_value
+    # must RAISE — never silently default to 0.0, which would measure new exposure against zero
+    # held → permit max_gross_pct×equity on top of existing holdings (over-leverage).
+    class PortfolioNoHoldings:
+        total_portfolio_value = 100_000.0  # has equity but NOT total_holdings_value
+
+    qc = FakeQC(); qc.portfolio = PortfolioNoHoldings(); _wire(qc, ["T0"])  # type: ignore[assignment]
+    ctx = _ctx(qc, [_intent("T0", 100)])
+    with pytest.raises(DegradedDataError, match="total_holdings_value"):
+        _phase(1.0).evaluate(ctx)
+
+
+def test_present_holdings_attr_does_not_raise() -> None:
+    # MUTATION-BITE control (#263): the healthy path (attr present) must NOT raise — proves the
+    # guard above fires on the degraded condition ONLY, not always (no tautology).
+    qc = FakeQC(equity=100_000, held=0); _wire(qc, ["T0"])
+    ctx = _ctx(qc, [_intent("T0", 100)])
+    _phase(1.0).evaluate(ctx)  # no raise on the healthy path
+    assert len(ctx.bar_state.sized_orders) == 1
+
+
+# ── #181 BUG-2 Stage 0: commit-aware gross cap on ADDS (the FIRE_ADDS seam) ──
+
+def _ctx_adds(qc: FakeQC, adds: list[OrderIntent]) -> PhaseContext:
+    c = PhaseContext(qc=qc, time=datetime(2025, 1, 2), data=None)
+    c.bar_state.add_intents = adds
+    return c
+
+
+def test_bound_adds_under_cap_passes() -> None:
+    # ceiling 100k, 0 held, no in-flight entries → a $10k add fits.
+    qc = FakeQC(equity=100_000, held=0); _wire(qc, ["T0"])
+    ctx = _ctx_adds(qc, [_intent("T0", 100)])  # $100×100 = $10k
+    _phase(1.0).bound_adds(ctx, in_flight_entry_value=0.0)
+    assert len(ctx.bar_state.add_intents) == 1
+
+
+def test_bound_adds_over_cap_blocked() -> None:
+    # 95k held, ceiling 100k → only $5k room; a $10k add breaches → dropped.
+    qc = FakeQC(equity=100_000, held=95_000); _wire(qc, ["T0"])
+    ctx = _ctx_adds(qc, [_intent("T0", 100)])
+    _phase(1.0).bound_adds(ctx, in_flight_entry_value=0.0)
+    assert len(ctx.bar_state.add_intents) == 0, "add breaching the gross ceiling must be dropped"
+
+
+def test_bound_adds_commit_aware_inflight_entries_consume_budget() -> None:
+    # THE FILL-LAG TRAP (#181 BUG-2): total_holdings_value reads 0 (entries not yet filled this
+    # tick), but $95k of entries were already SUBMITTED this tick. A $10k add must be DENIED —
+    # held(0) + in-flight(95k) + add(10k) = 105k > 100k ceiling. Without commit-awareness the add
+    # would wrongly pass against the stale 0 held → the leverage hole.
+    qc = FakeQC(equity=100_000, held=0); _wire(qc, ["T0"])
+    ctx = _ctx_adds(qc, [_intent("T0", 100)])  # $10k add
+    _phase(1.0).bound_adds(ctx, in_flight_entry_value=95_000.0)
+    assert len(ctx.bar_state.add_intents) == 0, "in-flight same-tick entries MUST consume the cap budget"
+
+
+def test_bound_adds_control_inflight_within_budget_passes() -> None:
+    # MUTATION-BITE control for the case above: drop the in-flight entries below the breach point
+    # ($85k → 85k+10k=95k < 100k) and the SAME add now passes — proves the denial above is the
+    # commit-aware math biting, not an always-deny.
+    qc = FakeQC(equity=100_000, held=0); _wire(qc, ["T0"])
+    ctx = _ctx_adds(qc, [_intent("T0", 100)])
+    _phase(1.0).bound_adds(ctx, in_flight_entry_value=85_000.0)
+    assert len(ctx.bar_state.add_intents) == 1
+
+
+def test_bound_adds_disabled_is_noop() -> None:
+    qc = FakeQC(equity=100_000, held=95_000); _wire(qc, ["T0"])
+    ctx = _ctx_adds(qc, [_intent("T0", 100)])
+    cap = GrossExposureCap(GrossExposureCap.Params(max_gross_pct=1.0, enabled=False), logger=None)
+    cap.bound_adds(ctx, in_flight_entry_value=0.0)
+    assert len(ctx.bar_state.add_intents) == 1, "disabled cap must not touch adds"
+
+
+def test_bound_adds_missing_holdings_attr_fails_loud() -> None:
+    # the BUG-1 fail-loud read is shared by the add seam too (single-source _held_gross).
+    class PortfolioNoHoldings:
+        total_portfolio_value = 100_000.0
+
+    qc = FakeQC(); qc.portfolio = PortfolioNoHoldings(); _wire(qc, ["T0"])  # type: ignore[assignment]
+    ctx = _ctx_adds(qc, [_intent("T0", 100)])
+    with pytest.raises(DegradedDataError, match="total_holdings_value"):
+        _phase(1.0).bound_adds(ctx, in_flight_entry_value=0.0)
 
 
 def test_space_and_complexity_declared() -> None:

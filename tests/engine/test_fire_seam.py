@@ -52,6 +52,12 @@ class FakeSym:
         return isinstance(o, FakeSym) and o.value == self.value
 
 
+class FakePortfolio:
+    def __init__(self, equity: float = 100_000.0, held: float = 0.0) -> None:
+        self.total_portfolio_value = equity
+        self.total_holdings_value = held
+
+
 class FakeQC:
     """Records every broker call so the fire-seam dispatch + GTC + cancel are assertable."""
     def __init__(self) -> None:
@@ -60,6 +66,7 @@ class FakeQC:
         self._tickets: list[FakeTicket] = []
         self._position_meta: dict = {}
         self._active: set = set()
+        self.portfolio = FakePortfolio()
 
     def Log(self, m: str) -> None: ...
     def log(self, m: str) -> None: ...
@@ -217,3 +224,62 @@ def test_guards_dormant_without_protective_stop() -> None:
     eng._fire(FIRE_TRIMS, ctx2)  # must NOT raise (no live stop → no footgun)
     ctx3 = _ctx(qc); ctx3.bar_state.add_intents = [_intent("AAPL", qty=5)]
     eng._fire(FIRE_ADDS, ctx3)  # must NOT raise
+
+
+# ── #181 BUG-2 Stage 0: commit-aware gross cap at the FIRE_ADDS seam (engine wiring) ──
+
+from phases.portfolio_risk.gross_exposure_cap.gross_exposure_cap import GrossExposureCap  # noqa: E402
+
+
+def _engine_with_cap(qc: FakeQC, max_gross_pct: float = 1.0) -> StrategyEngine:
+    eng = _engine(qc)
+    eng.phases["portfolio_risk"] = [
+        GrossExposureCap(GrossExposureCap.Params(max_gross_pct=max_gross_pct), logger=None)
+    ]
+    return eng
+
+
+def test_fire_entries_accumulates_tick_entry_value() -> None:
+    # the commit-aware bookkeeping: FIRE_ENTRIES sums |qty|×price of submitted entries this tick.
+    qc = FakeQC(); eng = _engine(qc); sym = FakeSym("AAPL"); qc._active = {sym}
+    ctx = _ctx(qc); ctx.bar_state.sized_orders = [_intent("AAPL", qty=950)]  # 950×$100 = $95k
+    eng._fire(FIRE_ENTRIES, ctx)
+    assert eng._tick_entry_value == 95_000.0
+
+
+def test_commit_aware_seam_denies_add_when_inflight_entry_consumes_budget() -> None:
+    # END-TO-END leverage-hole closure (#181 BUG-2): a $95k entry fires this tick (holdings not yet
+    # updated → fill lag), then a $10k add. The seam counts the in-flight entry → 0+95k+10k=105k >
+    # 100k ceiling → add DENIED. Without the commit-aware seam the add fires uncapped = the hole.
+    qc = FakeQC(); eng = _engine_with_cap(qc); sym = FakeSym("AAPL"); qc._active = {sym}
+    ctx = _ctx(qc)
+    ctx.bar_state.sized_orders = [_intent("AAPL", qty=950)]   # $95k entry, no protective stop
+    eng._fire(FIRE_ENTRIES, ctx)
+    ctx.bar_state.add_intents = [_intent("AAPL", qty=100)]    # $10k add
+    eng._bound_adds_to_gross_cap(ctx)                         # the commit-aware second seam
+    assert ctx.bar_state.add_intents == [], "in-flight entry must consume the cap budget → add denied"
+    eng._fire(FIRE_ADDS, ctx)
+    assert eng._fired_adds == 0, "no add should fire — it breached the gross cap commit-aware"
+
+
+def test_commit_aware_seam_allows_add_within_budget() -> None:
+    # MUTATION-BITE control: a smaller $40k entry leaves room (40k+10k=50k < 100k) → the SAME add
+    # passes the seam and fires. Proves the denial above is the cap biting, not an always-deny.
+    qc = FakeQC(); eng = _engine_with_cap(qc); sym = FakeSym("AAPL"); qc._active = {sym}
+    ctx = _ctx(qc)
+    ctx.bar_state.sized_orders = [_intent("AAPL", qty=400)]   # $40k entry
+    eng._fire(FIRE_ENTRIES, ctx)
+    ctx.bar_state.add_intents = [_intent("AAPL", qty=100)]    # $10k add
+    eng._bound_adds_to_gross_cap(ctx)
+    assert len(ctx.bar_state.add_intents) == 1
+    eng._fire(FIRE_ADDS, ctx)
+    assert eng._fired_adds == 1
+
+
+def test_no_portfolio_risk_phase_means_seam_is_noop() -> None:
+    # behaviour-unchanged: with NO portfolio_risk phase wired (the champion_asis fixture), the seam
+    # leaves add_intents untouched.
+    qc = FakeQC(); eng = _engine(qc); sym = FakeSym("AAPL"); qc._active = {sym}
+    ctx = _ctx(qc); ctx.bar_state.add_intents = [_intent("AAPL", qty=100)]
+    eng._bound_adds_to_gross_cap(ctx)
+    assert len(ctx.bar_state.add_intents) == 1

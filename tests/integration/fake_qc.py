@@ -191,6 +191,11 @@ class FakePortfolio:
     def __init__(self, cash: float, total_value: float) -> None:
         self.cash = cash
         self.total_portfolio_value = total_value
+        # The gross-exposure cap (#181) reads this; it MUST exist on the fake so a renamed/absent
+        # attr fails loud in src instead of being masked by a getattr default (the tautology the
+        # #276a review caught). The integration fixture starts flat (no pre-existing holdings) → 0.0;
+        # a test exercising the cap with held positions sets it explicitly.
+        self.total_holdings_value = 0.0
         self._holdings: dict[Any, FakeHolding] = {}
 
     def __getitem__(self, sym: Any) -> FakeHolding:

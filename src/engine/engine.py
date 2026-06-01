@@ -134,6 +134,7 @@ class StrategyEngine:
         self._fired_entries = 0
         self._fired_exits = 0
         self._fired_adds = 0
+        self._tick_entry_value = 0.0  # #181 BUG-2 Stage 0: this tick's entry $ (commit-aware adds cap)
 
         validate_invariants(config)
         self._validate_known_kinds(config)
@@ -297,11 +298,19 @@ class StrategyEngine:
         bar_blocked = False
         phases_run: list[str] = []
         self._fired_entries = self._fired_exits = self._fired_adds = 0
+        # #181 BUG-2 Stage 0: $-value of entry orders submitted THIS tick, for the commit-aware
+        # gross cap on adds (LEAN fill-lag → total_holdings_value may not yet reflect these fills).
+        self._tick_entry_value = 0.0
 
         for item in order:
             if isinstance(item, FireSentinel):
                 if bar_blocked and item in ENTRY_ONLY_SENTINELS:
                     continue
+                # #181 BUG-2 Stage 0: commit-aware second seam — bound add_intents by the gross cap
+                # BEFORE firing them, counting this tick's in-flight entries (closes the leverage
+                # hole where adds fired uncapped after FIRE_ENTRIES).
+                if item is FIRE_ADDS:
+                    self._bound_adds_to_gross_cap(ctx)
                 self._fire(item, ctx)
                 continue
 
@@ -385,6 +394,9 @@ class StrategyEngine:
                     )
                 qc._position_meta[sym] = meta
                 self._fired_entries += 1
+                # #181 BUG-2 Stage 0: accumulate this tick's entry exposure so the FIRE_ADDS gross
+                # cap is commit-aware (fill-lag safe — see _bound_adds_to_gross_cap).
+                self._tick_entry_value += abs(intent.qty) * price
                 qc.log(f"ENTRY|{date_str}|{intent.ticker}|qty={intent.qty}|price~{price:.2f}")
         elif sentinel is FIRE_EXITS:
             for intent in ctx.bar_state.exit_intents:
@@ -418,6 +430,17 @@ class StrategyEngine:
                 # stop on trim. Only fires when a protective stop is LIVE.
                 self._guard_position_change_vs_protective_stop(qc, sym, "trim")
                 self._submit(qc, sym, intent)
+
+    def _bound_adds_to_gross_cap(self, ctx: PhaseContext) -> None:
+        """#181 BUG-2 Stage 0: COMMIT-AWARE gross cap at the FIRE_ADDS seam. Reuses the configured
+        portfolio_risk phase's OWN cap math (`bound_adds`, single-source — no duplicated ceiling
+        logic) to bound `add_intents` before they fire, accounting for this tick's in-flight entry
+        orders (`self._tick_entry_value`). Closes the leverage hole where adds previously fired with
+        no gross check after FIRE_ENTRIES. No-op when no portfolio_risk phase is wired (e.g. the
+        champion_asis fixture) — so behaviour is unchanged where the cap is absent."""
+        for cap in self.phases.get("portfolio_risk", []):
+            if getattr(cap, "enabled", True) and hasattr(cap, "bound_adds"):
+                cap.bound_adds(ctx, self._tick_entry_value)
 
     def _guard_position_change_vs_protective_stop(self, qc: Any, sym: Any, op: str) -> None:
         """#276a GUARD-1/2: a trim/add on a position with a LIVE protective stop, without the
