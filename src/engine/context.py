@@ -62,3 +62,4 @@ class PhaseContext:
     time: datetime
     data: Any          # LEAN Slice
     bar_state: BarState = field(default_factory=BarState)
+    clock: str = "daily"  # #274/#275b: which clock this tick runs on — "daily" | "intraday"
