@@ -149,117 +149,9 @@ def test_on_securities_changed_registers_active_and_disposes() -> None:
     assert algo.subscription_manager.removed == [(aapl, "cons_AAPL"), (aapl, "daily_AAPL")]
 
 
-def test_on_data_skips_engine_during_warmup() -> None:
-    # WARMUP GUARD (#213d): the engine must NOT run while warming up — LEAN rejects orders
-    # during warm-up, and running the pipeline over the 560d warmup is wrong + far too slow.
-    from datetime import datetime as _dt
-
-    from runtime.lean_entry import BctEngineAlgorithm
-
-    class FakeEngine:
-        def __init__(self): self.calls = 0
-        def on_data_with_ctx(self, ctx): self.calls += 1
-
-    algo = BctEngineAlgorithm()  # QCAlgorithm == object locally
-    algo.engine = FakeEngine()
-    algo.time = _dt(2025, 6, 2)
-    # #275b: on_data is two-clock now — give it the intraday state initialize() would set. Empty
-    # intraday set + data=None → no intraday bars → the daily clock runs (the `not self._intraday`
-    # fallback), exactly the pre-#275b behaviour this test pins. #275b-fix: on_data's daily path
-    # now reconciles intraday subs → needs _active + _ranked_today (empty → clean no-op here).
-    algo._intraday = {}
-    algo._intraday_active = set()
-    algo._active = set()
-    algo._ranked_today = []
-
-    algo.is_warming_up = True
-    algo.on_data(None)
-    assert algo.engine.calls == 0  # skipped during warmup
-
-    algo.is_warming_up = False
-    algo.on_data(None)
-    assert algo.engine.calls == 1  # runs once warmup finishes (daily clock; no intraday subs)
-
-
-def test_on_data_two_clock_routing() -> None:
-    # #275b S1 (the load-bearing routing): on_data routes the DAILY bar → on_data_with_ctx
-    # (decision clock) and 5-min bars → on_intraday_bar (execution clock). #311: the daily heartbeat
-    # is the DAILY-RESOLUTION SPY bar (period ~1 day) — a 5-min SPY bar must NOT trip it.
-    from datetime import datetime as _dt
-    from datetime import timedelta as _td
-
-    from runtime.lean_entry import BctEngineAlgorithm
-
-    class FakeEngine:
-        def __init__(self): self.daily = 0; self.intraday = 0
-        def on_data_with_ctx(self, ctx): self.daily += 1
-        def on_intraday_bar(self, ctx): self.intraday += 1
-
-    class FakeSym:
-        def __init__(self, v): self.value = v
-        def __hash__(self): return hash(self.value)
-        def __eq__(self, o): return isinstance(o, FakeSym) and o.value == self.value
-
-    class FakeBar:
-        def __init__(self, close=100.0, volume=1000.0, period=_td(minutes=5)):
-            self.close = close; self.volume = volume; self.period = period
-
-    def _daily_bar():  # the DAILY-resolution SPY heartbeat bar (period ~1 day)
-        return FakeBar(period=_td(days=1))
-
-    class FakeBars:
-        def __init__(self, d): self._d = d
-        def get(self, sym): return self._d.get(sym)
-
-    class FakeSlice:
-        def __init__(self, bars): self.bars = bars
-
-    class FakeIntradayState(dict):
-        pass
-
-    spy = FakeSym("SPY")
-    aapl = FakeSym("AAPL")
-
-    def _algo():
-        a = BctEngineAlgorithm()
-        a.engine = FakeEngine()
-        a.time = _dt(2025, 6, 2)
-        a.is_warming_up = False
-        a.spy = type("S", (), {"symbol": spy})()
-        # AAPL has a live intraday subscription with a minimal state dict
-        a._intraday = {aapl: {"intraday_tenkan": type("I", (), {"update": lambda s, b: None})(),
-                              "vol_window": type("W", (), {"add": lambda s, v: None})(),
-                              "last_close": None, "last_bar": None}}
-        # #275b-fix: on_data's daily path reconciles intraday subs → stub _active/_ranked_today/
-        # _intraday_active (+ portfolio for the held-keeps-feed check). _ranked_today=[aapl-ish]
-        # empty-resolvable → the sync keeps the existing AAPL sub (it's already active), no churn.
-        a._active = {aapl}
-        a._intraday_active = {aapl}
-        a._ranked_today = ["aapl"]
-        a.portfolio = type("P", (), {"__getitem__": lambda s, k: type("H", (), {"invested": False})()})()
-        return a
-
-    # (a) 5-min bar present, NO SPY daily bar → intraday clock fires, daily clock SKIPPED
-    a = _algo()
-    a.on_data(FakeSlice(FakeBars({aapl: FakeBar()})))
-    assert a.engine.intraday == 1 and a.engine.daily == 0, "5-min slice should fire intraday only"
-
-    # (b) SPY DAILY bar present (+ intraday subs) → daily clock fires
-    a = _algo()
-    a.on_data(FakeSlice(FakeBars({spy: _daily_bar()})))
-    assert a.engine.daily == 1, "SPY daily bar must fire the daily decision clock"
-
-    # (c) SPY daily bar + a 5-min bar → both clocks fire
-    a = _algo()
-    a.on_data(FakeSlice(FakeBars({spy: _daily_bar(), aapl: FakeBar()})))
-    assert a.engine.daily == 1 and a.engine.intraday == 1, "daily bar + 5-min → both clocks"
-
-
-def test_on_data_intraday_spy_bar_does_not_fire_daily_clock() -> None:
-    # #311 REGRESSION + strengthened SG8: a 5-MIN SPY bar (SPY is intraday-subscribed) must NOT
-    # trip the daily decision clock. The #275b bug fired the daily pipeline (selection/FIRE_ENTRIES)
-    # on every 5-min SPY bar → 778 intraday entries/day. This BITES the old `spy_bar is not None`
-    # condition (which would fire daily here).
+def test_on_data_only_fires_intraday_clock() -> None:
+    # #313: on_data carries ONLY the intraday execution clock now. The daily decision moved to the
+    # scheduled after-close callback — a SPY bar arriving in on_data must NOT fire the daily clock.
     from datetime import datetime as _dt
     from datetime import timedelta as _td
     from runtime.lean_entry import BctEngineAlgorithm
@@ -285,7 +177,7 @@ def test_on_data_intraday_spy_bar_does_not_fire_daily_clock() -> None:
     class FakeSlice:
         def __init__(self, bars): self.bars = bars
 
-    spy = FakeSym("SPY")
+    spy = FakeSym("SPY"); aapl = FakeSym("AAPL")
 
     def _algo():
         a = BctEngineAlgorithm()
@@ -293,74 +185,88 @@ def test_on_data_intraday_spy_bar_does_not_fire_daily_clock() -> None:
         a.time = _dt(2025, 6, 2)
         a.is_warming_up = False
         a.spy = type("S", (), {"symbol": spy})()
-        a._intraday = {spy: {"intraday_tenkan": type("I", (), {"update": lambda s, b: None})(),
-                             "vol_window": type("W", (), {"add": lambda s, v: None})(),
-                             "last_close": None, "last_bar": None}}  # SPY intraday-subscribed
-        a._active = {spy}
-        a._intraday_active = {spy}
-        a._ranked_today = ["spy"]
-        a.portfolio = type("P", (), {"__getitem__": lambda s, k: type("H", (), {"invested": False})()})()
+        a._intraday = {aapl: {"intraday_tenkan": type("I", (), {"update": lambda s, b: None})(),
+                              "vol_window": type("W", (), {"add": lambda s, v: None})(),
+                              "last_close": None, "last_bar": None}}
+        a._active = {aapl}; a._intraday_active = {aapl}; a._ranked_today = ["aapl"]
         return a
 
-    # a 5-min SPY bar (intraday) — daily clock must NOT fire; intraday clock does
-    a = _algo()
-    a.on_data(FakeSlice(FakeBars({spy: FakeBar(period=_td(minutes=5))})))
-    assert a.engine.daily == 0, "#311: a 5-min SPY bar must NOT fire the daily decision clock (SG8)"
-    assert a.engine.intraday == 1
+    # 5-min bar → intraday fires, daily NEVER
+    a = _algo(); a.on_data(FakeSlice(FakeBars({aapl: FakeBar()})))
+    assert a.engine.intraday == 1 and a.engine.daily == 0, "5-min slice → intraday only"
 
-    # MANY 5-min SPY bars on the SAME date → daily still ZERO (the 778x/day bug)
-    a = _algo()
-    for _ in range(50):
-        a.on_data(FakeSlice(FakeBars({spy: FakeBar(period=_td(minutes=5))})))
-    assert a.engine.daily == 0, "#311: repeated 5-min SPY bars must never fire the daily clock"
+    # even a SPY DAILY bar in on_data → daily clock does NOT fire (scheduled after-close now)
+    a = _algo(); a.on_data(FakeSlice(FakeBars({spy: FakeBar(period=_td(days=1))})))
+    assert a.engine.daily == 0, "#313: on_data must NOT fire the daily clock (scheduled now)"
 
 
-def test_on_data_daily_clock_runs_once_per_date() -> None:
-    # #311 once-per-date idempotency (defense-in-depth): even the DAILY SPY bar fires the daily
-    # decision AT MOST once per trading date. Two daily bars same date → daily count 1.
+def test_on_data_skips_during_warmup() -> None:
+    # warmup guard still applies — on_data is a no-op (no intraday feed/clock) during warmup.
     from datetime import datetime as _dt
-    from datetime import timedelta as _td
     from runtime.lean_entry import BctEngineAlgorithm
 
     class FakeEngine:
-        def __init__(self): self.daily = 0; self.intraday = 0
-        def on_data_with_ctx(self, ctx): self.daily += 1
+        def __init__(self): self.intraday = 0
         def on_intraday_bar(self, ctx): self.intraday += 1
 
-    class FakeSym:
+    a = BctEngineAlgorithm(); a.engine = FakeEngine()
+    a.time = _dt(2025, 6, 2); a._intraday = {}
+    a.is_warming_up = True
+    a.on_data(None)  # warmup → no-op, no crash
+    assert a.engine.intraday == 0
+
+
+# -- #313 scheduled after-close DAILY DECISION --
+
+class _DEng:
+    def __init__(self): self.daily = 0
+    def on_data_with_ctx(self, ctx): self.daily += 1
+
+
+def _decision_algo(engine, *, warming=False, last=None):
+    from datetime import datetime as _dt
+    from runtime.lean_entry import BctEngineAlgorithm
+    a = BctEngineAlgorithm()
+    a.engine = engine
+    a.time = _dt(2025, 6, 2)
+    a.is_warming_up = warming
+    a._last_daily_date = last
+    a._ranked_today = []
+    a._sync_intraday_subscriptions = lambda c: None  # isolate the decision logic
+    return a
+
+
+def test_after_close_decision_fires_once_per_date() -> None:
+    # #313: the scheduled after-close callback runs the daily pipeline EXACTLY once per trading date.
+    from datetime import datetime as _dt
+    eng = _DEng(); a = _decision_algo(eng)
+    a._on_after_close_decision()
+    a._on_after_close_decision()  # same date → idempotent
+    assert eng.daily == 1, "daily decision runs once per date"
+    a.time = _dt(2025, 6, 3)
+    a._on_after_close_decision()
+    assert eng.daily == 2, "a new trading date re-arms the daily decision"
+
+
+def test_after_close_decision_skips_warmup() -> None:
+    eng = _DEng(); a = _decision_algo(eng, warming=True)
+    a._on_after_close_decision()
+    assert eng.daily == 0, "no daily decision during indicator warmup"
+
+
+def test_after_close_decision_independent_of_spy_intraday_sub() -> None:
+    # #313 REGRESSION (the #275b bug, BOTH directions): the scheduled trigger fires EXACTLY once/day
+    # regardless of whether SPY is intraday-subscribed — NOT 0 (the under-fire the smoke caught) and
+    # NOT many (the over-fire #311 patched). The old bug was the on_data SPY-bar-presence proxy; the
+    # scheduled event has no such dependency. SPY intraday-subbed here = the exact config that broke.
+    class _Sym:
         def __init__(self, v): self.value = v
         def __hash__(self): return hash(self.value)
-        def __eq__(self, o): return isinstance(o, FakeSym) and o.value == self.value
-
-    class FakeBar:
-        def __init__(self): self.close = 100.0; self.volume = 1000.0; self.period = _td(days=1)
-
-    class FakeBars:
-        def __init__(self, d): self._d = d
-        def get(self, sym): return self._d.get(sym)
-
-    class FakeSlice:
-        def __init__(self, bars): self.bars = bars
-
-    spy = FakeSym("SPY")
-    a = BctEngineAlgorithm()
-    a.engine = FakeEngine()
-    a.time = _dt(2025, 6, 2)
-    a.is_warming_up = False
-    a.spy = type("S", (), {"symbol": spy})()
-    a._intraday = {}
-    a._active = set()
-    a._intraday_active = set()
-    a._ranked_today = []
-    a.portfolio = type("P", (), {"__getitem__": lambda s, k: type("H", (), {"invested": False})()})()
-
-    a.on_data(FakeSlice(FakeBars({spy: FakeBar()})))
-    a.on_data(FakeSlice(FakeBars({spy: FakeBar()})))  # 2nd daily bar, SAME date
-    assert a.engine.daily == 1, "#311: daily decision runs at most once per trading date"
-    # advance the date → daily fires again
-    a.time = _dt(2025, 6, 3)
-    a.on_data(FakeSlice(FakeBars({spy: FakeBar()})))
-    assert a.engine.daily == 2, "a new trading date re-arms the daily decision"
+        def __eq__(self, o): return getattr(o, "value", None) == self.value
+    eng = _DEng(); a = _decision_algo(eng)
+    a._intraday = {_Sym("SPY"): {}}  # SPY intraday-subscribed — irrelevant to the scheduled event
+    a._on_after_close_decision()
+    assert eng.daily == 1, "#313: scheduled daily fires once even with SPY intraday-subscribed"
 
 
 # --------------------------------------------------------------------------------------
