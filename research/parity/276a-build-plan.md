@@ -71,3 +71,21 @@ worktree: kumo-qc-276a, branch feat/276a-fire-seam-gtc-grosscap, off mainV2 c55f
 ## After #276a → #276b (intraday entry-confirm + pre-flight staleness + stop-market exit phases) →
 #276c (champion_intraday assembly) → #277 (re-baseline local≈cloud on the fresh substrate, the TRUE
 baseline; cloud-observable via chart-emit numeric series + the #285 /chart/read fix).
+
+## HQ's review criteria (build TO these — independent mutation-review gates the PR)
+1. **Cancel-on-exit (THE hardest-hunted bug):** the resting GTC protective stop is CANCELLED on
+   EVERY runtime-exit fill path — no orphan double-sell. Track the OrderTicket in _position_meta,
+   cancel it in the FIRE_EXITS path (and any other close path). Test: exit fills → stop cancelled.
+2. **FIRE seam isolation:** ONLY FIRE_* touches the broker API; phases emit OrderIntent only;
+   order_type honored (stop_market/market/limit/market_on_open).
+3. **Gross-cap (#181):** caps gross exposure (% rule); mutation-bite on the cap.
+4. **Each of the 3 components mutation-verified to BITE** (break the invariant → a test goes RED).
+5. **config_hash + provenance dance airtight from the start** (2-commit, dist pins SRC not the dist
+   commit — note: HQ+derxu3fo resolving a pin off-by-one on #296; build #276a's dance clean: commit
+   src FIRST, rebuild dist at that HEAD, commit dist-only; NEVER --amend across the dance boundary —
+   the banked hard rule from the #274/#275b mishaps).
+
+## Resume sequence
+fresh context → read THIS plan → build #276a to the 5 criteria → own PR → HQ hard mutation-review →
+GATE-0 (RELATIVE trio-invariance on the FRESH substrate, once 6fmes4tp's daily+coarse rebuild lands)
+gates the merge.
