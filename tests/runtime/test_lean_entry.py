@@ -291,8 +291,10 @@ def _make_selection_algo(monkeypatch) -> BctEngineAlgorithm:
     algo._trailing_dv = {}
     algo._bar_metrics = {}
     algo.time = _dt(2025, 6, 2)
-    # #275b: these tests exercise the SELECTION mechanics only — warming-up skips the downstream
-    # intraday-subscription sync (a live-clock concern, tested separately in test_intraday_lifecycle).
+    # #275b-fix: these tests exercise the SELECTION mechanics only. The intraday-subscription sync
+    # moved OUT of _coarse_selection (now in on_data's daily-clock path), so _coarse_selection no
+    # longer touches it regardless of warmup — is_warming_up=True is kept only to mirror the
+    # pre-live state; the live-clock sync is tested in test_intraday_lifecycle.
     algo.is_warming_up = True
     algo.logged: list[str] = []
     algo.log = lambda m: algo.logged.append(m)  # type: ignore[method-assign,assignment]
