@@ -1,0 +1,104 @@
+{
+  "progress": 1,
+  "error": null,
+  "statistics": {
+    "Total Orders": "8",
+    "Sharpe Ratio": "1.442",
+    "Net Profit": "42.4%",
+    "Drawdown": "9.5%",
+    "Win Rate": "62%"
+  },
+  "totalPerformance": {
+    "closedTrades": [
+      {
+        "symbol": {
+          "value": "AAPL",
+          "id": "AAPL R735"
+        },
+        "entryTime": "2025-01-06T14:30:00Z",
+        "exitTime": "2025-01-20T20:00:00Z",
+        "entryPrice": 200.0,
+        "quantity": 50,
+        "profitLoss": 1200.0
+      },
+      {
+        "symbol": {
+          "value": "MSFT",
+          "id": "MSFT R735"
+        },
+        "entryTime": "2025-02-03T14:30:00Z",
+        "exitTime": "2025-02-18T20:00:00Z",
+        "entryPrice": 400.0,
+        "quantity": 20,
+        "profitLoss": -350.0
+      },
+      {
+        "symbol": {
+          "value": "NVDA",
+          "id": "NVDA R735"
+        },
+        "entryTime": "2025-03-10T14:30:00Z",
+        "exitTime": "2025-04-01T20:00:00Z",
+        "entryPrice": 110.0,
+        "quantity": 100,
+        "profitLoss": 2750.0
+      },
+      {
+        "symbol": {
+          "value": "COST",
+          "id": "COST R735"
+        },
+        "entryTime": "2025-05-05T14:30:00Z",
+        "exitTime": "2025-05-19T20:00:00Z",
+        "entryPrice": 800.0,
+        "quantity": 8,
+        "profitLoss": 640.0
+      }
+    ],
+    "portfolioStatistics": {
+      "sharpeRatio": 1.442,
+      "drawdown": 0.095
+    }
+  },
+  "charts": {
+    "Strategy Equity": {
+      "series": {
+        "Return": {
+          "name": "Return",
+          "unit": "%",
+          "seriesType": 0,
+          "values": [
+            [
+              1738386000,
+              0.0
+            ],
+            [
+              1738472400,
+              0.012
+            ],
+            [
+              1738558800,
+              -0.004
+            ],
+            [
+              1738645200,
+              0.008
+            ],
+            [
+              1738731600,
+              0.0
+            ],
+            [
+              1738818000,
+              0.015
+            ],
+            [
+              1738904400,
+              -0.002
+            ]
+          ]
+        }
+      }
+    }
+  }
+}

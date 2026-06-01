@@ -1,0 +1,41 @@
+{
+  "statistics": {
+    "Total Orders": "0",
+    "Sharpe Ratio": "0",
+    "Net Profit": "3.9%",
+    "Drawdown": "0%"
+  },
+  "totalPerformance": {
+    "closedTrades": []
+  },
+  "charts": {
+    "Strategy Equity": {
+      "series": {
+        "Return": {
+          "values": [
+            [
+              1738386000,
+              0.0
+            ],
+            [
+              1738472400,
+              0.0
+            ],
+            [
+              1738558800,
+              0.0
+            ],
+            [
+              1738645200,
+              0.0
+            ],
+            [
+              1738731600,
+              0.0
+            ]
+          ]
+        }
+      }
+    }
+  }
+}
