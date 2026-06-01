@@ -309,9 +309,18 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self._intraday: dict[Any, dict[str, Any]] = {}
         self._intraday_active: set[Any] = set()
 
-        # #313: the date the daily DECISION clock last ran — the once-per-date idempotency guard in
-        # the scheduled after-close callback (_on_after_close_decision). None until the first decision.
+        # #276b-0 daily→intraday SNAPSHOT handoff. _candidate_snapshot[sym] = {signal_price,
+        # daily_kijun, decision_date}: each DECIDED candidate's thesis, captured on the daily clock
+        # (in the #313 scheduled after-close callback) for the intraday clock (PreFlightStaleness +
+        # confirm read it). REUSE-IDENTITY: keyed by the SAME canonical Symbol _active/_intraday use
+        # — never a re-created Symbol (kills the subscribed≠decided desync by construction). Rebuilt
+        # fresh each daily decision. _entry_confirm = the deferred intraday-confirm PROGRESS store
+        # (populated by the #276b-1 confirm phase), cleared at session-end (on_end_of_day, H3/SG9).
+        # _last_daily_date = the most-recent daily-decision date — serves BOTH #313's once-per-date
+        # guard (_on_after_close_decision) AND 276b-0's H2 staleness check (snapshot_for_entry).
+        self._candidate_snapshot: dict[Any, dict[str, Any]] = {}
         self._last_daily_date: Any = None
+        self._entry_confirm: dict[Any, Any] = {}
 
         # #313 WATCHDOG (the permanent protection vs silent no-fire): the daily decision must keep
         # pace with elapsed trading days. _sched_trading_days counts post-warmup trading days (the
@@ -860,6 +869,9 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         ctx = PhaseContext(qc=self, time=self.time, data=None)  # scheduled event — no slice; daily phases read maintained indicators
         ctx.clock = "daily"
         self.engine.on_data_with_ctx(ctx)
+        # #276b-0: capture the daily→intraday thesis snapshot AFTER the pipeline (relocated
+        # here from the removed on_data daily block — #313 Q-D). The intraday clock reads it.
+        self._capture_candidate_snapshot()
 
     def _assert_schedule_health(self) -> None:
         """#313 WATCHDOG — the daily DECISION must keep pace with elapsed trading days. Called from
@@ -893,3 +905,80 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                 f"{self._sched_trading_days} post-warmup trading days vs {self._sched_decisions} "
                 f"decisions (gap {gap} > 1) — the scheduled after-close trigger under-fired."
             )
+
+    def _capture_candidate_snapshot(self) -> None:
+        """#276b-0 daily→intraday handoff. Snapshot each DECIDED candidate's thesis
+        ({signal_price, daily_kijun, decision_date}) so the intraday clock (PreFlightStaleness +
+        confirm, #276b-1) can validate against it.
+
+        REUSE-IDENTITY (the desync killer, HQ): key the snapshot by the SAME canonical Symbol that
+        `_active`/`_intraday` already hold — resolve today's ranked tickers via `_active` (the L615
+        `{value.lower(): sym}` idiom), NEVER `Symbol.create(...)`. If we never re-create a Symbol,
+        a subscribed≠decided key drift cannot occur by construction.
+
+        signal_price = T's decision-bar close (the gap reference); daily_kijun = the maintained
+        daily Ichimoku (O(1), no history). Rebuilt fresh each daily decision → a name dropped from
+        today's ranked set disappears. A candidate not yet subscribed (on_securities_changed lag) or
+        with a cold daily Ichimoku is SKIPPED here — the intraday side's H1 then treats a subscribed
+        name with no snapshot as not-enterable (skip-loud), so a missing thesis can never fire."""
+        # canonical identity, reused — never Symbol.create (the desync killer).
+        active_by_lower = {s.value.lower(): s for s in getattr(self, "_active", set())}
+        indicators = getattr(self, "_indicators", {})
+        decision_date = self.time.date()
+        snap: dict[Any, dict[str, Any]] = {}
+        for ticker in getattr(self, "_ranked_today", []):
+            sym = active_by_lower.get(ticker.lower())
+            if sym is None:
+                continue  # decided but not yet subscribed — H1 covers it on the intraday side
+            ind = indicators.get(sym)
+            d_ichi = ind.get("d_ichi") if ind else None
+            if d_ichi is None or not getattr(d_ichi, "is_ready", False):
+                continue  # cold daily thesis → not enterable; never snapshot a half-formed thesis
+            snap[sym] = {
+                "signal_price": float(self.securities[sym].price),
+                "daily_kijun": float(d_ichi.kijun.current.value),
+                "decision_date": decision_date,
+            }
+        self._candidate_snapshot = snap
+        log = getattr(self, "log", None)
+        if callable(log):
+            log(f"SNAPSHOT|{decision_date}|candidates={len(snap)}")
+
+    def snapshot_for_entry(self, sym: Any) -> "dict[str, Any] | None":
+        """#276b-0 H1 + H2 — the guarded accessor the intraday entry phases (#276b-1) MUST use to
+        read a candidate's thesis. SINGLE authority gate so the desync/staleness checks cannot be
+        bypassed per-phase.
+
+        H1 (snapshot-is-authority): a symbol with NO snapshot entry is NOT enterable → return None
+        + skip-loud (logged); the caller skips it, NEVER falls back to entering. A subscribed name
+        the daily clock did not decide cannot fire an unauthorized entry.
+
+        H2 (staleness fail-loud): the snapshot's decision_date MUST be the most-recent daily
+        decision (`_last_daily_date`). An older date = a missed/failed daily handoff → acting on it
+        would trade a stale thesis → DegradedDataError (the SG9 desync tripwire), never a silent
+        2-day-stale entry."""
+        snap = self._candidate_snapshot.get(sym)
+        if snap is None:
+            log = getattr(self, "log", None)
+            if callable(log):
+                log(f"SNAPSHOT_SKIP|{getattr(sym, 'value', sym)}|no decided thesis — not enterable (H1)")
+            return None
+        if self._last_daily_date is not None and snap["decision_date"] != self._last_daily_date:
+            raise DegradedDataError(
+                f"stale candidate snapshot for {getattr(sym, 'value', sym)}: decision_date="
+                f"{snap['decision_date']} but last daily decision={self._last_daily_date} — a "
+                f"missed daily→intraday handoff. Refusing to enter a stale thesis (#276b-0 H2, SG9)."
+            )
+        return snap
+
+    def _clear_intraday_session_state(self) -> None:
+        """#276b-0 H3/SG9 — clear the deferred intraday-confirm PROGRESS at session end so an
+        unconfirmed candidate at T+1 close does NOT bleed into T+2's session. _candidate_snapshot is
+        NOT cleared here (it is overwritten by the next daily decision — a held thesis legitimately
+        survives the same-day boundary); only the per-session confirm progress resets."""
+        self._entry_confirm = {}
+
+    def on_end_of_day(self, symbol: Any = None) -> None:
+        """QC session-end hook — clear the intraday-confirm progress (H3/SG9). Idempotent (QC fires
+        it per-symbol; clearing an already-empty store is a no-op)."""
+        self._clear_intraday_session_state()

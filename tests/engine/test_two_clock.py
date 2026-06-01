@@ -163,3 +163,35 @@ def test_fire_exits_routes_independently_of_fire_entries() -> None:
     assert FIRE_ENTRIES not in eng._intraday_order
     assert FIRE_EXITS in eng._intraday_order, "FIRE_EXITS should follow intraday exit_hard"
     assert FIRE_EXITS not in eng._daily_order
+
+
+# ── SG8 (Falk, #270/#276b-0): the daily clock DECIDES ONLY — fires ZERO orders ──
+
+def _champion_intraday_exec() -> StrategyConfig:
+    """The champion EXECUTION shape: decision phases daily; the order-producing entry + exit
+    phases on the intraday clock (entry_selection + entry_timing + exit_hard)."""
+    return StrategyConfig(name="champ-intraday", version="1.0.0", phases={
+        "universe": slot("universe"), "signal": slot("signal"), "sizing": slot("sizing"),
+        "entry_selection": slot("entry_selection", resolution="intraday"),
+        "entry_timing": slot("entry_timing", resolution="intraday"),
+        "exit_hard": slot("exit_hard", resolution="intraday"),
+    })
+
+
+def test_sg8_order_producing_fires_are_off_the_daily_clock() -> None:
+    # SG8 (structural): with the entry + exit execution phases intraday, the order-PRODUCING fire
+    # sentinels (FIRE_ENTRIES, FIRE_EXITS) are NOT on the daily clock → the daily clock cannot fill.
+    # A daily-clock fill IS the retired blind-MOO model; this is the guard it can't creep back.
+    eng = StrategyEngine(config=_champion_intraday_exec(), qc=FakeQC())
+    assert FIRE_ENTRIES not in eng._daily_order, "SG8: FIRE_ENTRIES must not be on the daily clock"
+    assert FIRE_EXITS not in eng._daily_order, "SG8: FIRE_EXITS must not be on the daily clock"
+    assert FIRE_ENTRIES in eng._intraday_order and FIRE_EXITS in eng._intraday_order
+
+
+def test_sg8_daily_clock_run_fires_zero_orders() -> None:
+    # SG8 (behavioral): replaying the daily decision clock fires NOTHING — it produces candidates
+    # + the snapshot, never an order.
+    eng = StrategyEngine(config=_champion_intraday_exec(), qc=FakeQC())
+    eng.on_data_with_ctx(_ctx())
+    assert eng._fired_entries == 0 and eng._fired_exits == 0 and eng._fired_adds == 0, \
+        "SG8 violated: the daily clock fired an order"
