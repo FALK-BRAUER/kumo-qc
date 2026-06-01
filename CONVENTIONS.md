@@ -85,6 +85,20 @@ The #218 retrofit experiments often USED forbidden mechanics (fixed slots, max-p
 - **Push immediately** after every clean commit (the 2026-05-23 unpushed-loss lesson).
 - Conventional Commits.
 
+### Worktree isolation discipline (#273 — never share a working tree)
+The shared-working-tree collision (HQ + workers + the daily-brief pipeline all flipping branches in ONE checkout → clobbered untracked edits, ran each other's code) is forbidden by construction:
+- **One actor = one worktree.** Every worker, the orchestrator, HQ doc-edits, and the daily-brief pipeline each operate in their OWN git worktree. NEVER `git checkout <other-branch>` in a tree another actor is using. The main checkout (`/Users/falk/projects/kumo-qc`) is not a workspace to flip branches in.
+- **HQ/doc edits commit immediately** — never leave untracked edits in a shared tree for another actor's checkout to clobber.
+- **`lean backtest` compile-cache isolation:** concurrent runs sharing a project name share LEAN's compile cache → one run executes another's compiled code (the 2026-05-29 e40c-ran-e40b incident). Each worktree gets a unique `config.json` `local-id` (scripts/lean-bt.sh derives it from cwd); verify the VERSION_MARKER in the run's `code/main.py` confirms YOUR code ran.
+- **Branch base check before PR:** a branch cut before another change landed on the base will REVERT that change in its PR diff (the #280 pre-A1 catch). Rebase onto current base before opening the PR; verify `git diff --stat base..HEAD` is exactly the intended scope, no spurious reversions.
+
+### Destructive-op discipline (#273 — backup before any irreversible action)
+Destructive git ops (stash drop/clear, `branch -D`, history rewrite, force-push, worktree remove) require, IN ORDER:
+1. **Explicit authorization** — Falk/HQ sign-off for the SPECIFIC scope + count (a count discrepancy vs the authorization → STOP and re-confirm; the 27-vs-10 stash catch).
+2. **A recoverable backup FIRST** — a full `git bundle --all` to `~/reference/kumo-qc-backups/` AND archive each to-be-dropped ref under `refs/archive/<name>-<date>` (stashes recover as branches even after `stash clear`). Verify the backup exists before the drop.
+3. **Then execute + verify** the archive refs survive the drop (the recovery path stays intact).
+Never bulk-drop on your own read of "stale"; never skip the backup because it's "obviously junk."
+
 ## Look-ahead safety (the #268 lesson — enforced on the intraday clock, #270)
 - **Consume only COMPLETED bars.** Act in the consolidator's bar-close handler; never read a forming/partial intraday bar. An intraday-Tenkan/volume confirmation uses the last *completed* 5-min bar.
 - **No cross-clock leakage.** The T+1 intraday execution path must NOT read T+1's *daily* bar — that daily bar embeds T+1's close (= look-ahead, the exact class that flagged the #268 grid). Daily decisions use bars through T's close only.
