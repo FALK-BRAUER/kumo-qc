@@ -67,27 +67,8 @@ jobs:
           echo "dist/ pinned to HEAD: $HEAD_COMMIT"
 
       # ── Provenance / marker completeness ──
-      # Structural guard: the manifest must declare every phase kind wired in the
-      # config, AND non-fixture champions must include entry-confirm phases (#272).
+      # Structural guard: derives required-set from engine single source (DRY).
       # This is the CI-side complement to the runtime DegradedConfigError gate.
+      # See scripts/ci_manifest_check.py for the derived logic.
       - name: Verify phase markers in dist
-        run: |
-          python -c "
-          import json, sys
-          m = json.load(open('dist/_manifest.json'))
-          phases = m.get('phase_markers', {})
-          is_fixture = m.get('is_fixture', False)
-          # Base phases (all configs)
-          required = ['universe', 'signal', 'sizing', 'exit_hard', 'regime', 'diagnostics']
-          missing = [p for p in required if p not in phases or not phases[p]]
-          # #272: non-fixture champions MUST wire at least one entry-confirm phase
-          # (matches runtime OR-gate: any(entry_selection, entry_timing) satisfies)
-          if not is_fixture:
-              has_entry = any(phases.get(k) for k in ('entry_selection', 'entry_timing'))
-              if not has_entry:
-                  missing.append('entry_selection|entry_timing (at least one required)')
-          if missing:
-              print(f'ERROR: missing phase markers: {missing} (is_fixture={is_fixture})')
-              sys.exit(1)
-          print(f'OK: {len(phases)} phase markers present (is_fixture={is_fixture})')
-          "
+        run: python scripts/ci_manifest_check.py
