@@ -1,0 +1,86 @@
+name: Nightly Full-FY Band
+
+# Scheduled nightly run: full test suite + extended validation + dist rebuild check.
+# This is the CI equivalent of a "full-FY band" — it runs the comprehensive gate
+# that a release candidate must pass before cloud deployment.
+#
+# Frequency: 02:00 UTC nightly (off-market, low contention).
+# Manually triggerable for release-candidate validation.
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: false  # never cancel a nightly mid-run
+
+jobs:
+  full-fy-band:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install toolchain + test-runtime deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          pip install pandas numpy
+
+      - name: mypy --strict (src/ + tests/)
+        run: mypy --strict src tests
+
+      # ── Full test suite with verbose reporting ──
+      - name: pytest (full suite — verbose + junit output)
+        run: pytest -v --tb=long --junitxml=nightly-results.xml
+
+      # ── #272 fail-loud gate (explicit, never silently skipped) ──
+      - name: #272 fail-loud phase-stack gate
+        run: pytest tests/engine/test_invariants.py -v --tb=short
+
+      # ── Build + dist-pin + marker completeness ──
+      - name: Build cloud package + verify dist freshness
+        run: |
+          python -c "import build.cloud_package as cp; r=cp.build('strategies.champion_asis'); print('dist built:', r.config_hash)"
+          MANIFEST_COMMIT=$(python -c "import json; print(json.load(open('dist/_manifest.json'))['git_commit'])")
+          HEAD_COMMIT=$(git rev-parse HEAD)
+          if [ "$MANIFEST_COMMIT" != "$HEAD_COMMIT" ]; then
+            echo "WARNING: dist/ is stale — manifest $MANIFEST_COMMIT vs HEAD $HEAD_COMMIT"
+            # Non-fatal on nightly (may be expected if dist/ rebuild is manual),
+            # but the artifact must still build+import cleanly.
+          else
+            echo "dist/ pinned to HEAD: $HEAD_COMMIT"
+          fi
+
+      - name: Verify phase markers in dist
+        run: |
+          python -c "
+import json, sys
+m = json.load(open('dist/_manifest.json'))
+phases = m.get('phase_markers', {})
+required = ['universe', 'signal', 'sizing', 'exit', 'regime', 'diagnostics']
+missing = [p for p in required if p not in phases or not phases[p]]
+if missing:
+    print(f'ERROR: missing phase markers: {missing}')
+    sys.exit(1)
+print(f'OK: {len(phases)} phase markers present')
+"
+
+      # ── Coverage baseline (informational, not blocking) ──
+      - name: pytest coverage report
+        run: pytest --cov=src --cov-report=term-missing --cov-fail-under=70 || true
+
+      # ── Upload results ──
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nightly-test-results
+          path: nightly-results.xml

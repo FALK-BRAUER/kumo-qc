@@ -14,6 +14,8 @@ from engine.context import PhaseContext
 
 class CharterViolation(Exception):
     """Raised at engine init when config violates a charter invariant."""
+    # DELIBERATELY RED: mypy will fail on this line
+    bad_attr: str = 12345
 
 
 class UniverseLoadError(Exception):
