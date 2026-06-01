@@ -41,6 +41,13 @@ CONFIG = StrategyConfig(
     # the redundant per-bar filter phase is DROPPED. The universe phase exposes the live
     # floored+ranked+capped selection. (3.1.0 = the R1 un-fuse this supersedes.)
     version="3.2.0",
+    # #270/#272: this is the RETIRED blind-entry FIXTURE (signal→sizing→implicit-MOO, no
+    # entry-confirm phase) — the −0.616 phantom-model baseline. It is NOT a champion and may
+    # NOT be deployed as one; it survives only as regression/parity scaffolding (the Phase-2
+    # behaviour-unchanged checkpoint). is_fixture=True is REQUIRED — without it the engine
+    # raises DegradedConfigError (no implicit market-on-open default). The forward champion is
+    # champion_intraday (daily signal → intraday confirmed execution).
+    is_fixture=True,
     phases={
         # EXPOSE the live-selected ranked order. The floors (price>=10, trailing-20d ADV>=100M
         # — LIQUIDITY threshold, ~943 names/day FY2025; fintrack ruling) + the DV-desc rank +
