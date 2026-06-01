@@ -9,9 +9,12 @@ Adapted from qc_pe_cloud.py (Pe-hardwired) to the v2 phase engine:
     So this driver does NOT upload artifacts and does NOT reference fp-verify.
   - The v2 BctEngineAlgorithm reads START_DATE/END_DATE from CLASS ATTRS (not QC params),
     so the short window is BAKED INTO dist/main.py before deploy — run() passes no date params.
-  - A COMPLETED backtest == the engine ran end-to-end (the live selection wired correctly).
-    A wiring bug surfaces as a runtime ERROR (e.g. dv_rank_cap fail-loud), NOT a fingerprint
-    check. Diff-ladder trades via /orders + the ACTIVE_SET logs.
+  - A clean backtest == the engine ran end-to-end. completed=True is NOT enough — QC marks a
+    CRASHED partial completed=True/progress=1 with the error in bt['error'] (the #318 trap: a
+    crashed -0.611 banked as a real result). assert_cloud_clean() is the gate (error is None AND
+    progress==1 AND orders>0); run() error-checks BEFORE reading any result. A wiring/interop bug
+    surfaces as a runtime ERROR (dv_rank_cap fail-loud, the #318 TradeBar interop crash). Run the
+    `smoke` gate before any FY. Diff-ladder trades via /orders + the ACTIVE_SET logs.
 
 `lean cloud push` is broken → deploy via the QC API /files/update (create if missing), same
 auth as qc_pe_cloud.py. PID + the project-setup (new-project vs purge-old) are set per the
@@ -20,6 +23,7 @@ fintrack project ruling — see PID below.
 Usage:
   python3 scripts/qc_v2_cloud.py deploy
   python3 scripts/qc_v2_cloud.py run <name> [poll_minutes]
+  python3 scripts/qc_v2_cloud.py smoke                      # A.2 cloud-smoke interop gate (run before any FY)
   python3 scripts/qc_v2_cloud.py orders <backtestId>
   python3 scripts/qc_v2_cloud.py chart <backtestId> [chartName] [outPath]  # #243 chart-read
   python3 scripts/qc_v2_cloud.py stepA      # deploy + run short window
@@ -51,6 +55,12 @@ MARKER = "champion-asis"  # present in dist/main.py STRATEGY_CONFIG name — dep
 # to START=(2025,1,1)/END=(2025,12,31) when no window is injected). Set to the Step-A
 # string again only for a short-window parity comparison.
 STEP_A_WINDOW = None
+
+# A.2 cloud-smoke window (#318 / CONVENTIONS §CloudSafety): a SHORT post-warmup window that
+# exercises the runtime LEAN-object construction paths (intraday/weekly/daily seed) so a .NET-
+# interop crash detonates here — cheap, minutes — instead of in an expensive FY that then
+# false-greens (the #313 trap). Spans ≥1 post-warmup decision day.
+SMOKE_WINDOW = "    START_DATE = (2025, 2, 3)\n    END_DATE = (2025, 2, 5)\n"
 
 
 def _inject_window(content: str) -> str:
@@ -147,6 +157,47 @@ def compile_project() -> str:
     sys.exit("compile timeout")
 
 
+def smoke() -> None:
+    """A.2 cloud-smoke GATE (#318 / CONVENTIONS §CloudSafety). Deploy + run a SHORT cloud BT over
+    SMOKE_WINDOW that exercises the runtime LEAN-object construction paths post-warmup, then gate
+    on assert_cloud_clean (inside run()). Catches a .NET-interop crash (the #318 TradeBar class) in
+    minutes BEFORE the expensive FY. Run before ANY real cloud FY. Exits NONZERO on a dirty result."""
+    global STEP_A_WINDOW
+    STEP_A_WINDOW = SMOKE_WINDOW
+    cid = deploy()
+    out = run("cloud-smoke-interop", compile_id=cid)
+    if out is None:
+        sys.exit("❌ CLOUD-SMOKE FAILED — runtime/interop crash or not-clean. Do NOT run FY; fix first.")
+    print(f"✅ CLOUD-SMOKE CLEAN: {json.dumps(out)} — interop construction paths OK; FY gated-open.")
+
+
+def assert_cloud_clean(bt: dict) -> tuple[bool, str]:
+    """A cloud BT result is VALID only if it ran to a clean finish (#318 / CONVENTIONS §Parity).
+
+    `completed=True` ALONE is NOT sufficient — QC marks a CRASHED partial as completed=True /
+    progress=1 with the runtime error in `bt['error']` (or `bt['stacktrace']`). That is how a
+    crashed -0.611 / 72-order partial got banked as a real "result" (the #313 false-green crash,
+    masked twice). Require, in order:
+      1. NO runtime error/stacktrace (the .NET-interop / fail-loud catch).
+      2. progress == 1 (ran to the end, not a stalled partial).
+      3. liveness: orders > 0 (a champion that decides daily must trade; 0 orders ⇒ the engine
+         silently no-op'd — override only for a config that is legitimately flat).
+    Returns (clean, reason)."""
+    err = bt.get("error") or bt.get("stacktrace")
+    if err:
+        return False, f"runtime error: {str(err)[:300]}"
+    if bt.get("progress") != 1:
+        return False, f"incomplete: progress={bt.get('progress')}"
+    s = bt.get("statistics", {}) or {}
+    raw_orders = s.get("Total Orders")
+    try:
+        if raw_orders is not None and int(str(raw_orders).replace(",", "")) <= 0:
+            return False, "liveness: 0 orders (override only if the config is legitimately flat)"
+    except (ValueError, TypeError):
+        pass  # unparseable order count — don't fail on a format quirk; error+progress already gate
+    return True, "clean"
+
+
 def run(name: str, poll_minutes: int = 30, compile_id: str | None = None) -> dict | None:
     _require_pid()
     cid = compile_id or compile_project()
@@ -159,18 +210,25 @@ def run(name: str, poll_minutes: int = 30, compile_id: str | None = None) -> dic
     for _ in range(poll_minutes * 6):
         time.sleep(10)
         b = post("/backtests/read", {"projectId": PID, "backtestId": bid}).get("backtest", {})
+        # ERROR FIRST — #318: completed=True is set even on a crashed partial (QC marks a runtime
+        # crash completed=True/progress=1 with the error in bt['error']). Checking completed first
+        # banked a crashed -0.611 as a real result last session. assert_cloud_clean is the gate.
+        err = b.get("error") or b.get("stacktrace")
+        if err:
+            # Runtime error = interop crash (#318 TradeBar) or wiring bug (dv_rank_cap fail-loud).
+            print(f"  ❌ {name} ERROR (runtime): {str(err)[:400]}")
+            return None
         if b.get("completed"):
+            clean, reason = assert_cloud_clean(b)
+            if not clean:
+                print(f"  ❌ {name} INVALID (completed but not clean): {reason}")
+                return None
             s = b.get("statistics", {}) or {}
             out = {"name": name, "backtestId": bid,
                    "sharpe": s.get("Sharpe Ratio"), "net_profit": s.get("Net Profit"),
                    "drawdown": s.get("Drawdown"), "orders": s.get("Total Orders"), "win_rate": s.get("Win Rate")}
-            print(f"  ✅ DONE: {json.dumps(out)}")
+            print(f"  ✅ DONE (clean): {json.dumps(out)}")
             return out
-        err = b.get("error") or b.get("stacktrace")
-        if err:
-            # A runtime ERROR here = wiring bug (e.g. dv_rank_cap fail-loud), NOT a fingerprint check.
-            print(f"  ❌ {name} ERROR (runtime): {str(err)[:400]}")
-            return None
         print(f"  {name}: {b.get('progress', 0) * 100:.0f}%")
     print("  poll timeout")
     return None
@@ -261,6 +319,8 @@ if __name__ == "__main__":
     elif cmd == "chart":
         chart(sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else "Universe",
               sys.argv[4] if len(sys.argv) > 4 else None)
+    elif cmd == "smoke":
+        smoke()
     elif cmd == "stepA":
         cid = deploy()
         run("v2-stepA-2025-06-02_16", compile_id=cid)

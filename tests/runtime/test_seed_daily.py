@@ -36,19 +36,15 @@ from runtime.lean_entry import BctEngineAlgorithm
 class _FakeTradeBar:
     """Stand-in for QC TradeBar — records the (time, ohlcv) the seed constructs.
 
-    Live signature in _seed_daily: TradeBar(t, sym, o, h, lo, c, v, timedelta(days=1)).
-    Live signature in _seed_weekly: TradeBar(monday, sym, o, h, lo, c, vol, timedelta(weeks=1)).
+    #318: the seed now builds the bar via the DEFAULT ctor + property setters
+    (``lean_entry._make_trade_bar``: ``TradeBar()`` then ``bar.time = ...`` etc.), NOT the
+    8-positional-arg ctor (which fails cloud pythonnet overload resolution). So this fake
+    constructs with NO args and accepts attribute assignment — mirroring the cloud-safe path.
     """
 
-    def __init__(self, time, sym, o, h, lo, c, v, period) -> None:
-        self.time = time
-        self.symbol = sym
-        self.open = o
-        self.high = h
-        self.low = lo
-        self.close = c
-        self.volume = v
-        self.period = period
+    def __init__(self) -> None:
+        self.time = self.symbol = self.period = None
+        self.open = self.high = self.low = self.close = self.volume = None
 
 
 class _Event:

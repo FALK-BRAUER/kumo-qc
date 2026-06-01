@@ -166,6 +166,34 @@ except ImportError:  # pragma: no cover
     Field = MovingAverageType = None
 
 
+def _make_trade_bar(
+    time: Any, symbol: Any, open_: float, high: float, low: float, close: float,
+    volume: float, period: Any,
+) -> Any:
+    """Cloud-safe TradeBar construction (#318). The 8-positional-arg ctor
+    ``TradeBar(time, symbol, o, h, l, c, v, period)`` passes LOCAL LEAN but FAILS on QC cloud:
+    cloud pythonnet cannot resolve the constructor overload for a ``datetime.timedelta`` period
+    ("Trying to dynamically access a method that does not exist ... datetime.timedelta"). That is
+    the #318 crash — cloud died at the first post-warmup intraday seed (``_seed_intraday``),
+    aborting the FY run (which got banked as a false −0.611 / 72-order "result").
+
+    Default-construct + assign properties instead: a no-arg ctor plus single-target property
+    setters carry NO overload ambiguity, so pythonnet resolves them identically on local and
+    cloud. Behaviour-identical to the positional ctor — same OHLCV + period ⇒ same bar
+    (``end_time == time + period``). This is the SINGLE construction point for the three seed
+    paths (intraday / weekly / daily), so cloud-safety lives in one place."""
+    bar = TradeBar()
+    bar.symbol = symbol
+    bar.time = time
+    bar.period = period
+    bar.open = float(open_)
+    bar.high = float(high)
+    bar.low = float(low)
+    bar.close = float(close)
+    bar.volume = float(volume)
+    return bar
+
+
 class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
     """Thin LEAN wrapper. Subclass in main.py sets STRATEGY_CONFIG / dates / cash / the
     universe-selection knobs. initialize() subscribes SPY+VIX RAW, registers the live
@@ -615,10 +643,9 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             t = ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts
             if getattr(t, "date", lambda: None)() is not None and t.date() >= today:
                 continue
-            bar = TradeBar(
-                t, sym, float(row["open"]), float(row["high"]),
-                float(row["low"]), float(row["close"]), float(row.get("volume", 0.0)),
-                timedelta(minutes=5),
+            bar = _make_trade_bar(
+                t, sym, row["open"], row["high"], row["low"], row["close"],
+                row.get("volume", 0.0), timedelta(minutes=5),
             )
             intraday_tenkan.update(bar)
             vol_window.add(float(row.get("volume", 0.0)))
@@ -687,9 +714,8 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             # OHLC unaffected: equities have no weekend bars, so W-FRI grouping and Monday-start
             # bucket the identical Mon-Fri days — only the bar.time LABEL changes.
             monday = wb["friday"] - timedelta(days=4)
-            bar = TradeBar(
-                monday, sym,
-                wb["open"], wb["high"], wb["low"], wb["close"],
+            bar = _make_trade_bar(
+                monday, sym, wb["open"], wb["high"], wb["low"], wb["close"],
                 wb["volume"], timedelta(weeks=1),
             )
             w_ichi.update(bar)
@@ -758,7 +784,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                 float(row["close"]),
                 float(row.get("volume", 0.0)),
             )
-            bar = TradeBar(t, sym, o, h, lo, c, v, timedelta(days=1))
+            bar = _make_trade_bar(t, sym, o, h, lo, c, v, timedelta(days=1))
             # Full-bar consumers (adx.updated cascades into adx_window).
             d_ichi.update(bar)
             adx.update(bar)

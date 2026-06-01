@@ -436,3 +436,41 @@ def test_watchdog_end_of_algorithm_backstop() -> None:
     # control: a full healthy run (10 decisions, 10 days) ends clean
     b = _watchdog_algo(trading_days=10, decisions=10)
     b.on_end_of_algorithm()  # must not raise
+
+
+# ── #318: cloud-safe TradeBar construction (the _seed_* crash fix) ──
+# The 8-positional-arg TradeBar(...timedelta) ctor passes local LEAN but fails cloud pythonnet
+# overload resolution (the #318 crash at _seed_intraday). _make_trade_bar default-constructs +
+# assigns properties (no overload ambiguity). Real TradeBar is absent in the dev venv, so a fake
+# stand-in records the property-setter path — guarding arg order + field mapping (regression
+# bite). The REAL cloud-compat is ratified by the error-checked cloud re-run (#318 sequence).
+
+def test_make_trade_bar_sets_every_field_via_setters(monkeypatch) -> None:
+    from datetime import datetime, timedelta
+
+    class _FakeBar:  # records what the helper assigns — no positional ctor used
+        pass
+
+    monkeypatch.setattr(lean_entry, "TradeBar", _FakeBar)
+    sym = object()
+    t = datetime(2025, 2, 4, 15, 30)
+    bar = lean_entry._make_trade_bar(t, sym, 10.0, 12.5, 9.5, 11.0, 1000.0, timedelta(minutes=5))
+    assert bar.time == t and bar.symbol is sym
+    assert (bar.open, bar.high, bar.low, bar.close) == (10.0, 12.5, 9.5, 11.0)
+    assert bar.volume == 1000.0
+    assert bar.period == timedelta(minutes=5)
+
+
+def test_make_trade_bar_coerces_numeric_fields_to_float(monkeypatch) -> None:
+    # pandas/int inputs (row["open"], wb["volume"]) must reach the bar as float — the helper
+    # owns the float() coercion the positional ctor used to do inline at each site.
+    from datetime import datetime, timedelta
+
+    class _FakeBar:
+        pass
+
+    monkeypatch.setattr(lean_entry, "TradeBar", _FakeBar)
+    bar = lean_entry._make_trade_bar(
+        datetime(2025, 2, 4), object(), 10, 12, 9, 11, 1000, timedelta(days=1)
+    )
+    assert all(isinstance(v, float) for v in (bar.open, bar.high, bar.low, bar.close, bar.volume))
