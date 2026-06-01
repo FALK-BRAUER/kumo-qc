@@ -19,5 +19,9 @@ Branch `docs/270-phase0-intraday-arch`. **Docs only, no code, no build.** This i
 ## Not in scope (deliberately)
 No code, no new phase impls, no engine changes — those are Phases 1–5. The docs describe the TARGET; the build follows on your approval. champion_asis is untouched (still the fixture); dist unchanged.
 
+## Late additions (HQ + Falk, post-first-review — all docs-only)
+- **CONVENTIONS "Execution environment"** — kills the Docker confusion: local LEAN = `lean` CLI in the `quantconnect/lean` Docker image (engine **v2.5.0.0**) with LOCAL data providers (local PROVIDERS, Docker ENGINE — NOT "no Docker"). + the **dual execution model**: Docker lean-CLI = FAITHFUL runtime (tests/validation/parity/cloud-confirm); direct-LEAN = SWEEP runtime (speed), NOT set up yet, gated by a one-time **direct≈Docker reconciliation** (a new parity surface, cross-ref #214) before sweep results are trusted. + the v2.5.0.0 reference-clone pin (cloud version to be confirmed from a cloud log, not assumed equal).
+- **ARCHITECTURE §11.1 SG8 — NO FILLS ON THE DAILY CLOCK** (Falk, explicit, now standalone): the daily clock decides only, fires zero orders; any daily-clock fill → fail-loud. The structural guarantee the blind-daily-MOO model can't creep back.
+
 ## On approval
 PR `docs/270-phase0-intraday-arch` → HQ gate → merge → Phase 1 (#272 fail-loud gate, #273 worktree isolation, #274 two-clock split + smoke BT). #279 closeout sweeps the whole codebase for coherence after Phase 5.
