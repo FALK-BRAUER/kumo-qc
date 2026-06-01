@@ -264,6 +264,11 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self._intraday: dict[Any, dict[str, Any]] = {}
         self._intraday_active: set[Any] = set()
 
+        # #311: the date the daily DECISION clock last ran — the once-per-date idempotency guard so
+        # the daily block fires <=1x/trading date (defense-in-depth under the resolution-aware
+        # heartbeat in on_data). None until the first daily decision.
+        self._last_daily_date: Any = None
+
         # LIVE universe state (#238 / Y). _ranked_today = today's floored+ranked+capped
         # SELECTION (the universe phase exposes it ∩ active, in rank order); _trailing_dv =
         # the dv view of the selected set (the signal's dollar-volume tiebreak); _bar_metrics
@@ -774,9 +779,26 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                 ictx.clock = "intraday"
                 self.engine.on_intraday_bar(ictx)
 
-        # --- daily (decision) clock: run on the daily bar (SPY is the daily heartbeat) ---
+        # --- daily (decision) clock: run ONCE per date on the DAILY-resolution SPY bar ---
+        # #311 FIX (resolution-aware + idempotent): the daily heartbeat is the DAILY SPY bar ONLY.
+        # bars.get(spy) ALSO returns the 5-min SPY bar once SPY is intraday-subscribed (selected as
+        # an ETF candidate) — a 5-min bar must NOT trip the daily decision clock. The #275b
+        # regression fired the daily pipeline (selection/signal/FIRE_ENTRIES) on every 5-min step →
+        # 778 intraday entries/day (an SG8 break). Two guards:
+        #   (1) PRIMARY resolution-aware — gate on the bar PERIOD (a daily bar spans ~1 day; a 5-min
+        #       bar spans 5 min). Only a ~daily-span SPY bar is the heartbeat. Restores pre-bug timing.
+        #   (2) DEFENSE-IN-DEPTH once-per-date — _last_daily_date so the daily block runs <=1x/date
+        #       regardless of what trips the condition.
         spy_bar = bars.get(self.spy.symbol) if (bars is not None and hasattr(bars, "get")) else None
-        if spy_bar is not None or not self._intraday:
+        # The daily SPY TradeBar.period is ~1 day (timedelta(days=1)) regardless of the LEAN
+        # `DailyPreciseEndTime` mode (delivery at 16:00 ET vs 00:00 next day shifts WHEN it arrives,
+        # not its 1-day PERIOD) — so the >=12h gate is robust to that setting; a future change there
+        # is not a regression. A 5-min bar's period is 5 min and never trips it.
+        is_daily_spy_bar = spy_bar is not None and \
+            getattr(spy_bar, "period", timedelta(0)) >= timedelta(hours=12)
+        already_decided_today = self.time.date() == getattr(self, "_last_daily_date", None)
+        if (is_daily_spy_bar or not self._intraday) and not already_decided_today:
+            self._last_daily_date = self.time.date()  # (2) once-per-date guard (#311)
             # #275b-fix (LAG): reconcile the intraday subscription set HERE, on the daily-clock
             # tick, BEFORE the decision pipeline — qc._active is now CURRENT (on_securities_changed
             # has fired for the latest selection), so today's ranked candidates resolve to live
