@@ -22,10 +22,13 @@ Daily signal picks WHICH names (close T → candidate list + snapshot for T+1). 
 ## 2. Phases to BUILD (impl → contract → mechanic)
 
 ### 2a. `PreFlightStaleness` (entry_selection sub-role 1, intraday, FIRST) — NEW
-- **Mechanic:** re-validate each standing candidate against its daily SNAPSHOT (signal price, daily Kijun). INVALIDATE if T+1 has gapped away from / below the thesis beyond tolerance (price vs signal-price / daily-Kijun). George's gap-up discipline as a phase.
-- **Reads:** candidate snapshot + current completed 5-min bar (`qc._intraday[sym].last_close`). NEVER T+1's daily bar.
-- **Params:** `gap_tolerance_pct` (sweepable), `below_kijun_invalidates: bool`.
+- **Mechanic (ASYMMETRIC — HQ correction, grounded in BCT-6):** George's entries have MEAN GAP **+5.1%**, 85% trend UP — gap-UPS are the NORM, not staleness. A symmetric "reject any gap > X%" would KILL his bread-and-butter entries. So the gate is asymmetric:
+  - **INVALIDATE** on gap-DOWN / close BELOW daily Kijun (thesis broken).
+  - **ALLOW** gap-UPS within a GENEROUS tolerance; bound only EXCESSIVE gap-up (chase).
+- **Reads:** candidate snapshot (signal_price, daily_kijun) + current completed 5-min bar (`qc._intraday[sym].last_close`). NEVER T+1's daily bar.
+- **Params:** `below_kijun_invalidates: bool = True`; `gap_up_tolerance_pct` (bounds EXCESSIVE gap-up ONLY, generous default; sweepable). No symmetric gap reject.
 - **Output:** filters `sized_orders` in place; publishes invalidation reason to facts.
+- **Test (required):** a +5% gap-up candidate is NOT invalidated; a gap-DOWN-below-Kijun candidate IS.
 
 ### 2b. `BctIntradayConfirm` (entry_selection sub-role 2, intraday) — NEW (the LOCKED mechanic)
 - **Mechanic (GH#25 §3.2):** confirm on completed 5-min bars — **intraday-Tenkan reclaim + rising volume**, within the first ~2h window. Defer across intraday bars until confirmed OR the window closes (no-confirm-by-window-end → SKIP, never a blind fill — SG5).
@@ -86,12 +89,15 @@ Daily signal picks WHICH names (close T → candidate list + snapshot for T+1). 
 4. **Hand to #277:** champion_intraday config + re-baseline (separate ticket).
 Rationale: enabler first (handoff is the load-bearing risk), then entry, then exit+lifecycle. Behavioral+fail-loud+outage per sub-unit. code-reviewer + HQ second-model pass each PR.
 
-## 8. Open questions for HQ (resolve before 276b-1 code)
-- **Q1 — confirm mechanic exactness:** intraday-Tenkan "reclaim" = completed-5-min close crossing ≤→> intraday_tenkan? And "rising volume" = current 5-min vol > mean(vol_window)×vol_mult, or vol strictly increasing bar-over-bar? Lock the precise rule + defaults (need the BCT-6/H8 / methodology spec — fintrack repo).
-- **Q2 — confirm window:** first ~2h = first N completed 5-min bars (N≈24)? And on no-confirm: SKIP for the day (no carry to T+2, SG9) — confirm.
-- **Q3 — stops_initial method for the champion:** swing_low vs daily Kijun for the GTC protective level? (Drives the catastrophic floor distance.)
-- **Q4 — snapshot handoff:** does #274/#275 already carry the candidate snapshot to the intraday clock, or is that net-new in 276b-0? (Determines enabler size.)
-- **Q5 — scope line #276b vs #277:** confirm #276b = phases + wiring + smoke; champion_intraday assembly + full re-baseline stays #277.
+## 8. HQ RULINGS (LOCKED 2026-06-01, grounded in BCT-6/BCT-7 George-entry analysis)
+- **Q1 — confirm mechanic, LOCKED:** Reclaim = completed-5-min close CROSSING ≤→> intraday_tenkan (a cross EVENT, not merely "above" — don't fire an already-extended name). Rising volume = current completed-5-min vol > mean(vol_window) × `vol_mult` (NOT strictly-increasing — 5-min vol too noisy); `vol_mult` default ~1.5, swept 1.2–2.5. Grounding: BCT-6 lower_wick_rejection entries = best 81.1% WR / +8.0% mean P&L (dip-then-reclaim + volume = George's winning shape).
+- **Q2 — window, LOCKED:** `confirm_window_bars` = first ~2h = N≈24 completed 5-min bars as the OUTER bound (sweepable; BCT-6: 95.7% of entries in open_30m → mass is EARLY, 2h is the safe cap). No-confirm by window-end → SKIP for the day, NO T+2 carry (SG9).
+- **Q3 — stops_initial = DAILY KIJUN, LOCKED.** The #290 GTC catastrophic floor sits BELOW intraday noise (fires only on a true gap/outage, not chop; no collision with the kijun_g3 runtime exit). swing_low too tight → premature catastrophic fills → a later sweep variant, NOT the champion default. Parity with existing Kijun math.
+- **Q4 — snapshot handoff:** do NOT assume present. EMPIRICALLY VERIFY in 276b-0 (HQ lean: net-new — the daily-only engine never forwarded a snapshot). Report the finding before 276b-1.
+- **Q5 — scope, CONFIRMED:** #276b = phases + wiring + smoke; champion_intraday assembly + full local≈cloud re-baseline = #277.
+
+## 8b. PARKED (do NOT scope-creep into 276b-1)
+- `lower_wick_rejection` as an entry-QUALITY signal (BCT-6 81.1% WR) → a Phase-2 entry_timing variant / #305 sweep axis. Noted, not built now.
 
 ## 9. Risks (eyes-open, ARCHITECTURE §13)
 - Snapshot/state handoff across the daily→intraday boundary (SG9 bleed) — the subtle correctness risk.
