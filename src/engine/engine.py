@@ -49,7 +49,7 @@ FIRE_TRIMS = FireSentinel("FIRE_TRIMS")
 PHASE_ORDER: list[str | FireSentinel] = [
     "rebalance", "filter", "universe", "signal", "regime", "ranking",
     "entry_selection", "entry_timing", "sizing",
-    "reentry", "eligibility", "portfolio_risk", "cash",
+    "reentry", "eligibility", "portfolio_risk", "cash", "protective_stop",
     FIRE_ENTRIES,
     "stops_initial", "trail",
     "exit_hard", "exit_target", "exit_regime", "exit_rotation",
@@ -64,7 +64,7 @@ PHASE_ORDER: list[str | FireSentinel] = [
 # Suppressed when bar_blocked (entry-side). Exit-side + tail run regardless.
 ENTRY_ONLY_PHASES: frozenset[str] = frozenset({
     "entry_selection", "entry_timing", "sizing", "reentry",
-    "eligibility", "portfolio_risk", "cash", "adds",
+    "eligibility", "portfolio_risk", "cash", "protective_stop", "adds",
 })
 ENTRY_ONLY_SENTINELS: frozenset[FireSentinel] = frozenset({FIRE_ENTRIES, FIRE_ADDS})
 ALWAYS_RUN: frozenset[str] = frozenset({"diagnostics", "circuit_breaker"})
