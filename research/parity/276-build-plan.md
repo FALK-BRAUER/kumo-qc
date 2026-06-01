@@ -75,3 +75,17 @@ BctIntradayConfirm, intraday) → entry_timing(ConfirmedMarketEntry, intraday) �
 
 ## After #276 → #277 (champion_intraday + re-baseline local≈cloud — the TRUE baseline) → #278
 (SG suite) → #279 (closeout) → #281 (cutover mainV2→main).
+
+## #276b DESIGN CALL — entry-requirement OR vs AND (banked from the #296 CI review, HQ)
+INCONSISTENCY in the codebase today: the runtime gate (engine.py ~:237, _validate_execution_stack)
+uses `any()` = OR over ENTRY_PHASE_KINDS (entry_selection ALONE satisfies — see
+test_entry_selection_alone_satisfies_entry_requirement), BUT canonical PHASE_ORDER / PHASES.md mark
+BOTH entry_selection AND entry_timing as required. For the GH#25 model they are DISTINCT:
+  - entry_selection = WHICH names confirm intraday (pre-flight staleness + Tenkan/volume confirm);
+  - entry_timing    = emits the OrderIntent (order_type/price) that FIRE_ENTRIES consumes.
+So entry_timing looks NECESSARY to actually fire an order → leans AND for a champion. MAKE THE
+EXPLICIT CALL in #276b: is `entry` OR (any) or AND (both)? The runtime gate is the SINGLE SOURCE;
+CI mirrors it (#297 DRYs that). HQ aligned CI to the CURRENT runtime (OR) for now so #296 doesn't
+ship a contradiction — so changing to AND in #276b means updating the runtime gate + flipping
+test_entry_selection_alone_satisfies (it becomes a NEGATIVE: selection-alone → DegradedConfigError)
++ letting #297 re-mirror CI. Decide + document the contract when wiring the #276b entry phases.
