@@ -1,9 +1,24 @@
 # GH #25: Intraday QC Design Spec — Minute Bars + Tenkan Confirmation + Stop Market
 
-## Status: Design Document — Ready for Review
-**Branch:** feat/vix-percentile-28  
-**Target:** Merge after score-threshold-34 + vix-percentile-28  
-**Scope:** Execution layer enhancement (signal stack unchanged)
+## Status: APPROVED (Falk, 2026-06-01) — the canonical execution model. Implemented under epic #270.
+**Supersedes:** the daily-only, market-on-open engine + the retired #262/#268 MOO-parity effort.
+**Scope:** the corrected execution model (daily signal → intraday confirmed execution), NOT an optional enhancement. The daily signal stack is unchanged; the execution layer is rebuilt.
+
+> **v2-engine reconciliation (#270).** This spec was written against the legacy oracle
+> (`_rebalance`/`_check_all_entry_gates`). In the v2 phase engine it maps to:
+> - §3.1 minute subscriptions → dynamic **candidate-only 5-min subscriptions** (capped) in the
+>   selection gate (ARCHITECTURE.md §10; PHASES.md §1/§5).
+> - §3.2 intraday-Tenkan confirmation → the **`entry_selection` intraday-confirm phase**
+>   (`BctIntradayConfirm`, the LOCKED mechanic) + a **pre-flight staleness gate** as the first
+>   intraday phase (PHASES.md §5). The #253 *daily* Gate-2 proxy is RETIRED.
+> - §3.3 stop-market exits → the **`exit_hard` intraday stop-market** via the OrderIntent fire
+>   seam (PHASES.md §15; ARCHITECTURE.md §4).
+> - §3.4 intraday rebalance → the **two-clock scheduler** (`after_close_scan` daily decision +
+>   the 5-min execution clock; PHASES.md §20), NOT a fixed 11:00 callback (continuous confirm).
+> - The `_tenkan_confirmed` "return True on insufficient data" (§3.2 below) becomes **fail-loud /
+>   loud-skip**, never a silent permissive pass (the #261/#270 fail-loud principle).
+> Trigger evidence: BCT-6/H8 (≈85% of George's entries fill in the first 2h, volume-confirmed) +
+> BCT-9 (validated intraday-confirmed alpha) — see research/bluecloudtrading.
 
 ---
 

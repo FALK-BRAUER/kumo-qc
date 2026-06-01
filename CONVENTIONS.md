@@ -33,7 +33,11 @@ The boundary rules + rationale live in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.
 
 **Explicit exposure only — the one STRUCTURAL invariant the engine still enforces** (`validate_invariants`, refuses to start otherwise): if `adds` is enabled, `gross_exposure_cap`/`portfolio_risk` MUST be enabled. This can't be gamed by renaming, so it stays in code.
 
-Structural guards the engine DOES enforce at init (not param-name games): `_validate_known_kinds` (a configured phase kind absent from `PHASE_ORDER` → ConfigError, no silent no-op) and `REQUIRED_PHASES = (universe, signal, sizing)` (these MUST be present).
+Structural guards the engine DOES enforce at init (not param-name games): `_validate_known_kinds` (a configured phase kind absent from `PHASE_ORDER` → ConfigError, no silent no-op) and `REQUIRED_PHASES` (these MUST be present).
+
+**Fail-loud phase stack (#270 — extends #261's fail-loud-on-degraded-data to the config).** `REQUIRED_PHASES = (universe, signal, sizing, entry, exit)` — entry + exit are now REQUIRED. There is **NO implicit execution default**: a config that would fire entries with no wired entry-confirm phase, or exits with no wired exit phase, raises `DegradedConfigError` at init and refuses to run. A blind-open / placeholder market-on-open entry is a **test/variant FIXTURE only**, never a silently-running champion. (Rationale: the daily-MOO `champion_asis` traded a phantom model through all of #262/#268 precisely because nothing forced "no entry-confirm wired" to crash. This gate is that crash.)
+
+**Champion vs fixture (#270).** `champion_asis` (signal→sizing→implicit-MOO, daily, no entry/exit-confirm) is a **blind-entry FIXTURE** for regression/parity scaffolding — it correctly fails the gate above and may NOT be deployed as a champion. A champion MUST wire the full daily-signal → intraday-confirmed-execution stack. The forward champion is `champion_intraday`.
 - **NO FROZEN / snapshot universe — anywhere.** No 326, no hardcoded same-every-day ticker list, in code, config, data, or tests. The FROZEN snapshot was the root of the slot-tiebreak / data-divergence / parity-chasing time-sinks and **proved nothing** — eradicated. Which tickers a strategy selects = the dynamic selection gate + universe phase, pinned by config-hash; the substrate (the zip set) is fingerprinted separately.
 - **Selection pipeline = dynamic `floors → rank → cap`, point-in-time, recomputed daily. A rank and a cap are REQUIRED, not forbidden** — what's forbidden is *freezing* the list. Per Falk's Y model, the floors are applied at the **SELECTION GATE** (`src/runtime/lean_entry.py::_coarse_selection`, the once-daily `add_universe` callback that runs the SAME code path local + cloud): each trading day it maintains a rolling dollar-volume per coarse name, applies the tradeability floors (`min_price`, `min_avg_dollar_volume` — `runtime.universe_select.apply_floors`, before Ichimoku), then ranks DV-desc and caps `coarse_max` (`rank_and_cap`), and **subscribes ONLY the qualifying ranked set** (so only those names get tracked + Ichimoku'd — no 2x indicator load). There is **NO separate per-bar `filter` phase** — the floors bound SUBSCRIPTION at the gate, not in a phase. The **`universe` phase** (`dv_rank_cap`) then EXPOSES that live-selected ranked set to the pipeline. (`filter` remains a known kind in `PHASE_ORDER` for a future strategy that genuinely needs a per-bar substrate reduction, but it is NOT required and the champion does not use one.)
 - **The rank MUST be deterministic and IDENTICAL local + cloud.** Selection rank = dollar-volume DESC with a ticker-asc tiebreak; entry-priority ranking = `(score DESC, dollar-volume DESC)`, **NEVER alphabetical / insertion-order**. The #182 scar was local-alphabetical vs cloud-volume → different buys → irreproducible BTs. Consistency both sides is the fix; removing the rank is NOT. (Selection DV-rank lives in the selection gate + the `universe` phase; entry-priority `(score, DV)` rank is the separate `ranking` phase.)
@@ -47,6 +51,7 @@ The #218 retrofit experiments often USED forbidden mechanics (fixed slots, max-p
 
 ## Parity (cloud vs local)
 - Goal = **short-timeframe REPRODUCIBILITY, to a reasonable extent**: local == cloud on a SHORT window (days), same code (`dist/`) + same substrate (fingerprint), within tolerance.
+- **#262/#268 MOO-parity is RETIRED (#270).** The local↔cloud "1-bar entry-fill offset" was a SYMPTOM of the wrong blind-market-on-open model (the engine blind-filled an open it should never have filled), not a parity defect to fix. It retires with that model. Parity is re-established on the NEW daily-signal→intraday-confirmed model — and the same delivery-timing question now applies to the **intraday (5-min) clock**: confirm local and cloud deliver intraday bars on the same clock (de-risk with a two-clock SMOKE BT before the full build, then re-baseline). Do not resurrect the MOO-parity chase.
 - **NOT** full-FY exact-match — the cloud-vs-local data-vendor residual is a known irreducible; chasing it is a rabbit-hole (cloud = ground-truth).
 - **NOT** parity against a fixed-universe oracle (326 proved nothing).
 - Refactor-correctness is a SEPARATE check: per-phase, universe-agnostic golden-master (v2 phase logic == monolith logic on a sample of tickers) — not an end-to-end fixed-universe parity.
@@ -58,7 +63,7 @@ The #218 retrofit experiments often USED forbidden mechanics (fixed slots, max-p
 - `dist/` is **generated + git-tracked + NOT linted** (mypy excludes it). Never hand-edit it.
 - The build (`build/cloud_package.py`) packages ONLY the active config's phase closure, and is itself unit-tested.
 - Every result is pinned to **(git commit + config-hash + data-fingerprint)** via `dist/_metadata.py`, logged on startup. No result without that pinning enters `results/bt-results.csv`.
-- **`dist/` ALWAYS tracks the ACTIVE CHAMPION (`champion_asis`).** Variant/experiment MEASUREMENTS build into a THROWAWAY dir (`dist_tmp/`, gitignored), NEVER committed over `dist/`. A variant build must never displace the champion's deployable. `src/strategies/<variant>.py` configs stay (opt-in); only `dist/` tracks the champion.
+- **`dist/` ALWAYS tracks the ACTIVE CHAMPION.** Variant/experiment MEASUREMENTS build into a THROWAWAY dir (`dist_tmp/`, gitignored), NEVER committed over `dist/`. A variant build must never displace the champion's deployable. `src/strategies/<variant>.py` configs stay (opt-in); only `dist/` tracks the champion. **(#270: the champion is the intraday-confirmed model `champion_intraday` once it lands; `champion_asis` is the retired blind-entry FIXTURE and is NOT a valid `dist/` target — it fails the fail-loud gate. Until `champion_intraday` exists, `dist/` may hold the asis fixture ONLY for the Phase-2 behaviour-unchanged parity step, clearly marked as the fixture.)**
 
 ## Data (local backtest substrate)
 - `data/` = RAW daily OHLCV only, built from Massive SIP parquet (`scripts/build_daily_from_parquet.py`). **Never back-adjusted, never mixed** (adjusted corrupts Ichimoku — the 7x-calibration lesson).
@@ -67,9 +72,16 @@ The #218 retrofit experiments often USED forbidden mechanics (fixed slots, max-p
 
 ## Git workflow
 - **Rebase, never merge-commit.** Linear history. Rebase a feature branch onto latest `main`, then `--ff-only` merge.
-- One feature branch = one worktree. **Delete the branch + worktree after integration.**
+- One feature branch = one worktree. **Delete the branch + worktree after integration.** Each experiment/phase in its OWN worktree off mainV2; `data/` symlinked to the main repo (worktrees without the symlink silently fail all data requests). (#267 Part B — worktree isolation.)
+- **Explicit `git add <paths>` only — never `git add -A`/`.`** Stage the specific files you changed. A worktree carries gitignored build/data churn (`dist_tmp/`, backtests, the `data` symlink swap, throwaway lean projects); a blanket add stages junk or a champion-displacing `dist/`. The reviewer checks `git diff --stat` is exactly the intended scope. (#267 Part B.)
 - **Push immediately** after every clean commit (the 2026-05-23 unpushed-loss lesson).
 - Conventional Commits.
+
+## Look-ahead safety (the #268 lesson — enforced on the intraday clock, #270)
+- **Consume only COMPLETED bars.** Act in the consolidator's bar-close handler; never read a forming/partial intraday bar. An intraday-Tenkan/volume confirmation uses the last *completed* 5-min bar.
+- **No cross-clock leakage.** The T+1 intraday execution path must NOT read T+1's *daily* bar — that daily bar embeds T+1's close (= look-ahead, the exact class that flagged the #268 grid). Daily decisions use bars through T's close only.
+- **`history()` ends strictly before `self.time`** (forward-only guard; the #213f/#259 daily-seed drop-rows-≥-today, applied to the intraday path too).
+- A **fail-loud negative test** asserts the engine does NOT act on a forming/future bar (raises or skips-loud) — never silently uses it.
 
 ## Testing
 - `tests/` **mirrors `src/`** 1:1 (`tests/<path>/test_<mod>.py`). Shared primitives in `tests/harness/`, cross-cutting in `tests/integration/`.

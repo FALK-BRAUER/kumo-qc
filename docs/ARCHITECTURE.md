@@ -1,10 +1,13 @@
 # kumo-qc Architecture v2 — Type-Safe Phase Library
 
-**Status:** Canonical charter (2026-05-30, Falk). Supersedes v1 (`algorithm/performance_bct` layout).
-**Epic:** #208. **Conventions:** [CONVENTIONS.md](../CONVENTIONS.md).
+**Status:** Canonical charter (2026-05-30, Falk; **revised 2026-06-01 for the two-clock intraday execution model, #270**). Supersedes v1 (`algorithm/performance_bct` layout).
+**Epic:** #208; **execution model #270** (intraday execution, GH#25).
+**Conventions:** [CONVENTIONS.md](../CONVENTIONS.md).
 **Owner:** fintrack HQ (structure + verification) + kumo-qc orchestrator (code + BTs).
 
 The repo root IS the strategy project. A strategy = a typed `STRATEGY_CONFIG` selecting composable **phase** plugins from a library, run by one engine in a fixed `PHASE_ORDER`. Built to a flat `dist/` that LEAN runs both locally and on cloud.
+
+> **#270 model correction (read first).** The BCT strategy is **daily signal → intraday execution**: the daily/weekly Ichimoku signal decides *which* names after close T (the candidate list for T+1); on T+1 the engine does **NOT** blind-buy the open — it waits for **intraday confirmation** (intraday-Tenkan reclaim + rising volume, ~first 2h) before firing, and exits on **intraday stop-market** orders. The engine therefore runs on **two clocks** (a daily decision clock + an intraday execution clock). An entry that fires market-on-open with no confirmation phase is a **blind-entry FIXTURE** (the retired `champion_asis`, the −0.616 artifact), **never a champion** — the engine fails loud (`DegradedConfigError`) on a config that would fire without a wired entry + exit phase. The earlier daily-only, market-on-open engine + the #262/#268 MOO-parity effort are **retired** (they optimised a model the strategy was never meant to use). See §4 (the engine) and §10 (the execution model).
 
 ---
 
@@ -17,6 +20,9 @@ The repo root IS the strategy project. A strategy = a typed `STRATEGY_CONFIG` se
 6. **Config-aware flat build** — `build/cloud_package.py` AST-parses the active config's import closure and flattens ONLY the enabled phases to `dist/`. QC cloud has no subdirectories.
 7. **Parity by construction** — LEAN runs the SAME `dist/` locally and on cloud. The harness emulates cloud; there is no `if cloud:` branch in strategy code.
 8. **Provenance pinning** — every result is pinned to (code commit + config hash + **data fingerprint**). A result not pinned to its data state is not trusted (the 1.079 lesson).
+9. **Two-clock execution (#270)** — the engine runs phases on TWO clocks: a **daily decision clock** (universe/signal/regime/ranking — picks WHICH names, after close T → candidates for T+1) and an **intraday execution clock** (entry_selection/entry_timing/sizing/fire/stops/trail/exits — decides WHEN to fire on T+1's intraday bars). Each phase declares its clock (`PHASE_RESOLUTION`); the daily/intraday subsets are precomputed at config-build, not filtered per tick. Daily-only is the legacy special case, not the model.
+10. **Fail-loud phase stack (#270, extends #261 to the config)** — `entry` and `exit` are REQUIRED phases. There is **no implicit execution default**: a config that would fire entries with no wired entry-confirm phase, or exits with no wired exit phase, raises `DegradedConfigError` at init and refuses to run. A blind-open / placeholder entry is a **test/variant fixture only**, never a silently-running champion. (Had this gate existed, the daily-MOO `champion_asis` would have crashed as "no entry-confirm wired" instead of silently trading a phantom model for #262/#268.)
+11. **Look-ahead safety on the intraday clock** — phases consume only COMPLETED consolidated bars (act in the consolidator's bar-close handler, never a forming bar); the T+1 intraday path must NOT read T+1's daily bar (which embeds T+1's close = look-ahead); `history()` ends strictly before `self.time`. Enforced by a fail-loud negative test.
 
 ## 2. Type-safety model (see CONVENTIONS.md for rules)
 - **Phase interface = `typing.Protocol`** (structural) + optional `BasePhase` ABC for shared helpers. `@runtime_checkable` for validating built phases.
@@ -44,11 +50,16 @@ scripts/ docs/ ui/ archive/ zz_handoffs/   CLAUDE.md README.md CONVENTIONS.md
 # scripts/ consolidates INTO cli/ (ARCH2-CLI); research/ flat files → categorized (ARCH2-R).
 ```
 
-## 4. The engine
-- `PHASE_ORDER` is a list incl. `FIRE_*` sentinels (fire_entries after cash, fire_exits after exit_*, fire_adds after adds, fire_trims after profit).
+## 4. The engine (two-clock, #270)
+- `PHASE_ORDER` is a single list incl. `FIRE_*` sentinels (fire_entries after cash, fire_exits after exit_*, fire_adds after adds, fire_trims after profit). It is the single source of phase SEQUENCING for both clocks.
+- **Two clocks, two entry points.** Each phase declares `PHASE_RESOLUTION ∈ {daily, intraday}`. At config-build the engine PRECOMPUTES the daily subset and the intraday subset of `PHASE_ORDER` (not a per-tick filter — avoids re-deriving the split every tick, the brittleness that produced the double-rebalance + #268 day-boundary bugs). Then:
+  - `on_daily_bar(ctx)` — runs the daily-clock phases (universe/signal/regime/ranking) after close T → produces the candidate list + a SNAPSHOT of the signal context (signal price, daily Kijun) per candidate, stored for T+1. Does NOT fire entries. Driven by a scheduled after-close event.
+  - `on_intraday_bar(ctx)` — runs the intraday-clock phases (entry_selection incl. the pre-flight staleness gate, entry_timing, sizing, FIRE_ENTRIES, stops/trail, exit_*, FIRE_EXITS) against the standing candidate list + the current COMPLETED intraday (5-min) bar on T+1. Fires orders.
+- **Pre-flight staleness gate (first intraday phase, #270).** Before any intraday confirmation, a candidate is re-validated against its daily snapshot: if T+1 has gapped away from / below the signal thesis (price, Kijun), the candidate is INVALIDATED — don't enter a broken thesis. This is George's gap-up discipline expressed as a phase.
+- **The fire seam (Command pattern).** Phases emit a typed `OrderIntent{order_type ∈ market_on_open|stop_market|limit|market, price, stop, qty, ...}`; ONLY the `FIRE_*` sentinels call the QC order API, dispatching on `intent.order_type`. The entry_timing phase SETS the order type/price (e.g. confirmed → market; §4 Gate-5 day-type → stop/limit); exits emit stop-market for intrabar fills. The hardwired `market_on_open_order` is retired — it becomes one order_type among several.
 - A `regime`/`cash` block scopes to the ENTRY pipeline ONLY — exit/stop/trail phases run regardless (oracle behaviour; PHASES.md §3). `diagnostics` + `circuit_breaker` always run.
-- `PhaseContext` = LEAN read-only refs + a fresh `BarState` per bar. Phases write intents via `apply(kind, result)`, keyed by `(kind, module)`, rejecting true double-writes. The engine fires from the typed BarState lists at sentinel boundaries.
-- Engine refuses to start on charter violation (count caps / time exits / `adds` without `gross_exposure_cap`) — fail loud, no silent fallback. Logs every phase `version_marker` at init.
+- `PhaseContext` = LEAN read-only refs + a fresh `BarState` per tick (daily or intraday). Phases write intents via `apply(kind, result)`, keyed by `(kind, module)`, rejecting true double-writes. The engine fires from the typed BarState lists at sentinel boundaries.
+- **Engine refuses to start on charter violation, fail loud, no silent fallback:** count caps / time exits / `adds` without `gross_exposure_cap` (charter), AND (#270) `entry`/`exit` not wired or an implicit-execution-default config → `DegradedConfigError`. Logs every phase `version_marker` + its `PHASE_RESOLUTION` at init.
 
 ## 5. Build → deploy → run
 ```
@@ -71,7 +82,7 @@ dist/ ──▶ QC cloud deploy        (via QC API /files/update)     ⇒ SAME a
 - Validation gates G1–G5 (incl G5 DSR/PBO #202) + the acceptance contract (#203) on PR.
 
 ## 8. References
-v1 history: `git show <pre-v2>:docs/ARCHITECTURE.md`. Design session 2026-05-30 (web + Perplexity + Gemini). Related: #183 harness fidelity, #194 CI, #202 G5, #203 acceptance contract, PHASES.md (per-phase contracts).
+v1 history: `git show <pre-v2>:docs/ARCHITECTURE.md`. Design session 2026-05-30 (web + Perplexity + Gemini). Intraday-model design 2026-06-01 (orchestrator + Perplexity + Gemini, all converged; #270). Related: #183 harness fidelity, #194 CI, #202 G5, #203 acceptance contract, PHASES.md (per-phase contracts), [GH#25 intraday spec](notes/GH25_intraday_design_spec.md), #270 (execution-model epic), #261 (fail-loud data → extended to the phase stack), [research/parity/269-intraday-build-approach.md](../research/parity/269-intraday-build-approach.md).
 
 ## 9. Variant Strategy (entry/exit/sizing/regime proliferation)
 We experiment with many entry/exit/sizing/regime algorithms; this section is the rule for **when to extend a phase, when to build a new variant, and when to control behaviour via parameters vs new code** — so variation stays cheap, type-safe, and reproducible without the library rotting into flag-soup or copy-paste sprawl. Each phase **kind** owns a library of interchangeable implementations, each with its own nested typed `.Params`; a strategy composes them by direct class reference (`Slot(impl=SomePhase, params=SomePhase.Params(...))`). The variant catalog lives in [research/catalog/variant-catalog.md](../research/catalog/variant-catalog.md); the prior-art survey backing these rules is in [research/methodology/variant-architecture-references.md](../research/methodology/variant-architecture-references.md). (Drivers: Falk; synthesis of in-house + Perplexity + Gemini analysis, all three converged.)
@@ -144,3 +155,32 @@ The architecture makes param/structure explosion easy; the dominant real-world r
 5. **Runner defends against overfitting** — 6-window distributions, rank by stability not peak, complexity penalty, robustness surface, DoF budget; charter invariants hold.
 
 The enforceable subset of D1–D3 is a PR gate in [CONVENTIONS.md](../CONVENTIONS.md).
+
+## 10. The execution model — daily signal → intraday confirmed execution (#270)
+
+This is the load-bearing correction of 2026-06-01. The strategy was always designed as **"Daily Signal, Intraday Execution"** ([docs/notes/GH25_intraday_design_spec.md](notes/GH25_intraday_design_spec.md)); the engine was built daily-only and the champion blind-filled the open, so the design was never realised. BCT-9 validated **real intraday-confirmed alpha** on George's recorded entries (≈85% filled in the first 2h, volume-confirmed) — a blind-MOO model cannot capture it. The intraday model is the corrected foundation, not an enhancement.
+
+### The two steps
+1. **Scan after close T → candidate list for T+1** (daily clock). The daily/weekly Ichimoku 8-condition signal picks WHICH names. This is unchanged from today and correct. Each surviving candidate carries a **snapshot** of its signal context (signal price, daily Kijun) for the staleness gate.
+2. **On T+1, confirm intraday, then fire** (intraday clock). Do NOT blind-buy the open. The execution phases run on 5-min bars:
+   - **pre-flight staleness gate** — invalidate if T+1 gapped away from the thesis;
+   - **entry confirmation** — intraday-Tenkan reclaim + rising volume (GH#25 §3.2), within the first ~2h;
+   - **fire** — the confirmed order via the `OrderIntent` seam (market once confirmed, or a §4 Gate-5 day-type stop/limit);
+   - **exits** — intraday **stop-market** (GH#25 §3.3), so stops fire intrabar on the break, not next-open.
+
+### Confirmation mechanic — LOCKED
+The confirmation is the **GH#25 intraday-Tenkan reclaim + volume** trigger, evaluated on completed 5-min bars. The #253 **daily** §4 Gate-2 (C1–C4) gate is **RETIRED as the proven-wrong proxy** — it degraded Sharpe to −1.016 precisely because a once-daily snapshot is not an intraday touch (its own measurement doc flagged this).
+
+### Champion vs fixture
+`champion_asis` (signal→sizing→implicit-MOO, daily, no entry phase) is **reclassified a blind-entry FIXTURE** used only for regression/parity scaffolding. It is NOT a champion and cannot run as one — it fails the fail-loud REQUIRED_PHASES gate (no entry/exit wired). The forward champion is `champion_intraday` (the confirmed-entry model), measured against the asis fixture; the #262 baseline RESETS to the confirmed-entry numbers (neither −0.139 local nor −0.683 cloud — both were the phantom MOO model).
+
+### Multi-timeframe data + indicators
+- **Subscriptions:** dynamic 5-min subscriptions for the daily-selected candidates + current holdings ONLY (capped, parameterized, logged) — never the whole universe (the #213e OOM scar).
+- **Indicators:** a parallel intraday indicator suite (intraday Tenkan/volume) fed by a 5-min `TradeBarConsolidator` + `register_indicator` + minute-history warmup, coexisting with the daily/weekly suite, scoped to the candidate set, feeds never mixed.
+- **Data exists:** 5-min Massive Parquet (2021→2026, covers FY2025) is on disk — this is a data-WIRING task, not data-sourcing.
+
+### Parity, recast (#262/#268 retired)
+The MOO local↔cloud "1-bar offset" was a symptom of the wrong (blind-open) model and is retired with it. Parity is re-established on the NEW model: confirm that local and cloud deliver intraday (5-min) bars on the same clock (the #268 question recurs on the intraday clock — de-risk it with a two-clock SMOKE BT before the full build), then re-baseline. Cloud remains ground-truth; the goal stays short-window reproducibility within the known vendor residual, never full-FY exact-match.
+
+### Build sequencing (see #270)
+Phase 0 (these docs) → 1 (fail-loud gate + worktree isolation + two-clock smoke BT) → 2 (tick-routing split, behaviour-identical to the asis fixture) → 3 (intraday data pipeline) → 4 (the model: fire seam + intraday-Tenkan confirm + staleness gate + stop-market exits) → 5 (`champion_intraday` + re-baseline) → 6 (experiments on the correct baseline). **No code until Falk approves Phase 0.**
