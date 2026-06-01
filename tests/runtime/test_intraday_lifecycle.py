@@ -202,3 +202,15 @@ def test_held_then_closed_is_torn_down_no_slow_leak(monkeypatch) -> None:
     algo._sync_intraday_subscriptions(["B"])           # next daily sync
     assert a not in algo._intraday_active, "held-then-closed name leaked (never torn down)"
     assert a in algo._removed
+
+
+def test_sync_resolves_current_active_no_lag(monkeypatch) -> None:
+    # #275b-fix (LAG): _sync resolves candidates against the CURRENT _active (case-insensitive),
+    # so a candidate already subscribed daily gets its 5-min feed the SAME tick — no 1-day lag.
+    # Pins the case-insensitive resolution that was the GATE-0 bug (lowercase candidate vs
+    # uppercase Symbol.value → 0 subscribes).
+    algo = _make_algo(monkeypatch)
+    aapl = FakeSym("AAPL")            # _active holds UPPERCASE Symbol.value
+    algo._active = {aapl}
+    algo._sync_intraday_subscriptions(["aapl"])  # ranked candidate is LOWERCASE
+    assert aapl in algo._intraday_active, "case-insensitive resolve failed → the GATE-0 bug (0 subs)"

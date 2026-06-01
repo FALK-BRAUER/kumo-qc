@@ -165,8 +165,12 @@ def test_on_data_skips_engine_during_warmup() -> None:
     algo.time = _dt(2025, 6, 2)
     # #275b: on_data is two-clock now — give it the intraday state initialize() would set. Empty
     # intraday set + data=None → no intraday bars → the daily clock runs (the `not self._intraday`
-    # fallback), exactly the pre-#275b behaviour this test pins.
+    # fallback), exactly the pre-#275b behaviour this test pins. #275b-fix: on_data's daily path
+    # now reconciles intraday subs → needs _active + _ranked_today (empty → clean no-op here).
     algo._intraday = {}
+    algo._intraday_active = set()
+    algo._active = set()
+    algo._ranked_today = []
 
     algo.is_warming_up = True
     algo.on_data(None)
@@ -222,6 +226,13 @@ def test_on_data_two_clock_routing() -> None:
         a._intraday = {aapl: {"intraday_tenkan": type("I", (), {"update": lambda s, b: None})(),
                               "vol_window": type("W", (), {"add": lambda s, v: None})(),
                               "last_close": None, "last_bar": None}}
+        # #275b-fix: on_data's daily path reconciles intraday subs → stub _active/_ranked_today/
+        # _intraday_active (+ portfolio for the held-keeps-feed check). _ranked_today=[aapl-ish]
+        # empty-resolvable → the sync keeps the existing AAPL sub (it's already active), no churn.
+        a._active = {aapl}
+        a._intraday_active = {aapl}
+        a._ranked_today = ["aapl"]
+        a.portfolio = type("P", (), {"__getitem__": lambda s, k: type("H", (), {"invested": False})()})()
         return a
 
     # (a) 5-min bar present, NO SPY daily bar → intraday clock fires, daily clock SKIPPED
