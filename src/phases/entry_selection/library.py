@@ -25,13 +25,16 @@ from __future__ import annotations
 from engine.base import BasePhase
 from phases.entry_selection.bct_entry_confirm.bct_entry_confirm import BctEntryConfirm
 from phases.entry_selection.bct_intraday_confirm.bct_intraday_confirm import BctIntradayConfirm
+from phases.entry_selection.bct_intraday_hold_confirm.bct_intraday_hold_confirm import (
+    BctIntradayHoldConfirm,
+)
 from phases.entry_selection.preflight_staleness.preflight_staleness import PreFlightStaleness
 
-# BctEntryConfirm = the DAILY (#253) entry-confirm; BctIntradayConfirm = the #270 INTRADAY (5-min)
-# tenkan-reclaim confirm. MUTUALLY EXCLUSIVE in a wired config (entry_selection instances must
-# share one clock — engine _phase_clock). champion_intraday wires the intraday pair
-# (PreFlightStaleness + BctIntradayConfirm); a daily-model config wires BctEntryConfirm. The
-# catalog lists all three (discovery/sweep only — wiring picks the clock-consistent subset).
+# BctEntryConfirm = DAILY (#253) confirm. The two INTRADAY (#270) confirms are MECHANIC VARIANTS:
+# BctIntradayConfirm = tenkan-reclaim CROSS (≤→>); BctIntradayHoldConfirm = above-Tenkan HOLD + vol
+# (the gap-up-compatible experiment — reclaim-cross fires ~0 on gap-ups, no_reclaim_cross-dominated).
+# All MUTUALLY EXCLUSIVE in a wired config (entry_selection shares one clock — engine _phase_clock).
+# The catalog lists all (discovery/sweep only — wiring picks the clock-consistent subset).
 ENTRY_SELECTION_PHASES: tuple[type[BasePhase], ...] = (
-    PreFlightStaleness, BctEntryConfirm, BctIntradayConfirm,
+    PreFlightStaleness, BctEntryConfirm, BctIntradayConfirm, BctIntradayHoldConfirm,
 )
