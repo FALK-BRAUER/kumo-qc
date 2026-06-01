@@ -59,7 +59,7 @@ from typing import Any
 
 import pandas as pd
 
-from base import DegradedDataError
+from base import DegradedDataError, DegradedScheduleError
 from context import PhaseContext
 from engine import StrategyEngine
 from indicators import INDICATOR_KEYS, TBounceTracker, weekly_aggregate
@@ -268,10 +268,17 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self._intraday: dict[Any, dict[str, Any]] = {}
         self._intraday_active: set[Any] = set()
 
-        # #311: the date the daily DECISION clock last ran — the once-per-date idempotency guard so
-        # the daily block fires <=1x/trading date (defense-in-depth under the resolution-aware
-        # heartbeat in on_data). None until the first daily decision.
+        # #313: the date the daily DECISION clock last ran — the once-per-date idempotency guard in
+        # the scheduled after-close callback (_on_after_close_decision). None until the first decision.
         self._last_daily_date: Any = None
+
+        # #313 WATCHDOG (the permanent protection vs silent no-fire): the daily decision must keep
+        # pace with elapsed trading days. _sched_trading_days counts post-warmup trading days (the
+        # universe coarse callback, which fires reliably daily); _sched_decisions counts daily
+        # decisions that actually ran. If they diverge beyond the 1-day pending tolerance, the
+        # scheduled after-close event has gone dark → DegradedScheduleError (crash, never run blind).
+        self._sched_trading_days: int = 0
+        self._sched_decisions: int = 0
 
         # LIVE universe state (#238 / Y). _ranked_today = today's floored+ranked+capped
         # SELECTION (the universe phase exposes it ∩ active, in rank order); _trailing_dv =
@@ -306,6 +313,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             self.time_rules.after_market_close(self.spy.symbol, self.AFTER_CLOSE_MIN),
             self._on_after_close_decision,
         )
+        self._schedule_armed = True  # #313 watchdog engages only in a real armed run (not selection-harness unit tests)
 
         self.engine = StrategyEngine(config=self.STRATEGY_CONFIG, qc=self)
 
@@ -429,6 +437,12 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         # Subscribe ONLY the ranked qualifying set (the whole point of Y — no 2x load).
         count, h = active_set_hash(ranked)
         self.log(f"ACTIVE_SET|{date_str}|count={count}|hash={h}")
+        # #313 WATCHDOG: this coarse callback is the reliable per-trading-day tick. Post-warmup,
+        # count the trading day and assert the scheduled daily DECISION is keeping pace — if the
+        # after-close event has silently stopped firing, decisions lag and this CRASHES (never dark).
+        if getattr(self, "_schedule_armed", False) and not getattr(self, "is_warming_up", False):
+            self._sched_trading_days = getattr(self, "_sched_trading_days", 0) + 1
+            self._assert_schedule_health()
         # #275b-fix (LAG): the intraday-subscription sync is NOT done here. add_universe returns
         # the ranked symbols, but qc._active only updates in on_securities_changed which QC fires
         # AFTER this callback returns — so reconciling here would resolve candidates against the
@@ -816,9 +830,43 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         if today == getattr(self, "_last_daily_date", None):
             return  # once-per-date idempotency (defense-in-depth — the scheduled event fires once/day anyway)
         self._last_daily_date = today
+        self._sched_decisions = getattr(self, "_sched_decisions", 0) + 1  # #313 watchdog: decision fired
         # #275b-fix (LAG): reconcile intraday subs BEFORE the pipeline — qc._active/_ranked_today are
         # CURRENT for T (on_securities_changed has fired), so T's candidates get their T+1 5-min feed.
         self._sync_intraday_subscriptions(getattr(self, "_ranked_today", []))
         ctx = PhaseContext(qc=self, time=self.time, data=None)  # scheduled event — no slice; daily phases read maintained indicators
         ctx.clock = "daily"
         self.engine.on_data_with_ctx(ctx)
+
+    def _assert_schedule_health(self) -> None:
+        """#313 WATCHDOG — the daily DECISION must keep pace with elapsed trading days. Called from
+        the per-trading-day coarse tick (post-warmup). The scheduled after-close decision fires once
+        per trading day; at this start-of-day check today's decision is still PENDING, so a
+        trading_days − decisions gap of 1 is normal. A gap > 1 means a prior trading day's decision
+        was MISSED — the scheduled after-close event has silently stopped firing (a LEAN/QC change or
+        a cloud divergence — the 276b-0 under-fire class). The decision clock is dark → CRASH, never
+        run blind (the charter anti-mirage mandate)."""
+        gap = getattr(self, "_sched_trading_days", 0) - getattr(self, "_sched_decisions", 0)
+        if gap > 1:
+            raise DegradedScheduleError(
+                f"daily-decision UNDER-FIRE (#313 watchdog): {self._sched_trading_days} post-warmup "
+                f"trading days but only {self._sched_decisions} daily decisions ran (gap {gap} > 1) — "
+                f"the scheduled after-close event is not firing. The daily DECISION clock has gone "
+                f"DARK; refusing to run blind."
+            )
+
+    def on_end_of_algorithm(self) -> None:
+        """#313 watchdog BACKSTOP (Gemini/HQ placement). The per-trading-day _assert_schedule_health
+        is the PRIMARY guard (fails fast mid-run — essential for LIVE, where an end-of-run check
+        would never fire). This is the end-of-backtest final reconciliation: total daily decisions
+        must match elapsed post-warmup trading days within the 1-day pending tolerance, else the
+        scheduled trigger under-fired across the run → CRASH (never silently report a dark run)."""
+        if not getattr(self, "_schedule_armed", False):
+            return  # scheduler never armed (selection-harness context) — nothing to reconcile
+        gap = getattr(self, "_sched_trading_days", 0) - getattr(self, "_sched_decisions", 0)
+        if gap > 1:
+            raise DegradedScheduleError(
+                f"daily-decision UNDER-FIRE at end-of-run (#313 watchdog backstop): "
+                f"{self._sched_trading_days} post-warmup trading days vs {self._sched_decisions} "
+                f"decisions (gap {gap} > 1) — the scheduled after-close trigger under-fired."
+            )

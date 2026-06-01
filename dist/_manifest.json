@@ -25,7 +25,7 @@
     "shared_param_space.py",
     "universe_select.py"
   ],
-  "git_commit": "4fe9162ada9f92551ec1a2037fca1ae47ecd8c9c",
+  "git_commit": "943bb74d08847702f838fb1fbf705e18c182135c",
   "is_fixture": true,
   "phase_markers": {
     "diagnostics": "version_marker_v1,chart_emit_v1",
