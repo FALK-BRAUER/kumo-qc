@@ -1,8 +1,16 @@
 #!/usr/bin/env python3
-"""Validate YAML syntax for workflow files — catch indentation bugs before merge.
+"""Validate YAML well-formedness in .github/workflows/*.yml.
+
+SCOPE: This checks YAML parse-ability ONLY (yaml.safe_load). It does NOT
+catch indentation bugs INSIDE multiline shell scripts (run: | blocks) —
+those are opaque scalar strings to the YAML parser and remain valid YAML
+even when the embedded code is malformed. The #296 root cause was exactly
+that class: a python -c block lost internal indentation but yaml.safe_load
+still passed. Structural fix: extract embedded code into standalone scripts
+(ci_manifest_check.py, build_champion_asis.py, verify_dist_pin.py) so there
+is nothing to lose indentation.
 
 Run manually: python scripts/yaml_lint.py
-Run via pre-commit: copy to .git/hooks/pre-commit (or use pre-commit framework)
 """
 
 import sys
@@ -17,8 +25,11 @@ except ImportError:
 
 def validate_file(path: Path) -> bool:
     try:
-        with open(path) as f:
-            yaml.safe_load(f)
+        content = path.read_text()
+        if not content.strip():
+            print(f"  FAIL: {path} — empty file")
+            return False
+        yaml.safe_load(content)
         print(f"  OK: {path}")
         return True
     except yaml.YAMLError as e:
@@ -33,22 +44,23 @@ def main() -> int:
         print("No .github/workflows/ directory — skipping")
         return 0
 
-    yml_files = list(workflows_dir.glob("*.yml"))
+    # Check both .yml and .yaml (GitHub accepts both)
+    yml_files = list(workflows_dir.glob("*.yml")) + list(workflows_dir.glob("*.yaml"))
     if not yml_files:
-        print("No .yml files in .github/workflows/ — skipping")
+        print("No .yml/.yaml files in .github/workflows/ — skipping")
         return 0
 
-    print(f"Validating {len(yml_files)} workflow file(s)...")
+    print(f"Validating {len(yml_files)} workflow file(s) (well-formedness ONLY)...")
     all_ok = True
     for f in sorted(yml_files):
         if not validate_file(f):
             all_ok = False
 
     if not all_ok:
-        print("\nYAML validation FAILED — fix syntax errors before committing")
+        print("\nYAML well-formedness check FAILED")
         return 1
 
-    print("\nAll workflow files valid")
+    print("\nAll workflow files well-formed")
     return 0
 
 

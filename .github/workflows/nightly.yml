@@ -42,22 +42,14 @@ jobs:
         run: pytest -v --tb=long --junitxml=nightly-results.xml
 
       # ── #272 fail-loud gate (explicit, never silently skipped) ──
-      - name: #272 fail-loud phase-stack gate
+      - name: "#272 fail-loud phase-stack gate"
         run: pytest tests/engine/test_invariants.py -v --tb=short
 
       # ── Build + dist-pin + marker completeness ──
       - name: Build cloud package + verify dist freshness
         run: |
-          python -c "import build.cloud_package as cp; r=cp.build('strategies.champion_asis'); print('dist built:', r.config_hash)"
-          MANIFEST_COMMIT=$(python -c "import json; print(json.load(open('dist/_manifest.json'))['git_commit'])")
-          HEAD_COMMIT=$(git rev-parse HEAD)
-          if [ "$MANIFEST_COMMIT" != "$HEAD_COMMIT" ]; then
-            echo "WARNING: dist/ is stale — manifest $MANIFEST_COMMIT vs HEAD $HEAD_COMMIT"
-            # Non-fatal on nightly (may be expected if dist/ rebuild is manual),
-            # but the artifact must still build+import cleanly.
-          else
-            echo "dist/ pinned to HEAD: $HEAD_COMMIT"
-          fi
+          python scripts/build_champion_asis.py
+          python scripts/verify_dist_pin.py --warn-only
 
       # ── Phase-marker structural guard ──
       # Derives required-set from engine single source (DRY). See #297.
