@@ -163,6 +163,10 @@ def test_on_data_skips_engine_during_warmup() -> None:
     algo = BctEngineAlgorithm()  # QCAlgorithm == object locally
     algo.engine = FakeEngine()
     algo.time = _dt(2025, 6, 2)
+    # #275b: on_data is two-clock now — give it the intraday state initialize() would set. Empty
+    # intraday set + data=None → no intraday bars → the daily clock runs (the `not self._intraday`
+    # fallback), exactly the pre-#275b behaviour this test pins.
+    algo._intraday = {}
 
     algo.is_warming_up = True
     algo.on_data(None)
@@ -170,7 +174,70 @@ def test_on_data_skips_engine_during_warmup() -> None:
 
     algo.is_warming_up = False
     algo.on_data(None)
-    assert algo.engine.calls == 1  # runs once warmup finishes
+    assert algo.engine.calls == 1  # runs once warmup finishes (daily clock; no intraday subs)
+
+
+def test_on_data_two_clock_routing() -> None:
+    # #275b S1 (the load-bearing routing): on_data routes the DAILY bar → on_data_with_ctx
+    # (decision clock) and 5-min bars → on_intraday_bar (execution clock). Pin all three slice
+    # shapes so the gate `spy_bar is not None or not self._intraday` can't drift silently.
+    from datetime import datetime as _dt
+
+    from runtime.lean_entry import BctEngineAlgorithm
+
+    class FakeEngine:
+        def __init__(self): self.daily = 0; self.intraday = 0
+        def on_data_with_ctx(self, ctx): self.daily += 1
+        def on_intraday_bar(self, ctx): self.intraday += 1
+
+    class FakeSym:
+        def __init__(self, v): self.value = v
+        def __hash__(self): return hash(self.value)
+        def __eq__(self, o): return isinstance(o, FakeSym) and o.value == self.value
+
+    class FakeBar:
+        def __init__(self, close=100.0, volume=1000.0):
+            self.close = close; self.volume = volume
+
+    class FakeBars:
+        def __init__(self, d): self._d = d
+        def get(self, sym): return self._d.get(sym)
+
+    class FakeSlice:
+        def __init__(self, bars): self.bars = bars
+
+    class FakeIntradayState(dict):
+        pass
+
+    spy = FakeSym("SPY")
+    aapl = FakeSym("AAPL")
+
+    def _algo():
+        a = BctEngineAlgorithm()
+        a.engine = FakeEngine()
+        a.time = _dt(2025, 6, 2)
+        a.is_warming_up = False
+        a.spy = type("S", (), {"symbol": spy})()
+        # AAPL has a live intraday subscription with a minimal state dict
+        a._intraday = {aapl: {"intraday_tenkan": type("I", (), {"update": lambda s, b: None})(),
+                              "vol_window": type("W", (), {"add": lambda s, v: None})(),
+                              "last_close": None, "last_bar": None}}
+        return a
+
+    # (a) 5-min bar present, NO SPY daily bar → intraday clock fires, daily clock SKIPPED
+    a = _algo()
+    a.on_data(FakeSlice(FakeBars({aapl: FakeBar()})))
+    assert a.engine.intraday == 1 and a.engine.daily == 0, "5-min slice should fire intraday only"
+
+    # (b) SPY daily bar present (+ intraday subs) → daily clock fires
+    a = _algo()
+    a.on_data(FakeSlice(FakeBars({spy: FakeBar()})))
+    assert a.engine.daily == 1, "SPY daily bar must fire the daily decision clock"
+
+    # (c) both present → both clocks fire
+    a = _algo()
+    a.on_data(FakeSlice(FakeBars({spy: FakeBar(), aapl: FakeBar()})))
+    assert a.engine.daily == 1 and a.engine.intraday == 1, "both bars present → both clocks"
 
 
 # --------------------------------------------------------------------------------------
@@ -213,6 +280,9 @@ def _make_selection_algo(monkeypatch) -> BctEngineAlgorithm:
     algo._trailing_dv = {}
     algo._bar_metrics = {}
     algo.time = _dt(2025, 6, 2)
+    # #275b: these tests exercise the SELECTION mechanics only — warming-up skips the downstream
+    # intraday-subscription sync (a live-clock concern, tested separately in test_intraday_lifecycle).
+    algo.is_warming_up = True
     algo.logged: list[str] = []
     algo.log = lambda m: algo.logged.append(m)  # type: ignore[method-assign,assignment]
 

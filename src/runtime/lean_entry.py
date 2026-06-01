@@ -215,6 +215,18 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
     # NOT the strategy default and must never be hardcoded here.
     WARMUP_DAYS: int = 560
 
+    # #275b INTRADAY execution clock (Option C): the daily selection produces candidates for T+1;
+    # on T+1 those names get a 5-min subscription (our Massive is natively 5-min, stored as LEAN
+    # "minute" → subscribe Resolution.MINUTE, consume directly, NO consolidator). The subscription
+    # set is candidate∩CAP + current holdings ONLY — NEVER the whole universe (the #213e OOM scar).
+    # INTRADAY_SUBSCRIBE_CAP is the EXPLICIT, parameterized, logged ceiling on the daily-candidate
+    # slice that gets an intraday feed (a scan-breadth cap, NOT a position count-cap — distinct,
+    # like COARSE_MAX). INTRADAY_TENKAN / INTRADAY_VOL_WINDOW are in 5-MIN-BAR units (Tenkan(9) =
+    # 45 min) — the GH#25 intraday-confirm inputs the #276 entry phase reads.
+    INTRADAY_SUBSCRIBE_CAP: int = 50
+    INTRADAY_TENKAN: int = 9
+    INTRADAY_VOL_WINDOW: int = 20
+
     def initialize(self) -> None:
         self.set_start_date(*self.START_DATE)
         self.set_end_date(*self.END_DATE)
@@ -242,6 +254,15 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self._active: set[Any] = set()
         self._indicators: dict[Any, dict[str, Any]] = {}
         self._position_meta: dict[Any, Any] = {}
+
+        # #275b INTRADAY state — SEPARATE from _indicators (which carries the strict daily
+        # INDICATOR_KEYS contract). _intraday[sym] = {intraday_tenkan, vol_window, last_close,
+        # last_bar}, fed directly by the 5-min ("minute") bars in on_data. _intraday_active =
+        # the symbols currently holding a 5-min subscription (candidate∩CAP + holdings). Kept
+        # apart so the daily suite + its contract guard are untouched, and the intraday lifecycle
+        # (subscribe/seed/remove) is isolated + independently testable.
+        self._intraday: dict[Any, dict[str, Any]] = {}
+        self._intraday_active: set[Any] = set()
 
         # LIVE universe state (#238 / Y). _ranked_today = today's floored+ranked+capped
         # SELECTION (the universe phase exposes it ∩ active, in rank order); _trailing_dv =
@@ -388,6 +409,12 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         # Subscribe ONLY the ranked qualifying set (the whole point of Y — no 2x load).
         count, h = active_set_hash(ranked)
         self.log(f"ACTIVE_SET|{date_str}|count={count}|hash={h}")
+        # #275b: the daily clock decides WHO gets a 5-min intraday feed for T+1 — reconcile the
+        # intraday subscription set to (candidates ∩ CAP) + holdings. Done AFTER the daily
+        # selection (post-warmup; during warmup we skip — no intraday trading, and the daily subs
+        # aren't established yet). Names not yet in _active resolve on the next call once subscribed.
+        if not self.is_warming_up:
+            self._sync_intraday_subscriptions(ranked)
         return [Symbol.create(t.upper(), SecurityType.EQUITY, Market.USA) for t in ranked]
 
     def on_securities_changed(self, changes: Any) -> None:
@@ -501,6 +528,107 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         }
         assert set(self._indicators[sym]) == set(INDICATOR_KEYS)  # contract guard
 
+    # ------------------------------------------------------------------------------------
+    # #275b — INTRADAY (5-min) subscription lifecycle (Option C: subscribe MINUTE, our Massive
+    # is natively 5-min, consume directly, NO consolidator). The daily clock decides WHO gets an
+    # intraday feed for T+1 (candidate∩CAP + holdings); these manage subscribe/seed/teardown.
+    # ------------------------------------------------------------------------------------
+    def _subscribe_intraday(self, sym: Any) -> None:
+        """Add a 5-min ("minute") subscription + the intraday indicator suite for `sym`, seeding
+        it so it is WARM before its first intraday score (#275b). Idempotent — a no-op if already
+        subscribed. Periods are in 5-MIN-BAR units (INTRADAY_TENKAN(9) = 45 min)."""
+        if sym in self._intraday:
+            return
+        # RAW minute subscription (delivers our 5-min Massive bars stored as minute-res zips).
+        eq = self.add_equity(sym.value, Resolution.MINUTE)
+        eq.set_data_normalization_mode(DataNormalizationMode.RAW)
+        # The GH#25 intraday-confirm inputs (#276 reads these): an intraday Tenkan (midpoint of the
+        # last INTRADAY_TENKAN 5-min highs/lows) + a 5-min volume SMA. Maintained from the 5-min
+        # bars in on_data — NO consolidator (the data IS 5-min). We hold the rolling windows.
+        intraday_tenkan = IchimokuKinkoHyo(
+            self.INTRADAY_TENKAN, 26, 26, 52, 26, 26
+        )  # only .tenkan is read by #276; full Ichimoku keeps the API uniform
+        vol_window = RollingWindow[float](self.INTRADAY_VOL_WINDOW)
+        self._intraday[sym] = {
+            "intraday_tenkan": intraday_tenkan,
+            "vol_window": vol_window,
+            "last_close": None,
+            "last_bar": None,
+        }
+        self._intraday_active.add(sym)
+        # SEED-ON-SUBSCRIBE (avoid a cold-DegradedDataError on the first 5-min bar). Post-warmup
+        # entrants need warming from history; during warmup the subscription auto-warms via QC.
+        if not self.is_warming_up:
+            self._seed_intraday(sym, intraday_tenkan, vol_window)
+        self.log(f"INTRADAY_SUBSCRIBE|{sym.value}|n_active={len(self._intraday_active)}")
+
+    def _seed_intraday(self, sym: Any, intraday_tenkan: Any, vol_window: Any) -> None:
+        """Warm the intraday indicators from 5-min ("minute") history so a post-warmup entrant is
+        ready before its first intraday score (#275b — the anti-cold-mirage seed, mirrors
+        _seed_daily). Forward-only: history rows dated >= today are dropped (the #213f/#259 guard).
+        Enough bars to warm the longest intraday pole (the Ichimoku 78-bar pole)."""
+        # ~78 5-min bars/day; pull enough days to clear the 78-bar Ichimoku pole + a buffer.
+        bars = self.history(sym, 8 * 78, Resolution.MINUTE)
+        if bars is None or getattr(bars, "empty", True):
+            return
+        if isinstance(bars.index, pd.MultiIndex):
+            bars = bars.droplevel(0)
+        bars.columns = [c.lower() for c in bars.columns]
+        today = self.time.date()
+        for ts, row in bars.iterrows():
+            # forward-only: never seed a bar from today/future (look-ahead, #275b/#268 lesson).
+            t = ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts
+            if getattr(t, "date", lambda: None)() is not None and t.date() >= today:
+                continue
+            bar = TradeBar(
+                t, sym, float(row["open"]), float(row["high"]),
+                float(row["low"]), float(row["close"]), float(row.get("volume", 0.0)),
+                timedelta(minutes=5),
+            )
+            intraday_tenkan.update(bar)
+            vol_window.add(float(row.get("volume", 0.0)))
+
+    def _unsubscribe_intraday(self, sym: Any) -> None:
+        """Tear down `sym`'s 5-min subscription + intraday indicators on rotation out of the
+        candidate set (#275b — THE LEAK AVOIDANCE: RemoveSecurity does NOT auto-dispose user
+        indicators, confirmed in the LEAN source, so we explicitly drop our state + remove the
+        subscription). Idempotent. NEVER remove a held name (don't drop a position's data feed)."""
+        if sym not in self._intraday:
+            return
+        if self.portfolio[sym].invested:
+            return  # keep the feed while invested — exits run on the intraday clock
+        del self._intraday[sym]
+        self._intraday_active.discard(sym)
+        self.remove_security(sym)  # drop the 5-min subscription (no consolidator to remove — Option C)
+        self.log(f"INTRADAY_UNSUBSCRIBE|{sym.value}|n_active={len(self._intraday_active)}")
+
+    def _sync_intraday_subscriptions(self, candidates: list[str]) -> None:
+        """Reconcile the intraday subscription set to (today's candidates ∩ CAP) + current
+        holdings (#275b). Called once-daily after the selection produces the candidate list — the
+        daily clock deciding WHO gets a 5-min feed for T+1. Subscribes new, tears down dropped
+        (non-held). CAP is explicit + logged — never the whole universe (#213e OOM scar)."""
+        active_by_value = {s.value: s for s in self._active}
+        # the capped candidate slice that gets an intraday feed (scan-breadth cap, not a position cap)
+        capped = candidates[: self.INTRADAY_SUBSCRIBE_CAP]
+        if len(candidates) > self.INTRADAY_SUBSCRIBE_CAP:
+            self.log(
+                f"INTRADAY_CAP|candidates={len(candidates)}|capped_to={self.INTRADAY_SUBSCRIBE_CAP}"
+            )
+        want: set[Any] = set()
+        for tk in capped:
+            sym = active_by_value.get(tk)
+            if sym is not None:
+                want.add(sym)
+        # held names ALWAYS keep their feed (exits fire on the intraday clock)
+        for sym in list(self._intraday_active):
+            if self.portfolio[sym].invested:
+                want.add(sym)
+        # subscribe the new, tear down the dropped (non-held handled inside _unsubscribe_intraday)
+        for sym in want - self._intraday_active:
+            self._subscribe_intraday(sym)
+        for sym in self._intraday_active - want:
+            self._unsubscribe_intraday(sym)
+
     def _seed_weekly(self, sym: Any, w_ichi: Any, w_close: Any) -> None:
         """Seed the weekly ichimoku + close window from history using the MANUAL weekly
         aggregation (runtime.indicators.weekly_aggregate) — NOT df.resample (the cloud-timeout
@@ -606,15 +734,44 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             tbounce.update(o, h, lo, c, float(tk))
 
     def on_data(self, data: Any) -> None:
-        """Per-bar entry: build the PhaseContext and run the engine. The engine fires on the
-        QC trading calendar (on_data only ticks on trading days → closed days never read).
+        """Two-clock per-bar entry (#274/#275b). on_data fires for BOTH the DAILY bars (the
+        decision clock) and the 5-min "minute" bars (the intraday execution clock, our candidate
+        subscriptions). We route each:
+          - 5-min ("minute") bars present → FEED the intraday indicators that arrived + run the
+            engine's INTRADAY clock (on_intraday_bar). Empty until #276 wires an intraday phase
+            (the on_intraday_bar no-op from #274) → behaviour still unchanged through #275b.
+          - the DAILY bar → run the DECISION clock (on_data_with_ctx), exactly as before.
 
-        WARMUP GUARD (exact legacy _rebalance pattern): skip the engine while warming up.
-        Orders can't be submitted during warm-up (LEAN rejects OrderRequest.submit), and
-        running the full pipeline over the WARMUP_DAYS (560d) warmup × the dynamic universe is
-        both wrong (no trading) and prohibitively slow. QC auto-warms the registered indicators
-        during warm-up independently of on_data, so they are ready when real bars start."""
+        WARMUP GUARD (exact legacy pattern): skip while warming up. Orders can't submit during
+        warm-up, and the full pipeline over WARMUP_DAYS × the dynamic universe is wrong+slow. QC
+        auto-warms registered indicators during warm-up independently of on_data."""
         if self.is_warming_up:
             return
-        ctx = PhaseContext(qc=self, time=self.time, data=data)
-        self.engine.on_data_with_ctx(ctx)
+
+        # --- intraday (5-min) clock: feed the intraday indicators for any minute bars present ---
+        bars = getattr(data, "bars", None)
+        fed_intraday = False
+        if bars is not None and self._intraday:
+            for sym, st in self._intraday.items():
+                bar = bars.get(sym) if hasattr(bars, "get") else None
+                if bar is None:
+                    continue
+                # the bar is a COMPLETED 5-min bar (Option C: our data is 5-min; the consolidator
+                # is not used → on_data delivers the closed 5-min bar). Look-ahead-safe by
+                # construction (LEAN delivers a bar at/after its EndTime; never the forming bar).
+                st["intraday_tenkan"].update(bar)
+                st["vol_window"].add(float(getattr(bar, "volume", 0.0)))
+                st["last_close"] = float(bar.close)
+                st["last_bar"] = bar
+                fed_intraday = True
+            if fed_intraday:
+                ictx = PhaseContext(qc=self, time=self.time, data=data)
+                ictx.clock = "intraday"
+                self.engine.on_intraday_bar(ictx)
+
+        # --- daily (decision) clock: run on the daily bar (SPY is the daily heartbeat) ---
+        spy_bar = bars.get(self.spy.symbol) if (bars is not None and hasattr(bars, "get")) else None
+        if spy_bar is not None or not self._intraday:
+            ctx = PhaseContext(qc=self, time=self.time, data=data)
+            ctx.clock = "daily"
+            self.engine.on_data_with_ctx(ctx)
