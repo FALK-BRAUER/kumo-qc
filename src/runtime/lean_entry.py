@@ -1043,22 +1043,43 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self._pending_entry_today.add(sym)
 
     def on_order_event(self, order_event: Any) -> None:
-        """#276b-1 (Gemini fix #1) — the entry PENDING-STATE machine. An entry submission is NOT a
-        success: a broker reject (insufficient BP, halt, locate, gross-cap) leaves the position
-        un-invested. Tying re-injection to a binary on-submit flag would permanently lose a
-        transiently-rejected candidate. So: on any TERMINAL status for a pending sym, drop it from
-        pending — Filled/PartiallyFilled → now invested (invested-check blocks re-injection);
-        Canceled/Invalid → re-injectable next tick (gets another chance if the condition cleared).
-        sym-keyed discard is safe: only syms with an in-flight ENTRY are in pending (a held name's
-        exit/stop events find sym absent → no-op)."""
+        """#276b-1 entry PENDING-STATE machine + #277 GTC-floor-fill cleanup.
+
+        ENTRY pending (Gemini fix #1): an entry submission is NOT a success — a broker reject
+        (insufficient BP, halt, locate, gross-cap) leaves the position un-invested. So on any
+        TERMINAL status for a pending sym, drop it from pending — Filled/PartiallyFilled → now
+        invested (invested-check blocks re-injection); Canceled/Invalid → re-injectable next tick.
+
+        GTC-FLOOR-FILL cleanup (#277): the #290 protective stop (protective_stop_ticket in
+        _position_meta) is a BROKER-side GTC — it can FIRE intrabar (gap/halt) WITHOUT the runtime
+        FIRE_EXITS path running. FIRE_EXITS is the ONLY path that pops _position_meta; so a
+        broker-floor fill leaves STALE meta → a later re-entry of that name (no longer invested, the
+        floor sold it) hits GUARD-3 fail-loud (#276a — re-entry with a 'live' tracked stop). Fix:
+        when the order that FILLED IS the tracked protective_stop_ticket (match by order id), pop
+        _position_meta[sym] + clear pending so the re-entry is clean. Distinct from the deferred
+        #181 cancel-replace (resize-on-trim/add); this is just the broker-floor-fill cleanup.
+        A runtime FIRE_EXITS already popped meta → this is then a harmless no-op (idempotent pop)."""
         sym = getattr(order_event, "symbol", None)
-        if sym is None or sym not in self._pending_entry_today:
+        if sym is None:
             return
         status = getattr(order_event, "status", None)
-        terminal = {OrderStatus.Filled, OrderStatus.PartiallyFilled,
-                    OrderStatus.Canceled, OrderStatus.Invalid} if OrderStatus is not None else set()
-        if status in terminal:
+        if OrderStatus is None:
+            return  # dev venv / no QC enum — nothing to compare statuses against
+        # ENTRY pending machine
+        if sym in self._pending_entry_today and status in {
+            OrderStatus.Filled, OrderStatus.PartiallyFilled, OrderStatus.Canceled, OrderStatus.Invalid
+        }:
             self._pending_entry_today.discard(sym)
+        # GTC-floor-fill cleanup: the filled order IS the tracked protective stop → floor fired.
+        if status in {OrderStatus.Filled, OrderStatus.PartiallyFilled}:
+            meta = getattr(self, "_position_meta", {}).get(sym)
+            ticket = meta.get("protective_stop_ticket") if meta else None
+            if ticket is not None:
+                ev_id = getattr(order_event, "order_id", getattr(order_event, "OrderId", None))
+                tk_id = getattr(ticket, "order_id", getattr(ticket, "OrderId", None))
+                if ev_id is not None and tk_id is not None and ev_id == tk_id:
+                    self._position_meta.pop(sym, None)        # floor sold the position — clear its meta
+                    self._pending_entry_today.discard(sym)    # and any stale pending (re-entry now clean)
 
     def _clear_intraday_session_state(self) -> None:
         """#276b-0 H3/SG9 — clear the deferred intraday-confirm PROGRESS + the entry PENDING set at

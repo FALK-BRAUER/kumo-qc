@@ -51,9 +51,15 @@ class _OS:  # fake OrderStatus (real enum absent in the dev venv)
 
 
 class _OE:
-    def __init__(self, sym: Any, status: Any) -> None:
+    def __init__(self, sym: Any, status: Any, order_id: Any = None) -> None:
         self.symbol = sym
         self.status = status
+        self.order_id = order_id
+
+
+class _Ticket:
+    def __init__(self, order_id: Any) -> None:
+        self.order_id = order_id
 
 
 def _qc(order: list[str], *, invested: tuple[str, ...] = (), pending: tuple[str, ...] = ()) -> Any:
@@ -173,3 +179,39 @@ def test_session_clear_resets_pending() -> None:
     qc = _qc(["AAPL"], pending=("AAPL",))
     qc._clear_intraday_session_state()
     assert qc._pending_entry_today == set()
+
+
+# ── #277 GTC-floor-fill cleanup (broker stop fires → pop _position_meta so re-entry is clean) ──
+
+def test_floor_fill_pops_position_meta_and_clears_pending(monkeypatch) -> None:
+    # the GTC protective stop (order_id 5) FILLS broker-side (floor fired) → pop meta + clear pending
+    # → a later re-entry is clean (no GUARD-3 fail-loud on a stale ticket). The bug Rank-1 exposed.
+    monkeypatch.setattr(lean_entry, "OrderStatus", _OS)
+    qc = _qc(["AAPL"], pending=("AAPL",))
+    sym = qc._syms["AAPL"]
+    qc._position_meta = {sym: {"protective_stop_ticket": _Ticket(order_id=5), "entry_price": 100.0}}
+    qc.on_order_event(_OE(sym, _OS.Filled, order_id=5))   # the floor ticket fills
+    assert sym not in qc._position_meta                    # meta cleared → re-entry won't hit GUARD-3
+    assert sym not in qc._pending_entry_today
+
+
+def test_non_floor_fill_does_not_pop_meta(monkeypatch) -> None:
+    # a DIFFERENT order filling (id 9 ≠ the floor's id 5 — e.g. the entry fill) must NOT pop the
+    # floor meta (the position is live + protected; only the floor's own fill clears it).
+    monkeypatch.setattr(lean_entry, "OrderStatus", _OS)
+    qc = _qc(["AAPL"])
+    sym = qc._syms["AAPL"]
+    qc._position_meta = {sym: {"protective_stop_ticket": _Ticket(order_id=5), "entry_price": 100.0}}
+    qc.on_order_event(_OE(sym, _OS.Filled, order_id=9))
+    assert sym in qc._position_meta                        # floor meta intact (different order)
+
+
+def test_runtime_exit_already_popped_meta_is_noop(monkeypatch) -> None:
+    # the runtime FIRE_EXITS path already pops _position_meta; a subsequent event finds no meta →
+    # the floor-cleanup is a harmless no-op (idempotent — no double-pop crash).
+    monkeypatch.setattr(lean_entry, "OrderStatus", _OS)
+    qc = _qc(["AAPL"])
+    sym = qc._syms["AAPL"]
+    qc._position_meta = {}  # FIRE_EXITS already popped it
+    qc.on_order_event(_OE(sym, _OS.Filled, order_id=5))    # must not raise
+    assert qc._position_meta == {}
