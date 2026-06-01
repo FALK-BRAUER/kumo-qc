@@ -54,6 +54,7 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable
 from datetime import timedelta
+from decimal import Decimal
 from hashlib import sha256
 from typing import Any
 
@@ -166,31 +167,43 @@ except ImportError:  # pragma: no cover
     Field = MovingAverageType = None
 
 
+def _to_decimal(x: Any) -> Decimal:
+    """python float → System.Decimal-safe value (#318 FY crash). Cloud pythonnet rejects a raw
+    python ``float`` on a Decimal-typed property ("'float' value cannot be converted to
+    System.Decimal") AND rejects NaN/inf. So convert to ``decimal.Decimal`` and finite-guard
+    (a missing-volume bar → NaN → would otherwise crash deep in the run, as the FY did at ~69%)."""
+    xf = float(x)
+    if not math.isfinite(xf):
+        return Decimal("0")
+    return Decimal(str(xf))
+
+
 def _make_trade_bar(
     time: Any, symbol: Any, open_: float, high: float, low: float, close: float,
     volume: float, period: Any,
 ) -> Any:
-    """Cloud-safe TradeBar construction (#318). The 8-positional-arg ctor
-    ``TradeBar(time, symbol, o, h, l, c, v, period)`` passes LOCAL LEAN but FAILS on QC cloud:
-    cloud pythonnet cannot resolve the constructor overload for a ``datetime.timedelta`` period
-    ("Trying to dynamically access a method that does not exist ... datetime.timedelta"). That is
-    the #318 crash — cloud died at the first post-warmup intraday seed (``_seed_intraday``),
-    aborting the FY run (which got banked as a false −0.611 / 72-order "result").
+    """Cloud-safe SYNTHETIC TradeBar construction (#318) — used by ``_seed_weekly`` ONLY (the
+    aggregated weekly bar has no native-history source to read). The two real-history seeds
+    (``_seed_intraday`` / ``_seed_daily``) read native bars via ``self.history[TradeBar]`` and
+    construct NOTHING — that kills the cloud-interop class at those sites entirely.
 
-    Default-construct + assign properties instead: a no-arg ctor plus single-target property
-    setters carry NO overload ambiguity, so pythonnet resolves them identically on local and
-    cloud. Behaviour-identical to the positional ctor — same OHLCV + period ⇒ same bar
-    (``end_time == time + period``). This is the SINGLE construction point for the three seed
-    paths (intraday / weekly / daily), so cloud-safety lives in one place."""
+    Two cloud pythonnet failure modes are avoided here, both observed in #318:
+      1. the 8-positional-arg ctor's overload resolution on a ``datetime.timedelta`` period (the
+         first crash, at ``_seed_intraday``) → use the no-arg ctor + single-target property setters
+         (no overload ambiguity);
+      2. ``float → System.Decimal`` coercion on the Decimal OHLCV/volume setters (the FY crash at
+         ~69%) → assign ``decimal.Decimal`` values, finite-guarded (``_to_decimal``).
+    Behaviour-identical to the positional ctor: same OHLCV + period ⇒ same bar
+    (``end_time == time + period``)."""
     bar = TradeBar()
     bar.symbol = symbol
     bar.time = time
     bar.period = period
-    bar.open = float(open_)
-    bar.high = float(high)
-    bar.low = float(low)
-    bar.close = float(close)
-    bar.volume = float(volume)
+    bar.open = _to_decimal(open_)
+    bar.high = _to_decimal(high)
+    bar.low = _to_decimal(low)
+    bar.close = _to_decimal(close)
+    bar.volume = _to_decimal(volume)
     return bar
 
 
@@ -631,24 +644,16 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         _seed_daily). Forward-only: history rows dated >= today are dropped (the #213f/#259 guard).
         Enough bars to warm the longest intraday pole (the Ichimoku 78-bar pole)."""
         # ~78 5-min bars/day; pull enough days to clear the 78-bar Ichimoku pole + a buffer.
-        bars = self.history(sym, 8 * 78, Resolution.MINUTE)
-        if bars is None or getattr(bars, "empty", True):
-            return
-        if isinstance(bars.index, pd.MultiIndex):
-            bars = bars.droplevel(0)
-        bars.columns = [c.lower() for c in bars.columns]
+        # #318: TYPED HISTORY — iterate NATIVE TradeBar objects (native Decimal fields, no manual
+        # construction). Kills the cloud-interop class at this site (no ctor, no float→Decimal).
         today = self.time.date()
-        for ts, row in bars.iterrows():
-            # forward-only: never seed a bar from today/future (look-ahead, #275b/#268 lesson).
-            t = ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts
-            if getattr(t, "date", lambda: None)() is not None and t.date() >= today:
+        for bar in self.history[TradeBar](sym, 8 * 78, Resolution.MINUTE):
+            # forward-only: never seed a bar whose data is from today/future (look-ahead,
+            # #275b/#268). end_time = when the bar's data became available (the safe reference).
+            if bar.end_time.date() >= today:
                 continue
-            bar = _make_trade_bar(
-                t, sym, row["open"], row["high"], row["low"], row["close"],
-                row.get("volume", 0.0), timedelta(minutes=5),
-            )
             intraday_tenkan.update(bar)
-            vol_window.add(float(row.get("volume", 0.0)))
+            vol_window.add(float(bar.volume))
 
     def _unsubscribe_intraday(self, sym: Any) -> None:
         """Tear down `sym`'s 5-min subscription + intraday indicators on rotation out of the
@@ -763,37 +768,29 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         This keeps the seed monotonic with the live stream (same invariant the Monday-seed
         gives the weekly path). Single code path, RAW (history inherits RAW). No cloud branch.
         """
-        hist = self.history(sym, self.WARMUP_DAYS, Resolution.DAILY)
-        if hist is None or hist.empty:
-            return
-        if isinstance(hist.index, pd.MultiIndex):
-            hist = hist.droplevel(0)
-        hist.columns = [c.lower() for c in hist.columns]
-        # Forward-only guard: seed only bars STRICTLY BEFORE today (the live feed owns today's
-        # bar, already fed to the auto-updated d_ichi/adx → seeding it = a backward update).
+        # #318: TYPED HISTORY — iterate NATIVE TradeBar objects (native Decimal, no manual
+        # construction). Kills the cloud-interop class at this site (no ctor, no float→Decimal).
+        # Forward-only guard: seed only bars whose data is STRICTLY BEFORE today (the live feed
+        # owns today's bar, already fed to the auto-updated d_ichi/adx → seeding it = a backward
+        # update + a polluted partial bar). end_time = when the bar's data became available.
         today = self.time.date()
-        hist = hist[[ts.date() < today for ts in hist.index]]
-        if hist.empty:
-            return
-        for ts, row in hist.iterrows():
-            t = ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts
+        for bar in self.history[TradeBar](sym, self.WARMUP_DAYS, Resolution.DAILY):
+            if bar.end_time.date() >= today:
+                continue
+            et = bar.end_time
             o, h, lo, c, v = (
-                float(row["open"]),
-                float(row["high"]),
-                float(row["low"]),
-                float(row["close"]),
-                float(row.get("volume", 0.0)),
+                float(bar.open), float(bar.high), float(bar.low), float(bar.close),
+                float(bar.volume),
             )
-            bar = _make_trade_bar(t, sym, o, h, lo, c, v, timedelta(days=1))
             # Full-bar consumers (adx.updated cascades into adx_window).
             d_ichi.update(bar)
             adx.update(bar)
             # Price-series consumers (macd.updated cascades into macd_hist_window).
-            sma200.update(t, c)
-            roc13.update(t, c)
-            macd.update(t, c)
+            sma200.update(et, c)
+            roc13.update(et, c)
+            macd.update(et, c)
             # Volume-field consumer.
-            vol_sma20.update(t, v)
+            vol_sma20.update(et, v)
             # T-Bounce tracker: replay the live _on_daily feed (OHLC + live daily Tenkan).
             tk = d_ichi.tenkan.current.value if d_ichi.is_ready else 0.0
             tbounce.update(o, h, lo, c, float(tk))
