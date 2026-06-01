@@ -226,10 +226,26 @@ def _config_hash(config: Any) -> str:
 
 
 def build(strategy_module: str, *, dist_dir: Path | None = None, verbose: bool = False) -> BuildResult:
-    src = _src_root()
-    dist = dist_dir if dist_dir is not None else src.parent / "dist"
     config = _load_config(strategy_module)
     deployable = _is_deployable(strategy_module)
+    return _build_core(config, deployable, dist_dir, strategy_module, verbose)
+
+
+def build_from_config(
+    config: Any, *, deployable: bool = True, dist_dir: Path | None = None, verbose: bool = False
+) -> BuildResult:
+    """Build a dist from an IN-MEMORY StrategyConfig object (the #323 sweep bridge — a
+    SweepConfig is mapped to a StrategyConfig that has no backing module file). Identical
+    closure/emit/audit path as build(strategy_module); `deployable` is explicit (no LEAN_ENTRY
+    module flag to read). The generated main.py carries config.name as its marker."""
+    return _build_core(config, deployable, dist_dir, getattr(config, "name", "config"), verbose)
+
+
+def _build_core(
+    config: Any, deployable: bool, dist_dir: Path | None, label: str, verbose: bool
+) -> BuildResult:
+    src = _src_root()
+    dist = dist_dir if dist_dir is not None else src.parent / "dist"
     enabled = _enabled_slots(config)
 
     # seed = enabled phase module files + engine core
@@ -278,7 +294,7 @@ def build(strategy_module: str, *, dist_dir: Path | None = None, verbose: bool =
         if item.is_dir():
             raise RuntimeError(f"dist/ has a subdir {item.name} — flat invariant violated")
     if verbose:
-        print(f"built {strategy_module}: {len(included)} phase/engine files + main/manifest/metadata")
+        print(f"built {label}: {len(included)} phase/engine files + main/manifest/metadata")
         print(f"hash={result.config_hash} data={result.data_fingerprint} commit={result.git_commit[:8]}")
     return result
 
