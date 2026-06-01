@@ -100,6 +100,11 @@ class FlatPctHeatcap(BasePhase):
                 stop=0.0,
                 module="sizing.flat_pct_heatcap",
                 risk_dollars=target_value,
+                # PRESERVE the order_type set upstream by entry_timing (#276b-1: ConfirmedMarketEntry
+                # sets "market" for the intraday fire). Rebuilding the intent without carrying it
+                # reset it to the "market_on_open" default → champion_intraday fired next-open MOO
+                # instead of intraday-on-confirm (defeats the model). Carry it forward.
+                order_type=intent.order_type,
             ))
 
         ctx.bar_state.sized_orders = filled

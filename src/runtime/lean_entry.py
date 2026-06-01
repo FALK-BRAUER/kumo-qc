@@ -1019,8 +1019,14 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         for sym in snapshot:  # insertion order == rank order (rank-preserving)
             if self.portfolio[sym].invested or sym in pending:
                 continue
+            # ticker=sym.value (UPPERCASE) — the SAME convention BctScoreFull emits, so the shared
+            # downstream (sizing + FIRE_ENTRIES, which resolve by active_by_value = {s.value: s})
+            # finds it. The intraday gate phases (pre-flight/confirm/floor) lowercase it for their
+            # own active_by_lower lookups, so uppercase is safe there too. (A prior `.lower()` here
+            # was case-inconsistent with sizing/FIRE → a confirmed candidate would be skipped, never
+            # fired — the silent-0 the machinery proof isolates from data-coverage.)
             ictx.bar_state.sized_orders.append(
-                OrderIntent(ticker=sym.value.lower(), qty=0, price=0.0, stop=0.0,
+                OrderIntent(ticker=sym.value, qty=0, price=0.0, stop=0.0,
                             module="signal", risk_dollars=0.0)
             )
             injected += 1

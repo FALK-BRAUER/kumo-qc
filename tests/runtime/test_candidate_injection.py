@@ -87,7 +87,7 @@ def test_injects_all_eligible_candidates_as_zero_qty_stubs() -> None:
     ictx = PhaseContext(qc=qc, time=qc.time, data=None)
     qc._inject_intraday_candidates(ictx)
     stubs = ictx.bar_state.sized_orders
-    assert [s.ticker for s in stubs] == ["aapl", "tsla"]
+    assert [s.ticker for s in stubs] == ["AAPL", "TSLA"]
     assert all(s.qty == 0 for s in stubs), "injected stubs are qty=0 — FIRE_ENTRIES's qty<=0 guard blocks them"
 
 
@@ -95,20 +95,20 @@ def test_held_overnight_invested_blocks_reinjection() -> None:
     # SG8 / Gemini #1: a held name is NOT re-injected as an entry (its exits run on the intraday
     # clock via exit_hard, not as a candidate).
     qc = _qc(["AAPL", "TSLA"], invested=("AAPL",))
-    assert _inject(qc) == ["tsla"]
+    assert _inject(qc) == ["TSLA"]
 
 
 def test_pending_entry_blocks_reinjection_double_entry() -> None:
     # Gemini #1: an entry IN-FLIGHT this session is not re-injected (no double-entry).
     qc = _qc(["AAPL", "TSLA"], pending=("AAPL",))
-    assert _inject(qc) == ["tsla"]
+    assert _inject(qc) == ["TSLA"]
 
 
 def test_rank_preserving_injection_order() -> None:
     # Gemini #3: injection iterates the snapshot in RANK order → on a capital-constrained tick,
     # sizing/BP is consumed highest-rank first.
     qc = _qc(["RANK1", "RANK2", "RANK3"])
-    assert _inject(qc) == ["rank1", "rank2", "rank3"]
+    assert _inject(qc) == ["RANK1", "RANK2", "RANK3"]
 
 
 def test_empty_snapshot_injects_nothing() -> None:
@@ -125,14 +125,14 @@ def test_reject_replay_canceled_makes_candidate_reinjectable(monkeypatch) -> Non
     assert _inject(qc) == []                       # in-flight → skipped
     qc.on_order_event(_OE(qc._syms["AAPL"], _OS.Canceled))   # broker rejected the entry
     assert qc._syms["AAPL"] not in qc._pending_entry_today
-    assert _inject(qc) == ["aapl"]                 # re-injectable (transient reject, second chance)
+    assert _inject(qc) == ["AAPL"]                 # re-injectable (transient reject, second chance)
 
 
 def test_invalid_status_also_reinjectable(monkeypatch) -> None:
     monkeypatch.setattr(lean_entry, "OrderStatus", _OS)
     qc = _qc(["AAPL"], pending=("AAPL",))
     qc.on_order_event(_OE(qc._syms["AAPL"], _OS.Invalid))
-    assert _inject(qc) == ["aapl"]
+    assert _inject(qc) == ["AAPL"]
 
 
 def test_filled_drops_pending_then_invested_covers(monkeypatch) -> None:
