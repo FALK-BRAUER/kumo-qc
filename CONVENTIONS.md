@@ -51,6 +51,15 @@ The #218 retrofit experiments often USED forbidden mechanics (fixed slots, max-p
 
 ## Parity (cloud vs local)
 - Goal = **short-timeframe REPRODUCIBILITY, to a reasonable extent**: local == cloud on a SHORT window (days), same code (`dist/`) + same substrate (fingerprint), within tolerance.
+
+### CLOUD-DEPLOY GATE (Falk, 2026-06-01 — the validation order for deploying a NEW config to cloud)
+**This gates the CLOUD-DEPLOY boundary ONLY — it is a deploy checklist, NOT a restriction on local dev.** LOCAL = arbitrary sweeps + tests, **UNRESTRICTED** (the cached fast loop; iterate freely, no gate). The order below fires ONLY when a **new strategy config is deployed to cloud**:
+1. **Gate 0 — 2-week local + cloud, TRADE-BY-TRADE diff, FIRST.** Run the SAME 2-week window local AND cloud, then diff the orders **order-by-order** (not just Sharpe/metrics). This is how a benign ~1.1× vendor-data residual is separated from a REAL divergence (the #173 first-divergence-point discipline — now mandatory + upfront). A config does NOT advance past gate 0 until the trade-by-trade diff is clean or proven benign vendor-noise.
+2. **Windows before FY, ALWAYS.** After gate 0, run the multi-window validation; only THEN the full-FY-in-cloud run. **Never FY-first.**
+3. **Cloud + local in PARALLEL per step** (not sequential).
+
+Applies to **#277 champion_intraday re-baseline** + the **276b-1 proof-of-life smoke** (both run gate-0 2wk trade-by-trade FIRST). Minor local↔cloud misalignment is EXPECTED (vendor delta); the trade-by-trade diff — never a bare Sharpe comparison — is what proves it benign. This extends (does not replace) the divergence-debug protocol below.
+
 - **#262/#268 MOO-parity is RETIRED (#270).** The local↔cloud "1-bar entry-fill offset" was a SYMPTOM of the wrong blind-market-on-open model (the engine blind-filled an open it should never have filled), not a parity defect to fix. It retires with that model. Parity is re-established on the NEW daily-signal→intraday-confirmed model — and the same delivery-timing question now applies to the **intraday (5-min) clock**: confirm local and cloud deliver intraday bars on the same clock (de-risk with a two-clock SMOKE BT before the full build, then re-baseline). Do not resurrect the MOO-parity chase.
 - **NOT** full-FY exact-match — the cloud-vs-local data-vendor residual is a known irreducible; chasing it is a rabbit-hole (cloud = ground-truth).
 - **NOT** parity against a fixed-universe oracle (326 proved nothing).
