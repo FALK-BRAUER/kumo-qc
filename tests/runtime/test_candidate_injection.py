@@ -206,6 +206,17 @@ def test_non_floor_fill_does_not_pop_meta(monkeypatch) -> None:
     assert sym in qc._position_meta                        # floor meta intact (different order)
 
 
+def test_floor_PARTIAL_fill_keeps_meta_intact_no_orphan(monkeypatch) -> None:
+    # Gemini CRITICAL: a PARTIAL floor fill leaves the remainder LIVE at the broker → must NOT pop
+    # meta (popping loses the ticket → orphan stop → over-sell). Floor-cleanup is Filled-ONLY.
+    monkeypatch.setattr(lean_entry, "OrderStatus", _OS)
+    qc = _qc(["AAPL"])
+    sym = qc._syms["AAPL"]
+    qc._position_meta = {sym: {"protective_stop_ticket": _Ticket(order_id=5), "entry_price": 100.0}}
+    qc.on_order_event(_OE(sym, _OS.PartiallyFilled, order_id=5))  # partial floor fill
+    assert sym in qc._position_meta, "PARTIAL floor fill must NOT pop meta (remainder still live)"
+
+
 def test_runtime_exit_already_popped_meta_is_noop(monkeypatch) -> None:
     # the runtime FIRE_EXITS path already pops _position_meta; a subsequent event finds no meta →
     # the floor-cleanup is a harmless no-op (idempotent — no double-pop crash).

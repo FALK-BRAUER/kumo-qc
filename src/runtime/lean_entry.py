@@ -1070,8 +1070,13 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             OrderStatus.Filled, OrderStatus.PartiallyFilled, OrderStatus.Canceled, OrderStatus.Invalid
         }:
             self._pending_entry_today.discard(sym)
-        # GTC-floor-fill cleanup: the filled order IS the tracked protective stop → floor fired.
-        if status in {OrderStatus.Filled, OrderStatus.PartiallyFilled}:
+        # GTC-floor-fill cleanup: the FULLY-filled order IS the tracked protective stop → floor done.
+        # FILLED-ONLY (NOT PartiallyFilled — Gemini): a partial stop-fill leaves the REMAINDER LIVE at
+        # the broker; popping _position_meta on a partial would LOSE the ticket → orphan stop → the
+        # orphan fires later + over-sells (long→short). A stop is "done" only when fully Filled or
+        # Canceled. (The entry-pending path above correctly uses Filled∪PartiallyFilled — a partial
+        # ENTRY = position open → invested-check covers it. Different terminal semantics per path.)
+        if status == OrderStatus.Filled:
             meta = getattr(self, "_position_meta", {}).get(sym)
             ticket = meta.get("protective_stop_ticket") if meta else None
             if ticket is not None:
