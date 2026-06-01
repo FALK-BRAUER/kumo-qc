@@ -13,6 +13,7 @@ Slots, depends on the PhaseInterface Protocol.
 from __future__ import annotations
 
 import hashlib
+from dataclasses import fields, is_dataclass
 from typing import Any
 
 from base import (
@@ -49,7 +50,7 @@ FIRE_TRIMS = FireSentinel("FIRE_TRIMS")
 PHASE_ORDER: list[str | FireSentinel] = [
     "rebalance", "filter", "universe", "signal", "regime", "ranking",
     "entry_selection", "entry_timing", "sizing",
-    "reentry", "eligibility", "portfolio_risk", "cash",
+    "reentry", "eligibility", "portfolio_risk", "cash", "protective_stop",
     FIRE_ENTRIES,
     "stops_initial", "trail",
     "exit_hard", "exit_target", "exit_regime", "exit_rotation",
@@ -64,7 +65,7 @@ PHASE_ORDER: list[str | FireSentinel] = [
 # Suppressed when bar_blocked (entry-side). Exit-side + tail run regardless.
 ENTRY_ONLY_PHASES: frozenset[str] = frozenset({
     "entry_selection", "entry_timing", "sizing", "reentry",
-    "eligibility", "portfolio_risk", "cash", "adds",
+    "eligibility", "portfolio_risk", "cash", "protective_stop", "adds",
 })
 ENTRY_ONLY_SENTINELS: frozenset[FireSentinel] = frozenset({FIRE_ENTRIES, FIRE_ADDS})
 ALWAYS_RUN: frozenset[str] = frozenset({"diagnostics", "circuit_breaker"})
@@ -117,11 +118,30 @@ def validate_invariants(config: StrategyConfig) -> None:
         )
 
 
+def _params_canonical(params: Any) -> str:
+    """Canonical params string for the config hash, EXCLUDING a phase's STRUCTURAL fields
+    (`Params._HASH_EXCLUDE`). A structural field (e.g. sizing `resolution`, the clock-routing knob)
+    is NOT an independent behavioral axis: it is FUNCTIONALLY DETERMINED by the entry-model phase set
+    (intraday entry phases → intraday chain) and the chain-clock guard ENFORCES that coupling, so it
+    is redundant for behavioral identity (the phase sets already differ in the hash) and cannot
+    create a collision. Excluding it keeps the config_hash a stable BEHAVIORAL fingerprint (and keeps
+    champion-asis at its e573e84b1ce1 baseline when the shared sizer gains the structural knob).
+    A NON-structural param change still moves the hash (only the named structural fields are dropped)."""
+    exclude = getattr(type(params), "_HASH_EXCLUDE", frozenset())
+    if not exclude or not is_dataclass(params):
+        return repr(params)
+    inner = ", ".join(
+        f"{f.name}={getattr(params, f.name)!r}"
+        for f in fields(params) if f.name not in exclude
+    )
+    return f"{type(params).__qualname__}({inner})"
+
+
 def _config_hash(config: StrategyConfig) -> str:
     parts: list[str] = [config.name, config.version]
     for kind in sorted(config.phases):
         for slot in _slots(config.phases[kind]):
-            parts.append(f"{kind}:{slot.impl.__name__}:{slot.enabled}:{slot.params!r}")
+            parts.append(f"{kind}:{slot.impl.__name__}:{slot.enabled}:{_params_canonical(slot.params)}")
     canonical = "|".join(parts)
     return hashlib.sha256(canonical.encode()).hexdigest()[:12]
 
@@ -150,8 +170,43 @@ class StrategyEngine:
         # phase wired the intraday subset is EMPTY and on_data_with_ctx replays the FULL order →
         # behaviour IDENTICAL to the pre-#274 single-clock engine).
         self._daily_order, self._intraday_order = self._partition_clocks()
+        self._validate_entry_chain_clock()
         self._log_phase_markers()
         self.logger.log_strategy_init(_config_hash(config), config.name, config.version)
+
+    def _validate_entry_chain_clock(self) -> None:
+        """#276b-1 FAIL-LOUD chain-clock guard. The entry-EXECUTION chain (the kinds from
+        entry_selection up to FIRE_ENTRIES — entry_selection, entry_timing, sizing, reentry,
+        eligibility, portfolio_risk, cash, protective_stop) is ONE ATOMIC sequence: a candidate stub
+        is selected → timed → sized → capped → floored → FIRED, all on the SAME bar. If a WIRED chain
+        kind resolves to a different clock than FIRE_ENTRIES, the stub never completes the sequence —
+        e.g. sizing=daily while FIRE_ENTRIES=intraday leaves stubs UNSIZED at the fire seam → silent
+        0 orders (the exact #276b-1 bug). Crash at init instead.
+
+        Mirrors the per-kind MIXED-clocks guard, extended to the cross-kind chain. ESSENTIAL for
+        programmatic configs (Epic-2 sweeps generate configs; a forgotten resolution on one chain
+        phase would otherwise produce a silent-zero champion). FIRE_ENTRIES' clock = the entry clock
+        (entry_timing if wired, else entry_selection); with no entry phase wired (a fixture) there is
+        no chain to validate (FIRE_ENTRIES fires the daily stubs directly) → no-op."""
+        if not (self.phases.get("entry_timing") or self.phases.get("entry_selection")):
+            return  # no entry-confirm phase (fixture) → no entry-execution chain to enforce
+        fire_clock = (self._phase_clock("entry_timing") if self.phases.get("entry_timing")
+                      else self._phase_clock("entry_selection"))
+        start = PHASE_ORDER.index("entry_selection")
+        end = PHASE_ORDER.index(FIRE_ENTRIES)
+        chain_kinds = [k for k in PHASE_ORDER[start:end] if isinstance(k, str)]
+        mismatched = [
+            f"{k}={self._phase_clock(k)}" for k in chain_kinds
+            if self.phases.get(k) and self._phase_clock(k) != fire_clock
+        ]
+        if mismatched:
+            raise ConfigError(
+                f"entry-execution chain mixed clocks: {', '.join(mismatched)} but "
+                f"FIRE_ENTRIES={fire_clock} — the chain (entry_selection..FIRE_ENTRIES) is one atomic "
+                f"sequence and MUST share one clock; a mismatched kind leaves stubs unsized/unfloored "
+                f"at the fire seam (silent 0 orders). Set PHASE_RESOLUTION (the resolution param) "
+                f"consistently across the entry-execution chain (#276b-1)."
+            )
 
     def _phase_clock(self, kind: str) -> str:
         """The clock a configured phase-kind runs on = the PHASE_RESOLUTION of its instances
@@ -375,6 +430,12 @@ class StrategyEngine:
                         f"lifecycle (#276b) must handle re-entry before this combo is allowed (#276a)"
                     )
                 self._submit(qc, sym, intent)  # the entry, per intent.order_type
+                # #276b-1 (Gemini fix #1): mark the entry IN-FLIGHT so the runtime's intraday
+                # candidate-injection won't re-inject this sym before the order resolves (double-
+                # entry). Optional hook — no-op if the runtime doesn't track pending entries.
+                _mark_pending = getattr(qc, "_mark_entry_pending", None)
+                if callable(_mark_pending):
+                    _mark_pending(sym)
                 price = float(qc.securities[sym].price)
                 if not hasattr(qc, "_position_meta"):
                     qc._position_meta = {}

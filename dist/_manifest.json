@@ -1,6 +1,6 @@
 {
   "build_script_version": "1.0.0",
-  "config_hash": "e573e84b1ce1",
+  "config_hash": "50d25606b9e9",
   "data_fingerprint": "90f2d7e3fb80d0a4d2eb286f6a43199e1519495a3ce9d787a4d7d0dfc70c535c",
   "files": [
     "_manifest.json",
@@ -15,7 +15,11 @@
     "main.py",
     "phase_diagnostics_chart_emit.py",
     "phase_diagnostics_version_marker.py",
+    "phase_entry_selection_bct_intraday_confirm.py",
+    "phase_entry_selection_preflight_staleness.py",
+    "phase_entry_timing_confirmed_market_entry.py",
     "phase_exit_kijun_g3_exits.py",
+    "phase_protective_stop_kijun_protective_stop.py",
     "phase_regime_spy_200ma.py",
     "phase_regime_vix_percentile.py",
     "phase_signal_bct_score_full.py",
@@ -25,11 +29,14 @@
     "shared_param_space.py",
     "universe_select.py"
   ],
-  "git_commit": "23852b7de7a8d6ad2e32556af579a65462840b2b",
-  "is_fixture": true,
+  "git_commit": "c0a9020ab3ea20ad94ec46c462ff55f05cc9ad96",
+  "is_fixture": false,
   "phase_markers": {
     "diagnostics": "version_marker_v1,chart_emit_v1",
+    "entry_selection": "preflight_staleness_v1,bct_intraday_confirm_v1",
+    "entry_timing": "confirmed_market_entry_v1",
     "exit_hard": "kijun_g3_exits_v1",
+    "protective_stop": "kijun_protective_stop_v1",
     "regime": "spy_200ma_v1,vix_percentile_v1",
     "signal": "bct_score_full_v1",
     "sizing": "flat_pct_heatcap_v1",

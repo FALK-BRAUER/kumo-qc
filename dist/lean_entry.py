@@ -61,7 +61,7 @@ from typing import Any
 import pandas as pd
 
 from base import DegradedDataError, DegradedScheduleError
-from context import PhaseContext
+from context import OrderIntent, PhaseContext
 from engine import StrategyEngine
 from indicators import INDICATOR_KEYS, TBounceTracker, weekly_aggregate
 from universe_select import (
@@ -152,6 +152,7 @@ try:  # pragma: no cover - QC runtime import; absent in the dev venv / unit test
         IchimokuKinkoHyo,
         Market,
         MovingAverageType,
+        OrderStatus,
         QCAlgorithm,
         Resolution,
         RollingWindow,
@@ -164,7 +165,7 @@ except ImportError:  # pragma: no cover
     QCAlgorithm = object
     DataNormalizationMode = Resolution = SecurityType = Market = Symbol = None
     Calendar = IchimokuKinkoHyo = RollingWindow = TradeBar = TradeBarConsolidator = None
-    Field = MovingAverageType = None
+    Field = MovingAverageType = OrderStatus = None
 
 
 def _to_decimal(x: Any) -> Decimal:
@@ -309,9 +310,24 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self._intraday: dict[Any, dict[str, Any]] = {}
         self._intraday_active: set[Any] = set()
 
-        # #313: the date the daily DECISION clock last ran — the once-per-date idempotency guard in
-        # the scheduled after-close callback (_on_after_close_decision). None until the first decision.
+        # #276b-0 daily→intraday SNAPSHOT handoff. _candidate_snapshot[sym] = {signal_price,
+        # daily_kijun, decision_date}: each DECIDED candidate's thesis, captured on the daily clock
+        # (in the #313 scheduled after-close callback) for the intraday clock (PreFlightStaleness +
+        # confirm read it). REUSE-IDENTITY: keyed by the SAME canonical Symbol _active/_intraday use
+        # — never a re-created Symbol (kills the subscribed≠decided desync by construction). Rebuilt
+        # fresh each daily decision. _entry_confirm = the deferred intraday-confirm PROGRESS store
+        # (populated by the #276b-1 confirm phase), cleared at session-end (on_end_of_day, H3/SG9).
+        # _last_daily_date = the most-recent daily-decision date — serves BOTH #313's once-per-date
+        # guard (_on_after_close_decision) AND 276b-0's H2 staleness check (snapshot_for_entry).
+        self._candidate_snapshot: dict[Any, dict[str, Any]] = {}
         self._last_daily_date: Any = None
+        self._entry_confirm: dict[Any, Any] = {}
+        # #276b-1 candidate-injection PENDING-STATE (Gemini fix #1): syms with an entry order
+        # IN-FLIGHT this session. Injection skips invested ∪ pending so an in-flight entry is not
+        # re-injected (double-entry); a broker REJECT (Canceled/Invalid) drops it from pending →
+        # re-injectable next tick (a transient reject is not a permanently-lost trade). Driven by
+        # on_order_event terminal status; cleared at session end.
+        self._pending_entry_today: set[Any] = set()
 
         # #313 WATCHDOG (the permanent protection vs silent no-fire): the daily decision must keep
         # pace with elapsed trading days. _sched_trading_days counts post-warmup trading days (the
@@ -828,6 +844,9 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             if fed_intraday:
                 ictx = PhaseContext(qc=self, time=self.time, data=data)
                 ictx.clock = "intraday"
+                # #276b-1: seed the standing daily candidates into this fresh per-tick bar_state
+                # BEFORE the intraday clock runs, so entry_selection can gate them (the two-clock seam).
+                self._inject_intraday_candidates(ictx)
                 self.engine.on_intraday_bar(ictx)
 
         # #313: the DAILY DECISION clock is NO LONGER triggered here. on_data carries ONLY the
@@ -854,12 +873,22 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             return  # once-per-date idempotency (defense-in-depth — the scheduled event fires once/day anyway)
         self._last_daily_date = today
         self._sched_decisions = getattr(self, "_sched_decisions", 0) + 1  # #313 watchdog: decision fired
-        # #275b-fix (LAG): reconcile intraday subs BEFORE the pipeline — qc._active/_ranked_today are
-        # CURRENT for T (on_securities_changed has fired), so T's candidates get their T+1 5-min feed.
-        self._sync_intraday_subscriptions(getattr(self, "_ranked_today", []))
+        # #276b-1: run the daily pipeline FIRST, then hand the SIGNAL WINNERS (not the pre-signal
+        # universe) to the intraday clock. The daily SIGNAL (BctScoreFull score>=7) is the WHO; the
+        # intraday clock confirms the WHEN on exactly those names. (#276b-0 originally synced/snap'd
+        # qc._ranked_today = the ~hundreds-name ranked UNIVERSE → the intraday feeds were starved by
+        # the cap and the signal filter was bypassed → silent 0 orders; fixed here.)
         ctx = PhaseContext(qc=self, time=self.time, data=None)  # scheduled event — no slice; daily phases read maintained indicators
         ctx.clock = "daily"
         self.engine.on_data_with_ctx(ctx)
+        # The daily pipeline's surviving intents == the signal winners (entry_selection/timing/sizing
+        # are on the INTRADAY clock for the intraday champion, so the daily bar_state ends at signal).
+        winners = [intent.ticker for intent in ctx.bar_state.sized_orders]
+        # subscribe ONLY the winners for T+1's 5-min feed (all fit INTRADAY_SUBSCRIBE_CAP) + held
+        # names (handled inside _sync) — so every confirmable candidate actually has intraday data.
+        self._sync_intraday_subscriptions(winners)
+        # capture the WINNERS' theses (signal_price + daily_kijun) for the intraday confirm + floor.
+        self._capture_candidate_snapshot(winners)
 
     def _assert_schedule_health(self) -> None:
         """#313 WATCHDOG — the daily DECISION must keep pace with elapsed trading days. Called from
@@ -893,3 +922,154 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                 f"{self._sched_trading_days} post-warmup trading days vs {self._sched_decisions} "
                 f"decisions (gap {gap} > 1) — the scheduled after-close trigger under-fired."
             )
+
+    def _capture_candidate_snapshot(self, winners: "list[str]") -> None:
+        """#276b-0/#276b-1 daily→intraday handoff. Snapshot each DECIDED candidate's thesis
+        ({signal_price, daily_kijun, decision_date}) so the intraday clock (PreFlightStaleness +
+        confirm, #276b-1) can validate against it.
+
+        `winners` = the daily SIGNAL winners (BctScoreFull score>=7, from the daily pipeline's
+        ctx.bar_state.sized_orders) — the WHO. #276b-1 fix: snapshot THESE, not the pre-signal
+        ranked universe (qc._ranked_today) — snapshotting the universe bypassed the signal filter +
+        starved the capped intraday feeds → silent 0 orders.
+
+        REUSE-IDENTITY (the desync killer, HQ): key the snapshot by the SAME canonical Symbol that
+        `_active`/`_intraday` already hold — resolve the winner tickers via `_active` (the
+        `{value.lower(): sym}` idiom), NEVER `Symbol.create(...)`. If we never re-create a Symbol,
+        a subscribed≠decided key drift cannot occur by construction.
+
+        signal_price = T's decision-bar close (the gap reference); daily_kijun = the maintained
+        daily Ichimoku (O(1), no history). Rebuilt fresh each daily decision → a name dropped from
+        today's winner set disappears. A candidate not yet subscribed (on_securities_changed lag) or
+        with a cold daily Ichimoku is SKIPPED here — the intraday side's H1 then treats a subscribed
+        name with no snapshot as not-enterable (skip-loud), so a missing thesis can never fire."""
+        # canonical identity, reused — never Symbol.create (the desync killer).
+        active_by_lower = {s.value.lower(): s for s in getattr(self, "_active", set())}
+        indicators = getattr(self, "_indicators", {})
+        decision_date = self.time.date()
+        snap: dict[Any, dict[str, Any]] = {}
+        for ticker in winners:
+            sym = active_by_lower.get(ticker.lower())
+            if sym is None:
+                continue  # decided but not yet subscribed — H1 covers it on the intraday side
+            ind = indicators.get(sym)
+            d_ichi = ind.get("d_ichi") if ind else None
+            if d_ichi is None or not getattr(d_ichi, "is_ready", False):
+                continue  # cold daily thesis → not enterable; never snapshot a half-formed thesis
+            snap[sym] = {
+                "signal_price": float(self.securities[sym].price),
+                "daily_kijun": float(d_ichi.kijun.current.value),
+                "decision_date": decision_date,
+            }
+        self._candidate_snapshot = snap
+        log = getattr(self, "log", None)
+        if callable(log):
+            log(f"SNAPSHOT|{decision_date}|candidates={len(snap)}")
+
+    def snapshot_for_entry(self, sym: Any) -> "dict[str, Any] | None":
+        """#276b-0 H1 + H2 — the guarded accessor the intraday entry phases (#276b-1) MUST use to
+        read a candidate's thesis. SINGLE authority gate so the desync/staleness checks cannot be
+        bypassed per-phase.
+
+        H1 (snapshot-is-authority): a symbol with NO snapshot entry is NOT enterable → return None
+        + skip-loud (logged); the caller skips it, NEVER falls back to entering. A subscribed name
+        the daily clock did not decide cannot fire an unauthorized entry.
+
+        H2 (staleness fail-loud): the snapshot's decision_date MUST be the most-recent daily
+        decision (`_last_daily_date`). An older date = a missed/failed daily handoff → acting on it
+        would trade a stale thesis → DegradedDataError (the SG9 desync tripwire), never a silent
+        2-day-stale entry."""
+        snap = self._candidate_snapshot.get(sym)
+        if snap is None:
+            log = getattr(self, "log", None)
+            if callable(log):
+                log(f"SNAPSHOT_SKIP|{getattr(sym, 'value', sym)}|no decided thesis — not enterable (H1)")
+            return None
+        if self._last_daily_date is not None and snap["decision_date"] != self._last_daily_date:
+            raise DegradedDataError(
+                f"stale candidate snapshot for {getattr(sym, 'value', sym)}: decision_date="
+                f"{snap['decision_date']} but last daily decision={self._last_daily_date} — a "
+                f"missed daily→intraday handoff. Refusing to enter a stale thesis (#276b-0 H2, SG9)."
+            )
+        return snap
+
+    def _inject_intraday_candidates(self, ictx: PhaseContext) -> None:
+        """#276b-1 CANDIDATE INJECTION (the two-clock seam, HQ/Gemini-reviewed). ctx.bar_state is
+        FRESH per 5-min tick; the standing daily candidates live in `_candidate_snapshot` (276b-0).
+        Seed a qty=0 OrderIntent STUB per ELIGIBLE candidate into ictx.bar_state.sized_orders so the
+        intraday entry_selection phases (PreFlightStaleness → BctIntradayConfirm) can gate them, then
+        entry_timing → sizing → FIRE_ENTRIES fire the confirmed/sized ones.
+
+        RANK-PRESERVING (Gemini fix #3): `_candidate_snapshot` is built by iterating `_ranked_today`
+        into an insertion-ordered dict, so iterating it here preserves rank → on a capital-constrained
+        tick, sizing/BP is consumed highest-rank first.
+
+        ELIGIBILITY (Gemini fix #1): inject iff NOT invested AND NOT pending. `invested` blocks
+        re-entry on a held name (its EXITS run on the intraday clock via exit_hard, never re-injected
+        as an entry — SG8). `pending` (an entry order in-flight this session) blocks double-entry; a
+        broker reject drops it from pending (on_order_event) → re-injectable next tick.
+
+        The qty=0 stub is an INTERNAL artifact — FIRE_ENTRIES's `qty <= 0` guard (Gemini fix #2)
+        ensures a stub that no phase sized NEVER reaches the broker."""
+        snapshot = getattr(self, "_candidate_snapshot", {})
+        if not snapshot:
+            return
+        pending = getattr(self, "_pending_entry_today", set())
+        injected = 0
+        for sym in snapshot:  # insertion order == rank order (rank-preserving)
+            if self.portfolio[sym].invested or sym in pending:
+                continue
+            # ticker=sym.value (UPPERCASE) — the SAME convention BctScoreFull emits, so the shared
+            # downstream (sizing + FIRE_ENTRIES, which resolve by active_by_value = {s.value: s})
+            # finds it. The intraday gate phases (pre-flight/confirm/floor) lowercase it for their
+            # own active_by_lower lookups, so uppercase is safe there too. (A prior `.lower()` here
+            # was case-inconsistent with sizing/FIRE → a confirmed candidate would be skipped, never
+            # fired — the silent-0 the machinery proof isolates from data-coverage.)
+            ictx.bar_state.sized_orders.append(
+                OrderIntent(ticker=sym.value, qty=0, price=0.0, stop=0.0,
+                            module="signal", risk_dollars=0.0)
+            )
+            injected += 1
+        if injected:
+            log = getattr(self, "log", None)
+            if callable(log):
+                log(f"INTRADAY_INJECT|{self.time.date()}|candidates={injected}")
+
+    def _mark_entry_pending(self, sym: Any) -> None:
+        """#276b-1 (Gemini fix #1) — engine hook called when an ENTRY order is SUBMITTED. Marks the
+        sym as having an entry in-flight so `_inject_intraday_candidates` won't re-inject it before
+        the order resolves. Resolved by `on_order_event` (filled → invested covers it; rejected →
+        re-injectable). Optional hook (engine guards with getattr) — no-op if the runtime omits it."""
+        self._pending_entry_today.add(sym)
+
+    def on_order_event(self, order_event: Any) -> None:
+        """#276b-1 (Gemini fix #1) — the entry PENDING-STATE machine. An entry submission is NOT a
+        success: a broker reject (insufficient BP, halt, locate, gross-cap) leaves the position
+        un-invested. Tying re-injection to a binary on-submit flag would permanently lose a
+        transiently-rejected candidate. So: on any TERMINAL status for a pending sym, drop it from
+        pending — Filled/PartiallyFilled → now invested (invested-check blocks re-injection);
+        Canceled/Invalid → re-injectable next tick (gets another chance if the condition cleared).
+        sym-keyed discard is safe: only syms with an in-flight ENTRY are in pending (a held name's
+        exit/stop events find sym absent → no-op)."""
+        sym = getattr(order_event, "symbol", None)
+        if sym is None or sym not in self._pending_entry_today:
+            return
+        status = getattr(order_event, "status", None)
+        terminal = {OrderStatus.Filled, OrderStatus.PartiallyFilled,
+                    OrderStatus.Canceled, OrderStatus.Invalid} if OrderStatus is not None else set()
+        if status in terminal:
+            self._pending_entry_today.discard(sym)
+
+    def _clear_intraday_session_state(self) -> None:
+        """#276b-0 H3/SG9 — clear the deferred intraday-confirm PROGRESS + the entry PENDING set at
+        session end so neither an unconfirmed candidate nor an in-flight-entry marker bleeds into
+        T+2's session. _candidate_snapshot is NOT cleared here (it is overwritten by the next daily
+        decision — a held thesis legitimately survives the same-day boundary); only the per-session
+        confirm progress + pending-entry markers reset."""
+        self._entry_confirm = {}
+        self._pending_entry_today = set()
+
+    def on_end_of_day(self, symbol: Any = None) -> None:
+        """QC session-end hook — clear the intraday-confirm progress (H3/SG9). Idempotent (QC fires
+        it per-symbol; clearing an already-empty store is a no-op)."""
+        self._clear_intraday_session_state()
