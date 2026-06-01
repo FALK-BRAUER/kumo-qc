@@ -164,13 +164,30 @@ def _data_fingerprint() -> str:
     return "unknown"
 
 
+def _params_canonical(params: Any) -> str:
+    """Params string for the config hash, EXCLUDING a phase's STRUCTURAL fields
+    (`Params._HASH_EXCLUDE`). MUST stay byte-identical to engine._params_canonical — the build hash
+    is asserted == the engine pin. #276b-1: `resolution` (clock-routing) is phase-determined (the
+    chain-clock guard enforces it) → redundant for behavioral identity, excluded so champion-asis
+    stays at e573e84b1ce1 when the shared sizer gains the structural knob. (DRY DEBT: this duplicates
+    engine._config_hash — see #297; they MUST match. Unify in a shared module in a follow-up.)"""
+    exclude = getattr(type(params), "_HASH_EXCLUDE", frozenset())
+    if not exclude or not dataclasses.is_dataclass(params):
+        return repr(params)
+    inner = ", ".join(
+        f"{f.name}={getattr(params, f.name)!r}"
+        for f in dataclasses.fields(params) if f.name not in exclude
+    )
+    return f"{type(params).__qualname__}({inner})"
+
+
 def _config_hash(config: Any) -> str:
     parts = [config.name, config.version]
     for kind in sorted(config.phases):
         value = config.phases[kind]
         slots = value if isinstance(value, list) else [value]
         for s in slots:
-            parts.append(f"{kind}:{s.impl.__name__}:{s.enabled}:{s.params!r}")
+            parts.append(f"{kind}:{s.impl.__name__}:{s.enabled}:{_params_canonical(s.params)}")
     return hashlib.sha256("|".join(parts).encode()).hexdigest()[:12]
 
 

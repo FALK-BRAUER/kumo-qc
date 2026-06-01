@@ -873,15 +873,22 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             return  # once-per-date idempotency (defense-in-depth — the scheduled event fires once/day anyway)
         self._last_daily_date = today
         self._sched_decisions = getattr(self, "_sched_decisions", 0) + 1  # #313 watchdog: decision fired
-        # #275b-fix (LAG): reconcile intraday subs BEFORE the pipeline — qc._active/_ranked_today are
-        # CURRENT for T (on_securities_changed has fired), so T's candidates get their T+1 5-min feed.
-        self._sync_intraday_subscriptions(getattr(self, "_ranked_today", []))
+        # #276b-1: run the daily pipeline FIRST, then hand the SIGNAL WINNERS (not the pre-signal
+        # universe) to the intraday clock. The daily SIGNAL (BctScoreFull score>=7) is the WHO; the
+        # intraday clock confirms the WHEN on exactly those names. (#276b-0 originally synced/snap'd
+        # qc._ranked_today = the ~hundreds-name ranked UNIVERSE → the intraday feeds were starved by
+        # the cap and the signal filter was bypassed → silent 0 orders; fixed here.)
         ctx = PhaseContext(qc=self, time=self.time, data=None)  # scheduled event — no slice; daily phases read maintained indicators
         ctx.clock = "daily"
         self.engine.on_data_with_ctx(ctx)
-        # #276b-0: capture the daily→intraday thesis snapshot AFTER the pipeline (relocated
-        # here from the removed on_data daily block — #313 Q-D). The intraday clock reads it.
-        self._capture_candidate_snapshot()
+        # The daily pipeline's surviving intents == the signal winners (entry_selection/timing/sizing
+        # are on the INTRADAY clock for the intraday champion, so the daily bar_state ends at signal).
+        winners = [intent.ticker for intent in ctx.bar_state.sized_orders]
+        # subscribe ONLY the winners for T+1's 5-min feed (all fit INTRADAY_SUBSCRIBE_CAP) + held
+        # names (handled inside _sync) — so every confirmable candidate actually has intraday data.
+        self._sync_intraday_subscriptions(winners)
+        # capture the WINNERS' theses (signal_price + daily_kijun) for the intraday confirm + floor.
+        self._capture_candidate_snapshot(winners)
 
     def _assert_schedule_health(self) -> None:
         """#313 WATCHDOG — the daily DECISION must keep pace with elapsed trading days. Called from
@@ -916,19 +923,24 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                 f"decisions (gap {gap} > 1) — the scheduled after-close trigger under-fired."
             )
 
-    def _capture_candidate_snapshot(self) -> None:
-        """#276b-0 daily→intraday handoff. Snapshot each DECIDED candidate's thesis
+    def _capture_candidate_snapshot(self, winners: "list[str]") -> None:
+        """#276b-0/#276b-1 daily→intraday handoff. Snapshot each DECIDED candidate's thesis
         ({signal_price, daily_kijun, decision_date}) so the intraday clock (PreFlightStaleness +
         confirm, #276b-1) can validate against it.
 
+        `winners` = the daily SIGNAL winners (BctScoreFull score>=7, from the daily pipeline's
+        ctx.bar_state.sized_orders) — the WHO. #276b-1 fix: snapshot THESE, not the pre-signal
+        ranked universe (qc._ranked_today) — snapshotting the universe bypassed the signal filter +
+        starved the capped intraday feeds → silent 0 orders.
+
         REUSE-IDENTITY (the desync killer, HQ): key the snapshot by the SAME canonical Symbol that
-        `_active`/`_intraday` already hold — resolve today's ranked tickers via `_active` (the L615
+        `_active`/`_intraday` already hold — resolve the winner tickers via `_active` (the
         `{value.lower(): sym}` idiom), NEVER `Symbol.create(...)`. If we never re-create a Symbol,
         a subscribed≠decided key drift cannot occur by construction.
 
         signal_price = T's decision-bar close (the gap reference); daily_kijun = the maintained
         daily Ichimoku (O(1), no history). Rebuilt fresh each daily decision → a name dropped from
-        today's ranked set disappears. A candidate not yet subscribed (on_securities_changed lag) or
+        today's winner set disappears. A candidate not yet subscribed (on_securities_changed lag) or
         with a cold daily Ichimoku is SKIPPED here — the intraday side's H1 then treats a subscribed
         name with no snapshot as not-enterable (skip-loud), so a missing thesis can never fire."""
         # canonical identity, reused — never Symbol.create (the desync killer).
@@ -936,7 +948,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         indicators = getattr(self, "_indicators", {})
         decision_date = self.time.date()
         snap: dict[Any, dict[str, Any]] = {}
-        for ticker in getattr(self, "_ranked_today", []):
+        for ticker in winners:
             sym = active_by_lower.get(ticker.lower())
             if sym is None:
                 continue  # decided but not yet subscribed — H1 covers it on the intraday side

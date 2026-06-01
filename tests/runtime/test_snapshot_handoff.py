@@ -74,7 +74,7 @@ def test_capture_keys_by_canonical_symbol_identity() -> None:
     aapl, msft = FakeSym("AAPL"), FakeSym("MSFT")
     inds = {aapl: {"d_ichi": FakeDIchi(140.0)}, msft: {"d_ichi": FakeDIchi(400.0)}}
     a = _algo([aapl, msft], ["aapl", "msft"], inds, {aapl: 150.0, msft: 410.0})
-    a._capture_candidate_snapshot()
+    a._capture_candidate_snapshot(a._ranked_today)
     assert set(a._candidate_snapshot) == {aapl, msft}
     for k in a._candidate_snapshot:
         # the desync tripwire AS A TEST: every snapshot key is the SAME object _active/_intraday
@@ -91,14 +91,14 @@ def test_capture_skips_unsubscribed_candidate() -> None:
     # re-created. H1 covers it on the intraday side.
     aapl = FakeSym("AAPL")
     a = _algo([aapl], ["aapl", "tsla"], {aapl: {"d_ichi": FakeDIchi(140.0)}}, {aapl: 150.0})
-    a._capture_candidate_snapshot()
+    a._capture_candidate_snapshot(a._ranked_today)
     assert set(a._candidate_snapshot) == {aapl}
 
 
 def test_capture_skips_cold_daily_ichimoku() -> None:
     aapl = FakeSym("AAPL")
     a = _algo([aapl], ["aapl"], {aapl: {"d_ichi": FakeDIchi(140.0, ready=False)}}, {aapl: 150.0})
-    a._capture_candidate_snapshot()
+    a._capture_candidate_snapshot(a._ranked_today)
     assert a._candidate_snapshot == {}, "a cold daily thesis must NOT be snapshotted"
 
 
@@ -107,10 +107,10 @@ def test_capture_rebuilt_fresh_drops_stale_name() -> None:
     aapl, msft = FakeSym("AAPL"), FakeSym("MSFT")
     inds = {aapl: {"d_ichi": FakeDIchi(140.0)}, msft: {"d_ichi": FakeDIchi(400.0)}}
     a = _algo([aapl, msft], ["aapl", "msft"], inds, {aapl: 150.0, msft: 410.0})
-    a._capture_candidate_snapshot()
+    a._capture_candidate_snapshot(a._ranked_today)
     assert set(a._candidate_snapshot) == {aapl, msft}
     a._ranked_today = ["aapl"]  # msft dropped from today's decision
-    a._capture_candidate_snapshot()
+    a._capture_candidate_snapshot(a._ranked_today)
     assert set(a._candidate_snapshot) == {aapl}
 
 
@@ -119,7 +119,7 @@ def test_capture_rebuilt_fresh_drops_stale_name() -> None:
 def test_snapshot_for_entry_missing_is_skiploud_not_entry() -> None:
     aapl, ghost = FakeSym("AAPL"), FakeSym("GHOST")
     a = _algo([aapl], ["aapl"], {aapl: {"d_ichi": FakeDIchi(140.0)}}, {aapl: 150.0})
-    a._capture_candidate_snapshot()
+    a._capture_candidate_snapshot(a._ranked_today)
     a._last_daily_date = date(2025, 6, 2)
     assert a.snapshot_for_entry(ghost) is None, "undecided symbol must NOT be enterable"
     assert any("SNAPSHOT_SKIP" in m for m in a.logged), "must skip-LOUD, not silently"
@@ -130,7 +130,7 @@ def test_snapshot_for_entry_missing_is_skiploud_not_entry() -> None:
 def test_snapshot_for_entry_stale_raises() -> None:
     aapl = FakeSym("AAPL")
     a = _algo([aapl], ["aapl"], {aapl: {"d_ichi": FakeDIchi(140.0)}}, {aapl: 150.0})
-    a._capture_candidate_snapshot()  # decision_date = 2025-06-02
+    a._capture_candidate_snapshot(a._ranked_today)  # decision_date = 2025-06-02
     a._last_daily_date = date(2025, 6, 4)  # a later decision ran → the snapshot is 2-day stale
     with pytest.raises(DegradedDataError, match="stale candidate snapshot"):
         a.snapshot_for_entry(aapl)
@@ -140,7 +140,7 @@ def test_snapshot_for_entry_fresh_returns() -> None:
     # MUTATION-BITE control for the stale case: matching decision_date → returns the thesis.
     aapl = FakeSym("AAPL")
     a = _algo([aapl], ["aapl"], {aapl: {"d_ichi": FakeDIchi(140.0)}}, {aapl: 150.0})
-    a._capture_candidate_snapshot()
+    a._capture_candidate_snapshot(a._ranked_today)
     a._last_daily_date = date(2025, 6, 2)
     snap = a.snapshot_for_entry(aapl)
     assert snap is not None and snap["daily_kijun"] == 140.0 and snap["signal_price"] == 150.0
@@ -160,7 +160,7 @@ def test_session_end_clear_preserves_snapshot() -> None:
     # (the snapshot is overwritten by the next daily decision, not the session-end event).
     aapl = FakeSym("AAPL")
     a = _algo([aapl], ["aapl"], {aapl: {"d_ichi": FakeDIchi(140.0)}}, {aapl: 150.0})
-    a._capture_candidate_snapshot()
+    a._capture_candidate_snapshot(a._ranked_today)
     a._entry_confirm = {aapl: {"bars_seen": 2}}
     a.on_end_of_day()
     assert a._entry_confirm == {}
