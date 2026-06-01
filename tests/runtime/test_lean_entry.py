@@ -393,3 +393,46 @@ def test_active_set_hash_changes_on_membership() -> None:
     _, h1 = active_set_hash(["AAPL", "MSFT"])
     _, h2 = active_set_hash(["AAPL", "MSFT", "NVDA"])
     assert h1 != h2
+
+
+# -- #313 WATCHDOG: daily-decision must keep pace with trading days (fail-loud on silent no-fire) --
+
+def _watchdog_algo(trading_days, decisions):
+    from runtime.lean_entry import BctEngineAlgorithm
+    a = BctEngineAlgorithm()
+    a._schedule_armed = True  # armed run (watchdog active)
+    a._sched_trading_days = trading_days
+    a._sched_decisions = decisions
+    return a
+
+
+def test_watchdog_crashes_on_under_fire() -> None:
+    # the scheduled after-close event silently stopped firing → decisions lag trading days by >1.
+    from engine.base import DegradedScheduleError
+    import pytest
+    a = _watchdog_algo(trading_days=5, decisions=1)  # 4 missed decisions
+    with pytest.raises(DegradedScheduleError, match="UNDER-FIRE"):
+        a._assert_schedule_health()
+
+
+def test_watchdog_healthy_lockstep_passes() -> None:
+    # MUTATION-BITE control: decisions in lockstep with trading days → no raise.
+    a = _watchdog_algo(trading_days=5, decisions=5)
+    a._assert_schedule_health()  # must not raise
+
+
+def test_watchdog_pending_today_tolerated() -> None:
+    # at the start-of-day coarse tick, today's decision is still PENDING → gap of exactly 1 is normal.
+    a = _watchdog_algo(trading_days=5, decisions=4)
+    a._assert_schedule_health()  # gap==1 → must not raise
+
+
+def test_watchdog_end_of_algorithm_backstop() -> None:
+    from engine.base import DegradedScheduleError
+    import pytest
+    a = _watchdog_algo(trading_days=10, decisions=3)  # under-fired across the run
+    with pytest.raises(DegradedScheduleError, match="end-of-run"):
+        a.on_end_of_algorithm()
+    # control: a full healthy run (10 decisions, 10 days) ends clean
+    b = _watchdog_algo(trading_days=10, decisions=10)
+    b.on_end_of_algorithm()  # must not raise

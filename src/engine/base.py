@@ -65,6 +65,20 @@ class DegradedConfigError(Exception):
     (`StrategyConfig.is_fixture=True`) for regression/parity scaffolding — never as a champion."""
 
 
+class DegradedScheduleError(Exception):
+    """Raised (#313) at runtime when the scheduled AFTER-CLOSE daily-decision event has silently
+    STOPPED FIRING — the daily DECISION clock keeping pace with elapsed trading days is the
+    load-bearing invariant of the two-clock model.
+
+    The #313 watchdog: the daily decision fires on a scheduled `after_market_close` event (a
+    brand-new mechanism). If that event silently does NOT fire (a LEAN/QC scheduling change, a
+    cloud-vs-local divergence — the 276b-0 under-fire failure class), the system goes DARK: no
+    candidates, no decisions, while trading days elapse — the exact fail-SILENT the charter says
+    must CRASH, never mirage. This guard counts post-warmup trading days (the universe coarse
+    callback, which fires reliably daily) vs daily decisions; if they diverge beyond the 1-day
+    pending tolerance, it RAISES rather than run blind. Cloud-proven once + enforced forever."""
+
+
 @dataclass(slots=True)
 class PhaseResult:
     decision: Any
