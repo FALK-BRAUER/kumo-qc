@@ -1,0 +1,16 @@
+# Pre-commit hooks — local-only, opt-in (install with `pip install pre-commit && pre-commit install`).
+# The PR-check CI step (scripts/yaml_lint.py) is the ENFORCED bite; this hook
+# catches pr.yml self-breaks locally (CI cannot catch breaks in pr.yml itself).
+repos:
+  - repo: local
+    hooks:
+      - id: yaml-lint
+        name: YAML lint (workflow files)
+        entry: python scripts/yaml_lint.py
+        language: system
+        files: ^\.github/workflows/.*\.yml$
+        pass_filenames: false
+        always_run: true
+        description: |
+          Validates YAML syntax in .github/workflows/*.yml.
+          Catches the indentation-bug class that caused #296 (0s CI failure).

@@ -32,6 +32,15 @@ jobs:
           pip install -r requirements-dev.txt
           pip install pandas numpy
 
+      # ── YAML structural guard ──
+      # Catches indentation bugs in workflow files before they can silently
+      # break CI (the 0s/no-jobs class from #296). Runs early — cheap.
+      # Self-reference limit: this step CANNOT catch a break in pr.yml itself
+      # (an unparseable pr.yml skips all steps). Local pre-commit hook covers
+      # that; see .pre-commit-config.yaml.
+      - name: YAML lint (workflow files)
+        run: python scripts/yaml_lint.py
+
       - name: mypy --strict (src/)
         run: mypy
 
