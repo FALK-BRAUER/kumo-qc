@@ -142,8 +142,54 @@ class StrategyEngine:
         self._validate_execution_stack(config)
         self._validate_single_adds()
         self._validate_dependencies()
+        # #270/#274 two-clock: PRECOMPUTE the daily/intraday PHASE_ORDER subsets at init (not a
+        # per-tick filter). on_data_with_ctx replays the daily subset, on_intraday_bar the intraday
+        # subset. A FireSentinel is assigned to the clock of the phases it fires for (entries/
+        # exits/adds/trims are execution → intraday once an intraday phase exists; with NO intraday
+        # phase wired the intraday subset is EMPTY and on_data_with_ctx replays the FULL order →
+        # behaviour IDENTICAL to the pre-#274 single-clock engine).
+        self._daily_order, self._intraday_order = self._partition_clocks()
         self._log_phase_markers()
         self.logger.log_strategy_init(_config_hash(config), config.name, config.version)
+
+    def _phase_clock(self, kind: str) -> str:
+        """The clock a configured phase-kind runs on = the PHASE_RESOLUTION of its instances
+        (all instances of a kind share a clock; mixed → ConfigError). Unconfigured kind → daily."""
+        instances = self.phases.get(kind, [])
+        if not instances:
+            return "daily"
+        clocks = {getattr(p, "PHASE_RESOLUTION", "daily") for p in instances}
+        if len(clocks) > 1:
+            raise ConfigError(
+                f"phase kind '{kind}' has instances on MIXED clocks {sorted(clocks)} — "
+                f"all instances of a kind must share one PHASE_RESOLUTION"
+            )
+        clock = clocks.pop()
+        if clock not in ("daily", "intraday"):
+            raise ConfigError(f"phase kind '{kind}' has invalid PHASE_RESOLUTION {clock!r}")
+        return clock
+
+    def _partition_clocks(self) -> tuple[list[str | FireSentinel], list[str | FireSentinel]]:
+        """Split PHASE_ORDER into the daily-subset and intraday-subset, preserving order. A
+        configured phase-kind goes to its clock; an UNCONFIGURED kind defaults daily (harmless —
+        the loop skips kinds with no instances). A FireSentinel follows the clock of the phases it
+        fires: FIRE_ENTRIES/FIRE_ADDS with the entry/adds clock, FIRE_EXITS/FIRE_TRIMS with the
+        exit/profit clock; if those phases aren't wired the sentinel stays daily (fires nothing)."""
+        sentinel_clock = {
+            FIRE_ENTRIES: self._phase_clock("entry_timing") if self.phases.get("entry_timing")
+            else self._phase_clock("entry_selection"),
+            FIRE_EXITS: self._phase_clock("exit_hard"),
+            FIRE_ADDS: self._phase_clock("adds"),
+            FIRE_TRIMS: self._phase_clock("profit"),
+        }
+        daily: list[str | FireSentinel] = []
+        intraday: list[str | FireSentinel] = []
+        for item in PHASE_ORDER:
+            if isinstance(item, FireSentinel):
+                (intraday if sentinel_clock.get(item, "daily") == "intraday" else daily).append(item)
+            else:
+                (intraday if self._phase_clock(item) == "intraday" else daily).append(item)
+        return daily, intraday
 
     def _instantiate(self, config: StrategyConfig) -> dict[str, list[PhaseInterface]]:
         out: dict[str, list[PhaseInterface]] = {}
@@ -230,13 +276,29 @@ class StrategyEngine:
             for phase in instances:
                 self.logger.log_phase_loaded(kind, phase.version_marker)
 
-    # ---- per-bar ----
+    # ---- per-bar (two-clock, #270/#274) ----
     def on_data_with_ctx(self, ctx: PhaseContext) -> None:
+        """The DAILY decision clock (back-compat entry point — lean_entry calls this each daily
+        bar). Replays the daily PHASE_ORDER subset. With no intraday phase wired the daily subset
+        IS the full order → identical to the pre-#274 single-clock engine."""
+        self._run_clock(self._daily_order, ctx)
+
+    def on_intraday_bar(self, ctx: PhaseContext) -> None:
+        """The INTRADAY execution clock (#270). Replays the intraday PHASE_ORDER subset against a
+        completed 5-min bar on T+1. EMPTY until an intraday phase (entry-confirm/exit/stops) is
+        wired — a no-op today (the split is behaviour-unchanged)."""
+        if not self._intraday_order:
+            return
+        self._run_clock(self._intraday_order, ctx)
+
+    def _run_clock(self, order: list[str | FireSentinel], ctx: PhaseContext) -> None:
+        """Run one clock's PHASE_ORDER subset. Identical loop body to the pre-#274 engine; the
+        ONLY change is iterating `order` (a clock subset) instead of the full PHASE_ORDER."""
         bar_blocked = False
         phases_run: list[str] = []
         self._fired_entries = self._fired_exits = self._fired_adds = 0
 
-        for item in PHASE_ORDER:
+        for item in order:
             if isinstance(item, FireSentinel):
                 if bar_blocked and item in ENTRY_ONLY_SENTINELS:
                     continue
