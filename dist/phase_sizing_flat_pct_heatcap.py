@@ -18,6 +18,7 @@ from typing import Any
 
 from base import BasePhase, PhaseResult
 from context import OrderIntent, PhaseContext
+from shared_param_space import ComplexityDecl, ParamSpace
 
 
 class FlatPctHeatcap(BasePhase):
@@ -25,10 +26,21 @@ class FlatPctHeatcap(BasePhase):
     REQUIRES_UPSTREAM = ["signal"]
     PROVIDES_DOWNSTREAM = ["sized_orders"]
 
+    # ADR D5: champion sizer has no swept axes (single canonical position_pct).
+    COMPLEXITY = ComplexityDecl(
+        free_params=0,
+        note="position_pct is fixed-canonical (0.10); no sweepable axes.",
+    )
+
     @dataclass(slots=True)
     class Params:
         position_pct: float = 0.10
         enabled: bool = True
+
+        @classmethod
+        def space(cls) -> ParamSpace:
+            """Sweepable axes: none (champion sizer is fixed-canonical)."""
+            return ParamSpace(axes={})
 
     def __init__(self, params: "FlatPctHeatcap.Params", logger: Any) -> None:
         super().__init__(params, logger)

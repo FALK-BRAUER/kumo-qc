@@ -19,6 +19,7 @@ from base import (
     BasePhase,
     CharterViolation,
     ConfigError,
+    DegradedConfigError,
     DependencyError,
     PhaseInterface,
 )
@@ -72,6 +73,14 @@ ALWAYS_RUN: frozenset[str] = frozenset({"diagnostics", "circuit_breaker"})
 # selection gate (lean_entry._coarse_selection), so there is no per-bar filter phase. "filter"
 # stays a KNOWN_KIND (in PHASE_ORDER) — a future strategy MAY add a real per-bar filter phase.
 REQUIRED_PHASES: tuple[str, ...] = ("universe", "signal", "sizing")
+
+# #270/#272 fail-loud phase-stack gate. A CHAMPION (a config that actually trades) MUST wire an
+# entry-confirm phase AND an exit phase — there is no implicit market-on-open default. The
+# families (any one member satisfies the requirement):
+ENTRY_PHASE_KINDS: frozenset[str] = frozenset({"entry_selection", "entry_timing"})
+EXIT_PHASE_KINDS: frozenset[str] = frozenset(
+    {"exit_hard", "exit_target", "exit_regime", "exit_rotation"}
+)
 
 # Every schedulable phase kind = the string items of PHASE_ORDER. A config keyed by any
 # kind NOT in here would instantiate but never be scheduled in the per-bar loop (it reads
@@ -130,6 +139,7 @@ class StrategyEngine:
         self._validate_known_kinds(config)
         self.phases: dict[str, list[PhaseInterface]] = self._instantiate(config)
         self._validate_required_phases()
+        self._validate_execution_stack(config)
         self._validate_single_adds()
         self._validate_dependencies()
         self._log_phase_markers()
@@ -163,6 +173,36 @@ class StrategyEngine:
         for kind in REQUIRED_PHASES:
             if not self.phases.get(kind):
                 raise ConfigError(f"required phase '{kind}' missing or disabled")
+
+    def _validate_execution_stack(self, config: StrategyConfig) -> None:
+        """#270/#272 fail-loud phase-stack gate: a CHAMPION must wire an entry-confirm phase
+        (entry_selection|entry_timing) AND an exit phase (exit_*). No implicit market-on-open
+        default — a config that would fire without them is the phantom blind-entry model and must
+        crash at init, NOT silently blind-fill the open. A FIXTURE (config.is_fixture=True) is the
+        only way to run an incomplete stack (regression/parity scaffolding), and is logged as such."""
+        if config.is_fixture:
+            qc_log = getattr(self.qc, "log", None)
+            if callable(qc_log):
+                qc_log(
+                    f"FIXTURE_CONFIG|{config.name}|incomplete execution stack ALLOWED "
+                    f"(is_fixture=True) — NOT a champion, never deploy as one (#272)"
+                )
+            return
+        has_entry = any(self.phases.get(k) for k in ENTRY_PHASE_KINDS)
+        has_exit = any(self.phases.get(k) for k in EXIT_PHASE_KINDS)
+        missing: list[str] = []
+        if not has_entry:
+            missing.append(f"an ENTRY-confirm phase ({'|'.join(sorted(ENTRY_PHASE_KINDS))})")
+        if not has_exit:
+            missing.append(f"an EXIT phase ({'|'.join(sorted(EXIT_PHASE_KINDS))})")
+        if missing:
+            raise DegradedConfigError(
+                f"champion config '{config.name}' is missing {' and '.join(missing)} — there is "
+                f"NO implicit market-on-open default (#270). A config that would fire without a "
+                f"wired entry-confirm + exit phase trades a phantom blind-entry model. Wire the "
+                f"phases, or declare it a FIXTURE (StrategyConfig(is_fixture=True)) if it is "
+                f"regression/parity scaffolding — never a silent champion (#272)."
+            )
 
     def _validate_single_adds(self) -> None:
         if len(self.phases.get("adds", [])) > 1:
