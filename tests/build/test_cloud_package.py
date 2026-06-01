@@ -109,6 +109,33 @@ def test_list_valued_kind_roundtrips_no_duplicate_dict_key(tmp_path: Path) -> No
     assert "True 2 ['SpySma200', 'VixPercentile']" in out.stdout, out.stdout
 
 
+def test_is_fixture_carried_into_dist_main(tmp_path: Path) -> None:
+    # #272 REGRESSION: champion_asis is a FIXTURE (is_fixture=True). The codegen MUST emit that
+    # flag into dist/main.py — else the deployed config loses it and CRASHES the fail-loud
+    # entry+exit gate at cloud init (DegradedConfigError). Build the champion fixture, prove the
+    # flag survives the round-trip into the importable dist config.
+    dist = tmp_path / "dist"
+    cp.build(CHAMPION, dist_dir=dist)
+    main_txt = (dist / "main.py").read_text()
+    assert "is_fixture=True" in main_txt, "is_fixture flag dropped from dist/main.py codegen"
+    out = subprocess.run(
+        [sys.executable, "-c", "import main; print(main.STRATEGY_CONFIG.is_fixture)"],
+        cwd=str(dist), capture_output=True, text=True,
+    )
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.strip() == "True", out.stdout
+
+
+def test_non_fixture_omits_is_fixture_line(tmp_path: Path) -> None:
+    # MUTATION-BITE control: a NON-fixture config must NOT emit the line, so the flag isn't
+    # spuriously stamped on real champions. champion_entry wires entry+exit → is_fixture=False →
+    # the codegen must omit the line (the conditional emit, proven by its absence here).
+    dist = tmp_path / "dist"
+    cp.build("strategies.champion_entry", dist_dir=dist)
+    main_txt = (dist / "main.py").read_text()
+    assert "is_fixture" not in main_txt, "is_fixture line emitted for a non-fixture champion"
+
+
 def test_deployable_strategy_emits_lean_entry(tmp_path: Path) -> None:
     # #238: a LEAN-deployable strategy (LEAN_ENTRY=True) gets the LEAN entry — lean_entry.py
     # + runtime.universe_select (the live filter→rank→cap) flattened into dist, and a

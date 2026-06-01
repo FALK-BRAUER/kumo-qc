@@ -13,6 +13,7 @@ from lean_entry import BctEngineAlgorithm
 STRATEGY_CONFIG = StrategyConfig(
     name='champion-asis',
     version='3.2.0',
+    is_fixture=True,
     phases={
     'universe': Slot(impl=DvRankCap, params=DvRankCap.Params(enabled=True)),
     'signal': Slot(impl=BctScoreFull, params=BctScoreFull.Params(min_score=7, parabolic_threshold=0.25, enabled=True)),
