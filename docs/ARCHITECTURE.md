@@ -198,6 +198,7 @@ Seven standing safeguards, each a test class that must pass on every build (the 
 - **SG5 — no frozen universe / no count-caps / no time-exits.** The charter invariants (CONVENTIONS.md) as live assertions.
 - **SG6 — provenance pinned.** Every recorded result carries (commit + config-hash + data-fingerprint); an unpinned result fails the ledger gate.
 - **SG7 — clock coherence.** Every phase declares a valid `PHASE_RESOLUTION`; an intraday phase with no intraday subscription → fail-loud; daily decision state hands off to the intraday clock without leakage.
+- **SG8 — NO FILLS ON THE DAILY CLOCK (Falk, explicit).** The daily clock DECIDES ONLY — it produces the candidate list + signal snapshot and fires ZERO orders. Any order (entry/exit/add/trim) submitted from `on_daily_bar` is a violation → fail-loud. ALL fills happen on the intraday execution clock, after intraday confirmation. (This is the structural guarantee that the blind-daily-MOO model cannot creep back: a fill from the daily clock IS the retired model.)
 
 ### 11.2 Per-phase behavioral + fail-loud + outage (mandatory, the testing pillar)
 Each phase has three test layers (CONVENTIONS.md "Testing"):
