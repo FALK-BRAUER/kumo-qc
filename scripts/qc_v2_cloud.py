@@ -56,11 +56,13 @@ MARKER = "champion-asis"  # present in dist/main.py STRATEGY_CONFIG name — dep
 # string again only for a short-window parity comparison.
 STEP_A_WINDOW = None
 
-# A.2 cloud-smoke window (#318 / CONVENTIONS §CloudSafety): a SHORT post-warmup window that
-# exercises the runtime LEAN-object construction paths (intraday/weekly/daily seed) so a .NET-
-# interop crash detonates here — cheap, minutes — instead of in an expensive FY that then
-# false-greens (the #313 trap). Spans ≥1 post-warmup decision day.
-SMOKE_WINDOW = "    START_DATE = (2025, 2, 3)\n    END_DATE = (2025, 2, 5)\n"
+# A.2 cloud-smoke window (#318 / CONVENTIONS §CloudSafety): a window DEEP ENOUGH to exercise the
+# runtime LEAN-object construction paths (intraday/weekly/daily seed) across many post-warmup
+# entrant rotations, so a .NET-interop crash detonates HERE (cheap) not in an expensive FY that
+# then false-greens (the #313 trap). LESSON (#318 crash #2): the original 2-DAY smoke PASSED but
+# the FY crashed at ~69% on a depth-dependent bar (float→Decimal on a deeper volume) — too shallow
+# to be a real gate. Q1 span = ~3 months of rotations/seeds. The error-checked FY is the backstop.
+SMOKE_WINDOW = "    START_DATE = (2025, 1, 1)\n    END_DATE = (2025, 3, 31)\n"
 
 
 def _inject_window(content: str) -> str:

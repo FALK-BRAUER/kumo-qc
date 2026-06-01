@@ -461,10 +461,11 @@ def test_make_trade_bar_sets_every_field_via_setters(monkeypatch) -> None:
     assert bar.period == timedelta(minutes=5)
 
 
-def test_make_trade_bar_coerces_numeric_fields_to_float(monkeypatch) -> None:
-    # pandas/int inputs (row["open"], wb["volume"]) must reach the bar as float — the helper
-    # owns the float() coercion the positional ctor used to do inline at each site.
+def test_make_trade_bar_coerces_numeric_fields_to_decimal(monkeypatch) -> None:
+    # #318 FY crash: cloud pythonnet rejects float→System.Decimal on the Decimal OHLCV/volume
+    # setters. The helper must emit decimal.Decimal (not float) so the value binds on cloud.
     from datetime import datetime, timedelta
+    from decimal import Decimal
 
     class _FakeBar:
         pass
@@ -473,4 +474,21 @@ def test_make_trade_bar_coerces_numeric_fields_to_float(monkeypatch) -> None:
     bar = lean_entry._make_trade_bar(
         datetime(2025, 2, 4), object(), 10, 12, 9, 11, 1000, timedelta(days=1)
     )
-    assert all(isinstance(v, float) for v in (bar.open, bar.high, bar.low, bar.close, bar.volume))
+    assert all(isinstance(v, Decimal) for v in (bar.open, bar.high, bar.low, bar.close, bar.volume))
+    assert (bar.open, bar.close, bar.volume) == (Decimal("10"), Decimal("11"), Decimal("1000"))
+
+
+def test_make_trade_bar_nan_inf_volume_guarded_to_zero(monkeypatch) -> None:
+    # #318 FY crash root: a missing/NaN volume in a deeper bar → System.Decimal rejects NaN/inf.
+    # _to_decimal finite-guards → Decimal("0"), never a NaN that would crash the cloud setter.
+    from datetime import datetime, timedelta
+    from decimal import Decimal
+
+    class _FakeBar:
+        pass
+
+    monkeypatch.setattr(lean_entry, "TradeBar", _FakeBar)
+    bar = lean_entry._make_trade_bar(
+        datetime(2025, 2, 4), object(), 10.0, 12.0, 9.0, 11.0, float("nan"), timedelta(days=1)
+    )
+    assert bar.volume == Decimal("0") and bar.volume.is_finite()

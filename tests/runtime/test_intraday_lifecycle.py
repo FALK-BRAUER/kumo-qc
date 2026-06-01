@@ -71,8 +71,17 @@ def _make_algo(monkeypatch, *, warming: bool = False) -> BctEngineAlgorithm:
     algo._removed: list[FakeSym] = []
     algo.add_equity = lambda v, res: (algo._added.append(v), FakeEquity())[1]  # type: ignore
     algo.remove_security = lambda s: algo._removed.append(s)  # type: ignore
-    # seed-on-subscribe: stub history so the seed path is exercised but inert (no QC types)
-    algo.history = lambda *a, **k: None  # type: ignore
+    # seed-on-subscribe: stub history so the seed path is exercised but inert (no QC types).
+    # #318: _seed_intraday now uses TYPED history `self.history[TradeBar](...)` (subscript) → the
+    # stub must support __getitem__ returning a callable that yields nothing (inert seed).
+    class _InertHistory:
+        def __call__(self, *a, **k):
+            return None
+
+        def __getitem__(self, _bar_type):
+            return lambda *a, **k: []
+
+    algo.history = _InertHistory()  # type: ignore[method-assign,assignment]
     return algo
 
 

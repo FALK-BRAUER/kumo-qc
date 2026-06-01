@@ -47,6 +47,55 @@ class _FakeTradeBar:
         self.open = self.high = self.low = self.close = self.volume = None
 
 
+class _NativeBar:
+    """Stand-in for a QC NATIVE TradeBar yielded by typed history `self.history[TradeBar](...)`.
+
+    #318: `_seed_daily` / `_seed_intraday` no longer CONSTRUCT bars — they iterate native bars
+    (native Decimal fields, no float→Decimal). So the daily path consumes these, not _FakeTradeBar.
+    `end_time` is the look-ahead reference the forward-only guard reads; `time` is the bar start.
+    """
+
+    def __init__(self, *, end_time, o, h, lo, c, v, time=None) -> None:
+        self.end_time = end_time
+        self.time = time if time is not None else end_time
+        self.open, self.high, self.low, self.close, self.volume = o, h, lo, c, v
+
+
+class _HistoryStub:
+    """Dual-mode QC history stub mirroring the two access forms the seeds use:
+      - `self.history(sym, n, res)` (CALL) → the DataFrame (the `_seed_weekly` aggregation source);
+      - `self.history[TradeBar](sym, n, res)` (SUBSCRIPT) → native bars (the typed-history path of
+        `_seed_daily`/`_seed_intraday`), derived from the SAME DataFrame so one fixture drives both.
+    Native `end_time` = the DataFrame index timestamp — so the typed-history forward-only guard
+    (`bar.end_time.date() >= today`) is byte-equivalent to the old df-index guard (`ts.date()`)."""
+
+    def __init__(self, df) -> None:
+        self._df = df
+
+    def __call__(self, _sym, _n, _res):
+        return self._df
+
+    def __getitem__(self, _bar_type):
+        df = self._df
+
+        def _bars(_sym, _n, _res):
+            if df is None or getattr(df, "empty", True):
+                return []
+            d = df.droplevel(0) if isinstance(df.index, pd.MultiIndex) else df
+            d = d.rename(columns=str.lower)
+            bars = []
+            for ts, row in d.iterrows():
+                t = ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts
+                bars.append(_NativeBar(
+                    end_time=t, time=t,
+                    o=float(row["open"]), h=float(row["high"]), lo=float(row["low"]),
+                    c=float(row["close"]), v=float(row.get("volume", 0.0)),
+                ))
+            return bars
+
+        return _bars
+
+
 class _Event:
     """QC IIndicator.Updated-shape event: supports `indicator.updated += handler` (+= mutates
     the SAME object in place, like a C# event) and fires all handlers on `.fire(sender)`."""
@@ -182,11 +231,9 @@ def _algo(monkeypatch, hist: pd.DataFrame | None, *, today: datetime) -> BctEngi
 
     algo = BctEngineAlgorithm()  # QCAlgorithm == object locally; initialize() not invoked
     algo.time = today
-
-    def _history(_sym, _days, _res):
-        return hist
-
-    algo.history = _history  # type: ignore[method-assign,assignment]
+    # Dual-mode history: weekly reads the DataFrame via history(...); daily/intraday read native
+    # bars via history[TradeBar](...). One stub serves both from the same fixture (#318).
+    algo.history = _HistoryStub(hist)  # type: ignore[method-assign,assignment]
     return algo
 
 
