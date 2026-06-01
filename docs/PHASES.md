@@ -122,10 +122,12 @@ confluence) is a SEPARATE downstream `entry_timing` phase, NOT the signal phase.
 
 **Engine order:** After universe.
 
-**Input:** `ctx.bar_state.ranked_candidates`, `qc._indicators` (maintained Ichimoku/ADX/SMA).
+**Input:** `ctx.universe` (the live-selected ranked set the universe phase exposes), `qc._indicators` (maintained daily/weekly Ichimoku/ADX/SMA).
 
-**Output:** qualified candidates emitted as entry-priority-ordered `OrderIntent` stubs on
-`ctx.bar_state.sized_orders` (qty=0; the sizing phase sets quantity).
+**Output (canonical handoff):** `ctx.signal_scores: dict[str, int]` — the per-ticker qualify score for the names that pass (≥`min_score`). Signal QUALIFIES; it does NOT rank and does NOT emit order intents. The downstream flow is unambiguous:
+`signal → ctx.signal_scores` → `ranking → ctx.ranked_candidates` (entry-priority order) → `entry_selection` (consumes `ranked_candidates`, gates to confirmed, emits qty=0 `OrderIntent` stubs) → `entry_timing` (sets `order_type`/price) → `sizing` (sets qty on `ctx.bar_state.sized_orders`). No phase writes `sized_orders` before `entry_timing`.
+
+> **Champion-fixture note (#270):** the retired `champion_asis` `bct_score_full` COLLAPSES signal+ranking — it scored, sorted `(score, DV)`, and wrote `sized_orders` stubs directly (no separate ranking phase, no entry phase). That collapse is the blind-MOO fixture's shortcut, NOT the canonical contract. The intraday champion restores the clean separation above (signal qualifies → ranking orders → entry_selection confirms intraday). When `bct_score_full` is reused in the intraday champion, it emits `signal_scores` only.
 
 **Catalog (ADR D3):** `phases/signal/library.py` exposes
 `SIGNAL_PHASES: tuple[type[BasePhase], ...]` — direct class refs (no string registry) for
