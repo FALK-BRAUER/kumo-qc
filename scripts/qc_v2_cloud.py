@@ -186,7 +186,14 @@ def chart(bid: str, chart_name: str = "Universe", out_path: str | None = None) -
     _require_pid()
     last_err = ""
     for attempt in range(5):
-        r = post("/backtests/chart/read", {"projectId": PID, "backtestId": bid, "name": chart_name})
+        r = post("/backtests/chart/read", {
+            "projectId": PID,
+            "backtestId": bid,
+            "name": chart_name,
+            "count": 4000,
+            "start": 0,
+            "end": int(time.time()),
+        })
         if r.get("success"):
             ch = r.get("chart") or {}
             series = ch.get("series") or {}
