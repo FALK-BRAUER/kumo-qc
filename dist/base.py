@@ -1,9 +1,3 @@
-"""Phase interface (Protocol) + result type + engine exceptions.
-
-v2-delta vs v1 arch-a: PhaseInterface is a `typing.Protocol` (@runtime_checkable),
-not an ABC. The engine + config depend on the Protocol (structural typing). Phases
-MAY subclass `BasePhase` for shared helpers but are not required to.
-"""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -90,7 +84,6 @@ class PhaseResult:
 
 @runtime_checkable
 class PhaseInterface(Protocol):
-    """Structural contract every phase satisfies. Engine + config type against this."""
 
     # Class-level metadata (declared on each phase class).
     PHASE_KIND: str
@@ -108,11 +101,6 @@ class PhaseInterface(Protocol):
 
 
 class BasePhase:
-    """Optional shared base for phases: stores params/logger, default `enabled`.
-
-    Concrete phases define a nested `Params` dataclass and pass an instance here.
-    Subclassing is optional — the engine depends on the Protocol, not this class.
-    """
 
     PHASE_KIND: str = ""
     # #270/#274 two-clock: default "daily" (the decision clock). A phase that must run on the

@@ -1,13 +1,3 @@
-"""Regime phase: SPY > 200-day SMA gate (E40b Phase2).
-
-Kind: regime
-Marker: spy_200ma_v1
-Tested params: enabled=True (champion-asis-v1; no overrides)
-Charter: single code path, exits run before this phase — no exit impact.
-Blocks entries when SPY below 200MA. Faithful carve of oracle _rebalance L514-520
-(baseline-oracle-v0).
-DO NOT modify evaluate() logic — breaks champion-asis-v1 parity (ARCH-C ±0.01 gate).
-"""
 from __future__ import annotations
 
 from dataclasses import dataclass

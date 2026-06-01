@@ -1,8 +1,3 @@
-"""Per-bar execution context and state.
-
-v2: BarState/PhaseContext/intents are `dataclass(slots=True)` (hot per-bar objects).
-Ports the v1 arch-a context (parity-proven @ 3705cd3); v2-delta = slots + typing.
-"""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -38,7 +33,6 @@ class BlockEvent:
 
 @dataclass(slots=True)
 class BarState:
-    """Fresh per bar. Phases write here via the engine; engine fires from the typed lists."""
     # The universe phase emits ranked_candidates (the live-selected floored+ranked+capped
     # order ∩ active; floors+rank computed at the selection gate, lean_entry, under Y). A
     # future real per-bar filter phase (the `filter` KNOWN_KIND seam) would re-add an
@@ -54,8 +48,6 @@ class BarState:
     _seen: set[tuple[str, str]] = field(default_factory=set, repr=False)
 
     def apply(self, kind: str, result: Any, module: str = "") -> None:
-        """Record a phase result. Keyed by (kind, module) — raises only on a TRUE duplicate
-        (same kind+module twice in one bar), never on legitimate list sub-phases."""
         key = (kind, module)
         if key in self._seen:
             raise ValueError(f"double-write detected for phase ({kind!r}, {module!r})")
@@ -65,7 +57,6 @@ class BarState:
 
 @dataclass(slots=True)
 class PhaseContext:
-    """LEAN read-only refs + a fresh BarState per bar. Phases never mutate LEAN directly."""
     qc: Any            # QCAlgorithm (Portfolio, Securities, Time, Log) — dynamic, untyped at boundary
     time: datetime
     data: Any          # LEAN Slice

@@ -1,16 +1,3 @@
-"""Sizing phase: flat POSITION_PCT + committed_cash heat-cap.
-
-Kind: sizing
-Marker: flat_pct_heatcap_v1
-Tested params: position_pct=0.10 (champion default)
-Charter: single code path, NO count/slot caps — exposure governed by the cash heat-cap
-only (and gross_exposure_cap when it lands). Ranks come from the signal phase; fills
-each candidate at position_pct of portfolio value until cash is exhausted.
-
-Logic carried from the oracle sizing loop, with the slot machinery REMOVED per the
-no-fixed-slots charter (the old max_positions/vix_tier slot cap was a 9999 no-op — its
-removal is behavior-identical: cash was always the binding constraint).
-"""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -52,7 +39,6 @@ class FlatPctHeatcap(BasePhase):
 
         @classmethod
         def space(cls) -> ParamSpace:
-            """Sweepable axes: none (champion sizer is fixed-canonical; resolution is structural)."""
             return ParamSpace(axes={})
 
     def __init__(self, params: "FlatPctHeatcap.Params", logger: Any) -> None:

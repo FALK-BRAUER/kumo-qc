@@ -6,26 +6,20 @@ from phase_regime_spy_200ma import SpySma200
 from phase_regime_vix_percentile import VixPercentile
 from phase_sizing_flat_pct_heatcap import FlatPctHeatcap
 from phase_exit_kijun_g3_exits import KijunG3Exits
-from phase_entry_selection_preflight_staleness import PreFlightStaleness
-from phase_entry_selection_bct_intraday_confirm import BctIntradayConfirm
-from phase_entry_timing_confirmed_market_entry import ConfirmedMarketEntry
-from phase_protective_stop_kijun_protective_stop import KijunProtectiveStop
 from phase_diagnostics_version_marker import VersionMarker
 from phase_diagnostics_chart_emit import ChartEmit
 from lean_entry import BctEngineAlgorithm
 
 STRATEGY_CONFIG = StrategyConfig(
-    name='champion-intraday',
-    version='1.0.0',
+    name='champion-asis',
+    version='3.2.0',
+    is_fixture=True,
     phases={
     'universe': Slot(impl=DvRankCap, params=DvRankCap.Params(enabled=True)),
     'signal': Slot(impl=BctScoreFull, params=BctScoreFull.Params(min_score=7, parabolic_threshold=0.25, enabled=True)),
     'regime': [Slot(impl=SpySma200, params=SpySma200.Params(enabled=True)), Slot(impl=VixPercentile, params=VixPercentile.Params(vix_percentile_enabled=False, vix_percentile_threshold=75.0, vix_percentile_lookback=504, enabled=True))],
-    'sizing': Slot(impl=FlatPctHeatcap, params=FlatPctHeatcap.Params(position_pct=0.1, resolution='intraday', enabled=True)),
+    'sizing': Slot(impl=FlatPctHeatcap, params=FlatPctHeatcap.Params(position_pct=0.1, resolution='daily', enabled=True)),
     'exit_hard': [Slot(impl=KijunG3Exits, params=KijunG3Exits.Params(cloud_exit_enabled=False, weekly_kijun_exit_enabled=False, phase3_days=56, phase3_pnl=0.15, enabled=True))],
-    'entry_selection': [Slot(impl=PreFlightStaleness, params=PreFlightStaleness.Params(gap_up_tolerance_pct=0.1, below_kijun_invalidates=True, enabled=True)), Slot(impl=BctIntradayConfirm, params=BctIntradayConfirm.Params(vol_mult=1.5, window_bars=24, enabled=True))],
-    'entry_timing': Slot(impl=ConfirmedMarketEntry, params=ConfirmedMarketEntry.Params(enabled=True)),
-    'protective_stop': Slot(impl=KijunProtectiveStop, params=KijunProtectiveStop.Params(enabled=True)),
     'diagnostics': [Slot(impl=VersionMarker, params=VersionMarker.Params(enabled=True)), Slot(impl=ChartEmit, params=ChartEmit.Params(enabled=True, chart_name='Universe'))],
     },
 )

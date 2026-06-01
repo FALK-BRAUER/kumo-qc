@@ -78,6 +78,40 @@ def _rewrite_imports(text: str) -> str:
     return text
 
 
+def _strip_docstrings(source: str) -> str:
+    """Remove module/class/function DOCSTRINGS from a generated dist file (#276b-1 deploy-size: QC
+    caps each file at 64,000 chars on /files/update; the verbose two-clock-seam docstrings push
+    dist/lean_entry.py past it). The dist is GENERATED + deploy-only + not-linted + not-human-read —
+    src/ KEEPS the full docstrings (the rationale lives where humans read it). config_hash is over
+    the CONFIG, not file contents → UNAFFECTED.
+
+    AST-SAFE line-range removal: preserves comments + formatting + ALL code; drops ONLY a true
+    docstring (the body's FIRST statement, an Expr wrapping a str Constant), and ONLY when the body
+    has other statements (never empties a body, e.g. a docstring-only stub) and the docstring is not
+    sharing the def/class header line. A module-level string that is NOT the first statement (a real
+    value) is untouched."""
+    tree = ast.parse(source)
+    drop: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        body = getattr(node, "body", [])
+        if len(body) <= 1:
+            continue  # never empty a body
+        first = body[0]
+        if not (isinstance(first, ast.Expr)
+                and isinstance(getattr(first, "value", None), ast.Constant)
+                and isinstance(first.value.value, str)):
+            continue
+        if not isinstance(node, ast.Module) and first.lineno == node.lineno:
+            continue  # docstring shares the header line — don't touch the header
+        for ln in range(first.lineno, (first.end_lineno or first.lineno) + 1):
+            drop.add(ln)
+    if not drop:
+        return source
+    return "\n".join(line for i, line in enumerate(source.split("\n"), start=1) if i not in drop)
+
+
 def _imports_in(path: Path) -> list[str]:
     tree = ast.parse(path.read_text(), filename=str(path))
     mods: list[str] = []
@@ -222,7 +256,9 @@ def build(strategy_module: str, *, dist_dir: Path | None = None, verbose: bool =
     included: list[str] = []
     for f in sorted(closure):
         flat = _flat_name(f, src)
-        (dist / flat).write_text(_rewrite_imports(f.read_text()))
+        # #276b-1: strip docstrings from the generated dist file (QC 64k/file deploy cap — src/
+        # keeps the rationale; dist is deploy-only). config_hash unaffected (hashes the config).
+        (dist / flat).write_text(_strip_docstrings(_rewrite_imports(f.read_text())))
         included.append(flat)
 
     # generated flat entry + manifest + metadata

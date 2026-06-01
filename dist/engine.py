@@ -1,15 +1,3 @@
-"""StrategyEngine — config-driven phase orchestration.
-
-Ports the parity-proven v1 arch-a loop (@ 3705cd3):
-- canonical PHASE_ORDER with FIRE_* sentinels
-- ENTRY_ONLY block-scoping: regime/cash block halts NEW EXPOSURE only; exits + tail always run
-- BarState.apply keyed by (kind, module)
-- fail-loud init validations: charter invariants (incl explicit-exposure), dependency,
-  single-adds, required-phases, per-phase marker logging
-
-v2-delta: consumes a typed StrategyConfig (direct class refs), instantiates phases from
-Slots, depends on the PhaseInterface Protocol.
-"""
 from __future__ import annotations
 
 import hashlib
@@ -104,13 +92,6 @@ def _kind_enabled(config: StrategyConfig, kind: str) -> bool:
 
 
 def validate_invariants(config: StrategyConfig) -> None:
-    """Charter STRUCTURAL check: explicit-exposure (adds require portfolio_risk).
-
-    The no-count-caps / no-time-exits rules are NOT enforced here anymore (Falk directive):
-    a hardcoded param-name blocklist is brittle (misses novel names, gives false safety). Those
-    rules live in CONVENTIONS §Charter + code-review. This keeps only the structural invariant
-    that can't be a naming game — amplifying adds MUST pair with an explicit gross_exposure_cap.
-    """
     if _kind_enabled(config, "adds") and not _kind_enabled(config, "portfolio_risk"):
         raise CharterViolation(
             "adds enabled without portfolio_risk (gross_exposure_cap) — "
@@ -119,14 +100,6 @@ def validate_invariants(config: StrategyConfig) -> None:
 
 
 def _params_canonical(params: Any) -> str:
-    """Canonical params string for the config hash, EXCLUDING a phase's STRUCTURAL fields
-    (`Params._HASH_EXCLUDE`). A structural field (e.g. sizing `resolution`, the clock-routing knob)
-    is NOT an independent behavioral axis: it is FUNCTIONALLY DETERMINED by the entry-model phase set
-    (intraday entry phases → intraday chain) and the chain-clock guard ENFORCES that coupling, so it
-    is redundant for behavioral identity (the phase sets already differ in the hash) and cannot
-    create a collision. Excluding it keeps the config_hash a stable BEHAVIORAL fingerprint (and keeps
-    champion-asis at its e573e84b1ce1 baseline when the shared sizer gains the structural knob).
-    A NON-structural param change still moves the hash (only the named structural fields are dropped)."""
     exclude = getattr(type(params), "_HASH_EXCLUDE", frozenset())
     if not exclude or not is_dataclass(params):
         return repr(params)
@@ -175,19 +148,6 @@ class StrategyEngine:
         self.logger.log_strategy_init(_config_hash(config), config.name, config.version)
 
     def _validate_entry_chain_clock(self) -> None:
-        """#276b-1 FAIL-LOUD chain-clock guard. The entry-EXECUTION chain (the kinds from
-        entry_selection up to FIRE_ENTRIES — entry_selection, entry_timing, sizing, reentry,
-        eligibility, portfolio_risk, cash, protective_stop) is ONE ATOMIC sequence: a candidate stub
-        is selected → timed → sized → capped → floored → FIRED, all on the SAME bar. If a WIRED chain
-        kind resolves to a different clock than FIRE_ENTRIES, the stub never completes the sequence —
-        e.g. sizing=daily while FIRE_ENTRIES=intraday leaves stubs UNSIZED at the fire seam → silent
-        0 orders (the exact #276b-1 bug). Crash at init instead.
-
-        Mirrors the per-kind MIXED-clocks guard, extended to the cross-kind chain. ESSENTIAL for
-        programmatic configs (Epic-2 sweeps generate configs; a forgotten resolution on one chain
-        phase would otherwise produce a silent-zero champion). FIRE_ENTRIES' clock = the entry clock
-        (entry_timing if wired, else entry_selection); with no entry phase wired (a fixture) there is
-        no chain to validate (FIRE_ENTRIES fires the daily stubs directly) → no-op."""
         if not (self.phases.get("entry_timing") or self.phases.get("entry_selection")):
             return  # no entry-confirm phase (fixture) → no entry-execution chain to enforce
         fire_clock = (self._phase_clock("entry_timing") if self.phases.get("entry_timing")
@@ -209,8 +169,6 @@ class StrategyEngine:
             )
 
     def _phase_clock(self, kind: str) -> str:
-        """The clock a configured phase-kind runs on = the PHASE_RESOLUTION of its instances
-        (all instances of a kind share a clock; mixed → ConfigError). Unconfigured kind → daily."""
         instances = self.phases.get(kind, [])
         if not instances:
             return "daily"
@@ -226,11 +184,6 @@ class StrategyEngine:
         return clock
 
     def _partition_clocks(self) -> tuple[list[str | FireSentinel], list[str | FireSentinel]]:
-        """Split PHASE_ORDER into the daily-subset and intraday-subset, preserving order. A
-        configured phase-kind goes to its clock; an UNCONFIGURED kind defaults daily (harmless —
-        the loop skips kinds with no instances). A FireSentinel follows the clock of the phases it
-        fires: FIRE_ENTRIES/FIRE_ADDS with the entry/adds clock, FIRE_EXITS/FIRE_TRIMS with the
-        exit/profit clock; if those phases aren't wired the sentinel stays daily (fires nothing)."""
         sentinel_clock = {
             FIRE_ENTRIES: self._phase_clock("entry_timing") if self.phases.get("entry_timing")
             else self._phase_clock("entry_selection"),
@@ -262,8 +215,6 @@ class StrategyEngine:
 
     # ---- init validations (fail loud) ----
     def _validate_known_kinds(self, config: StrategyConfig) -> None:
-        """Every configured kind must be schedulable (present in PHASE_ORDER). A kind absent
-        from PHASE_ORDER would instantiate but never run (silent no-op) — refuse it loudly."""
         unknown = sorted(k for k in config.phases if k not in KNOWN_KINDS)
         if unknown:
             raise ConfigError(
@@ -277,11 +228,6 @@ class StrategyEngine:
                 raise ConfigError(f"required phase '{kind}' missing or disabled")
 
     def _validate_execution_stack(self, config: StrategyConfig) -> None:
-        """#270/#272 fail-loud phase-stack gate: a CHAMPION must wire an entry-confirm phase
-        (entry_selection|entry_timing) AND an exit phase (exit_*). No implicit market-on-open
-        default — a config that would fire without them is the phantom blind-entry model and must
-        crash at init, NOT silently blind-fill the open. A FIXTURE (config.is_fixture=True) is the
-        only way to run an incomplete stack (regression/parity scaffolding), and is logged as such."""
         if config.is_fixture:
             qc_log = getattr(self.qc, "log", None)
             if callable(qc_log):
@@ -334,22 +280,14 @@ class StrategyEngine:
 
     # ---- per-bar (two-clock, #270/#274) ----
     def on_data_with_ctx(self, ctx: PhaseContext) -> None:
-        """The DAILY decision clock (back-compat entry point — lean_entry calls this each daily
-        bar). Replays the daily PHASE_ORDER subset. With no intraday phase wired the daily subset
-        IS the full order → identical to the pre-#274 single-clock engine."""
         self._run_clock(self._daily_order, ctx)
 
     def on_intraday_bar(self, ctx: PhaseContext) -> None:
-        """The INTRADAY execution clock (#270). Replays the intraday PHASE_ORDER subset against a
-        completed 5-min bar on T+1. EMPTY until an intraday phase (entry-confirm/exit/stops) is
-        wired — a no-op today (the split is behaviour-unchanged)."""
         if not self._intraday_order:
             return
         self._run_clock(self._intraday_order, ctx)
 
     def _run_clock(self, order: list[str | FireSentinel], ctx: PhaseContext) -> None:
-        """Run one clock's PHASE_ORDER subset. Identical loop body to the pre-#274 engine; the
-        ONLY change is iterating `order` (a clock subset) instead of the full PHASE_ORDER."""
         bar_blocked = False
         phases_run: list[str] = []
         self._fired_entries = self._fired_exits = self._fired_adds = 0
@@ -389,9 +327,6 @@ class StrategyEngine:
         )
 
     def _submit(self, qc: Any, sym: Any, intent: Any) -> Any:
-        """#276a fire-seam: submit ONE order, dispatching on intent.order_type. ONLY the engine's
-        FIRE_* path calls the broker API — phases emit OrderIntent only. Returns the order ticket
-        (for protective-stop tracking / cancel-on-exit). Unknown order_type → fail loud."""
         ot = getattr(intent, "order_type", "market_on_open")
         if ot == "market_on_open":
             return qc.market_on_open_order(sym, intent.qty)
@@ -493,22 +428,11 @@ class StrategyEngine:
                 self._submit(qc, sym, intent)
 
     def _bound_adds_to_gross_cap(self, ctx: PhaseContext) -> None:
-        """#181 BUG-2 Stage 0: COMMIT-AWARE gross cap at the FIRE_ADDS seam. Reuses the configured
-        portfolio_risk phase's OWN cap math (`bound_adds`, single-source — no duplicated ceiling
-        logic) to bound `add_intents` before they fire, accounting for this tick's in-flight entry
-        orders (`self._tick_entry_value`). Closes the leverage hole where adds previously fired with
-        no gross check after FIRE_ENTRIES. No-op when no portfolio_risk phase is wired (e.g. the
-        champion_asis fixture) — so behaviour is unchanged where the cap is absent."""
         for cap in self.phases.get("portfolio_risk", []):
             if getattr(cap, "enabled", True) and hasattr(cap, "bound_adds"):
                 cap.bound_adds(ctx, self._tick_entry_value)
 
     def _guard_position_change_vs_protective_stop(self, qc: Any, sym: Any, op: str) -> None:
-        """#276a GUARD-1/2: a trim/add on a position with a LIVE protective stop, without the
-        cancel-replace lifecycle (#276b), is a footgun — a trim leaves the full-qty stop → over-sell
-        (long→short); an add leaves added shares unprotected. Fail loud until #276b resizes the
-        stop on these ops. Only triggers when a protective stop is actually tracked (no protective
-        stop → no risk → no-op, so the champion's no-stop fixture path is unaffected)."""
         meta = getattr(qc, "_position_meta", {}).get(sym)
         if meta and meta.get("protective_stop_ticket") is not None:
             raise DegradedConfigError(
@@ -520,10 +444,6 @@ class StrategyEngine:
             )
 
     def _cancel_protective_stop(self, qc: Any, sym: Any, date_str: str) -> None:
-        """#290/#276a cancel-on-exit: cancel the resting GTC protective stop when the position
-        is being exited by the runtime — so no orphan resting stop survives to double-sell a
-        position the runtime already closed. THE load-bearing safety lifecycle (HQ's #1 review
-        target). Idempotent: no-op if no protective stop is tracked for this symbol."""
         meta = getattr(qc, "_position_meta", {}).get(sym)
         if not meta:
             return

@@ -1,13 +1,3 @@
-"""Diagnostics phase: VERSION_MARKER logs + REBALANCE summary.
-
-Kind: diagnostics
-Marker: version_marker_v1
-Tested params: enabled=True (champion-asis-v1; no overrides)
-Charter: single code path, always runs (ALWAYS_RUN set in engine), never blocks.
-Faithful carve of oracle initialize() VERSION_MARKER emissions + _rebalance L609
-REBALANCE log (baseline-oracle-v0).
-DO NOT modify evaluate() logic — breaks champion-asis-v1 parity (ARCH-C ±0.01 gate).
-"""
 from __future__ import annotations
 
 from dataclasses import dataclass
