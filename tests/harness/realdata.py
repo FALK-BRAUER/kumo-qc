@@ -270,6 +270,34 @@ def build_real_native_inputs(daily: pd.DataFrame) -> tuple[dict[str, Any], float
     return ind, price
 
 
+def build_native_suite(
+    *,
+    d_ready: bool,
+    w_ready: bool,
+    sma_ready: bool,
+    adx_ready: bool,
+    roc_ready: bool,
+    wclose_n: int,
+    adxwin_n: int,
+    price: float = 100.0,
+) -> tuple[dict[str, Any], "FakeQC"]:
+    """A MANUAL-value maintained suite (a real-plausible 8/8-pass value layout at price 100) with
+    each input's READINESS / window-count set explicitly — the property-fuzz builder for the
+    anti-mirage 'cold cannot score' invariant. The values are fixed; only readiness varies. This
+    is the canonical home for the `_Cur`/`_Ichi`/`_Adx`/`_Window` shapes that were triplicated
+    across the real-data tests."""
+    ind = {
+        "d_ichi": _Ichi(90.0, 88.0, 85.0, 80.0, ready=d_ready),
+        "w_ichi": _Ichi(70.0, 60.0, 75.0, 65.0, ready=w_ready),
+        "w_close": _Window([float(i) for i in range(wclose_n)]),
+        "sma200": _Scalar(50.0, ready=sma_ready),
+        "adx": _Adx(25.0, 30.0, 10.0, ready=adx_ready),
+        "adx_window": _Window([float(i) for i in range(adxwin_n)]),
+        "roc13": _Scalar(0.10, ready=roc_ready),
+    }
+    return ind, FakeQC(price=price, symbol="SYM")
+
+
 # Which not-ready key flips which gate in score_symbol_native (the HALF-2 cold-cannot-score map).
 _FLAGGED = ("d_ichi", "w_ichi", "sma200", "adx", "roc13")
 

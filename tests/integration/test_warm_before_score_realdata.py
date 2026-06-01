@@ -24,69 +24,44 @@ scored cold -> mirage' (the latter must be UNREACHABLE):
 If the local data tree is absent (CI without the gitignored data/), HALF 1 SKIPS with a reason
 (data-presence guard, not a silent pass) — matching tests/data/test_warmup_coarse.py. HALF 2 is
 pure logic and always runs.
+
+#260 REFACTOR: the daily-zip loader, the data-presence guard, the liquid probe set, and the
+QC-native value-shapes are now the shared tests/harness/realdata.py primitives (they were
+triplicated across the real-data tests). The ASSERTIONS below are unchanged.
 """
 from __future__ import annotations
 
-import zipfile
-from pathlib import Path
-from typing import Any
+import itertools
 
-import pandas as pd
 import pytest
 
 from phases.shared.oracle_helpers import score_symbol_native
 from runtime.indicators import weekly_aggregate
 from runtime.lean_entry import BctEngineAlgorithm
-
-_ROOT = Path(__file__).resolve().parents[2]
-_DAILY = _ROOT / "data" / "equity" / "usa" / "daily"
-
-# A representative spread of liquid names that survive the selection floors (price>=10, DV>=100M)
-# and have multi-year daily history on disk — the post-warmup-entrant candidates.
-_LIQUID = ["aapl", "msft", "spy"]
+from tests.harness import realdata as rd
 
 
-def _available(ticker: str) -> bool:
-    return (_DAILY / f"{ticker}.zip").is_file()
-
-
-@pytest.mark.skipif(not _DAILY.is_dir(), reason="local LEAN daily tree absent (gitignored data/)")
+@pytest.mark.skipif(not rd.have_daily_tree(), reason="local LEAN daily tree absent (gitignored data/)")
 def test_data_tree_not_fully_pruned() -> None:
-    # FAIL-LOUD on a coverage mirage: if the daily dir EXISTS but every _LIQUID zip is pruned, the
+    # FAIL-LOUD on a coverage mirage: if the daily dir EXISTS but every liquid zip is pruned, the
     # parametrized HALF-1 tests below all per-ticker-skip and the file passes as a silent no-op.
     # This guard makes that state RAISE instead of green — at least one liquid name must be present
     # when the tree is present, so HALF 1 genuinely exercises the seed path.
-    assert any(_available(t) for t in _LIQUID), (
-        f"daily tree present at {_DAILY} but none of {_LIQUID} on disk — HALF-1 seed coverage "
-        f"would silently no-op (a coverage mirage). Restore the data symlink / liquid zips."
+    assert any(rd.daily_available(t) for t in rd.LIQUID), (
+        f"daily tree present at {rd.DAILY_DIR} but none of {rd.LIQUID} on disk — HALF-1 seed "
+        f"coverage would silently no-op (a coverage mirage). Restore the data symlink / liquid zips."
     )
-
-
-def _read_daily(ticker: str) -> pd.DataFrame:
-    """Real on-disk daily OHLCV -> the lowercased frame the seed path consumes. LEAN daily zips
-    are `yyyymmdd HH:MM,open,high,low,close,volume` with prices in deci-cents (/10000)."""
-    zp = _DAILY / f"{ticker}.zip"
-    with zipfile.ZipFile(zp) as z:
-        raw = z.read(z.namelist()[0]).decode()
-    rows = []
-    for ln in raw.strip().split("\n"):
-        ts, o, h, lo, c, v = ln.split(",")
-        rows.append((ts.split(" ")[0], float(o) / 10000, float(h) / 10000,
-                     float(lo) / 10000, float(c) / 10000, float(v)))
-    df = pd.DataFrame(rows, columns=["date", "open", "high", "low", "close", "volume"])
-    df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
-    return df.set_index("date")
 
 
 # ======================================================================================
 # HALF 1 — the SEED can reach the binding weekly-Ichimoku readiness from real history.
 # ======================================================================================
-@pytest.mark.skipif(not _DAILY.is_dir(), reason="local LEAN daily tree absent (gitignored data/)")
-@pytest.mark.parametrize("ticker", _LIQUID)
+@pytest.mark.skipif(not rd.have_daily_tree(), reason="local LEAN daily tree absent (gitignored data/)")
+@pytest.mark.parametrize("ticker", rd.LIQUID)
 def test_seed_reaches_weekly_ichimoku_readiness_real_data(ticker: str) -> None:
-    if not _available(ticker):
+    if not rd.daily_available(ticker):
         pytest.skip(f"{ticker}.zip absent on disk")
-    df = _read_daily(ticker)
+    df = rd.read_daily_zip(ticker)
     # _seed_weekly pulls `self.history(sym, WARMUP_DAYS, Resolution.DAILY)` — the INT form of QC
     # History returns that many BARS (trading days), not calendar days. So the seed window is the
     # LAST WARMUP_DAYS (560) trading bars ~ 112 weeks, comfortably above the 78-week pole.
@@ -104,12 +79,12 @@ def test_seed_reaches_weekly_ichimoku_readiness_real_data(ticker: str) -> None:
     assert len(weekly) >= 27
 
 
-@pytest.mark.skipif(not _DAILY.is_dir(), reason="local LEAN daily tree absent (gitignored data/)")
-@pytest.mark.parametrize("ticker", _LIQUID)
+@pytest.mark.skipif(not rd.have_daily_tree(), reason="local LEAN daily tree absent (gitignored data/)")
+@pytest.mark.parametrize("ticker", rd.LIQUID)
 def test_seed_reaches_daily_suite_readiness_real_data(ticker: str) -> None:
-    if not _available(ticker):
+    if not rd.daily_available(ticker):
         pytest.skip(f"{ticker}.zip absent on disk")
-    df = _read_daily(ticker)
+    df = rd.read_daily_zip(ticker)
     # Same INT-form history semantics: last WARMUP_DAYS (560) trading bars.
     window = df.iloc[-BctEngineAlgorithm.WARMUP_DAYS:]
     # The daily-suite poles (all SHORTER than the 78-week weekly pole): 200d SMA, 78d daily
@@ -123,85 +98,22 @@ def test_seed_reaches_daily_suite_readiness_real_data(ticker: str) -> None:
 
 # ======================================================================================
 # HALF 2 — COLD CANNOT score: the maintained scorer never emits a number off a not-ready input.
-# Property fuzz over the readiness flags (the anti-mirage structural invariant).
+# Property fuzz over the readiness flags (the anti-mirage structural invariant). The value-shapes
+# are the shared realdata.build_native_suite primitive (#260 dedup); the fuzz is unchanged.
 # ======================================================================================
-class _Cur:
-    def __init__(self, v: float) -> None:
-        self.value = v
-
-
-class _Ind:
-    def __init__(self, v: float, ready: bool) -> None:
-        self.current = _Cur(v)
-        self.is_ready = ready
-
-
-class _Ichi:
-    def __init__(self, t: float, k: float, sa: float, sb: float, ready: bool) -> None:
-        self.tenkan = _IndV(t)
-        self.kijun = _IndV(k)
-        self.senkou_a = _IndV(sa)
-        self.senkou_b = _IndV(sb)
-        self.is_ready = ready
-
-
-class _IndV:
-    def __init__(self, v: float) -> None:
-        self.current = _Cur(v)
-
-
-class _Adx:
-    def __init__(self, adx: float, pdi: float, ndi: float, ready: bool) -> None:
-        self.current = _Cur(adx)
-        self.positive_directional_index = _IndV(pdi)
-        self.negative_directional_index = _IndV(ndi)
-        self.is_ready = ready
-
-
-class _Window:
-    def __init__(self, n: int) -> None:
-        self._v = [float(i) for i in range(n)]
-
-    def __getitem__(self, i: int) -> float:
-        return self._v[i]
-
-    @property
-    def count(self) -> int:
-        return len(self._v)
-
-
-class _QC:
-    def __init__(self, price: float) -> None:
-        self.securities = {"SYM": type("S", (), {"price": price})()}
-
-
-def _build_ind(*, d_r: bool, w_r: bool, sma_r: bool, adx_r: bool, roc_r: bool,
-               wclose_n: int, adxwin_n: int) -> dict[str, Any]:
-    # Real-plausible value layout (8/8-pass shape at price 100); only the READINESS varies.
-    return {
-        "d_ichi": _Ichi(90.0, 88.0, 85.0, 80.0, ready=d_r),
-        "w_ichi": _Ichi(70.0, 60.0, 75.0, 65.0, ready=w_r),
-        "w_close": _Window(wclose_n),
-        "sma200": _Ind(50.0, ready=sma_r),
-        "adx": _Adx(25.0, 30.0, 10.0, ready=adx_r),
-        "adx_window": _Window(adxwin_n),
-        "roc13": _Ind(0.10, ready=roc_r),
-    }
-
-
 def test_cold_cannot_score_property_fuzz() -> None:
     # Exhaustive small fuzz: across all combinations of the 5 readiness flags + the two window
     # counts at their boundaries, a score is emitted IFF every gate is ready. No not-ready combo
     # ever yields a number -> "silently scored cold" is structurally UNREACHABLE.
-    import itertools
-
     scored_when_not_all_ready = []
     for d_r, w_r, sma_r, adx_r, roc_r in itertools.product([True, False], repeat=5):
         for wclose_n in (26, 27):       # 26 = too short, 27 = exactly ready
             for adxwin_n in (3, 4):     # 3 = too short, 4 = exactly ready
-                ind = _build_ind(d_r=d_r, w_r=w_r, sma_r=sma_r, adx_r=adx_r, roc_r=roc_r,
-                                 wclose_n=wclose_n, adxwin_n=adxwin_n)
-                r = score_symbol_native(_QC(100.0), "SYM", ind)
+                ind, qc = rd.build_native_suite(
+                    d_ready=d_r, w_ready=w_r, sma_ready=sma_r, adx_ready=adx_r, roc_ready=roc_r,
+                    wclose_n=wclose_n, adxwin_n=adxwin_n, price=100.0,
+                )
+                r = score_symbol_native(qc, "SYM", ind)
                 all_ready = (d_r and w_r and sma_r and adx_r and roc_r
                              and wclose_n >= 27 and adxwin_n >= 4)
                 if r is not None and not all_ready:
