@@ -89,3 +89,31 @@ CI mirrors it (#297 DRYs that). HQ aligned CI to the CURRENT runtime (OR) for no
 ship a contradiction — so changing to AND in #276b means updating the runtime gate + flipping
 test_entry_selection_alone_satisfies (it becomes a NEGATIVE: selection-alone → DegradedConfigError)
 + letting #297 re-mirror CI. Decide + document the contract when wiring the #276b entry phases.
+
+## #276 HARD GATE — is_ready (banked from #275b GATE-0, HQ — do NOT let slip)
+is_ready was untestable at #275b (plumbing-only, no consumer). It's a HARD #276 gate — TWO reqs
+when building the entry-confirm phase:
+1. The entry-confirm phase (BctIntradayConfirm) MUST guard on the intraday indicator's is_ready
+   BEFORE reading it → FAIL-LOUD (DegradedDataError) if not-ready. NO reading a cold intraday
+   indicator (mirror the daily score_symbol_native not-ready guard). Distinguish legit-not-yet-warm
+   (DECLINE, e.g. first-N-min / first-candle) from degraded-cold (RAISE).
+2. A TEST asserting the 624-bar (8*78) seed actually warms the intraday Tenkan to is_ready BEFORE
+   the first entry read. If the seed is insufficient/mis-warmed it won't surface until #276 reads
+   a not-ready indicator — so #276's FIRST validation must include this. (The seed RUNS at #275b
+   — subscribe fires, 0 cold errors — but whether it reaches is_ready is unverified until a consumer.)
+
+## #276/#277 — banked from #300 GATE-0 (fill-timing findings, HQ)
+1. champion_intraday baseline (#277) is measured WITH intraday subs + uniform-minute-fills. The
+   #262 daily-MOO baseline is RETIRED — do NOT compare champion_intraday to −0.139/−0.683 (those
+   were the phantom daily-MOO model on daily fills).
+2. VERIFY uniform-minute-fill basis in #276: every TRADED name must be ⊆ SUBSCRIBED (the
+   entry-confirm reads the minute indicator → only subscribed names can confirm → traded⊆subscribed
+   by construction). The INTRADAY_SUBSCRIBE_CAP must NEVER exclude a name the model would trade
+   (it can't, by the confirm-gate construction — but assert it). If a traded name is ever
+   unsubscribed → mixed daily/minute fill basis → the fixture's cascade artifact → FLAG/raise.
+   (The fixture's 210→202 was BENIGN because it's MOO-on-all-candidates with only 50 subscribed =
+   mixed basis; the real model trades only subscribed = uniform basis, no mixed cascade.)
+3. The system is FILL-TIMING-SENSITIVE: small fill shifts ripple the whole trajectory (the 636/636
+   identical-decision yet 210-vs-202-orders proof). Relevant for: local↔cloud parity (#277 — a
+   1-bar fill diff cascades) AND #214 sweep determinism (same config must give same fills run-to-run;
+   minute-fill nondeterminism would break repeatability). Note when building #277/#214.
