@@ -45,3 +45,18 @@ Lean: **#1** (once-per-date guard, reuses `_last_daily_date`) as the immediate f
 
 ## Status
 276b-0 CODE remains correct + green (587f8e1). This finding is a SEPARATE pre-existing #275b defect that must be fixed (likely its own fix-ticket on mainV2, rebased into 276b) BEFORE 276b-1. Smoke did its job — caught a two-clock regression before building the model on top.
+
+---
+
+## RE-RUN (post-#311 merge, rebased b192c12) — over-fire FIXED, UNDER-fire found
+Window 2025-02-01..02-14, v2 dist (VERSION_MARKER confirmed), Successfully ran.
+
+| assert | before #311 | after #311 | verdict |
+|---|---|---|---|
+| SNAPSHOT/date | 390/day | **1 total** (only 02-03) | over-fire gone ✓ but now UNDER-fires |
+| daily fills | 778/day | 10 total (02-03) | 778 storm gone ✓ |
+| labeling/H2 | — | SNAPSHOT+ENTRY = 02-03, real date, no off-by-one ✓ | clean |
+
+**New failure mode:** `on_data`'s daily-decision block fired ONLY 02-03, while `ACTIVE_SET` (universe coarse callback) fired EVERY window day. Once SPY is intraday-subscribed (top-DV ETF → always selected), `on_data`'s SPY slice carries the 5-min bar → `is_daily_spy_bar`=False on 02-04+ → the daily decision (signal/sizing/FIRE + snapshot capture) never re-fires. #311's period gate correctly rejects the 5-min bar, but no daily SPY bar remains in `on_data` to accept → UNDER-fire.
+
+**Conclusion:** the SPY-bar-PRESENCE trigger is fundamentally unreliable once SPY is intraday-subbed — #311 traded over-fire for under-fire. The real fix is **#313** (decouple the daily decision from `on_data` SPY-bar-presence → trigger on the universe callback / scheduled after-close, which fire daily). #311's guards stay. **#313 must land before 276b-0 finalization + 276b-1** (both depend on the daily decision firing once-per-day). Reported to HQ for the call.
