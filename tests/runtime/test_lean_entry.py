@@ -183,9 +183,10 @@ def test_on_data_skips_engine_during_warmup() -> None:
 
 def test_on_data_two_clock_routing() -> None:
     # #275b S1 (the load-bearing routing): on_data routes the DAILY bar → on_data_with_ctx
-    # (decision clock) and 5-min bars → on_intraday_bar (execution clock). Pin all three slice
-    # shapes so the gate `spy_bar is not None or not self._intraday` can't drift silently.
+    # (decision clock) and 5-min bars → on_intraday_bar (execution clock). #311: the daily heartbeat
+    # is the DAILY-RESOLUTION SPY bar (period ~1 day) — a 5-min SPY bar must NOT trip it.
     from datetime import datetime as _dt
+    from datetime import timedelta as _td
 
     from runtime.lean_entry import BctEngineAlgorithm
 
@@ -200,8 +201,11 @@ def test_on_data_two_clock_routing() -> None:
         def __eq__(self, o): return isinstance(o, FakeSym) and o.value == self.value
 
     class FakeBar:
-        def __init__(self, close=100.0, volume=1000.0):
-            self.close = close; self.volume = volume
+        def __init__(self, close=100.0, volume=1000.0, period=_td(minutes=5)):
+            self.close = close; self.volume = volume; self.period = period
+
+    def _daily_bar():  # the DAILY-resolution SPY heartbeat bar (period ~1 day)
+        return FakeBar(period=_td(days=1))
 
     class FakeBars:
         def __init__(self, d): self._d = d
@@ -240,15 +244,123 @@ def test_on_data_two_clock_routing() -> None:
     a.on_data(FakeSlice(FakeBars({aapl: FakeBar()})))
     assert a.engine.intraday == 1 and a.engine.daily == 0, "5-min slice should fire intraday only"
 
-    # (b) SPY daily bar present (+ intraday subs) → daily clock fires
+    # (b) SPY DAILY bar present (+ intraday subs) → daily clock fires
     a = _algo()
-    a.on_data(FakeSlice(FakeBars({spy: FakeBar()})))
+    a.on_data(FakeSlice(FakeBars({spy: _daily_bar()})))
     assert a.engine.daily == 1, "SPY daily bar must fire the daily decision clock"
 
-    # (c) both present → both clocks fire
+    # (c) SPY daily bar + a 5-min bar → both clocks fire
     a = _algo()
-    a.on_data(FakeSlice(FakeBars({spy: FakeBar(), aapl: FakeBar()})))
-    assert a.engine.daily == 1 and a.engine.intraday == 1, "both bars present → both clocks"
+    a.on_data(FakeSlice(FakeBars({spy: _daily_bar(), aapl: FakeBar()})))
+    assert a.engine.daily == 1 and a.engine.intraday == 1, "daily bar + 5-min → both clocks"
+
+
+def test_on_data_intraday_spy_bar_does_not_fire_daily_clock() -> None:
+    # #311 REGRESSION + strengthened SG8: a 5-MIN SPY bar (SPY is intraday-subscribed) must NOT
+    # trip the daily decision clock. The #275b bug fired the daily pipeline (selection/FIRE_ENTRIES)
+    # on every 5-min SPY bar → 778 intraday entries/day. This BITES the old `spy_bar is not None`
+    # condition (which would fire daily here).
+    from datetime import datetime as _dt
+    from datetime import timedelta as _td
+    from runtime.lean_entry import BctEngineAlgorithm
+
+    class FakeEngine:
+        def __init__(self): self.daily = 0; self.intraday = 0
+        def on_data_with_ctx(self, ctx): self.daily += 1
+        def on_intraday_bar(self, ctx): self.intraday += 1
+
+    class FakeSym:
+        def __init__(self, v): self.value = v
+        def __hash__(self): return hash(self.value)
+        def __eq__(self, o): return isinstance(o, FakeSym) and o.value == self.value
+
+    class FakeBar:
+        def __init__(self, period=_td(minutes=5)):
+            self.close = 100.0; self.volume = 1000.0; self.period = period
+
+    class FakeBars:
+        def __init__(self, d): self._d = d
+        def get(self, sym): return self._d.get(sym)
+
+    class FakeSlice:
+        def __init__(self, bars): self.bars = bars
+
+    spy = FakeSym("SPY")
+
+    def _algo():
+        a = BctEngineAlgorithm()
+        a.engine = FakeEngine()
+        a.time = _dt(2025, 6, 2)
+        a.is_warming_up = False
+        a.spy = type("S", (), {"symbol": spy})()
+        a._intraday = {spy: {"intraday_tenkan": type("I", (), {"update": lambda s, b: None})(),
+                             "vol_window": type("W", (), {"add": lambda s, v: None})(),
+                             "last_close": None, "last_bar": None}}  # SPY intraday-subscribed
+        a._active = {spy}
+        a._intraday_active = {spy}
+        a._ranked_today = ["spy"]
+        a.portfolio = type("P", (), {"__getitem__": lambda s, k: type("H", (), {"invested": False})()})()
+        return a
+
+    # a 5-min SPY bar (intraday) — daily clock must NOT fire; intraday clock does
+    a = _algo()
+    a.on_data(FakeSlice(FakeBars({spy: FakeBar(period=_td(minutes=5))})))
+    assert a.engine.daily == 0, "#311: a 5-min SPY bar must NOT fire the daily decision clock (SG8)"
+    assert a.engine.intraday == 1
+
+    # MANY 5-min SPY bars on the SAME date → daily still ZERO (the 778x/day bug)
+    a = _algo()
+    for _ in range(50):
+        a.on_data(FakeSlice(FakeBars({spy: FakeBar(period=_td(minutes=5))})))
+    assert a.engine.daily == 0, "#311: repeated 5-min SPY bars must never fire the daily clock"
+
+
+def test_on_data_daily_clock_runs_once_per_date() -> None:
+    # #311 once-per-date idempotency (defense-in-depth): even the DAILY SPY bar fires the daily
+    # decision AT MOST once per trading date. Two daily bars same date → daily count 1.
+    from datetime import datetime as _dt
+    from datetime import timedelta as _td
+    from runtime.lean_entry import BctEngineAlgorithm
+
+    class FakeEngine:
+        def __init__(self): self.daily = 0; self.intraday = 0
+        def on_data_with_ctx(self, ctx): self.daily += 1
+        def on_intraday_bar(self, ctx): self.intraday += 1
+
+    class FakeSym:
+        def __init__(self, v): self.value = v
+        def __hash__(self): return hash(self.value)
+        def __eq__(self, o): return isinstance(o, FakeSym) and o.value == self.value
+
+    class FakeBar:
+        def __init__(self): self.close = 100.0; self.volume = 1000.0; self.period = _td(days=1)
+
+    class FakeBars:
+        def __init__(self, d): self._d = d
+        def get(self, sym): return self._d.get(sym)
+
+    class FakeSlice:
+        def __init__(self, bars): self.bars = bars
+
+    spy = FakeSym("SPY")
+    a = BctEngineAlgorithm()
+    a.engine = FakeEngine()
+    a.time = _dt(2025, 6, 2)
+    a.is_warming_up = False
+    a.spy = type("S", (), {"symbol": spy})()
+    a._intraday = {}
+    a._active = set()
+    a._intraday_active = set()
+    a._ranked_today = []
+    a.portfolio = type("P", (), {"__getitem__": lambda s, k: type("H", (), {"invested": False})()})()
+
+    a.on_data(FakeSlice(FakeBars({spy: FakeBar()})))
+    a.on_data(FakeSlice(FakeBars({spy: FakeBar()})))  # 2nd daily bar, SAME date
+    assert a.engine.daily == 1, "#311: daily decision runs at most once per trading date"
+    # advance the date → daily fires again
+    a.time = _dt(2025, 6, 3)
+    a.on_data(FakeSlice(FakeBars({spy: FakeBar()})))
+    assert a.engine.daily == 2, "a new trading date re-arms the daily decision"
 
 
 # --------------------------------------------------------------------------------------
