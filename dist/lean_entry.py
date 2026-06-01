@@ -409,12 +409,13 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         # Subscribe ONLY the ranked qualifying set (the whole point of Y — no 2x load).
         count, h = active_set_hash(ranked)
         self.log(f"ACTIVE_SET|{date_str}|count={count}|hash={h}")
-        # #275b: the daily clock decides WHO gets a 5-min intraday feed for T+1 — reconcile the
-        # intraday subscription set to (candidates ∩ CAP) + holdings. Done AFTER the daily
-        # selection (post-warmup; during warmup we skip — no intraday trading, and the daily subs
-        # aren't established yet). Names not yet in _active resolve on the next call once subscribed.
-        if not self.is_warming_up:
-            self._sync_intraday_subscriptions(ranked)
+        # #275b-fix (LAG): the intraday-subscription sync is NOT done here. add_universe returns
+        # the ranked symbols, but qc._active only updates in on_securities_changed which QC fires
+        # AFTER this callback returns — so reconciling here would resolve candidates against the
+        # PREVIOUS day's _active (a 1-day lag → a FRESH candidate's 5-min feed engages T+2, missing
+        # its T+1 execution window). Instead the sync runs in on_data's daily-clock path (where
+        # _active is current); we stash today's ranked set for it to consume.
+        self._ranked_today = ranked  # (already set above; explicit for the on_data sync consumer)
         return [Symbol.create(t.upper(), SecurityType.EQUITY, Market.USA) for t in ranked]
 
     def on_securities_changed(self, changes: Any) -> None:
@@ -607,7 +608,11 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         holdings (#275b). Called once-daily after the selection produces the candidate list — the
         daily clock deciding WHO gets a 5-min feed for T+1. Subscribes new, tears down dropped
         (non-held). CAP is explicit + logged — never the whole universe (#213e OOM scar)."""
-        active_by_value = {s.value: s for s in self._active}
+        # CASE: ranked `candidates` are lowercase (coarse value lowered); QC Symbol.value is
+        # uppercase. Match case-INSENSITIVELY to the canonical _active symbol — the same fix the
+        # universe phase (dv_rank_cap) uses. (Without this the lookup always missed → 0 intraday
+        # subscriptions despite INTRADAY_CAP logging — the #275b bug GATE-0 caught.)
+        active_by_lower = {s.value.lower(): s for s in self._active}
         # the capped candidate slice that gets an intraday feed (scan-breadth cap, not a position cap)
         capped = candidates[: self.INTRADAY_SUBSCRIBE_CAP]
         if len(candidates) > self.INTRADAY_SUBSCRIBE_CAP:
@@ -616,7 +621,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             )
         want: set[Any] = set()
         for tk in capped:
-            sym = active_by_value.get(tk)
+            sym = active_by_lower.get(tk.lower())
             if sym is not None:
                 want.add(sym)
         # held names ALWAYS keep their feed (exits fire on the intraday clock)
@@ -772,6 +777,12 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         # --- daily (decision) clock: run on the daily bar (SPY is the daily heartbeat) ---
         spy_bar = bars.get(self.spy.symbol) if (bars is not None and hasattr(bars, "get")) else None
         if spy_bar is not None or not self._intraday:
+            # #275b-fix (LAG): reconcile the intraday subscription set HERE, on the daily-clock
+            # tick, BEFORE the decision pipeline — qc._active is now CURRENT (on_securities_changed
+            # has fired for the latest selection), so today's ranked candidates resolve to live
+            # symbols with NO 1-day lag → a fresh candidate's 5-min feed is active for its T+1
+            # execution window. (Subscription mgmt is daily-clock housekeeping, two-clock-correct.)
+            self._sync_intraday_subscriptions(getattr(self, "_ranked_today", []))
             ctx = PhaseContext(qc=self, time=self.time, data=data)
             ctx.clock = "daily"
             self.engine.on_data_with_ctx(ctx)
