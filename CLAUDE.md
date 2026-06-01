@@ -41,6 +41,19 @@ Rules:
 
 Rating: +++ = 8/8, ++ = 6-7/8, + = 4-5/8
 
+The 8-condition score is the **daily SIGNAL** (which names) — the qualify lane only. It does NOT
+fire trades. Entry TIMING and exits are **intraday** (next section).
+
+## Execution model — daily signal → intraday confirmed execution (#270, ARCHITECTURE.md §10)
+The strategy runs on **two clocks**: a daily decision clock (the 8-condition signal picks
+candidates after close T for T+1) and an intraday execution clock (on T+1 the engine confirms
+**intraday** — Tenkan reclaim + rising volume, ~first 2h — before firing, and exits on intraday
+**stop-market** orders). It does NOT blind-buy the open. A config that fires market-on-open with
+no entry-confirm phase is a **blind-entry FIXTURE**, never a champion — the engine fails loud
+(`DegradedConfigError`) on a champion missing its `entry`/`exit` phases (REQUIRED_PHASES). The old
+daily-only / market-on-open `champion_asis` is a retired fixture; the #262/#268 MOO-parity effort
+is retired (it optimised a model the strategy was never meant to use). Epic #270.
+
 ## QC Tier
 Researcher ($84/month) — sufficient for solo live trading with up to 2 live nodes.
 API credentials: User ID + API Token from QC account settings → macOS keychain.

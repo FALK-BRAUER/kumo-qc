@@ -1,8 +1,10 @@
 # Phases Spec — kumo-qc Strategy Engine
 
-**Status:** Spec (2026-05-30, Falk). Linked from [ARCHITECTURE.md](ARCHITECTURE.md).
+**Status:** Spec (2026-05-30, Falk; **revised 2026-06-01 for the two-clock intraday execution model, #270**). Linked from [ARCHITECTURE.md](ARCHITECTURE.md).
 
 Defines the per-phase contract for the phase-based strategy engine. 29 phase kinds. Every phase implementation conforms to this spec.
+
+> **#270 two-clock model.** Phases run on one of two clocks (`PHASE_RESOLUTION ∈ {daily, intraday}`). **Daily-clock** phases (universe/signal/regime/ranking) decide WHICH names after close T → the candidate list for T+1. **Intraday-clock** phases (entry_selection/entry_timing/sizing/fire/stops/trail/exits) run on T+1's 5-min bars and decide WHEN to fire. Market-on-open with no confirmation is a retired blind-entry FIXTURE, not a champion; `entry`+`exit` are REQUIRED and the engine fails loud (`DegradedConfigError`) without them. See ARCHITECTURE.md §10 + §4.
 
 ---
 
@@ -15,6 +17,7 @@ Every phase implements `PhaseInterface`:
 
 class PhaseInterface(ABC):
     PHASE_KIND: str = ""               # class attribute, e.g. "universe", "adds"
+    PHASE_RESOLUTION: str = "daily"    # #270: "daily" (decision clock) | "intraday" (execution clock)
     REQUIRES_UPSTREAM: list[str] = []  # phase kinds that must be present
     PROVIDES_DOWNSTREAM: list[str] = []  # what downstream phases consume from this
 
@@ -38,12 +41,18 @@ class PhaseInterface(ABC):
 # src/engine/context.py
 
 class PhaseContext:
-    """Shared mutable state across one bar/tick. Engine owns lifecycle."""
+    """Shared mutable state across one bar/tick. Engine owns lifecycle.
+
+    #270: a ctx is created per TICK on either clock. `clock` tells a phase which clock it is
+    running on; daily-clock phases populate the candidate list + signal snapshot, intraday-clock
+    phases read the standing candidates + the current COMPLETED 5-min bar (never a forming bar,
+    never T+1's daily bar — look-ahead)."""
 
     # Read-only inputs
     qc_algo: Any                  # QC algorithm instance (Portfolio, Securities, Time, ...)
     bar_time: datetime
     bar_data: dict                # Slice data
+    clock: str                    # #270: "daily" | "intraday"
 
     # Phase outputs (populated as engine progresses through PHASE_ORDER)
     universe: set[str]            # filled by universe phase
@@ -81,7 +90,7 @@ class PhaseResult:
 
 **Purpose:** Produce today's eligible ticker set.
 
-**Engine order:** 1st phase. Runs once per bar (daily).
+**Engine order:** 1st phase. **Clock: daily** (`PHASE_RESOLUTION="daily"`). Runs once per daily decision tick (after close T), producing the candidate list for T+1.
 
 **Input:** `ctx.bar_time`, `ctx.qc_algo` (for ObjectStore / Securities).
 
@@ -202,65 +211,81 @@ parabolic, not already invested/pending).
 
 ---
 
-## 5. entry_selection (kind: `entry_selection`)
+## 5. entry_selection (kind: `entry_selection`) — **REQUIRED, intraday (#270)**
 
-**Purpose:** GATE the qualified+ranked candidates down to those CONFIRMING an entry (the
-methodology entry trigger). Selection + confirmation, NOT slot logic.
+**Purpose:** On T+1's intraday clock, GATE the daily candidates down to those CONFIRMING an entry
+intraday (the methodology entry trigger), AND pre-flight-validate them against the daily thesis.
+Selection + confirmation, NOT slot logic.
 
-**Engine order:** Between `ranking` and `entry_timing` (PHASE_ORDER), ENTRY_ONLY (suppressed
-when the bar is regime/cash-blocked).
+**Clock: intraday** (`PHASE_RESOLUTION="intraday"`). Runs on T+1's completed 5-min bars against
+the standing daily candidate list. **REQUIRED phase** (fail-loud gate, #270).
 
-**Input:** `ctx.bar_state.sized_orders` (the signal's qty=0 OrderIntent stubs).
+**Engine order:** First intraday-execution phase, before `entry_timing` (PHASE_ORDER), ENTRY_ONLY
+(suppressed when the bar is regime/cash-blocked).
+
+**Input:** the daily candidate list + each candidate's daily SNAPSHOT (signal price, daily Kijun);
+`ctx.bar_state.sized_orders` (the signal's qty=0 OrderIntent stubs); maintained INTRADAY indicators.
 
 **Output:** the SAME `sized_orders` list, FILTERED in place to confirmed candidates. A per-symbol
-confirmation score is published on `qc._entry_confirm[ticker]` (+ `PhaseResult.facts['scores']`)
-for a downstream methodology sizer to consume.
+confirmation state is published on `qc._entry_confirm[ticker]` (+ `PhaseResult.facts`).
 
-**Impls (catalog: `phases/entry_selection/library.py` → `ENTRY_SELECTION_PHASES`):**
-| Impl | Marker | Params (sweepable axes) | Role |
-|---|---|---|---|
-| `BctEntryConfirm` (#253) | `bct_entry_confirm_v1` | `tenkan_pullback_tol`, `volume_gate_mult`, `macd_signal`, `min_confirm` (grid 81) | §4 Gate-2 X/4 confirmation (C1 regime, C2 T-Bounce, C3 MACD, C4 volume); qualify ≥`min_confirm`/4 with regime+volume MANDATORY |
+**Two sub-roles (in order):**
+1. **Pre-flight staleness gate** (`PreFlightStaleness`, #270 — the FIRST intraday phase). Re-validate
+   each candidate against its daily snapshot: if T+1 has gapped away from / below the thesis (price
+   vs signal price / daily Kijun beyond tolerance), INVALIDATE it. Don't enter a broken thesis —
+   George's gap-up discipline as a phase.
+2. **Intraday confirmation** (`BctIntradayConfirm`, #270 — the LOCKED mechanic). Confirm on
+   completed 5-min bars: **intraday-Tenkan reclaim + rising volume** (GH#25 §3.2), within the first
+   ~2h. Fires only on confirmation; defers across intraday bars until confirmed or the window closes.
 
-Phase-2 variants (planned, own classes): `ResistanceZoneFilter` (#148), `RiskRewardFilter`
-(#150), `DojiDelay` (#64).
+**RETIRED:** `BctEntryConfirm` (#253) — the **DAILY** §4 Gate-2 (C1–C4) snapshot gate. It degraded
+Sharpe to −1.016 precisely because a once-daily snapshot is not an intraday touch (its own
+measurement doc flagged this). Kept only as a fixture/reference, NOT the confirmation mechanic.
 
-**Required upstream:** `signal`.
-**Provides downstream:** `sized_orders` (gated).
+Phase-2 variants (planned, own classes): `ResistanceZoneFilter` (#148), `RiskRewardFilter` (#150),
+`DojiDelay` (#64).
+
+**Required upstream:** `signal` (the daily candidate list + snapshot).
+**Provides downstream:** `sized_orders` (gated, confirmed).
 
 **Contract:**
-- NO count caps / fixed slots — the gate is principled (methodology component confirmation),
-  not a top-N cap. Thresholds (`min_confirm`, `volume_gate_mult`, `tenkan_pullback_tol`) are
-  parameterized + swept.
+- NO count caps / fixed slots — the gate is principled (intraday confirmation), not a top-N cap.
+- Reads only COMPLETED intraday bars + the daily snapshot; NEVER T+1's daily bar (look-ahead).
 - `blocked` is ALWAYS False — entry_selection gates candidates, it never blocks the bar.
-- Reads MAINTAINED `qc._indicators` (O(1)/candidate) — NO per-bar history (isolator-timeout rule).
-- Methodology↔code mapping + golden-master: `research/methodology/bct-entry-confirm-reconciliation.md`.
+- Methodology↔code mapping + golden-master: `research/methodology/` (intraday-confirm reconciliation).
 
 ---
 
-## 6. entry_timing (kind: `entry_timing`)
+## 6. entry_timing (kind: `entry_timing`) — **REQUIRED, intraday (#270)**
 
-**Purpose:** Decide the order mechanics (type + price) for each confirmed candidate.
+**Purpose:** Decide the order mechanics (type + price) for each confirmed candidate, and emit the
+typed `OrderIntent` the fire seam executes.
+
+**Clock: intraday.** **REQUIRED phase** (fail-loud gate, #270).
 
 **Engine order:** After `entry_selection`, before `sizing` (so a price-rewriting variant feeds
 sizing the entry price). ENTRY_ONLY.
 
-**Input / Output:** `ctx.bar_state.sized_orders` (pass-through; a non-baseline variant rewrites
-`intent.price`/`intent.stop`). The actual order placement is the engine's `FIRE_ENTRIES` sentinel
-(market-on-open) — phases never touch LEAN directly.
+**Input / Output:** `ctx.bar_state.sized_orders`; the phase SETS `intent.order_type` (+ `price`/
+`stop`). The actual placement is the engine's `FIRE_ENTRIES` sentinel, which dispatches on
+`intent.order_type` (the Command-pattern fire seam) — phases never touch LEAN directly.
 
 **Impls (catalog: `phases/entry_timing/library.py` → `ENTRY_TIMING_PHASES`):**
 | Impl | Marker | Params | Role |
 |---|---|---|---|
-| `MarketOnOpenEntry` (#253) | `market_on_open_entry_v1` | (none — baseline, empty `space()`) | §4 Gate-5 default: market-on-open (today's implicit engine behavior, made explicit) |
+| `ConfirmedMarketEntry` (#270) | `confirmed_market_entry_v1` | (none — baseline) | Once intraday-confirmed, fire `order_type=market` immediately (intraday), NOT next-open MOO |
 
-Phase-2 variants (planned, own classes): `BuyStopEntry` (#149), `LimitPullbackEntry`.
+Phase-2 variants (planned, own classes): `BuyStopEntry` (#149, §4 Gate-5 day-type buy-stop),
+`LimitPullbackEntry` (limit @ Tenkan). **RETIRED:** `MarketOnOpenEntry` (#253) — the blind
+next-open baseline; market-on-open is now just one `order_type` value, and a confirmation-free MOO
+config is a FIXTURE, not a champion.
 
-**Required upstream:** `signal`.
-**Provides downstream:** `sized_orders`.
+**Required upstream:** `entry_selection` (confirmed candidates).
+**Provides downstream:** `sized_orders` (with `order_type`/`price`/`stop` set).
 
 **Contract:**
-- The baseline rewrites NOTHING (market-on-open uses the open as the fill reference). A
-  buy-stop/limit variant rewrites `intent.price`/`intent.stop` here.
+- Emits the typed `order_type`; the fire seam (not the phase) calls the QC API. A buy-stop/limit
+  variant rewrites `intent.price`/`intent.stop` here.
 - `blocked` is ALWAYS False.
 
 ---
@@ -484,26 +509,36 @@ requires `entry_selection` (the published X/4 score).
 
 ---
 
-## 15. exit_hard (kind: `exit_hard`, list)
+## 15. exit_hard (kind: `exit_hard`, list) — **REQUIRED (an exit phase MUST be wired), intraday-capable (#270)**
 
-**Purpose:** Forced exits on signal/stop/regime conditions.
+**Purpose:** Forced exits on signal/stop/regime conditions. `exit` is a REQUIRED kind (fail-loud
+gate, #270) — at least one exit phase MUST be wired or the engine refuses to start.
 
-**Engine order:** Per-bar, before adds (exits take precedence over re-engagement).
+**Clock (#270):** exits run on the **intraday** clock so a stop fires *intrabar* on the break, via
+a `stop_market` `OrderIntent` (GH#25 §3.3) — NOT a next-open MOO. The stop LEVEL is computed from
+the daily structure (Kijun/cloud), but the TRIGGER is intraday price crossing it. (A daily-close
+exit is the legacy behaviour and the symptom that overnight-gapped: retired in favour of the
+intraday stop.) Exit-side phases run regardless of a regime/cash block.
 
-**Input:** `ctx.held_positions`, `ctx.qc_algo.Securities`.
+**Engine order:** Per intraday bar, before adds (exits take precedence over re-engagement).
 
-**Output:** `ctx.exit_intents: list[ExitIntent]` → fired immediately.
+**Input:** `ctx.held_positions`, `ctx.qc_algo.Securities`, the maintained daily stop level.
+
+**Output:** `ctx.exit_intents: list[ExitIntent]` (with `order_type=stop_market`, `stop=<level>`)
+→ fired via the seam.
 
 **Params:**
 | Impl | Params |
 |---|---|
-| `cloud_breach` | (no params; exit if daily price below cloud) |
-| `weekly_kijun` | (no params; exit if weekly close below weekly kijun) |
+| `kijun_g3` | (champion exit; stop level = daily Kijun / G3 cloud-bottom, fired intraday stop-market) |
+| `cloud_breach` | (no params; stop level = daily cloud bottom) |
+| `weekly_kijun` | (no params; weekly close below weekly kijun) |
 | `kumo_flip` | (no params; exit if Senkou A < Senkou B) |
 | `sector_etf_break` | `sector_etf_map: dict` |
 
 **Contract:**
-- Exit intents fire IMMEDIATELY (no further phase processing).
+- Exit intents fire IMMEDIATELY via the seam (no further phase processing). The stop LEVEL derives
+  from daily structure; the TRIGGER is an intraday completed-bar cross (look-ahead-safe).
 - MUST emit `EXIT|<ticker>|reason=<impl>|pnl=<$>`.
 
 ---
@@ -569,22 +604,27 @@ requires `entry_selection` (the published X/4 score).
 
 ---
 
-## 20. rebalance (kind: `rebalance`)
+## 20. rebalance (kind: `rebalance`) — two-clock scheduler (#270)
 
-**Purpose:** Engine tick scheduler.
+**Purpose:** Engine tick scheduler — drives BOTH clocks.
 
-**Engine order:** Wraps the entire on_data cycle.
+**Engine order:** Wraps the cycle. Schedules the **daily decision** as an after-close event
+(`on_daily_bar` → candidates for T+1) and routes **intraday** 5-min bars to `on_intraday_bar`
+(execution) on T+1.
 
 **Params:**
 | Impl | Params |
 |---|---|
-| `daily_close` | `time: str` (e.g. "16:05") |
+| `after_close_scan` (#270) | `scan_time: str` (after-close, e.g. "16:05") → daily decision; intraday execution on the 5-min clock next session |
+| `daily_close` | `time: str` — legacy single-clock (fixture only; not a champion scheduler) |
 | `weekly_friday` | `time: str` |
 | `signal_driven` | (no params; fire on any signal change) |
 
 **Contract:**
-- Exactly ONE rebalance module per strategy.
-- Engine.on_data() runs only when scheduler fires.
+- Exactly ONE rebalance module per strategy; for a champion it MUST drive both clocks
+  (after-close scan + intraday execution). A single-daily-clock scheduler is a fixture only.
+- `on_daily_bar` produces candidates + the signal snapshot; `on_intraday_bar` executes on
+  completed 5-min bars (look-ahead-safe).
 
 ---
 
@@ -624,34 +664,40 @@ requires `entry_selection` (the published X/4 score).
 
 ---
 
-## Engine PHASE_ORDER (canonical)
+## Engine PHASE_ORDER (canonical, two-clock #270)
+
+One ordered list; each phase tagged with its clock. The engine PRECOMPUTES the daily-subset and
+the intraday-subset at config-build (not a per-tick filter) and replays them via `on_daily_bar` /
+`on_intraday_bar`. `[D]` = daily decision clock, `[I]` = intraday execution clock.
 
 ```python
 PHASE_ORDER = [
-    "rebalance",          # scheduler tick
-    "universe",           # daily ticker set
-    "signal",             # score per ticker
-    "regime",             # macro blocks (list)
-    "ranking",            # order candidates
-    "entry_selection",    # pick top-N
-    "entry_timing",       # order type + price
-    "sizing",             # quantity
-    "reentry",            # cooldown filter
-    "eligibility",        # per-order checks
-    "portfolio_risk",     # aggregate exposure (list)
-    "cash",               # cash policy
-    # → orders fire here
-    "stops_initial",      # set stops on fills
-    "trail",              # ratchet stops
-    "exit_hard",          # forced exits (list)
-    "exit_target",        # profit targets
-    "exit_regime",        # regime-forced exits
-    "exit_rotation",      # rotate worst → best
-    "adds",               # pyramid intents
+    "rebalance",          # [D] scheduled after-close tick
+    "universe",           # [D] daily ticker set
+    "signal",             # [D] score per ticker → candidate list + signal snapshot for T+1
+    "regime",             # [D] macro blocks (list)
+    "ranking",            # [D] order candidates
+    # ───── daily decision ends (candidates for T+1) ─────
+    "entry_selection",    # [I] pre-flight staleness gate + intraday-Tenkan/volume confirm
+    "entry_timing",       # [I] order_type + price (confirmed → market; day-type → stop/limit)
+    "sizing",             # [I] quantity
+    "reentry",            # [I] cooldown filter
+    "eligibility",        # [I] per-order checks
+    "portfolio_risk",     # [I] aggregate exposure (list)
+    "cash",               # [I] cash policy
+    # → FIRE_ENTRIES (seam dispatches on order_type)
+    "stops_initial",      # [I] set stops on fills
+    "trail",              # [I] ratchet stops
+    "exit_hard",          # [I] forced exits → intraday stop-market (list)
+    "exit_target",        # [I] profit targets
+    "exit_regime",        # [I] regime-forced exits
+    "exit_rotation",      # [I] rotate worst → best
+    # → FIRE_EXITS (seam: stop_market intrabar)
+    "adds",               # [I] pyramid intents
     # → adds flow through sizing + risk + cash again
-    "profit",             # partial trims
-    "diagnostics",        # logging (list)
-    "circuit_breaker",    # halt checks
+    "profit",             # [I] partial trims
+    "diagnostics",        # [D]+[I] logging (list, runs both clocks)
+    "circuit_breaker",    # [D]+[I] halt checks
 ]
 ```
 
@@ -690,12 +736,13 @@ PHASE_ORDER = [
 
 Engine MUST verify on `__init__`:
 
-1. **Required phases present** — at least one universe, signal, ranking, entry_timing, sizing, cash, rebalance.
+1. **Required phases present (#270 fail-loud gate)** — `REQUIRED_PHASES = (universe, signal, sizing, entry, exit)`. `entry` (entry_selection + entry_timing) and `exit` are now REQUIRED. A config that would FIRE entries with no wired entry-confirm phase, or fire exits with no wired exit phase, raises `DegradedConfigError` (no implicit market-on-open default). A blind-MOO/placeholder-entry config is a FIXTURE and is rejected as a champion.
 2. **No conflicting adds** — only one adds module enabled at a time.
 3. **No count caps** — assert no params like `max_positions: <int>`, `max_lots: <int>`, `max_entries_per_day: <int>`.
 4. **No time exits** — assert no params like `max_hold_days`, `exit_if_flat_after_days`.
 5. **Explicit exposure** — if adds enabled, gross_exposure_cap MUST be enabled.
 6. **All required upstream present** — for each enabled phase, check its REQUIRES_UPSTREAM.
-7. **Version markers logged** — emit all marker strings on init for deploy verification.
+7. **Clock coherence (#270)** — every phase declares `PHASE_RESOLUTION ∈ {daily, intraday}`; the daily/intraday subsets are precomputed; an intraday phase in a config with no intraday data subscription → `DegradedConfigError`.
+8. **Version markers + clocks logged** — emit all marker strings + each phase's `PHASE_RESOLUTION` on init for deploy verification.
 
-Failure = engine refuses to start. NO silent fallback.
+Failure = engine refuses to start. NO silent fallback. (This is #261's fail-loud-on-degraded-data extended to the phase-stack config — the gate that would have crashed the phantom daily-MOO champion instead of silently trading it.)
