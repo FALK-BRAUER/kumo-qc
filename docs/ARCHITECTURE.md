@@ -184,3 +184,50 @@ The MOO local↔cloud "1-bar offset" was a symptom of the wrong (blind-open) mod
 
 ### Build sequencing (see #270)
 Phase 0 (these docs) → 1 (fail-loud gate + worktree isolation + two-clock smoke BT) → 2 (tick-routing split, behaviour-identical to the asis fixture) → 3 (intraday data pipeline) → 4 (the model: fire seam + intraday-Tenkan confirm + staleness gate + stop-market exits) → 5 (`champion_intraday` + re-baseline) → 6 (experiments on the correct baseline). **No code until Falk approves Phase 0.**
+
+## 11. Test strategy (#270/#278 — every phase, both clocks)
+
+Testing is a first-class pillar, not an afterthought. Every phase and every engine change ships with the following coverage; a phase MERGES only when it is green.
+
+### 11.1 The SG1–SG7 safeguard suite (the anti-mirage gates)
+Seven standing safeguards, each a test class that must pass on every build (the lessons that cost us days, encoded so they cannot regress silently):
+- **SG1 — no silent mirage.** Degraded/missing/malformed/zero-row data on EITHER clock → RAISE (DegradedDataError), never a silent-0/empty result. (The empty-warmup −0.616 mirage.)
+- **SG2 — fail-loud config.** A champion config missing entry/exit, or with an implicit-execution default, → DegradedConfigError at init. (The phantom daily-MOO champion.)
+- **SG3 — no look-ahead.** Acting on a forming/future bar, or reading T+1's daily bar on the intraday clock, → fail-loud; only completed consolidated bars are consumed. (The #268 grid + the weekly-resample check.)
+- **SG4 — determinism / parity.** Identical inputs → identical outputs; the selection rank is DV-desc+ticker-asc IDENTICAL local+cloud (the #182 scar); the two-clock split is behaviour-identical to the fixture when no intraday phase is wired.
+- **SG5 — no frozen universe / no count-caps / no time-exits.** The charter invariants (CONVENTIONS.md) as live assertions.
+- **SG6 — provenance pinned.** Every recorded result carries (commit + config-hash + data-fingerprint); an unpinned result fails the ledger gate.
+- **SG7 — clock coherence.** Every phase declares a valid `PHASE_RESOLUTION`; an intraday phase with no intraday subscription → fail-loud; daily decision state hands off to the intraday clock without leakage.
+
+### 11.2 Per-phase behavioral + fail-loud + outage (mandatory, the testing pillar)
+Each phase has three test layers (CONVENTIONS.md "Testing"):
+- **Behavioral** — real(istic) bar inputs → assert the actual decision/output is correct, incl. boundaries (at/above/below each floor, ties, the exact threshold), NOT import-only/"it instantiates" tests.
+- **Fail-loud** — the degraded/missing/not-ready/wrong-shaped inputs → assert it RAISES with context (the negative tests), per the failure taxonomy (§12).
+- **Outage / integration-failure** — missing data day, empty universe, unwarmed indicator, cold intraday feed, consolidator gap → assert crash-not-mirage (distinguish "correctly 0" from "broken 0").
+
+### 11.3 Mutation-bite + real-data G-DATA
+- **Mutation-bite:** a no-look control proves each negative/boundary test can actually FAIL (a test that cannot fail is not coverage — the #263 tautology lesson). Pair every not-ready/degraded assertion with a healthy control that does the opposite.
+- **Real-data G-DATA:** the integration suite runs the REAL selection/warmup/confirm path over REAL conformed data (daily + intraday 5-min), across warmup + FY, asserting non-empty/warm/confirmed where expected — the guard that the engine actually works end-to-end on the real substrate, not just on fakes.
+
+### 11.4 The two-clock additions (#270)
+- Daily→intraday **state-handoff** tests (candidate list + signal snapshot persist correctly to T+1).
+- **Intraday delivery parity** (the #268-analogue): local vs cloud deliver 5-min bars on the same clock — the Phase-1 smoke BT, then a standing parity guard.
+- **Stop-market intrabar** exit fires on the completed-bar cross, not next-open.
+
+## 12. Failure strategy (#270/#278 — crash, never mirage, on both clocks)
+
+The governing principle (Falk): **a degraded state must CRASH LOUD, never produce a silent mirage.** The −0.616 baseline survived because nothing crashed on broken data. Every failure path is typed, contextual, and tested to raise.
+
+### 12.1 The fail-loud taxonomy
+- **`DegradedDataError`** (#261) — degraded/missing/malformed/zero-row/non-finite/not-ready DATA at runtime, on either clock. Carries symbol/day/value. Raised by the data extractors, the selection gate (empty-feed / broken-0), the indicator-warm guards (daily AND intraday), and the look-ahead guards (forming/future bar).
+- **`DegradedConfigError`** (#270, NEW) — a structurally invalid CONFIG at init: entry/exit not wired (REQUIRED_PHASES), an implicit-execution default, an intraday phase with no intraday subscription, a phase with no/invalid `PHASE_RESOLUTION`, or a known charter violation. Refuses to start.
+- **`ConfigError`** (existing) — a configured phase kind absent from `PHASE_ORDER`, or other static wiring faults.
+
+### 12.2 No silent execution default (the load-bearing rule)
+There is **no implicit market-on-open**. Firing requires a wired, confirmed entry path and a wired exit path; absent either, the engine raises `DegradedConfigError` rather than blind-filling. A blind-open/placeholder entry exists only as a clearly-labelled FIXTURE for regression/parity scaffolding and can never run as a champion (it fails SG2).
+
+### 12.3 Both clocks, symmetric
+The fail-loud guards apply on the daily clock AND the intraday clock: a cold daily indicator, a cold INTRADAY indicator, a missing 5-min bar, a stale-handoff candidate, a forming-bar read — each raises with context. "Correctly 0" (a genuine no-candidate day) is distinguished from "broken 0" (a data gap) and only the latter raises; the distinction is itself tested.
+
+### 12.4 Degradation is observable
+Where a fail-loud raise would halt a live run undesirably, the alternative is a LOUD-SKIP-WITH-LOGGED-REASON (e.g. the offline conform tool's per-row skip), NEVER a silent drop. Every skip/raise emits a diagnosable marker; the diagnostics phase + chart-emit surface the degraded state so a monitor catches it. Silent truncation/sampling/capping is forbidden — if coverage is bounded, it is logged.
