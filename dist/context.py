@@ -18,6 +18,14 @@ class OrderIntent:
     stop: float
     module: str
     risk_dollars: float
+    # #276a fire-seam: the order TYPE the FIRE_* sentinel dispatches on. Default "market_on_open"
+    # = today's behaviour (the fixture/back-compat) → existing configs UNCHANGED. The intraday
+    # entry_timing phase sets "market" (fire now intraday on confirm); exits set "stop_market".
+    order_type: str = "market_on_open"
+    # #290 GTC protective stop: a non-zero level places a resting broker-side stop_market (GTC)
+    # alongside the entry on FIRE_ENTRIES — the catastrophic floor UNDER the runtime exit. 0.0 =
+    # no protective stop (the fixture/back-compat). Set by the sizer/entry_timing for a champion.
+    protective_stop: float = 0.0
 
 
 @dataclass(slots=True)

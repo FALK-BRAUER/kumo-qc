@@ -324,6 +324,24 @@ class StrategyEngine:
             adds=self._fired_adds,
         )
 
+    def _submit(self, qc: Any, sym: Any, intent: Any) -> Any:
+        """#276a fire-seam: submit ONE order, dispatching on intent.order_type. ONLY the engine's
+        FIRE_* path calls the broker API — phases emit OrderIntent only. Returns the order ticket
+        (for protective-stop tracking / cancel-on-exit). Unknown order_type → fail loud."""
+        ot = getattr(intent, "order_type", "market_on_open")
+        if ot == "market_on_open":
+            return qc.market_on_open_order(sym, intent.qty)
+        if ot == "market":
+            return qc.market_order(sym, intent.qty)
+        if ot == "stop_market":
+            return qc.stop_market_order(sym, intent.qty, intent.stop)
+        if ot == "limit":
+            return qc.limit_order(sym, intent.qty, intent.price)
+        raise ConfigError(
+            f"unknown OrderIntent.order_type {ot!r} for {intent.ticker} — the fire seam dispatches "
+            f"market_on_open|market|stop_market|limit only (#276a)"
+        )
+
     def _fire(self, sentinel: FireSentinel, ctx: PhaseContext) -> None:
         qc = self.qc
         date_str = ctx.time.strftime("%Y-%m-%d")
@@ -334,11 +352,25 @@ class StrategyEngine:
                 sym = active_by_value.get(intent.ticker)
                 if sym is None or intent.qty <= 0:
                     continue
-                qc.market_on_open_order(sym, intent.qty)
+                self._submit(qc, sym, intent)  # the entry, per intent.order_type
                 price = float(qc.securities[sym].price)
                 if not hasattr(qc, "_position_meta"):
                     qc._position_meta = {}
-                qc._position_meta[sym] = {"entry_date": ctx.time, "entry_price": price}
+                meta: dict[str, Any] = {"entry_date": ctx.time, "entry_price": price}
+                # #290 GTC PROTECTIVE STOP — the catastrophic floor UNDER the runtime exit. A
+                # resting broker-side stop_market (GTC by default) placed alongside the entry, so
+                # it fires intrabar on a gap/outage/halt even when the runtime exit doesn't. We
+                # track its TICKET so FIRE_EXITS cancels it on the runtime exit fill (no orphan
+                # resting stop → no double-sell). qty is the NEGATIVE of the entry (sell-stop).
+                if getattr(intent, "protective_stop", 0.0) > 0.0:
+                    stop_ticket = qc.stop_market_order(sym, -intent.qty, intent.protective_stop)
+                    meta["protective_stop_ticket"] = stop_ticket
+                    meta["protective_stop_price"] = float(intent.protective_stop)
+                    qc.log(
+                        f"PROTECTIVE_STOP|{date_str}|{intent.ticker}|qty={-intent.qty}|"
+                        f"stop={intent.protective_stop:.2f} (GTC catastrophic floor #290)"
+                    )
+                qc._position_meta[sym] = meta
                 self._fired_entries += 1
                 qc.log(f"ENTRY|{date_str}|{intent.ticker}|qty={intent.qty}|price~{price:.2f}")
         elif sentinel is FIRE_EXITS:
@@ -346,7 +378,8 @@ class StrategyEngine:
                 sym = active_by_value.get(intent.ticker)
                 if sym is None:
                     continue
-                qc.market_on_open_order(sym, intent.qty)  # qty negative
+                self._cancel_protective_stop(qc, sym, date_str)  # BEFORE the exit — no orphan
+                self._submit(qc, sym, intent)  # the exit (qty negative), per intent.order_type
                 getattr(qc, "_position_meta", {}).pop(sym, None)
                 self._fired_exits += 1
         elif sentinel is FIRE_ADDS:
@@ -354,11 +387,28 @@ class StrategyEngine:
                 sym = active_by_value.get(intent.ticker)
                 if sym is None or intent.qty <= 0:
                     continue
-                qc.market_on_open_order(sym, intent.qty)
+                self._submit(qc, sym, intent)
                 self._fired_adds += 1
         elif sentinel is FIRE_TRIMS:
             for intent in ctx.bar_state.trim_intents:
                 sym = active_by_value.get(intent.ticker)
                 if sym is None:
                     continue
-                qc.market_on_open_order(sym, intent.qty)
+                self._submit(qc, sym, intent)
+
+    def _cancel_protective_stop(self, qc: Any, sym: Any, date_str: str) -> None:
+        """#290/#276a cancel-on-exit: cancel the resting GTC protective stop when the position
+        is being exited by the runtime — so no orphan resting stop survives to double-sell a
+        position the runtime already closed. THE load-bearing safety lifecycle (HQ's #1 review
+        target). Idempotent: no-op if no protective stop is tracked for this symbol."""
+        meta = getattr(qc, "_position_meta", {}).get(sym)
+        if not meta:
+            return
+        ticket = meta.get("protective_stop_ticket")
+        if ticket is None:
+            return
+        # cancel via the ticket (LEAN OrderTicket.cancel()); guard for a fake/None in tests.
+        cancel = getattr(ticket, "cancel", None)
+        if callable(cancel):
+            cancel()
+        qc.log(f"PROTECTIVE_STOP_CANCEL|{date_str}|{sym.value}|runtime exit → cancel resting GTC (#290)")
