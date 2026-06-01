@@ -25,7 +25,8 @@
     "shared_param_space.py",
     "universe_select.py"
   ],
-  "git_commit": "257928d23d13ca50707234426c68aa74c15cbcea",
+  "git_commit": "f77d882c58cf5ef25dd54ba8b8090e70c9d483b5",
+  "is_fixture": true,
   "phase_markers": {
     "diagnostics": "version_marker_v1,chart_emit_v1",
     "exit_hard": "kijun_g3_exits_v1",
