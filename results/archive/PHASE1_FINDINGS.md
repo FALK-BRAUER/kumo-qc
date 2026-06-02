@@ -40,3 +40,31 @@ winners dropped, losers kept). So those 3 regimes are usable for ENTRY-CONTEXT d
 NOT winner/loser outcomes. **To make them outcome-usable: source 2018-2020 daily for the m2m mark,
 OR re-run with an end-date extended past the open positions' exits so they close (realized).** Until
 then, outcome analysis is FY2021-2025 only (119 trades). Flagged for the substrate's consumers.
+
+## Finding 4 — the outcome is EXIT-PATH-BINARY (the single loss mode)
+Valid-subset closed trades = **1% win-rate**; ALL 78 exit via `stop_market` (mean ret **−9.2%**).
+Censored (rode open) = **88% win-rate**. There is ONE loss mechanism — the protective stop, ~−9% —
+and winners are the names that NEVER hit it and ride (uncapped). So the P&L distribution is
+fat-tailed by construction (capped losses, riding winners), and the entire edge reduces to **which
+entries avoid the stop and ride**. "Pick better trades" = "pick names that won't stop out."
+
+## Finding 5 — decision_rank robustly predicts ride-vs-stop, ACROSS regimes
+Censored-winners median rank **252** vs closed-losers **534** (the same rank signal as Finding 2,
+via the exit-path lens). And it holds WITHIN each testable regime (top-half vs bottom-half DV):
+| regime | top-DV win / ret | bot-DV win / ret | Δ |
+|---|---|---|---|
+| FY2021 | 67% / +20.5% | 33% / −2.0% | +33pp |
+| FY2022 | 40% / +11.6% | 27% / −0.1% | +13pp |
+| FY2023 (grind-bear) | 19% / −7.2% | 12% / −0.1% | +6pp |
+| FY2024 | 62% / +18.0% | 33% / +0.3% | +29pp |
+Top-DV beats bottom-DV in **4/4** regimes — even in losing FY2023. **Not a pooled artifact; a
+regime-robust learnable edge.** This is the mine's strongest concrete predictor-hypothesis:
+liquidity/DV-rank conditioning on top of (not replacing) the BCT screen.
+
+## Synthesis for the learned signal (#322)
+The BCT screen selects the CANDIDATE POOL (necessary, score≥7) but does not RANK within it. The
+learnable edge sits in the ranking: **prefer high-DV/liquidity-rank candidates** (they ride to
+winners ~2× more, robustly across regimes), and the protective stop caps the losers at ~−9%. The
+learned predictor (#322 OracleSignal) should weight DV-rank; the rigorous mine (hzgffl24) confirms
++ finds any additional conditioning the first-cut missed, and the untraded counterfactual tests
+whether the edge generalizes beyond the names actually traded.
