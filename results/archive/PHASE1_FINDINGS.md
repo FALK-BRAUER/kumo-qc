@@ -77,3 +77,33 @@ winners ~2× more, robustly across regimes), and the protective stop caps the lo
 learned predictor (#322 OracleSignal) should weight DV-rank; the rigorous mine (hzgffl24) confirms
 + finds any additional conditioning the first-cut missed, and the untraded counterfactual tests
 whether the edge generalizes beyond the names actually traded.
+
+---
+
+## ⚠️ OUT-OF-WINDOW RESULT (2026-06-02) — the DV-rank edge did NOT generalize
+
+The synthesis above (DV-rank = "regime-robust learnable edge", 4/4 in-sample mining regimes) was
+tested OUT-OF-WINDOW through the actual sweep machine (#214) — the #322 OracleSignal DvRankPredictor
+as a real strategy phase, run on the 6 FY2025 bi-monthly panels (the same engine + gates as a
+champion validation). Board: `results/sweeps/dvrank_grid/leaderboard_local.csv` (commit 4e5b072).
+
+**It failed.** cap250 (the DV-rank booster) ranks BELOW uncapped (the baseline, all score≥7):
+
+| config | composite | sharpe_mean | ret_mean | gate ① (4+/6 pos) | gate ② (<50% single-window) |
+|--------|-----------|-------------|----------|-------------------|------------------------------|
+| uncapped (baseline) | **+0.0953** | 0.979 | 3.10% | FAIL (3/6) | FAIL (w5 ~50%) |
+| cap250 (DV booster) | −0.0983 | 0.967 | 4.66% | FAIL (3/6) | FAIL (w5 ~82%) |
+
+**Two learns:**
+1. **DV-rank is a DEAD AXIS out-of-window.** The cap250 booster amplifies the one good window (w5
+   Sep-Oct +22.8% vs baseline +14.5%) AND the variance (sharpe_std 3.10 vs 2.30) → lower stability
+   → lower composite. Separable in in-sample MINING (top-vs-bottom DV, 4/4 regimes) ≠ robust as a
+   windowed-BT RANKING signal. **In-sample separability did not survive out-of-window selection.**
+2. **The base is also weak.** Even the BASELINE fails ①② (3/6 positive, w5-carried). This DV-rank
+   candidate's FY2025 edge is single-window-carried — a BASE problem, not just a booster problem.
+   Do NOT swap another booster onto a weak base.
+
+**Methodology lesson:** an in-sample mining edge (top-decile beats bottom-decile across regimes) is a
+NECESSARY but NOT SUFFICIENT signal. It must be re-tested as a real phase through the windowed sweep
+before it can be claimed as a strategy edge. The mine generates HYPOTHESES; the sweep VALIDATES them.
+The DV-rank hypothesis was generated (strong) and validated (failed) — the pipeline working correctly.
