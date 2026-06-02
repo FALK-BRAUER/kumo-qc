@@ -327,7 +327,7 @@ def _pair_trades(orders: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
             # Move BOTH toward zero by close_qty: the lot is on `side`, the incoming fill is the
             # opposite side, so each shrinks by close_qty toward 0 (signs are opposite).
             lot["qty"] -= sign * close_qty           # long lot shrinks (-), short lot grows (+) → toward 0
-            qty -= -sign * close_qty                 # incoming is opposite-sign → also toward 0
+            qty += sign * close_qty                  # incoming is opposite-sign → also toward 0 (≡ -= -sign*..)
             if abs(lot["qty"]) < 1e-9:
                 lots.pop(0)
 
@@ -468,7 +468,18 @@ def persist_run(
 
     CRASHED: orders_fetch is best-effort — if it fails or returns nothing, trades.jsonl.gz is written
     EMPTY (header-less, zero lines) and the EmptyTradesError guard is SKIPPED (a crash legitimately
-    may have no trades). result.json still captures config + stats so provenance survives.
+    may have no trades). A pairing/validation error (corrupt fill) is also tolerated on CRASHED →
+    empty trades, so result.json still captures config + stats and provenance survives.
+
+    ② (non-CRASHED): the statistics MUST carry a parseable 'Total Orders' — else ArchiveError (the
+    silent-miss guard cannot run on an unverifiable order count; an absent/wrong key would silently
+    disable it).
+
+    COMPLETION-MARKER CONTRACT (④): result.json is written LAST (step 5), after trades.jsonl.gz. So
+    `result.json` present + valid == the run dir is COMPLETE. A run dir with trades.jsonl.gz but no
+    valid result.json is an INCOMPLETE/interrupted snapshot — CONSUMERS MUST treat it as absent
+    (ignore / re-snapshot), never read the trades alone. (The two writes are individually atomic but
+    not cross-atomic; result.json-last is the de-facto commit marker.)
 
     Idempotent: both files are atomic-renamed; re-running for the same backtest_id overwrites cleanly.
     """
@@ -487,13 +498,29 @@ def persist_run(
     # 1. Fetch orders (retried). On CRASHED, a fetch failure is tolerated (best-effort capture).
     orders = _fetch_orders(orders_fetch, backtest_id, fetch_retries, fetch_backoff, crashed=crashed)
 
-    # 2. Pair + serialize trades, validating EACH row before write.
-    rows = [_trade_to_row(t) for t in _pair_trades(orders)]
-    for row in rows:
-        _validate_trade_row(row)
+    # 2. Pair + serialize trades, validating EACH row. On a CLEAN/DEGRADED run a pairing/validation
+    # error (a 0-price fill, a schema violation) is a REAL fail-loud. On CRASHED, tolerate it
+    # (degrade to empty trades) so result.json STILL captures provenance — the 3-state intent
+    # ("capture whatever's retrievable on CRASHED"); a corrupt fill must not evaporate the run dir.
+    try:
+        rows = [_trade_to_row(t) for t in _pair_trades(orders)]
+        for row in rows:
+            _validate_trade_row(row)
+    except ArchiveError:
+        if not crashed:
+            raise
+        rows = []  # crashed + corrupt fill/row → empty trades; provenance survives via result.json
 
     # 3. The silent-miss guard (the crux): empty trades while stats say orders fired.
     total_orders = _total_orders(statistics)
+    # ② (HQ): a non-CRASHED run MUST carry a parseable 'Total Orders' — else the silent-miss guard
+    # below can't run, and a wrong/absent key would SILENTLY DISABLE the single most important
+    # check. That unverifiable state is ITSELF fail-loud, not a silent skip.
+    if not crashed and total_orders is None:
+        raise ArchiveError(
+            f"statistics carry no parseable 'Total Orders' (bt={backtest_id}, status={status.value}) "
+            f"— the silent-miss guard cannot run; refusing to archive an unverifiable order count (#276b ②)"
+        )
     if not crashed and not rows and total_orders is not None and total_orders > 0:
         raise EmptyTradesError(
             f"0 closed trades parsed but statistics Total Orders={total_orders} (bt={backtest_id}, "

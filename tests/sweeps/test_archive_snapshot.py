@@ -511,3 +511,43 @@ def test_bad_env_fails_loud(tmp_path):
             backtest_id="bt", status=RunStatus.COMPLETED_CLEAN, statistics=_stats(),
             orders_fetch=_fetch(_orders_one_clean_long()), dest_root=tmp_path, fetch_backoff=0, **kw,
         )
+
+
+def test_noncrashed_missing_total_orders_raises(tmp_path):
+    # ② (HQ): a non-CRASHED run whose stats lack a parseable 'Total Orders' → ArchiveError. The
+    # silent-miss guard can't run on an unverifiable count; an absent/wrong key must NOT silently
+    # disable the single most important fail-loud check.
+    import pytest
+    from sweeps.archive.snapshot import ArchiveError
+    with pytest.raises(ArchiveError, match="Total Orders"):
+        persist_run(
+            backtest_id="bt-no-orders", status=RunStatus.COMPLETED_CLEAN,
+            statistics={"Sharpe Ratio": "1.3"},  # no Total Orders key
+            orders_fetch=_fetch(_orders_one_clean_long()), dest_root=tmp_path, fetch_backoff=0, **BASE_KW,
+        )
+
+
+def test_crashed_tolerates_corrupt_fill_and_still_writes_result(tmp_path):
+    # ③ (HQ): a CRASHED run with a corrupt (0-price) fill must NOT evaporate the run dir — the
+    # pairing error is tolerated (degrade to empty trades), result.json STILL captures provenance.
+    import json
+    bad = [_buy("AAPL", 10, 0.0, "2025-01-03T14:32:00Z", "2025-01-03T14:32:00Z", oid=1)]  # 0-price → raises in pairing
+    run_dir = persist_run(
+        backtest_id="bt-crash-bad", status=RunStatus.CRASHED, statistics=_stats(total_orders=5),
+        orders_fetch=_fetch(bad), dest_root=tmp_path, fetch_backoff=0, **BASE_KW,
+    )
+    assert (run_dir / "result.json").exists(), "provenance must survive a corrupt fill on CRASHED"
+    doc = json.loads((run_dir / "result.json").read_text())
+    assert doc["status"] == "CRASHED" and doc["n_closed_trades"] == 0
+
+
+def test_noncrashed_corrupt_fill_still_fails_loud(tmp_path):
+    # the mirror: a CLEAN run with a 0-price fill is a REAL fail-loud (not tolerated).
+    import pytest
+    from sweeps.archive.snapshot import ArchiveError
+    bad = [_buy("AAPL", 10, 0.0, "2025-01-03T14:32:00Z", "2025-01-03T14:32:00Z", oid=1)]
+    with pytest.raises(ArchiveError):
+        persist_run(
+            backtest_id="bt-clean-bad", status=RunStatus.COMPLETED_CLEAN, statistics=_stats(total_orders=5),
+            orders_fetch=_fetch(bad), dest_root=tmp_path, fetch_backoff=0, **BASE_KW,
+        )
