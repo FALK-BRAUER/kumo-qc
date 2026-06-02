@@ -109,6 +109,28 @@ A pythonnet-binding error is **NOT** a compile error and **NOT** a data error: i
   - **GATE — direct≈Docker reconciliation (a NEW parity surface).** Before trusting ANY sweep result, a one-time reconciliation must prove the direct-LEAN engine matches the Docker/cloud engine on a reference config (same discipline as local≈cloud — don't assume direct==Docker; engine builds/versions can differ). A sweep finding on an unreconciled direct engine is not trustworthy.
 - **Version pin (#270 reference clone).** Local engine = LEAN **v2.5.0.0** (Python 3.11.9). The version-matched LEAN SOURCE reference clone (for reading bar-delivery / consolidator / fill-model internals during the rebuild) pins to v2.5.0.0. CLOUD's engine version is NOT assumed equal — confirm it from a cloud BT log header before relying on a version match.
 
+### Local-sweep FIDELITY BOUNDS (#325, measured 2026-06-02 — the local sweep is a CANDIDATE RANKING)
+The local intraday sweep runs on the kumo-trader 5-min parquet (3,254 union-liquid names × 2024-25,
+RAW). It is the fast SEARCH; the WINNER is cloud-validated for the final exact number. Three measured,
+bounded divergences from cloud (a local-vs-cloud reconciliation on cap250 Sep-2025 quantified them):
+- **Vendor-residual (selection):** local (Massive) vs cloud (QC) 5-min bars differ at decision MARGINS
+  → a borderline gap-confirm (3%-gap/1×-vol) candidate flips. Measured 83% selection match (cap250);
+  the ~17% is the WEAKEST marginal trades, and it is **COMMON-MODE** (flips ~the same names across all
+  cap configs) → the RELATIVE ranking (cap-curve, booster-vs-baseline) is robust; only absolute numbers
+  carry it. This is the irreducible #173 data-vendor delta, not a bug.
+- **Fill-residual (`_quote`):** the parquet is TRADE bars only → no quote data → LEAN fills at trade
+  price (no spread). Residual ≈ the bid-ask spread, ~bps on liquid top-DV (cap250's names). Irreducible
+  (no quote source); affects fill-PRICE, not trade-SELECTION. Cloud validates the winner's quote-fills.
+- **Spacing-skip (low-DV):** the #261 guard skips irregular-5-min ticker-days (~16% of ticker-days,
+  concentrated in the LOW-DV tail). cap250 (top-DV) is ~unaffected (0 skip-trades in the recon window);
+  the baseline (uncapped, low-DV) IS skip-affected → ASYMMETRIC: the baseline avoids low-DV losers it'd
+  trade on cloud → looks artificially better → a local booster-WIN is CONSERVATIVE (true cloud edge ≥
+  local-measured). High-price large-caps (BKNG/FICO) skip too (sparse 5-min prints) — irreducible.
+**Rule:** the local leaderboard ranks CANDIDATES (trustworthy for config selection — common-mode +
+weakest-trade residual); the selected winner goes to CLOUD for the validated final result. State this
+on every local leaderboard. A reconciliation mismatch NOT in the skip-ledger = vendor-residual OR a
+bug — classify it (`scripts/recon_selection_diff.py`), never pass it off as skip-divergence blind.
+
 ## Git workflow
 - **Rebase, never merge-commit.** Linear history. Rebase a feature branch onto latest `main`, then `--ff-only` merge.
 - One feature branch = one worktree. **Delete the branch + worktree after integration.** Each experiment/phase in its OWN worktree off mainV2; `data/` symlinked to the main repo (worktrees without the symlink silently fail all data requests). (#267 Part B — worktree isolation.)
