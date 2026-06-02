@@ -34,3 +34,17 @@ context for the mine, not config grades. The amplifying/champion VALIDATION grad
 `cloudtag_validator.csv` — the cloud-side of the #303 (c) validator: per-traded-name cloud-tag
 `cond_0..7` + `decision_score` + outcome across the regimes, for the lab's 5-min-vs-cloud
 cross-check. Regenerate with `scripts/extract_cloudtag_validator.py`.
+
+## Phase-1 mine — the strong hypothesis to test (2026-06-02)
+
+The 8-regime aggregate (FY2018-2025) STRONGLY SUGGESTS the gap+confirm edge is
+**volatility/gap-dependent**:
+- WINS where explosive recovery gaps exist to catch: FY2020 crash-recovery +24.5%, FY2024 +32.5%.
+- LOSES where there are no gaps: FY2019 steady-bull −4.2%, FY2018 correction-without-recovery
+  −10.4%, FY2023 grind-bear −11.8%.
+
+This directly explains the earlier W1-W6 window variability (same edge, regime-dependent). **CAVEAT
+— don't over-read:** 8 regimes = 8 *aggregate* data points; they suggest the regime-conditioning,
+they don't prove the mechanism. Phase-1's job is to confirm it at the TRADE level — which
+conditions/context (the cloud-tag `cond_0..7`, gap, vol, tdist, rank) within each regime separated
+the winners from the losers. The aggregate is the hypothesis; the per-trade separation is the test.
