@@ -107,6 +107,12 @@ class BctIntradayGapVolConfirm(BasePhase):
             cs = confirm_state.setdefault(tk, {"bars": 0, "confirmed": False, "expired": False})
             if cs["confirmed"]:
                 kept.append(intent)
+                # already confirmed on a prior tick → still record stages 4+5 (a confirmed candidate
+                # IS gap-eligible) so the per-day dedup set stays complete. #276b-1 funnel.
+                _sym = active_by_lower.get(tk.lower())
+                if _sym is not None:
+                    ctx.record_funnel("gap_eligible", _sym)
+                    ctx.record_funnel("confirm_fire", _sym)
                 continue
             if cs["expired"]:
                 continue
@@ -134,10 +140,16 @@ class BctIntradayGapVolConfirm(BasePhase):
                 bars_elapsed=cs["bars"], window_bars=self.p.window_bars,
             )
             reasons[reason] = reasons.get(reason, 0) + 1
+            # #276b-1 funnel stage 4 (gap_eligible): the gap-magnitude check PASSED this tick. The
+            # decision returns gap_too_small ONLY when gap < threshold; any reason AFTER that point
+            # (confirmed | quiet_open | no_vol_baseline) means the gap cleared the bar (observe-only).
+            if reason in ("confirmed", "quiet_open", "no_vol_baseline"):
+                ctx.record_funnel("gap_eligible", sym)
             if ok:
                 cs["confirmed"] = True
                 confirmed += 1
                 kept.append(intent)
+                ctx.record_funnel("confirm_fire", sym)  # #276b-1 funnel stage 5 (observe-only)
             elif reason == "window_closed":
                 cs["expired"] = True
         ctx.bar_state.sized_orders = kept

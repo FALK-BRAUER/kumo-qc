@@ -128,6 +128,24 @@ def coarse_to_close(coarse: Iterable[Any]) -> dict[str, float]:
     return out
 
 
+# #276b-1 FUNNEL stages — the 9 CUMULATIVE candidate-collapse counters (counted ONCE per day per
+# stage; set membership is the per-day dedup). The collapse STAGE localizes Falk's "78 is too sparse"
+# verdict (legit selectivity vs a bug). Order = the candidate's path through the two clocks:
+#   DAILY:    signal_winners → regime_pass  (+ regime_blocked_days, the SEPARATE regime cut)
+#   INTRADAY: preflight_pass → gap_eligible → confirm_fire → injection_survives → sized → cash_ok
+#   FIRE:     orders
+# The INTRADAY stages are recorded as per-tick survivor SETS on ctx.bar_state.funnel by the gate
+# phases (observe-only, zero behavior change); the runtime folds them per-day-deduped at session end.
+FUNNEL_DAILY_STAGES: tuple[str, ...] = ("signal_winners", "regime_pass", "regime_blocked_days")
+FUNNEL_INTRADAY_STAGES: tuple[str, ...] = (
+    "preflight_pass", "gap_eligible", "confirm_fire", "injection_survives", "sized", "cash_ok",
+)
+FUNNEL_FIRE_STAGES: tuple[str, ...] = ("orders",)
+FUNNEL_STAGES: tuple[str, ...] = (
+    FUNNEL_DAILY_STAGES + FUNNEL_INTRADAY_STAGES + FUNNEL_FIRE_STAGES
+)
+
+
 def active_set_hash(symbols: Iterable[str]) -> tuple[int, str]:
     """(count, sha256-of-sorted-symbols) for the live-selected ranked set. Logged each
     rebalance so divergence-debug can diff the selection local-vs-cloud — the rung between
@@ -353,6 +371,17 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         # reject — a Canceled/Invalid reject stays re-injectable, the retry-on-reject intent).
         # Cleared at session end (no T+2 bleed).
         self._entered_today: set[Any] = set()
+
+        # #276b-1 FUNNEL — the 9 cumulative candidate-collapse counters (localizes Falk's "78 is too
+        # sparse"). _funnel_cum[stage] = the FY-cumulative count of candidate-days surviving `stage`.
+        # _funnel_today[stage] = the per-DAY survivor SYMBOL SET for the intraday stages (set
+        # membership = the per-day dedup: a candidate evaluated every 5-min tick counts ONCE/day at
+        # each stage). The daily stages (signal_winners/regime_pass/regime_blocked_days) + the fire
+        # stage (orders) accumulate DIRECTLY into _funnel_cum (no per-day set needed — already once/
+        # day or counted at fire). At session end the intraday per-day sets fold into _funnel_cum and
+        # reset. Observe-only: NOTHING in the trading path reads these. Pushed as QC runtime stats.
+        self._funnel_cum: dict[str, int] = {stage: 0 for stage in FUNNEL_STAGES}
+        self._funnel_today: dict[str, set[Any]] = {stage: set() for stage in FUNNEL_INTRADAY_STAGES}
 
         # #313 WATCHDOG (the permanent protection vs silent no-fire): the daily decision must keep
         # pace with elapsed trading days. _sched_trading_days counts post-warmup trading days (the
@@ -878,6 +907,10 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                 # BEFORE the intraday clock runs, so entry_selection can gate them (the two-clock seam).
                 self._inject_intraday_candidates(ictx)
                 self.engine.on_intraday_bar(ictx)
+                # #276b-1 FUNNEL: fold this tick's per-stage survivor sets into the per-DAY sets (set
+                # membership = the per-day dedup — a candidate evaluated every tick counts ONCE/day at
+                # each stage) and accumulate this tick's fired entries (stage 9). Observe-only.
+                self._fold_intraday_funnel(ictx)
 
         # #313: the DAILY DECISION clock is NO LONGER triggered here. on_data carries ONLY the
         # intraday execution clock (above). The daily decision runs on a scheduled AFTER-CLOSE event
@@ -917,13 +950,20 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         # candidates → ZERO intraday entries this session. Without this the daily regime gate was
         # confined to the daily clock; the intraday gap+loud entries ignored it → over-traded the
         # bad regimes (the W1/W2 robustness loss). A blocked regime now gates the intraday champion.
-        if getattr(ctx.bar_state, "bar_blocked", False):
+        # #276b-1 FUNNEL stage 1 (signal_winners): the daily SIGNAL output (BctScoreFull score>=7),
+        # captured BEFORE the regime gate masks it. The signal phase runs ahead of regime in
+        # PHASE_ORDER, so ctx.bar_state.sized_orders holds the raw signal winners regardless of the
+        # block. This is the ~40-names/day C1 proved — the funnel's top of stack. Observe-only.
+        signal_winner_tickers = [intent.ticker for intent in ctx.bar_state.sized_orders]
+        blocked = bool(getattr(ctx.bar_state, "bar_blocked", False))
+        self._accumulate_daily_funnel(signal_winner_tickers, blocked)
+        if blocked:
             winners: list[str] = []
             log = getattr(self, "log", None)
             if callable(log):
                 log(f"REGIME_GATE|{today}|blocked — zero intraday candidates captured (#277)")
         else:
-            winners = [intent.ticker for intent in ctx.bar_state.sized_orders]
+            winners = signal_winner_tickers
         # subscribe ONLY the winners for T+1's 5-min feed (all fit INTRADAY_SUBSCRIBE_CAP) + held
         # names (handled inside _sync) — so every confirmable candidate actually has intraday data.
         self._sync_intraday_subscriptions(winners)
@@ -953,6 +993,11 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         would never fire). This is the end-of-backtest final reconciliation: total daily decisions
         must match elapsed post-warmup trading days within the 1-day pending tolerance, else the
         scheduled trigger under-fired across the run → CRASH (never silently report a dark run)."""
+        # #276b-1 FUNNEL: final flush + publish BEFORE the watchdog raise — the collapse-stage
+        # diagnostic is MOST valuable when the run ends (incl. a crash). Idempotent: the per-day sets
+        # were already flushed + reset by the last on_end_of_day, so this folds at most the final
+        # session's residual then re-publishes the cumulative counters. Observe-only.
+        self._process_eod_funnel()
         if not getattr(self, "_schedule_armed", False):
             return  # scheduler never armed (selection-harness context) — nothing to reconcile
         gap = getattr(self, "_sched_trading_days", 0) - getattr(self, "_sched_decisions", 0)
@@ -1169,6 +1214,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                 OrderIntent(ticker=sym.value, qty=0, price=0.0, stop=0.0,
                             module="signal", risk_dollars=0.0)
             )
+            ictx.record_funnel("injection_survives", sym)  # #276b-1 funnel stage 6
             injected += 1
         if injected:
             log = getattr(self, "log", None)
@@ -1231,6 +1277,78 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                     self._position_meta.pop(sym, None)        # floor sold the position — clear its meta
                     self._pending_entry_today.discard(sym)    # and any stale pending (re-entry now clean)
 
+    # ------------------------------------------------------------------------------------
+    # #276b-1 FUNNEL — the 9 cumulative candidate-collapse counters. Observe-only: nothing in the
+    # trading path reads these; they localize WHERE the ~40-names/day daily signal collapses to ~78
+    # orders/FY (Falk's "78 is too sparse" verdict — the collapse stage IS the legit-vs-bug answer).
+    # ------------------------------------------------------------------------------------
+    def _ensure_funnel_state(self) -> None:
+        """Lazy-init the funnel state. initialize() sets it for a real run; a bare-constructed algo
+        (a unit-test fixture that never runs initialize()) reaches the accumulators without it. Init
+        on demand (idempotent) so the funnel is observe-only AND robust — never crashes a hot path."""
+        if not hasattr(self, "_funnel_cum"):
+            self._funnel_cum = {stage: 0 for stage in FUNNEL_STAGES}
+        if not hasattr(self, "_funnel_today"):
+            self._funnel_today = {stage: set() for stage in FUNNEL_INTRADAY_STAGES}
+
+    def _accumulate_daily_funnel(self, signal_winner_tickers: "list[str]", blocked: bool) -> None:
+        """Fold the DAILY funnel stages into the cumulative counters (called once per daily decision).
+        signal_winners += the raw signal-winner count (pre-regime). regime_pass += that same count on
+        a non-blocked day (the winners passed the regime gate) or 0 on a blocked day; regime_blocked_days
+        += 1 on a blocked day — kept SEPARATE so the regime cut never masquerades as the confirm cut."""
+        self._ensure_funnel_state()
+        n = len(signal_winner_tickers)
+        self._funnel_cum["signal_winners"] += n
+        if blocked:
+            self._funnel_cum["regime_blocked_days"] += 1
+            # regime_pass += 0 (no winner survived the gate this day)
+        else:
+            self._funnel_cum["regime_pass"] += n
+
+    def _fold_intraday_funnel(self, ictx: Any) -> None:
+        """Fold ONE intraday tick's per-stage survivor sets (ctx.bar_state.funnel, written by the gate
+        phases) into the per-DAY sets, and accumulate this tick's fired entries (stage 9 `orders`).
+        Set membership IS the per-day dedup — a candidate evaluated every 5-min tick is counted ONCE
+        per day at each stage. The per-day sets accumulate into _funnel_cum at session end
+        (_flush_funnel_day). `orders` accumulates directly (each fire is a distinct order, no dedup)."""
+        self._ensure_funnel_state()
+        bar_funnel = getattr(ictx.bar_state, "funnel", {})
+        for stage in FUNNEL_INTRADAY_STAGES:
+            survivors = bar_funnel.get(stage)
+            if survivors:
+                self._funnel_today[stage].update(survivors)
+        # stage 9 (orders): the entries the engine ACTUALLY fired this tick (the FIRE_ENTRIES count).
+        self._funnel_cum["orders"] += int(getattr(self.engine, "_fired_entries", 0))
+
+    def _process_eod_funnel(self) -> None:
+        """End-of-day funnel processing (DRY — called by on_end_of_day AND the on_end_of_algorithm
+        backstop): flush the per-day intraday survivor sets into the cumulative counters + reset, then
+        re-publish the runtime stats. GUARDED for a selection-harness/test path that never ran
+        initialize() (no funnel state). Idempotent (flush resets the sets → a repeat call adds 0)."""
+        if hasattr(self, "_funnel_today") and hasattr(self, "_funnel_cum"):
+            self._flush_funnel_day()
+            self._push_funnel_runtime_stats()
+
+    def _flush_funnel_day(self) -> None:
+        """At session end: accumulate each intraday per-day survivor SET's SIZE into the cumulative
+        counter, then reset the per-day sets for T+1. The daily stages + `orders` already accumulated
+        directly (per-decision / per-fire), so only the intraday per-day sets flush here."""
+        for stage in FUNNEL_INTRADAY_STAGES:
+            self._funnel_cum[stage] += len(self._funnel_today[stage])
+            self._funnel_today[stage] = set()
+
+    def _push_funnel_runtime_stats(self) -> None:
+        """Expose the 9 cumulative funnel counters as QC RUNTIME STATISTICS (the retrievable channel:
+        logs/charts/ObjectStore are dead; runtime stats survive). GUARDED — set_runtime_statistic /
+        SetRuntimeStatistic may be ABSENT locally (QCAlgorithm==object in the dev venv); the
+        _funnel_cum attrs always hold the numbers regardless, for local/tests. Single code path, no
+        if-cloud branch. Best-effort: a missing API is a silent no-op (the attrs are the source)."""
+        setter = getattr(self, "set_runtime_statistic", None) or getattr(self, "SetRuntimeStatistic", None)
+        if not callable(setter):
+            return
+        for stage in FUNNEL_STAGES:
+            setter(f"funnel.{stage}", str(self._funnel_cum[stage]))
+
     def _clear_intraday_session_state(self) -> None:
         """#276b-0 H3/SG9 — clear the deferred intraday-confirm PROGRESS + the entry PENDING set at
         session end so neither an unconfirmed candidate nor an in-flight-entry marker bleeds into
@@ -1240,6 +1358,11 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self._entry_confirm = {}
         self._pending_entry_today = set()
         self._entered_today = set()  # SHOP-churn guard resets each session (next session re-allows entry)
+        # #276b-1 FUNNEL: flush the per-day intraday survivor sets into the cumulative counters and
+        # reset for T+1, then re-publish the runtime stats. SAFE under QC's per-symbol on_end_of_day
+        # firing: the first call accumulates len(set) + resets the sets to empty, so subsequent calls
+        # this session add 0 (idempotent). Observe-only, never affects trading.
+        self._process_eod_funnel()
 
     def on_end_of_day(self, symbol: Any = None) -> None:
         """QC session-end hook — clear the intraday-confirm progress (H3/SG9). Idempotent (QC fires

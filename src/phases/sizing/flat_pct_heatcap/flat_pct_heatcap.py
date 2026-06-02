@@ -87,12 +87,17 @@ class FlatPctHeatcap(BasePhase):
             if available_cash - committed_cash < target_value:
                 skipped_cash += 1
                 break  # cash exhausted (oracle breaks, not continues)
+            # #276b-1 funnel stage 8 (cash_ok): the candidate cleared the cash/heat-cap (a fundable
+            # target). Recorded BEFORE the qty>0 cut so cash_ok ⊇ sized — the two stages stay
+            # distinguishable (cash-fundable vs actually-sized). Observe-only.
+            ctx.record_funnel("cash_ok", sym)
 
             quantity = int(target_value / price)
             if quantity <= 0:
                 continue
 
             committed_cash += target_value
+            ctx.record_funnel("sized", sym)  # #276b-1 funnel stage 7: qty>0 → an order to fire
             filled.append(OrderIntent(
                 ticker=intent.ticker,
                 qty=quantity,

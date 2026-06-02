@@ -123,6 +123,7 @@ class PreFlightStaleness(BasePhase):
             )
             if valid:
                 kept.append(intent)
+                ctx.record_funnel("preflight_pass", sym)  # #276b-1 funnel stage 3 (observe-only)
             else:
                 invalidated += 1
                 reasons[reason] = reasons.get(reason, 0) + 1
