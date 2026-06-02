@@ -320,10 +320,6 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
     # NOTE: this is the FULL-SIGNAL warmup. A Step-A-parity-only override may set ~40d; that is
     # NOT the strategy default and must never be hardcoded here.
     WARMUP_DAYS: int = 560
-    # #336 DIAGNOSTIC (default None = OFF, byte-untouched ship path): when injected with a comma-
-    # symbol list (e.g. "URBN,PEN") the weekly consolidator dumps LEAN's RUNTIME weekly OHLC + Ichimoku
-    # to the log (WEEKLY_DUMP| marker) for diffing vs the warmup-cache WeeklyIchimokuAsOf. REVERSIBLE.
-    WEEKLY_DUMP_SYMS: str | None = None
     # #336/#338 ws1 — CONTINUOUS-WEEKLY fix (default OFF = byte-untouched ship path). When True, the
     # daily decision re-derives each candidate's weekly Ichimoku from full CONTINUOUS daily history
     # (WeeklyIchimokuAsOf over self.history — bypasses the subscription-gated consolidator at the
@@ -369,20 +365,9 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self.set_benchmark("SPY")
         self.set_time_zone("America/New_York")  # match legacy champion (scheduling/timestamps)
         self.set_warmup(timedelta(days=self.WARMUP_DAYS))
-        # #336 diagnostic flag (default None → OFF): parse the injected symbol-allowlist once. The
-        # `weekly-dump-syms` LEAN parameter can set the allowlist for a run (absent → class-attr default).
-        _dump_param = self.get_parameter("weekly-dump-syms", "")
-        if _dump_param:
-            self.WEEKLY_DUMP_SYMS = _dump_param
-        self._weekly_dump_syms = (
-            {s.strip().lower() for s in self.WEEKLY_DUMP_SYMS.split(",") if s.strip()}
-            if self.WEEKLY_DUMP_SYMS else None
-        )
-        # #336/#338 continuous-weekly: the LEAN `continuous-weekly` parameter can enable the flag for a
-        # run (absent/"0" → unchanged → flag-OFF byte-identical; the class-attr default stays the master).
-        if self.get_parameter("continuous-weekly", "0") == "1":
-            self.CONTINUOUS_WEEKLY = True
-        # flag-on → arm qc._warmup_cache so the BctScoreFull cache branch consumes the per-decision
+        # #336/#338 continuous-weekly: CONTINUOUS_WEEKLY is the class-attr master switch (default OFF =
+        # byte-untouched ship path; set True via class-attr injection for a flag-on run). flag-on → arm
+        # qc._warmup_cache so the BctScoreFull cache branch consumes the per-decision
         # continuous-weekly scalars populated in _on_after_close_decision.
         if self.CONTINUOUS_WEEKLY:
             self._warmup_cache: dict[str, dict] = {}
@@ -697,22 +682,6 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         def _on_weekly(_: Any, bar: TradeBar) -> None:
             w_ichi.update(bar)
             w_close.add(bar.close)
-            # #336 DIAGNOSTIC (flag + symbol-allowlist gated; REVERSIBLE — not in the ship path):
-            # dump LEAN's RUNTIME weekly OHLC bar + Ichimoku to the log so the warmup-cache's
-            # WeeklyIchimokuAsOf can be diffed BAR-BY-BAR vs LEAN. flag-OFF = byte-untouched.
-            dump_syms = getattr(self, "_weekly_dump_syms", None)
-            if dump_syms is not None and sym.value.lower() in dump_syms:
-                wc0 = w_close[0] if w_close.count >= 1 else float("nan")
-                wc26 = w_close[26] if w_close.count >= 27 else float("nan")
-                self.log(
-                    f"WEEKLY_DUMP|{sym.value}|{bar.time.date()}|{float(bar.open):.6f}|"
-                    f"{float(bar.high):.6f}|{float(bar.low):.6f}|{float(bar.close):.6f}|"
-                    f"{(w_ichi.tenkan.current.value if w_ichi.is_ready else float('nan')):.6f}|"
-                    f"{(w_ichi.kijun.current.value if w_ichi.is_ready else float('nan')):.6f}|"
-                    f"{(w_ichi.senkou_a.current.value if w_ichi.is_ready else float('nan')):.6f}|"
-                    f"{(w_ichi.senkou_b.current.value if w_ichi.is_ready else float('nan')):.6f}|"
-                    f"{wc0:.6f}|{wc26:.6f}"
-                )
 
         consolidator.data_consolidated += _on_weekly
         self.subscription_manager.add_consolidator(sym, consolidator)
@@ -1091,13 +1060,6 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                 scalars = self._continuous_weekly_scalars(sym)
                 if scalars is not None:
                     self._warmup_cache.setdefault(sym.value, {})[today] = scalars
-                    # #336 single-source PROOF instrumentation (reversible; gated on the diagnostic
-                    # allowlist): dump the LIVE continuous-weekly scalars so they can be diffed
-                    # byte-for-byte vs the OFFLINE cache (proves self.history-weekly == zip-weekly).
-                    if self._weekly_dump_syms and sym.value.lower() in self._weekly_dump_syms:
-                        import json as _json  # lazy — lean_entry has no module-level json import
-                        self.log("CW_SCALARS|" + sym.value + "|" + today.isoformat() + "|"
-                                 + _json.dumps(scalars, separators=(",", ":"), default=float))
         self.engine.on_data_with_ctx(ctx)
         # The daily pipeline's surviving intents == the signal winners (entry_selection/timing/sizing
         # are on the INTRADAY clock for the intraday champion, so the daily bar_state ends at signal).
