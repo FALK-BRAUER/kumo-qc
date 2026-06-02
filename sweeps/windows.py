@@ -20,17 +20,21 @@ from collections.abc import Sequence
 
 from sweeps.types import ConfigRun, RunConfig, SweepConfig, Window, WindowResult
 
-# The mandatory 6 validation windows (ADR D5.1). Non-overlapping OOS slices across the
-# available daily history. These are the canonical panel; a sweep that runs fewer is a
-# charter violation. Dates are ISO; the real run-a-config adapter maps them to LEAN
-# start/end. (Exact spans are a config knob, not logic — six windows is the invariant.)
+# THE canonical 6 validation windows (Falk-locked 2026-06-03). RECENT-regime quarterly panel,
+# equal-size so all 6 finish ~same wall-clock in parallel. Supersedes the old 2020-2024 default
+# (which never matched what we actually validate on — a real config bug). w5/w6 OVERLAP BY DESIGN
+# (2026 Q1 and Feb-Apr 2026) — Falk wants denser coverage of the recent 2026 regime, so the panel is
+# NOT required to be non-overlapping (the old "non-overlapping" assumption is RETIRED; the validator
+# enforces only count==6 + unique names). Warmup coverage confirmed: w1 (Jan-2025) warms 560d back to
+# ~mid-2023 (the FY2025 panel ran that), w5/w6 (2026) warm to ~2024 — all locally runnable (only
+# pre-2023 was the gap that killed FY2024-OOS). Daily data extends to 2026-05-08.
 SIX_WINDOWS: tuple[Window, ...] = (
-    Window(name="w1_2020h1", start="2020-01-01", end="2020-06-30"),
-    Window(name="w2_2020h2", start="2020-07-01", end="2020-12-31"),
-    Window(name="w3_2021", start="2021-01-01", end="2021-12-31"),
-    Window(name="w4_2022", start="2022-01-01", end="2022-12-31"),
-    Window(name="w5_2023", start="2023-01-01", end="2023-12-31"),
-    Window(name="w6_2024", start="2024-01-01", end="2024-12-31"),
+    Window(name="w1_2025q1", start="2025-01-01", end="2025-03-31"),
+    Window(name="w2_2025q2", start="2025-04-01", end="2025-06-30"),
+    Window(name="w3_2025q3", start="2025-07-01", end="2025-09-30"),
+    Window(name="w4_2025q4", start="2025-10-01", end="2025-12-31"),
+    Window(name="w5_2026q1", start="2026-01-01", end="2026-03-31"),
+    Window(name="w6_2026_feb_apr", start="2026-02-01", end="2026-04-30"),
 )
 
 MANDATORY_WINDOW_COUNT = 6
