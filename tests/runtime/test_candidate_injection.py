@@ -334,3 +334,55 @@ def test_build_entry_tag_fails_loud_over_cap() -> None:
         assert False, "must fail loud over the tag cap"
     except DegradedDataError as e:
         assert "truncate" in str(e)
+
+
+# ── #276b-1 FIX3: rank resolves regardless of CASE (the cloud rank=None omit bug) ──
+# On cloud _ranked_today holds LOWERCASE tickers (coarse-derived) but a QC Symbol's .value is
+# UPPERCASE → the old `val in ranked` was ALWAYS False → rank omitted for EVERY entry. The fix
+# normalizes both sides through canonical_symbol_key so rank resolves whatever the case.
+
+def test_build_entry_tag_rank_resolves_when_ranked_today_is_lowercase() -> None:
+    # the REAL cloud case: _ranked_today lowercase, sym.value uppercase. Rank must still populate.
+    from urllib.parse import parse_qs
+
+    sym = _Sym("AAPL")  # .value uppercase, as QC delivers
+    a = BctEngineAlgorithm()
+    a._candidate_snapshot = {sym: {"signal_price": 100.0, "score": 8, "conditions": []}}
+    a._intraday = {sym: {}}
+    a._ranked_today = ["msft", "aapl", "goog"]  # lowercase, as the coarse path stores
+    q = parse_qs(a._build_entry_tag(sym))
+    assert q["decision_rank"] == ["1"]  # aapl is at index 1 — resolved despite case mismatch
+
+
+def test_build_entry_tag_rank_resolves_uppercase_ranked_too() -> None:
+    # symmetric: an uppercase _ranked_today (older fixtures / a future keying) must also resolve.
+    from urllib.parse import parse_qs
+
+    sym = _Sym("AAPL")
+    a = BctEngineAlgorithm()
+    a._candidate_snapshot = {sym: {"signal_price": 100.0, "score": 8, "conditions": []}}
+    a._intraday = {sym: {}}
+    a._ranked_today = ["MSFT", "AAPL"]
+    q = parse_qs(a._build_entry_tag(sym))
+    assert q["decision_rank"] == ["1"]
+
+
+def test_build_entry_tag_omits_rank_on_genuine_absence() -> None:
+    # OMIT-on-genuine-absence preserved: a candidate truly NOT in _ranked_today → no rank (not faked).
+    from urllib.parse import parse_qs
+
+    sym = _Sym("TSLA")
+    a = BctEngineAlgorithm()
+    a._candidate_snapshot = {sym: {"signal_price": 100.0, "score": 8, "conditions": []}}
+    a._intraday = {sym: {}}
+    a._ranked_today = ["aapl", "msft"]  # TSLA absent
+    q = parse_qs(a._build_entry_tag(sym))
+    assert "decision_rank" not in q
+
+
+def test_canonical_symbol_key_normalizes_symbol_and_string() -> None:
+    from runtime.lean_entry import canonical_symbol_key
+
+    assert canonical_symbol_key(_Sym("AAPL")) == "aapl"  # QC Symbol → lowercase .value
+    assert canonical_symbol_key("MSFT") == "msft"        # raw string → lowercase
+    assert canonical_symbol_key("goog") == "goog"        # already-lowercase stable

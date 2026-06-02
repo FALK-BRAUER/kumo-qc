@@ -129,14 +129,32 @@ def coarse_to_close(coarse: Iterable[Any]) -> dict[str, float]:
     return out
 
 
-# #276b-1 FUNNEL stages — the 9 CUMULATIVE candidate-collapse counters (counted ONCE per day per
-# stage; set membership is the per-day dedup). The collapse STAGE localizes Falk's "78 is too sparse"
-# verdict (legit selectivity vs a bug). Order = the candidate's path through the two clocks:
+def canonical_symbol_key(sym: Any) -> str:
+    """THE canonical symbol-key form (single source of truth). The coarse/universe path stores
+    tickers LOWERCASE (coarse_to_dollar_volume / coarse_to_close lower `c.symbol.value` to the
+    zip-stem / qc._active.value.lower() convention) → `_ranked_today` holds LOWERCASE tickers. A QC
+    Symbol's `.value` is UPPERCASE. Any lookup that keys a QC Symbol against a coarse-derived store
+    (or vice versa) MUST normalize through THIS function or it silently misses (the rank=None
+    cloud-omit bug, #276b-1 FIX3 — the SAME bug class as the earlier inject .lower()-vs-FIRE .value
+    case mismatch). Accepts either a QC Symbol (reads `.value`) or a raw string.
+
+    TODO(#276b-1 follow-up): the hot trading-path symbol-keyed sites — candidate injection
+    (_inject... sized_orders ticker), sizing/FIRE_ENTRIES (active_by_value), and the snapshot
+    (active_by_lower) — currently each open-code their own case handling. They should MIGRATE to this
+    helper in a DEDICATED, parity-tested change (migrating the hot path's keying risks a behavior
+    change, out of scope for this observe-only-counters + rank-fix task). DO NOT migrate them here."""
+    val = getattr(sym, "value", sym)
+    return str(val).lower()
+
+
+# #276b-1 FUNNEL stages — the 9 CUMULATIVE candidate-collapse counters. The collapse STAGE localizes
+# Falk's "78 is too sparse" verdict (legit selectivity vs a bug). Order = the candidate's path
+# through the two clocks:
 #   DAILY:    signal_winners → regime_pass  (+ regime_blocked_days, the SEPARATE regime cut)
 #   INTRADAY: preflight_pass → gap_eligible → confirm_fire → injection_survives → sized → cash_ok
 #   FIRE:     orders
 # The INTRADAY stages are recorded as per-tick survivor SETS on ctx.bar_state.funnel by the gate
-# phases (observe-only, zero behavior change); the runtime folds them per-day-deduped at session end.
+# phases (observe-only, zero behavior change); the runtime folds them at session end.
 FUNNEL_DAILY_STAGES: tuple[str, ...] = ("signal_winners", "regime_pass", "regime_blocked_days")
 FUNNEL_INTRADAY_STAGES: tuple[str, ...] = (
     "preflight_pass", "gap_eligible", "confirm_fire", "injection_survives", "sized", "cash_ok",
@@ -1098,9 +1116,19 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         tk = ist.get("intraday_tenkan")
         tdist = ((last_close - float(tk.current.value)) / last_close
                  if (tk is not None and getattr(tk, "is_ready", False) and last_close) else None)
-        ranked = getattr(self, "_ranked_today", [])
+        # SCANNER RANK — the candidate's position in today's ranked universe (_ranked_today).
+        # #276b-1 FIX3: _ranked_today holds LOWERCASE tickers (coarse-derived) but sym.value is
+        # UPPERCASE → the old `val in ranked` was ALWAYS False on cloud (rank omitted for EVERY
+        # entry). Normalize BOTH sides through canonical_symbol_key (the single-source key form) so
+        # rank resolves regardless of case. OMIT-on-genuine-absence preserved: a candidate not in
+        # _ranked_today → key not in the index → rank=None (encode_entry_tag omits it; never faked).
         val = getattr(sym, "value", None)
-        rank = ranked.index(val) if val in ranked else None
+        ranked = getattr(self, "_ranked_today", [])
+        # first-occurrence wins (matches the old list.index semantics; _ranked_today is deduped).
+        ranked_key_to_rank: dict[str, int] = {}
+        for i, t in enumerate(ranked):
+            ranked_key_to_rank.setdefault(canonical_symbol_key(t), i)
+        rank = ranked_key_to_rank.get(canonical_symbol_key(sym)) if val is not None else None
         tag = encode_entry_tag(score=snap.get("score"), conditions=(snap.get("conditions") or None),
                                gap=gap, vol=vol, tdist=tdist, rank=rank)
         if len(tag) > self.ENTRY_TAG_MAX:
