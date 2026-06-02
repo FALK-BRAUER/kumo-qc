@@ -10,9 +10,10 @@ from pathlib import Path
 
 import pytest
 
-from sweeps.warmup_cache.lean_indicators import Delay, Ichimoku, Maximum, Minimum
+from sweeps.warmup_cache.lean_indicators import ADX, SMA, Delay, Ichimoku, Maximum, Minimum
 
 GOLDEN = Path.home() / "reference/Lean/Tests/TestData/spy_with_ichimoku.csv"
+GOLDEN_ADX = Path.home() / "reference/Lean/Tests/TestData/spy_with_adx.txt"
 pytestmark = pytest.mark.skipif(not GOLDEN.exists(), reason="LEAN golden test data not present")
 
 
@@ -44,6 +45,28 @@ def test_ichimoku_matches_lean_golden_byte_identical() -> None:
     assert all(c > 50 for c in checked.values()), f"too few rows checked: {checked}"
 
 
+@pytest.mark.skipif(not GOLDEN_ADX.exists(), reason="LEAN golden ADX data not present")
+def test_adx_matches_lean_golden() -> None:
+    """Feed the golden Open/High/Low/Close through the ADX port (period 14, matching the golden);
+    assert +DI / -DI / ADX match LEAN's +DI14 / -DI14 / ADX 14 columns on every ready row."""
+    adx = ADX(period=14)
+    rows = list(csv.DictReader(GOLDEN_ADX.open()))
+    assert len(rows) > 100
+    checked = {"pdi": 0, "mdi": 0, "adx": 0}
+    for row in rows:
+        adx.update(float(row["High"]), float(row["Low"]), float(row["Close"]))
+        for port_val, col, key in (
+            (adx.plus_di, "+DI14", "pdi"), (adx.minus_di, "-DI14", "mdi"), (adx.adx, "ADX 14", "adx"),
+        ):
+            gold = _f(row.get(col, ""))
+            if gold is None:
+                continue
+            assert port_val == pytest.approx(gold, abs=1e-3, rel=1e-4), (
+                f"{col} mismatch on {row['Date']}: port={port_val} golden={gold}")
+            checked[key] += 1
+    assert all(c > 50 for c in checked.values()), f"too few ADX rows checked: {checked}"
+
+
 def test_rolling_primitives() -> None:
     """Maximum/Minimum window semantics + Delay's N-back value."""
     mx, mn = Maximum(3), Minimum(3)
@@ -60,3 +83,10 @@ def test_rolling_primitives() -> None:
     assert d.is_ready and d.value == 10  # 2 back from 30 is 10
     d.update(40)
     assert d.value == 20
+
+    sma = SMA(3)
+    for v in (3, 6, 9):
+        sma.update(v)
+    assert sma.is_ready and sma.value == 6.0  # (3+6+9)/3
+    sma.update(12)
+    assert sma.value == 9.0  # (6+9+12)/3
