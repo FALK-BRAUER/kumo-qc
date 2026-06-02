@@ -63,6 +63,7 @@ import pandas as pd
 from engine.base import DegradedDataError, DegradedScheduleError
 from engine.context import OrderIntent, PhaseContext
 from engine.engine import StrategyEngine
+from phases.shared.oracle_helpers import score_symbol_native
 from runtime.cost_model import wire_cost_models
 from runtime.indicators import INDICATOR_KEYS, TBounceTracker, weekly_aggregate
 from runtime.universe_select import (
@@ -988,10 +989,33 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             d_ichi = ind.get("d_ichi") if ind else None
             if d_ichi is None or not getattr(d_ichi, "is_ready", False):
                 continue  # cold daily thesis → not enterable; never snapshot a half-formed thesis
+            # #archive B1: capture the LEARN-SUBSTRATE at decision time — the BCT score + the 8
+            # conditions INDIVIDUALLY (the mine learns WHICH of George's conditions predict R, not
+            # just "score>=7"). score_symbol_native re-reads the SAME maintained indicators (O(1),
+            # history-free) the signal phase scored on → identical result, no signal-phase threading.
+            # BIT ORDER (STABLE — a change is a schema_version bump; see results-archive-design.md):
+            #   0 weekly price>cloud · 1 weekly tenkan>kijun · 2 weekly chikou(price>price26ago) ·
+            #   3 weekly cloud green(SpanA>SpanB) · 4 daily price>cloud · 5 daily price>tenkan ·
+            #   6 ADX rising ∧ +DI>-DI ∧ ADX>=20 · 7 daily price>200ma  (== CLAUDE.md BCT stack).
+            # Winners just passed score_symbol_native in the signal phase (same decision, same
+            # maintained ind) → re-scoring here succeeds in prod. Guard defensively: a re-score
+            # failure must NOT crash the snapshot (→ silent-0 entries); log it LOUD as a context gap
+            # and proceed on the already-validated signal_price/daily_kijun (conditions just absent
+            # from the learn-substrate for this name — a data gap, not a trade blocker).
+            try:
+                scored = score_symbol_native(self, sym, ind)
+            except Exception as exc:  # incomplete/edge ind — should not happen for a fresh winner
+                scored = None
+                _log = getattr(self, "log", None)
+                if callable(_log):
+                    _log(f"CONTEXT_GAP|{decision_date}|{getattr(sym, 'value', sym)}|rescore-failed:{type(exc).__name__}")
+            conditions = [bool(c) for c in scored["conditions"]] if scored else []
             snap[sym] = {
                 "signal_price": float(self.securities[sym].price),
                 "daily_kijun": float(d_ichi.kijun.current.value),
                 "decision_date": decision_date,
+                "score": int(scored["score"]) if scored else None,   # the aggregate (back-compat)
+                "conditions": conditions,                            # the 8 booleans (learn-substrate core)
             }
         self._candidate_snapshot = snap
         log = getattr(self, "log", None)

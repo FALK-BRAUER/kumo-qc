@@ -82,9 +82,29 @@ def test_capture_keys_by_canonical_symbol_identity() -> None:
         # hold (identity, not just equality) — proves no Symbol was re-created.
         assert any(k is s for s in a._active), "snapshot key must BE a canonical _active Symbol"
         assert k in a._intraday
+    # incomplete fake ind (no w_ichi/adx/…) → score_symbol_native fails → guarded context gap:
+    # score=None, conditions=[] (the trade still snapshots on the validated signal_price/kijun).
     assert a._candidate_snapshot[aapl] == {
-        "signal_price": 150.0, "daily_kijun": 140.0, "decision_date": date(2025, 6, 2)
+        "signal_price": 150.0, "daily_kijun": 140.0, "decision_date": date(2025, 6, 2),
+        "score": None, "conditions": [],
     }
+    assert any("CONTEXT_GAP" in m for m in a.logged)  # the re-score gap is logged LOUD, not silent
+
+
+def test_snapshot_captures_score_and_8_conditions(monkeypatch) -> None:
+    # B1 (the learn-substrate core): when scoring succeeds, the snapshot carries the BCT score +
+    # the 8 conditions INDIVIDUALLY. Monkeypatch score_symbol_native (vs faking the full maintained
+    # indicator suite) → assert the threading, not the scorer internals.
+    import runtime.lean_entry as le
+    aapl = FakeSym("AAPL")
+    bits = [True, True, False, True, True, True, False, True]  # 6/8
+    monkeypatch.setattr(le, "score_symbol_native", lambda algo, sym, ind: {"score": 6, "conditions": bits})
+    a = _algo([aapl], ["aapl"], {aapl: {"d_ichi": FakeDIchi(140.0)}}, {aapl: 150.0})
+    a._capture_candidate_snapshot(a._ranked_today)
+    snap = a._candidate_snapshot[aapl]
+    assert snap["score"] == 6
+    assert snap["conditions"] == bits  # all 8, in the stable documented bit order
+    assert len(snap["conditions"]) == 8
 
 
 def test_capture_skips_unsubscribed_candidate() -> None:
