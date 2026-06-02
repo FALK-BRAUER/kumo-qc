@@ -1095,8 +1095,9 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                     # allowlist): dump the LIVE continuous-weekly scalars so they can be diffed
                     # byte-for-byte vs the OFFLINE cache (proves self.history-weekly == zip-weekly).
                     if self._weekly_dump_syms and sym.value.lower() in self._weekly_dump_syms:
+                        import json as _json  # lazy — lean_entry has no module-level json import
                         self.log("CW_SCALARS|" + sym.value + "|" + today.isoformat() + "|"
-                                 + json.dumps(scalars, separators=(",", ":"), default=float))
+                                 + _json.dumps(scalars, separators=(",", ":"), default=float))
         self.engine.on_data_with_ctx(ctx)
         # The daily pipeline's surviving intents == the signal winners (entry_selection/timing/sizing
         # are on the INTRADAY clock for the intraday champion, so the daily bar_state ends at signal).

@@ -93,18 +93,24 @@ def _diff_live_vs_offline_urbn() -> None:
     zp = _DAILY / "urbn.zip"
     offline = {dd.isoformat(): s for dd, s in build_ticker_scalars(read_daily_zip(zp))} if zp.exists() else {}
     print(f"SINGLE-SOURCE: {len(live)} URBN CW_SCALARS log lines captured")
+    # HQ standing rule: POSITIVELY ASSERT THE FLAG IS ENGAGED before the result counts. 0 dump lines
+    # = flag never on (the get_parameter-not-local-wired mirage) → NOT a pass, NOT a divergence.
+    if not live:
+        print("FLAG-ENGAGED CHECK: FAIL — 0 CW_SCALARS lines → CONTINUOUS_WEEKLY never engaged. "
+              "The result does NOT count. Diagnose the injection; do NOT proceed to full-FY.")
+        return
+    print("FLAG-ENGAGED CHECK: PASS — CW_SCALARS present → continuous-weekly path proven active.")
     mismatches = 0
     for d in sorted(live):
         if d not in offline:
             continue
         lw = {k: round(float(live[d][k]), 6) for k in _WEEKLY_FIELDS}
         ow = {k: round(float(offline[d][k]), 6) for k in _WEEKLY_FIELDS}
-        ok = lw == ow
-        if not ok:
+        if lw != ow:
             mismatches += 1
             print(f"  MISMATCH {d}: live={lw} offline={ow}")
     print(f"SINGLE-SOURCE RESULT: {len(live)} dates, {mismatches} weekly mismatches "
-          f"→ {'PROVEN single-sourced' if mismatches == 0 and live else 'DIVERGENCE — STOP'}")
+          f"→ {'PROVEN single-sourced (live self.history-weekly == offline zip-weekly)' if mismatches == 0 else 'DIVERGENCE — STOP'}")
 
 
 if __name__ == "__main__":
