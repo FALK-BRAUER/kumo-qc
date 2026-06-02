@@ -27,7 +27,10 @@ from sweeps.adapters.local_lean import (
 )
 from sweeps.archive.config_serializer import (
     CONFIG_SERIALIZER_VERSION,
+    TYPE_KEY,
+    _jsonify,
     serialize_config,
+    unjsonify,
 )
 from sweeps.archive.snapshot import RunStatus
 from sweeps.enumerate import enumerate_catalog
@@ -103,6 +106,68 @@ def test_serialize_config_deterministic() -> None:
     a = json.dumps(serialize_config(cfg), sort_keys=True)
     b = json.dumps(serialize_config(cfg), sort_keys=True)
     assert a == b  # byte-stable for idempotent archive writes
+
+
+# --- #9 storage-uniformity: _jsonify never-raises + the unjsonify round-trip ---------------
+
+def test_jsonify_roundtrip_on_native_structures() -> None:
+    """ROUND-TRIP CONTRACT: unjsonify(_jsonify(x)) == x for the round-trippable set (JSON-native
+    scalars, dicts, lists, and arbitrary nesting thereof). Also survives a json dumps/loads cycle."""
+    cases = [
+        7, 3.14, "abc", True, None,
+        {"a": 1, "b": [1, 2, {"c": "d"}]},
+        [1, "x", {"k": [True, None, 2.5]}],
+        {"nested": {"deep": {"list": [1, {"z": 9}]}}},
+    ]
+    for x in cases:
+        j = _jsonify(x)
+        assert json.loads(json.dumps(j, sort_keys=True)) == j  # JSON-native, byte-stable
+        assert unjsonify(j) == x                                 # true inverse on the round-trip set
+
+
+def test_jsonify_never_raises_on_non_native_scalars() -> None:
+    """#9 contract: _jsonify NEVER hands json.dumps a non-serializable value — datetime/Path/set/
+    Enum are coerced (one-way) instead of passed through to a TypeError that would evaporate the run."""
+    import datetime as dt
+    import enum
+    from pathlib import Path
+
+    class Color(enum.Enum):
+        RED = "red"
+
+    val = {
+        "when": dt.datetime(2025, 6, 1, 9, 30),
+        "day": dt.date(2025, 6, 1),
+        "path": Path("/tmp/x/y.json"),
+        "tags": {"b", "a", "c"},          # set → sorted list
+        "color": Color.RED,                # Enum → .value
+        "nums": (1, 2, 3),                 # tuple → list
+    }
+    j = _jsonify(val)
+    json.dumps(j, sort_keys=True, allow_nan=False)  # MUST NOT raise
+    assert j["when"] == "2025-06-01T09:30:00"
+    assert j["day"] == "2025-06-01"
+    assert j["path"] == "/tmp/x/y.json"
+    assert j["tags"] == ["a", "b", "c"]   # sorted
+    assert j["color"] == "red"
+    assert j["nums"] == [1, 2, 3]
+
+
+def test_jsonify_dataclass_roundtrips_to_field_dict() -> None:
+    """A dataclass param flattens to {__type__: Name, ...fields}; unjsonify returns it as a plain
+    field-dict (the mine reads fields by name — the class is NOT reconstructed, only the name kept)."""
+    import dataclasses
+
+    @dataclasses.dataclass(frozen=True)
+    class _Pred:
+        min_score: int = 7
+        rank_cap: int = 250
+
+    j = _jsonify({"predictor": _Pred(), "scalar": 5})
+    assert j == {"predictor": {TYPE_KEY: "_Pred", "min_score": 7, "rank_cap": 250}, "scalar": 5}
+    back = unjsonify(j)
+    assert back == j  # field-dict survives; mine reads back["predictor"]["rank_cap"]
+    assert back["predictor"]["rank_cap"] == 250
 
 
 # --------------------------------------------------------------------------- #
