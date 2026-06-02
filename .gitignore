@@ -85,3 +85,4 @@ storage/
 # Structure v2 (#208): sweep run workspaces are generated
 sweeps/runs/
 smoke_274/
+results/warmup_cache/
