@@ -271,3 +271,14 @@ def test_injected_impl_param_import_emitted(tmp_path: Path) -> None:
     BUILTINS = {"Slot", "StrategyConfig", "StrategyEngine"}  # all explicitly imported anyway
     undefined = {n for n in _called_class_names(tree) if n not in imported and n not in BUILTINS}
     assert not undefined, f"main.py references un-imported class(es): {undefined}"
+
+    # THE REAL GUARD (HQ): actually IMPORT the generated main.py in an isolated interpreter with
+    # ONLY the dist on path — executes the config literal, so a missing OR WRONG-MODULE-PATH injected
+    # import raises NameError/ImportError HERE (pre-deploy), exactly the cloud-Initialize failure a
+    # string/AST check would miss. This is the test that would have caught 'DvRankPredictor is not
+    # defined' before the deploy.
+    out = subprocess.run(
+        [sys.executable, "-c", "import main; assert main.STRATEGY_CONFIG.name == 'learned-dvrank'"],
+        cwd=str(dist), capture_output=True, text=True,
+    )
+    assert out.returncode == 0, f"generated dist failed to import (the Initialize bug class):\n{out.stderr}"

@@ -149,6 +149,28 @@ def test_no_pins_skips_ledger() -> None:
     assert out.ledger == []
 
 
+def test_sweep_does_not_transform_metrics() -> None:
+    """FAITHFULNESS (HQ): the sweep must NOT transform a config's per-window metrics — the ledger
+    rows must EQUAL the primitive's ResultMetrics exactly (the deterministic version of the
+    direct-vs-sweep check; on dummy data there's no cloud nondeterminism, so it's an EXACT match).
+    If they differ, run_sweep's aggregate/score/ledger path is corrupting the raw result = a bug."""
+    configs = enumerate_catalog(MOCK_CATALOG)[:2]  # type: ignore[arg-type]
+    # distinct per-(config,window) metrics so a transposition/averaging bug would show.
+    table = {}
+    for ci, c in enumerate(configs):
+        for wi, w in enumerate(SIX_WINDOWS):
+            table[(c.config_hash, w.name)] = ResultMetrics(
+                sharpe=1.0 + ci + wi * 0.1, ret_pct=10.0 + ci + wi, dd_pct=5.0 + wi, orders=12 + ci + wi,
+            )
+    out = run_sweep(configs, make_runner(table), pins=("c", "fp", "m"))
+    # every ledger row's metrics == the exact input for that (config_hash, window).
+    for row in out.ledger:
+        src = table[(row.config_hash, row.window)]
+        assert (row.sharpe, row.ret_pct, row.dd_pct, row.orders) == (
+            src.sharpe, src.ret_pct, src.dd_pct, src.orders
+        ), f"sweep transformed metrics for {row.config_hash}/{row.window}: {row} vs {src}"
+
+
 # --- parsing / fail-loud: a missing metric raises in the primitive, isolated by the runner
 
 def test_missing_metric_in_table_is_isolated() -> None:
