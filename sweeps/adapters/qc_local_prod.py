@@ -51,28 +51,28 @@ def local_dist_builder(config: SweepConfig, window: Window, run_dir: Path) -> st
     confirms THIS exact config ran (cross-cell isolation on top of the per-(hash,window) run_dir)."""
     from build.sweep_build import build_sweep_dist
 
+    import json as _json
+    import os as _os
+
     build_sweep_dist(config, dist_dir=run_dir)  # flat dist (main.py + flat modules) into run_dir
     marker = f"SWEEP_MARKER {config.config_hash}"
     main = run_dir / "main.py"
     s = main.read_text()
     tail = s.split("class BCTAlgorithm")[-1]
     if "START_DATE" not in tail:
-        s = s.replace("    STRATEGY_CONFIG = STRATEGY_CONFIG\n", _window_class_attrs(window), 1)
+        # window dates + optional extra BCTAlgorithm class-attrs from env (the LOCAL flag mechanism —
+        # LEAN reads get_parameter from config.json, not lean.json, so class-attr injection is the
+        # reliable local lever; e.g. the #336 CONTINUOUS_WEEKLY flag). repr() → valid Python literals
+        # (True/False, quoted str). Absent env → no extra attrs (byte-identical no-flag path).
+        extra = _json.loads(_os.environ.get("SWEEP_CLASS_ATTRS", "{}"))
+        attr_lines = "".join(f"    {k} = {v!r}\n" for k, v in extra.items())
+        s = s.replace(
+            "    STRATEGY_CONFIG = STRATEGY_CONFIG\n", _window_class_attrs(window) + attr_lines, 1
+        )
     if marker not in s:
         s = f"# {marker}\n" + s
     main.write_text(s)
-    # lean.json parameters: optional env-provided JSON (e.g. the #336 continuous-weekly flag, or any
-    # future sweep param). Absent → the exact original empty-params bytes (no-param path unchanged).
-    import json as _json
-    import os as _os
-
-    _params = _json.loads(_os.environ.get("SWEEP_LEAN_PARAMS", "{}"))
-    if _params:
-        (run_dir / "lean.json").write_text(
-            _json.dumps({"description": "sweep cell", "parameters": _params}) + "\n"
-        )
-    else:
-        (run_dir / "lean.json").write_text('{ "description": "sweep cell", "parameters": {} }\n')
+    (run_dir / "lean.json").write_text('{ "description": "sweep cell", "parameters": {} }\n')
     return marker
 
 

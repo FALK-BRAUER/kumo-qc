@@ -26,7 +26,9 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(_ROOT), str(_ROOT / "src"), str(_ROOT / "scripts")]
 
-os.environ["SWEEP_LEAN_PARAMS"] = json.dumps({"continuous-weekly": "1", "weekly-dump-syms": "urbn"})
+# Flag enable via CLASS-ATTR injection (LEAN reads get_parameter from config.json not lean.json, so
+# the local lever is class-attr injection — the same mechanism the window dates use).
+os.environ["SWEEP_CLASS_ATTRS"] = json.dumps({"CONTINUOUS_WEEKLY": True, "WEEKLY_DUMP_SYMS": "urbn"})
 os.environ.setdefault("DOCKER_HOST", "unix:///Users/falk/.docker/run/docker.sock")
 
 from sweeps.adapters.qc_local_prod import make_local_run  # noqa: E402
@@ -59,7 +61,7 @@ def _offline_urbn_scores() -> None:
 def main() -> None:
     champ = SweepConfig(choices=())
     print(f"=== SMOKE continuous-weekly flag-ON: champion base {champ.config_hash}, window {W.name} ===")
-    print(f"    SWEEP_LEAN_PARAMS={os.environ['SWEEP_LEAN_PARAMS']}")
+    print(f"    SWEEP_CLASS_ATTRS={os.environ['SWEEP_CLASS_ATTRS']}")
     _offline_urbn_scores()
     print("--- launching flag-ON LEAN backtest (archive=False, isolated run_dir) ---", flush=True)
     adapter = make_local_run(archive=False)
