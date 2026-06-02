@@ -145,8 +145,9 @@ def sweep_to_strategy_config(sweep_config: Any, *, base_module: str = BASE_MODUL
 
     choices = {c.kind: c for c in sweep_config.choices}
 
-    # --- signal / sizing (single-slot kinds) ---
-    for kind in ("signal", "sizing"):
+    # --- signal / sizing / protective_stop (single-slot kinds) — #339 adds protective_stop so the
+    # STOP LEVEL is sweepable (Kijun floor vs cloud-bottom floor); it's the champion's BINDING exit. ---
+    for kind in ("signal", "sizing", "protective_stop"):
         ch = choices.get(kind)
         if ch is None:
             continue

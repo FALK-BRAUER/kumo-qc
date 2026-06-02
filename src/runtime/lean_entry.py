@@ -1263,6 +1263,10 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             snap[sym] = {
                 "signal_price": float(self.securities[sym].price),
                 "daily_kijun": float(d_ichi.kijun.current.value),
+                # #339: cloud bottom (min Senkou A/B) — the structural floor for CloudProtectiveStop
+                # (the G3-winning cloud-bottom stop). Additive; KijunProtectiveStop ignores it.
+                "daily_cloud_bottom": float(min(d_ichi.senkou_a.current.value,
+                                                d_ichi.senkou_b.current.value)),
                 "decision_date": decision_date,
                 "score": int(scored["score"]) if scored else None,   # the aggregate (back-compat)
                 "conditions": conditions,                            # the 8 booleans (learn-substrate core)
