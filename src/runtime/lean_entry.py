@@ -146,6 +146,45 @@ FUNNEL_STAGES: tuple[str, ...] = (
     FUNNEL_DAILY_STAGES + FUNNEL_INTRADAY_STAGES + FUNNEL_FIRE_STAGES
 )
 
+# #276b-1 FIX (#303 mine clean-counter): the SEMANTIC LEGEND. Each stage counts ONE of three units —
+# the mine MUST NOT compute a cross-stage pass-RATE without first reading this legend, because the
+# units differ (a "rate" between two different units is nonsense). The clean funnel run showed
+# preflight_pass (7817) + injection_survives (12239) EXCEEDING signal_winners (7007) → a misread
+# >100% rate: an unentered candidate persists in the snapshot and RE-INJECTS every day until
+# entered/refreshed, so a per-DAY count of those two stages counts candidate-DAYS-incl-reinjection,
+# not distinct candidates. Fix: those two stages count DISTINCT candidates (each symbol once, the
+# first time it EVER reaches the stage, via a run-cumulative symbol set). The semantics:
+#   "distinct"        — each distinct candidate (by symbol) counted ONCE over the whole run (the
+#                       run-cumulative symbol set; reinjection/re-evaluation does NOT re-count).
+#   "candidate_days"  — a (candidate, day) pair counted once: a name reaching the stage on N
+#                       distinct days legitimately counts N (a per-day survivor set, accumulated).
+#   "daily"           — a per-decision count summed across days (signal_winners = winners/day summed;
+#                       regime_pass likewise; regime_blocked_days = #days blocked).
+#   "fire"            — distinct order fires (each entry fire is one order; no dedup).
+# DISTINCT-candidate stages (a name counted once over the run): preflight_pass, injection_survives.
+# CANDIDATE-DAY stages (a name reaching the stage on N days counts N): gap_eligible, confirm_fire,
+# sized, cash_ok. The asymmetry is intentional — a gap on N distinct days IS N gap-eligible-days.
+FUNNEL_DISTINCT_STAGES: tuple[str, ...] = ("preflight_pass", "injection_survives")
+# the per-day-accumulated intraday stages (the original per-candidate-DAY semantics).
+FUNNEL_CANDIDATE_DAY_STAGES: tuple[str, ...] = tuple(
+    s for s in FUNNEL_INTRADAY_STAGES if s not in FUNNEL_DISTINCT_STAGES
+)
+# stage → semantic-unit map (module-level constant; the robust, machine-readable legend the mine
+# reads to avoid misreading a rate). DO NOT rename the runtime-stat keys (that breaks the existing
+# read) — this legend is the ADDITIVE label.
+FUNNEL_STAGE_SEMANTICS: dict[str, str] = {
+    "signal_winners": "daily",
+    "regime_pass": "daily",
+    "regime_blocked_days": "daily",
+    "preflight_pass": "distinct",
+    "gap_eligible": "candidate_days",
+    "confirm_fire": "candidate_days",
+    "injection_survives": "distinct",
+    "sized": "candidate_days",
+    "cash_ok": "candidate_days",
+    "orders": "fire",
+}
+
 
 def active_set_hash(symbols: Iterable[str]) -> tuple[int, str]:
     """(count, sha256-of-sorted-symbols) for the live-selected ranked set. Logged each
@@ -374,15 +413,19 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self._entered_today: set[Any] = set()
 
         # #276b-1 FUNNEL — the 9 cumulative candidate-collapse counters (localizes Falk's "78 is too
-        # sparse"). _funnel_cum[stage] = the FY-cumulative count of candidate-days surviving `stage`.
-        # _funnel_today[stage] = the per-DAY survivor SYMBOL SET for the intraday stages (set
-        # membership = the per-day dedup: a candidate evaluated every 5-min tick counts ONCE/day at
-        # each stage). The daily stages (signal_winners/regime_pass/regime_blocked_days) + the fire
-        # stage (orders) accumulate DIRECTLY into _funnel_cum (no per-day set needed — already once/
-        # day or counted at fire). At session end the intraday per-day sets fold into _funnel_cum and
-        # reset. Observe-only: NOTHING in the trading path reads these. Pushed as QC runtime stats.
+        # sparse"). See FUNNEL_STAGE_SEMANTICS for the per-stage UNIT. _funnel_cum[stage] = the
+        # FY-cumulative counter. _funnel_today[stage] = the per-DAY survivor SYMBOL SET for the
+        # intraday stages (set membership = the per-day dedup: a candidate evaluated every 5-min tick
+        # counts ONCE/day at each stage). _funnel_seen[stage] = the RUN-cumulative symbol set for the
+        # DISTINCT stages (preflight_pass/injection_survives) — it persists across the whole run (never
+        # reset per-day) so each distinct candidate is counted ONCE, the first time it EVER reaches the
+        # stage (the reinjection-overcount fix; #303 mine clean-counter). The daily stages + the fire
+        # stage (orders) accumulate DIRECTLY into _funnel_cum. At session end the intraday per-day sets
+        # fold into _funnel_cum (candidate-day stages += len; distinct stages = len(_funnel_seen)).
+        # Observe-only: NOTHING in the trading path reads these. Pushed as QC runtime stats.
         self._funnel_cum: dict[str, int] = {stage: 0 for stage in FUNNEL_STAGES}
         self._funnel_today: dict[str, set[Any]] = {stage: set() for stage in FUNNEL_INTRADAY_STAGES}
+        self._funnel_seen: dict[str, set[Any]] = {stage: set() for stage in FUNNEL_DISTINCT_STAGES}
 
         # #313 WATCHDOG (the permanent protection vs silent no-fire): the daily decision must keep
         # pace with elapsed trading days. _sched_trading_days counts post-warmup trading days (the
@@ -1289,6 +1332,8 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             self._funnel_cum = {stage: 0 for stage in FUNNEL_STAGES}
         if not hasattr(self, "_funnel_today"):
             self._funnel_today = {stage: set() for stage in FUNNEL_INTRADAY_STAGES}
+        if not hasattr(self, "_funnel_seen"):
+            self._funnel_seen = {stage: set() for stage in FUNNEL_DISTINCT_STAGES}
 
     def _accumulate_daily_funnel(self, signal_winner_tickers: "list[str]", blocked: bool) -> None:
         """Fold the DAILY funnel stages into the cumulative counters (called once per daily decision).
@@ -1329,11 +1374,31 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             self._push_funnel_runtime_stats()
 
     def _flush_funnel_day(self) -> None:
-        """At session end: accumulate each intraday per-day survivor SET's SIZE into the cumulative
-        counter, then reset the per-day sets for T+1. The daily stages + `orders` already accumulated
-        directly (per-decision / per-fire), so only the intraday per-day sets flush here."""
-        for stage in FUNNEL_INTRADAY_STAGES:
+        """At session end: fold each intraday per-day survivor set into its cumulative counter, then
+        reset the per-day sets for T+1. The daily stages + `orders` already accumulated directly
+        (per-decision / per-fire), so only the intraday per-day sets flush here. Two semantics (see
+        FUNNEL_STAGE_SEMANTICS):
+          - CANDIDATE-DAY stages (gap_eligible/confirm_fire/sized/cash_ok): += len(per-day set). A
+            name reaching the stage on N distinct days legitimately counts N (a gap on N days IS N
+            gap-eligible-days).
+          - DISTINCT stages (preflight_pass/injection_survives): UNION the per-day set into the
+            RUN-cumulative _funnel_seen[stage], then set the counter = len(that run-set). Each distinct
+            candidate is counted ONCE the first time it EVER reaches the stage — re-injection /
+            re-evaluation on later days does NOT re-count (the #303 reinjection-overcount fix that made
+            those two stages misread as a >100% pass-rate vs signal_winners). Idempotent under QC's
+            per-symbol on_end_of_day: the per-day set resets to empty, so a repeat flush unions {} (no
+            change) and re-asserts the same len (no double-count)."""
+        # defensive: a hand-constructed fixture may set _funnel_today/_funnel_cum but not _funnel_seen
+        # (the real __init__/_ensure_funnel_state always create all three together). Ensure it here so
+        # the distinct-stage fold below never AttributeErrors. Idempotent (only creates if absent).
+        if not hasattr(self, "_funnel_seen"):
+            self._funnel_seen = {stage: set() for stage in FUNNEL_DISTINCT_STAGES}
+        for stage in FUNNEL_CANDIDATE_DAY_STAGES:
             self._funnel_cum[stage] += len(self._funnel_today[stage])
+            self._funnel_today[stage] = set()
+        for stage in FUNNEL_DISTINCT_STAGES:
+            self._funnel_seen[stage] |= self._funnel_today[stage]
+            self._funnel_cum[stage] = len(self._funnel_seen[stage])
             self._funnel_today[stage] = set()
 
     def _push_funnel_runtime_stats(self) -> None:
@@ -1341,12 +1406,19 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         logs/charts/ObjectStore are dead; runtime stats survive). GUARDED — set_runtime_statistic /
         SetRuntimeStatistic may be ABSENT locally (QCAlgorithm==object in the dev venv); the
         _funnel_cum attrs always hold the numbers regardless, for local/tests. Single code path, no
-        if-cloud branch. Best-effort: a missing API is a silent no-op (the attrs are the source)."""
+        if-cloud branch. Best-effort: a missing API is a silent no-op (the attrs are the source).
+
+        #303 legend: ALSO push the per-stage SEMANTIC UNIT under a SEPARATE key namespace
+        (funnel._sem.<stage> → distinct|candidate_days|daily|fire). The existing funnel.<stage> count
+        keys are UNCHANGED (renaming them breaks the existing read) — the legend is purely additive so
+        the mine can tell a distinct-candidate count from a candidate-DAY count and never compute a
+        nonsense cross-unit pass-rate (the preflight/injection >100% misread)."""
         setter = getattr(self, "set_runtime_statistic", None) or getattr(self, "SetRuntimeStatistic", None)
         if not callable(setter):
             return
         for stage in FUNNEL_STAGES:
             setter(f"funnel.{stage}", str(self._funnel_cum[stage]))
+            setter(f"funnel._sem.{stage}", FUNNEL_STAGE_SEMANTICS[stage])
 
     def _clear_intraday_session_state(self) -> None:
         """#276b-0 H3/SG9 — clear the deferred intraday-confirm PROGRESS + the entry PENDING set at

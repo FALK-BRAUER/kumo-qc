@@ -21,7 +21,10 @@ from typing import Any
 
 from engine.context import OrderIntent, PhaseContext
 from runtime.lean_entry import (
+    FUNNEL_CANDIDATE_DAY_STAGES,
+    FUNNEL_DISTINCT_STAGES,
     FUNNEL_INTRADAY_STAGES,
+    FUNNEL_STAGE_SEMANTICS,
     FUNNEL_STAGES,
     BctEngineAlgorithm,
 )
@@ -56,6 +59,7 @@ def _fresh_algo() -> BctEngineAlgorithm:
     # the unit harness init it explicitly to the canonical empty state.
     a._funnel_cum = {stage: 0 for stage in FUNNEL_STAGES}
     a._funnel_today = {stage: set() for stage in FUNNEL_INTRADAY_STAGES}
+    a._funnel_seen = {stage: set() for stage in FUNNEL_DISTINCT_STAGES}
     return a
 
 
@@ -170,8 +174,13 @@ def test_push_runtime_stats_uses_setter_when_present() -> None:
     assert pushed["funnel.signal_winners"] == "2"
     assert pushed["funnel.regime_pass"] == "2"
     assert pushed["funnel.orders"] == "7"
-    # all 9 stages published
-    assert set(pushed) == {f"funnel.{s}" for s in FUNNEL_STAGES}
+    # all 9 count keys published, PLUS the additive #303 per-stage semantic-legend keys.
+    assert {k for k in pushed if not k.startswith("funnel._sem.")} == {
+        f"funnel.{s}" for s in FUNNEL_STAGES
+    }
+    assert {k for k in pushed if k.startswith("funnel._sem.")} == {
+        f"funnel._sem.{s}" for s in FUNNEL_STAGES
+    }
 
 
 def test_pascalcase_setter_also_works() -> None:
@@ -322,3 +331,124 @@ def test_sizing_records_sized_and_cash_ok() -> None:
     FlatPctHeatcap(FlatPctHeatcap.Params(position_pct=0.10), logger=None).evaluate(ctx)
     assert ctx.bar_state.funnel.get("cash_ok") == {a1}  # only AAPL cleared the cash cap
     assert ctx.bar_state.funnel.get("sized") == {a1}    # and got qty>0
+
+
+# ── #303 DISTINCT vs CANDIDATE-DAY semantics (the reinjection-overcount fix) ──
+# The clean funnel run showed preflight_pass (7817) + injection_survives (12239) EXCEEDING
+# signal_winners (7007) because an unentered candidate RE-INJECTS every day until entered/refreshed,
+# so a per-DAY count of those two stages counted candidate-DAYS-incl-reinjection (a >100% misread).
+# These two stages now count DISTINCT candidates (each symbol once over the WHOLE run); the other
+# intraday stages stay per-candidate-DAY. The asymmetry is the core of the fix.
+
+def test_distinct_stages_count_a_candidate_once_across_many_days() -> None:
+    # AAPL reaches BOTH distinct stages (preflight_pass + injection_survives) on 5 separate days
+    # (the reinjection pattern). It must count ONCE per stage over the whole run — NOT 5×.
+    a = _fresh_algo()
+    aapl = _Sym("AAPL")
+    for _ in range(5):  # 5 distinct sessions
+        ictx = PhaseContext(qc=a, time=a.time, data=None)
+        ictx.record_funnel("preflight_pass", aapl)
+        ictx.record_funnel("injection_survives", aapl)
+        a._fold_intraday_funnel(ictx)
+        a._flush_funnel_day()  # session end (the reinjection happens next day)
+    assert a._funnel_cum["preflight_pass"] == 1       # distinct: AAPL counted ONCE, not 5×
+    assert a._funnel_cum["injection_survives"] == 1   # distinct: AAPL counted ONCE, not 5×
+    # the run-cumulative seen set holds the distinct symbol.
+    assert a._funnel_seen["preflight_pass"] == {aapl}
+    assert a._funnel_seen["injection_survives"] == {aapl}
+
+
+def test_candidate_day_stages_count_per_day_for_same_candidate() -> None:
+    # SAME candidate (AAPL) reaching a CANDIDATE-DAY stage (gap_eligible) on 5 separate days counts
+    # 5 (a gap on N distinct days IS N gap-eligible-days) — the asymmetry vs the distinct stages.
+    a = _fresh_algo()
+    aapl = _Sym("AAPL")
+    for _ in range(5):
+        ictx = PhaseContext(qc=a, time=a.time, data=None)
+        ictx.record_funnel("gap_eligible", aapl)
+        a._fold_intraday_funnel(ictx)
+        a._flush_funnel_day()
+    assert a._funnel_cum["gap_eligible"] == 5  # per-DAY: 5 days → 5 (NOT deduped to 1)
+
+
+def test_distinct_and_candidate_day_asymmetry_same_run() -> None:
+    # One run, one candidate, the SAME multi-day pattern → distinct stages count 1, candidate-day
+    # stages count N. This is the exact misread the #303 fix corrects, pinned side-by-side.
+    a = _fresh_algo()
+    aapl = _Sym("AAPL")
+    days = 4
+    for _ in range(days):
+        ictx = PhaseContext(qc=a, time=a.time, data=None)
+        for stage in FUNNEL_INTRADAY_STAGES:  # AAPL clears every intraday stage every day
+            ictx.record_funnel(stage, aapl)
+        a._fold_intraday_funnel(ictx)
+        a._flush_funnel_day()
+    for stage in FUNNEL_DISTINCT_STAGES:
+        assert a._funnel_cum[stage] == 1, f"{stage} should be distinct (1), got {a._funnel_cum[stage]}"
+    for stage in FUNNEL_CANDIDATE_DAY_STAGES:
+        assert a._funnel_cum[stage] == days, (
+            f"{stage} should be candidate-days ({days}), got {a._funnel_cum[stage]}"
+        )
+
+
+def test_distinct_flush_idempotent_per_symbol_on_end_of_day() -> None:
+    # QC fires on_end_of_day once PER SYMBOL → _flush_funnel_day runs multiple times a session. The
+    # distinct stage must not double-count: first flush unions + asserts len; repeats union {} (no-op).
+    a = _fresh_algo()
+    aapl = _Sym("AAPL")
+    ictx = PhaseContext(qc=a, time=a.time, data=None)
+    ictx.record_funnel("preflight_pass", aapl)
+    a._fold_intraday_funnel(ictx)
+    a._flush_funnel_day()
+    a._flush_funnel_day()
+    a._flush_funnel_day()
+    assert a._funnel_cum["preflight_pass"] == 1  # counted ONCE despite 3 flushes
+
+
+def test_distinct_stages_monotonic_and_grow_with_new_symbols() -> None:
+    # A NEW distinct symbol each day grows the distinct counter; a repeat symbol does not.
+    a = _fresh_algo()
+    seq: list[int] = []
+    for name in ("AAPL", "AAPL", "MSFT", "AAPL", "NVDA"):  # distinct: AAPL, MSFT, NVDA → 3
+        ictx = PhaseContext(qc=a, time=a.time, data=None)
+        ictx.record_funnel("injection_survives", _Sym(name))
+        a._fold_intraday_funnel(ictx)
+        a._flush_funnel_day()
+        seq.append(a._funnel_cum["injection_survives"])
+    assert seq == [1, 1, 2, 2, 3]  # monotonic; repeats don't bump
+
+
+# ── #303 LEGEND: the stage→semantic-unit map is correct + complete ──
+
+def test_funnel_stage_semantics_legend_correct_and_complete() -> None:
+    # every stage has a semantic label, and the labels match the two-clock taxonomy.
+    assert set(FUNNEL_STAGE_SEMANTICS) == set(FUNNEL_STAGES)  # complete
+    assert FUNNEL_STAGE_SEMANTICS["signal_winners"] == "daily"
+    assert FUNNEL_STAGE_SEMANTICS["regime_pass"] == "daily"
+    assert FUNNEL_STAGE_SEMANTICS["regime_blocked_days"] == "daily"
+    assert FUNNEL_STAGE_SEMANTICS["preflight_pass"] == "distinct"
+    assert FUNNEL_STAGE_SEMANTICS["injection_survives"] == "distinct"
+    assert FUNNEL_STAGE_SEMANTICS["gap_eligible"] == "candidate_days"
+    assert FUNNEL_STAGE_SEMANTICS["confirm_fire"] == "candidate_days"
+    assert FUNNEL_STAGE_SEMANTICS["sized"] == "candidate_days"
+    assert FUNNEL_STAGE_SEMANTICS["cash_ok"] == "candidate_days"
+    assert FUNNEL_STAGE_SEMANTICS["orders"] == "fire"
+    # the legend's "distinct" set EXACTLY matches the distinct-stage tuple (no drift).
+    distinct = {s for s, u in FUNNEL_STAGE_SEMANTICS.items() if u == "distinct"}
+    assert distinct == set(FUNNEL_DISTINCT_STAGES)
+    cand_days = {s for s, u in FUNNEL_STAGE_SEMANTICS.items() if u == "candidate_days"}
+    assert cand_days == set(FUNNEL_CANDIDATE_DAY_STAGES)
+
+
+def test_legend_pushed_as_runtime_stat_alongside_counts() -> None:
+    # the legend is emitted as a SEPARATE runtime-stat namespace (funnel._sem.<stage>), additive to
+    # the unchanged funnel.<stage> count keys, so the mine can read the unit without parsing code.
+    a = _fresh_algo()
+    pushed: dict[str, str] = {}
+    a.set_runtime_statistic = lambda k, v: pushed.__setitem__(k, v)  # type: ignore[attr-defined]
+    a._push_funnel_runtime_stats()
+    assert pushed["funnel._sem.preflight_pass"] == "distinct"
+    assert pushed["funnel._sem.injection_survives"] == "distinct"
+    assert pushed["funnel._sem.gap_eligible"] == "candidate_days"
+    assert pushed["funnel._sem.signal_winners"] == "daily"
+    assert pushed["funnel._sem.orders"] == "fire"
