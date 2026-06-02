@@ -162,19 +162,25 @@ def test_configs_are_sweepconfig_instances_the_protocol_consumes() -> None:
 
 
 # --- the #323 window panel (FY2025 bi-monthly + FY2024 OOS) --- #
-def test_sweep_round_windows_are_the_six_fy2025_bimonthly() -> None:
+def test_sweep_round_windows_are_the_six_quarterly_panel() -> None:
+    # #338-ws3: the canonical panel is the 6 RECENT quarterly windows (2025Q1..2026Q1 + Feb-Apr
+    # 2026), superseding the retired FY2025 bi-monthly panel. FY2025_PANEL re-exports SIX_WINDOWS.
     windows = sweep_windows()
     assert len(windows) == 6
     assert windows == FY2025_PANEL
-    assert windows[0].start == "2025-01-01" and windows[-1].end == "2025-12-31"
+    assert windows[0].start == "2025-01-01" and windows[-1].end == "2026-04-30"
 
 
-def test_holdout_is_excluded_from_a_round_included_only_at_final() -> None:
+def test_holdout_is_retired_include_holdout_is_a_noop() -> None:
+    # #338-ws3: the FY2024-OOS holdout was retired with the quarterly-panel migration — the 6
+    # quarterly windows ARE the distribution; include_holdout is now a NO-OP and FY2024_OOS is not
+    # part of any round (a future holdout is a separate Falk decision).
     assert FY2024_OOS not in sweep_windows()
-    final = sweep_windows(include_holdout=True)
-    assert final[-1] == FY2024_OOS and len(final) == 7
+    assert sweep_windows(include_holdout=True) == sweep_windows()  # no-op
+    assert len(sweep_windows(include_holdout=True)) == 6
 
 
-def test_window_roles_tag_panel_vs_holdout() -> None:
+def test_window_roles_are_all_panel() -> None:
+    # no separate holdout in the canonical scheme — every window is 'panel'; the holdout role retired.
     assert all(WINDOW_ROLES[w.name] == "panel" for w in FY2025_PANEL)
-    assert WINDOW_ROLES[FY2024_OOS.name] == "holdout"
+    assert FY2024_OOS.name not in WINDOW_ROLES

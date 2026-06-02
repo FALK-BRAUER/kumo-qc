@@ -28,11 +28,11 @@ def _cap_config(cap: int) -> SweepConfig:
 def test_local_dist_builder_window_marker_leanjson(tmp_path: Path) -> None:
     cfg = _cap_config(250)
     run_dir = tmp_path / "cell"
-    marker = local_dist_builder(cfg, FY2025_PANEL[0], run_dir)  # w1_2025_jan_feb = 2025-01-01..02-28
+    marker = local_dist_builder(cfg, FY2025_PANEL[0], run_dir)  # w1_2025q1 = 2025-01-01..03-31 (#338-ws3)
     main = (run_dir / "main.py").read_text()
     # cloud-PARITY window injection: dates from the Window's ISO start/end as BCTAlgorithm class attrs.
     assert "START_DATE = (2025, 1, 1)" in main
-    assert "END_DATE = (2025, 2, 28)" in main
+    assert "END_DATE = (2025, 3, 31)" in main
     # config-specific fabrication marker, present + returned.
     assert marker == f"SWEEP_MARKER {cfg.config_hash}"
     assert marker in main
