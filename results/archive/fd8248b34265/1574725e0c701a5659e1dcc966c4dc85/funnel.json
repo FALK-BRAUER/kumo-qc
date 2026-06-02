@@ -1,0 +1,29 @@
+{
+  "backtest_id": "1574725e0c701a5659e1dcc966c4dc85",
+  "funnel": {
+    "funnel.cash_ok": "27",
+    "funnel.confirm_fire": "289",
+    "funnel.gap_eligible": "316",
+    "funnel.injection_survives": "769",
+    "funnel.orders": "27",
+    "funnel.preflight_pass": "666",
+    "funnel.regime_blocked_days": "62",
+    "funnel.regime_pass": "5541",
+    "funnel.signal_winners": "6118",
+    "funnel.sized": "27"
+  },
+  "funnel_semantics": {
+    "cash_ok": "candidate_days",
+    "confirm_fire": "candidate_days",
+    "gap_eligible": "candidate_days",
+    "injection_survives": "distinct",
+    "orders": "fire",
+    "preflight_pass": "distinct",
+    "regime_blocked_days": "daily",
+    "regime_pass": "daily",
+    "signal_winners": "daily",
+    "sized": "candidate_days"
+  },
+  "name": "substrate-fy2020",
+  "note": "per-run funnel decomposition from /backtests/read.runtimeStatistics (captured post-run before purge); distinct vs candidate_days per funnel_semantics"
+}
