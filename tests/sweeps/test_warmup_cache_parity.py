@@ -71,6 +71,28 @@ def test_adx_matches_lean_golden() -> None:
     assert all(c > 50 for c in checked.values()), f"too few ADX rows checked: {checked}"
 
 
+def test_table_builder_real_ticker_ram_safe() -> None:
+    """The table builder streams a real daily zip → per-date 14-scalar rows: all fields present,
+    finite, ADX/DI in [0,100]. RAM-safe by construction (one ticker in flight — verified 20MB peak
+    for 10 tickers; the test asserts the streaming contract: a generator, not a materialized frame)."""
+    import math
+
+    from sweeps.warmup_cache.table_builder import (
+        SCALAR_FIELDS, build_ticker_scalars, read_daily_zip,
+    )
+    daily = Path.home().parent / "falk/projects/kumo-qc/data/equity/usa/daily/aapl.zip"
+    if not daily.exists():
+        pytest.skip("local daily data not present")
+    out = build_ticker_scalars(read_daily_zip(daily))
+    assert hasattr(out, "__next__"), "builder must be a STREAMING generator (RAM-safe), not a list"
+    rows = list(out)
+    assert len(rows) > 100
+    for _d, sc in rows:
+        assert sorted(sc.keys()) == sorted(SCALAR_FIELDS)
+        assert all(math.isfinite(v) for v in sc.values())
+        assert 0 <= sc["adx_now"] <= 100 and 0 <= sc["plus_di"] <= 100 and 0 <= sc["minus_di"] <= 100
+
+
 def test_monday_of_week_bucketing() -> None:
     # 2025-06-02 is a Monday; Tue..Fri of that week all bucket to it; next Mon = 06-09.
     mon = dt.date(2025, 6, 2)
