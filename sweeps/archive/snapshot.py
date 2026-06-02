@@ -30,7 +30,6 @@ from __future__ import annotations
 import gzip
 import io
 import json
-import math
 import os
 import tempfile
 import time
@@ -39,9 +38,13 @@ from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
-from urllib.parse import parse_qs
 
 import jsonschema
+
+# #archive ①: the SHARED tag schema — single source of truth for the decision_* keys + encode/decode.
+# lean_entry._build_entry_tag (cloud) emits via the same module; parsing here uses the same decode →
+# emit and parse cannot desync (the round-trip test is the contract guarantee).
+from runtime.tag_schema import COND_BITS, expand_cond, parse_entry_tag
 
 
 # --------------------------------------------------------------------------- #
@@ -128,7 +131,7 @@ class OrdersFetch(Protocol):
 TRADE_SCHEMA_VERSION = 1
 RESULT_SCHEMA_VERSION = 1
 
-_COND_BITS = 8  # the 8 BCT conditions, stable bit order (cond_0 .. cond_7)
+_COND_BITS = COND_BITS  # the 8 BCT conditions, stable bit order (cond_0 .. cond_7) — shared source
 
 TRADE_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -188,69 +191,17 @@ _TRADE_VALIDATOR = jsonschema.Draft202012Validator(TRADE_SCHEMA)
 # Tag parsing — urldecode + TYPE-CAST so the mine gets clean types.
 # --------------------------------------------------------------------------- #
 def _parse_entry_tag(tag: str | None) -> dict[str, Any]:
-    """Parse the entry-order TAG (urlencoded, from lean_entry._build_entry_tag) into typed
-    decision_* fields. Missing fields → None (NEVER faked). A piece that can't be cleanly cast is
-    treated as absent (None) rather than banked as garbage.
-
-    Tag shape (urlencode of a subset of):
-        decision_score=8 decision_cond=11110111 decision_gap=0.0340 decision_vol=1.612
-        decision_tdist=0.0081 decision_rank=12
-    """
-    out: dict[str, Any] = {
-        "decision_score": None,
-        "decision_cond": None,
-        "decision_gap": None,
-        "decision_vol": None,
-        "decision_tdist": None,
-        "decision_rank": None,
-    }
-    if not tag:
-        return out
-    # parse_qs already urldecodes; keep_blank_values False so empty pieces drop out.
-    parsed = parse_qs(tag, keep_blank_values=False)
-
-    def _first(key: str) -> str | None:
-        vals = parsed.get(key)
-        return vals[0] if vals else None
-
-    def _as_int(key: str) -> int | None:
-        raw = _first(key)
-        if raw is None:
-            return None
-        try:
-            return int(raw)
-        except (ValueError, TypeError):
-            return None
-
-    def _as_float(key: str) -> float | None:
-        raw = _first(key)
-        if raw is None:
-            return None
-        try:
-            v = float(raw)
-        except (ValueError, TypeError):
-            return None
-        return v if math.isfinite(v) else None
-
-    out["decision_score"] = _as_int("decision_score")
-    out["decision_gap"] = _as_float("decision_gap")
-    out["decision_vol"] = _as_float("decision_vol")
-    out["decision_tdist"] = _as_float("decision_tdist")
-    out["decision_rank"] = _as_int("decision_rank")
-
-    cond = _first("decision_cond")
-    if cond is not None and len(cond) == _COND_BITS and set(cond) <= {"0", "1"}:
-        out["decision_cond"] = cond
-    # A malformed cond (wrong length / non-binary) is NOT banked — treated as absent.
-    return out
+    """Parse the entry-order TAG → typed decision_* fields. #archive ①: delegates to the SHARED
+    runtime.tag_schema.parse_entry_tag — the SAME module lean_entry._build_entry_tag encodes with,
+    so emit and parse CANNOT desync (a key/format drift would break the round-trip test, not slip
+    through as a silent all-None substrate). Missing/uncastable → None, never faked."""
+    return parse_entry_tag(tag)
 
 
 def _expand_cond(cond: str | None) -> dict[str, bool | None]:
-    """decision_cond "11110111" → cond_0..cond_7 booleans. None when the cond is absent (the row is
-    flagged CORE_MISSING, not silently all-False)."""
-    if cond is None:
-        return {f"cond_{i}": None for i in range(_COND_BITS)}
-    return {f"cond_{i}": (cond[i] == "1") for i in range(_COND_BITS)}
+    """decision_cond "11110111" → cond_0..cond_7 booleans (shared tag_schema.expand_cond). None when
+    the cond is absent (the row is flagged CORE_MISSING, not silently all-False)."""
+    return expand_cond(cond)
 
 
 # --------------------------------------------------------------------------- #

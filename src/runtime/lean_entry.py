@@ -65,6 +65,7 @@ from engine.context import OrderIntent, PhaseContext
 from engine.engine import StrategyEngine
 from phases.shared.oracle_helpers import score_symbol_native
 from runtime.cost_model import wire_cost_models
+from runtime.tag_schema import encode_entry_tag
 from runtime.indicators import INDICATOR_KEYS, TBounceTracker, weekly_aggregate
 from runtime.universe_select import (
     DvWindow,
@@ -1031,36 +1032,34 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         (gap_pct, vol_ratio, tenkan_dist, recomputed from _intraday + the snapshot's signal_price) +
         scanner rank. Best-effort + bounded: a piece that can't be cleanly resolved is OMITTED, never
         faked. Fail-LOUD (DegradedDataError) if the tag exceeds ENTRY_TAG_MAX — never silent-truncate
-        (a truncated tag = corrupt learn data). Regime (spy>200ma, vix) = #archive-followup."""
-        from urllib.parse import urlencode
+        (a truncated tag = corrupt learn data). Regime (spy>200ma, vix) = #archive-followup.
 
+        #archive ①: the ENCODE lives in the SHARED tag_schema module (single source of truth) so
+        this emit and the parse in sweeps.archive.snapshot CANNOT desync — a key/format change
+        round-trips by construction (test_tag_schema). tag_schema is bundled into dist/ via the build
+        import-closure (lean_entry imports it → the cloud side can emit)."""
         snap = getattr(self, "_candidate_snapshot", {}).get(sym, {})
         ist = getattr(self, "_intraday", {}).get(sym, {})
-        fields: dict[str, Any] = {}
-        if snap.get("score") is not None:
-            fields["decision_score"] = snap["score"]
-        conds = snap.get("conditions") or []
-        if conds:
-            fields["decision_cond"] = "".join("1" if c else "0" for c in conds)  # 8-bit, stable order
+        # gather the RAW values; None = unresolvable → encode_entry_tag OMITS it (never fakes).
         sp = snap.get("signal_price")
         last_close = ist.get("last_close")
-        if sp and last_close is not None:
-            fields["decision_gap"] = f"{(last_close - sp) / sp:.4f}"
+        gap = (last_close - sp) / sp if (sp and last_close is not None) else None
+        vol = None
         vw = ist.get("vol_window")
         last_bar = ist.get("last_bar")
         n = getattr(vw, "count", 0) if vw is not None else 0
         if n > 0 and last_bar is not None:
             mean_vol = sum(vw[i] for i in range(n)) / n
             if mean_vol > 0:
-                fields["decision_vol"] = f"{float(last_bar.volume) / mean_vol:.3f}"
+                vol = float(last_bar.volume) / mean_vol
         tk = ist.get("intraday_tenkan")
-        if tk is not None and getattr(tk, "is_ready", False) and last_close:
-            fields["decision_tdist"] = f"{(last_close - float(tk.current.value)) / last_close:.4f}"
+        tdist = ((last_close - float(tk.current.value)) / last_close
+                 if (tk is not None and getattr(tk, "is_ready", False) and last_close) else None)
         ranked = getattr(self, "_ranked_today", [])
         val = getattr(sym, "value", None)
-        if val in ranked:
-            fields["decision_rank"] = ranked.index(val)
-        tag = urlencode(fields)
+        rank = ranked.index(val) if val in ranked else None
+        tag = encode_entry_tag(score=snap.get("score"), conditions=(snap.get("conditions") or None),
+                               gap=gap, vol=vol, tdist=tdist, rank=rank)
         if len(tag) > self.ENTRY_TAG_MAX:
             raise DegradedDataError(
                 f"entry tag {len(tag)} > ENTRY_TAG_MAX={self.ENTRY_TAG_MAX} for {val} — would "
