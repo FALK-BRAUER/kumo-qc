@@ -27,6 +27,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from engine.base import BasePhase, DegradedDataError, PhaseResult
+from engine.symbol_key import canonical_symbol_key
 from engine.context import OrderIntent, PhaseContext
 from phases.shared.param_space import ComplexityDecl, ParamSpace
 
@@ -84,12 +85,12 @@ class GrossExposureCap(BasePhase):
         the over-cap order outright. Returns (kept, dropped, committed, ceiling)."""
         equity = float(qc.portfolio.total_portfolio_value)
         ceiling = equity * self.p.max_gross_pct
-        active_by_value = {s.value: s for s in getattr(qc, "_active", set())}
+        active_by_key = {canonical_symbol_key(s): s for s in getattr(qc, "_active", set())}  # #276b-1 FIX3
         kept: list[OrderIntent] = []
         committed = baseline_committed
         dropped = 0
         for intent in intents:
-            sym = active_by_value.get(intent.ticker)
+            sym = active_by_key.get(canonical_symbol_key(intent.ticker))
             if sym is None:
                 continue
             try:

@@ -31,6 +31,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from engine.base import BasePhase, PhaseResult
+from engine.symbol_key import canonical_symbol_key
 from engine.context import PhaseContext
 from phases.entry_selection.bct_intraday_confirm.bct_intraday_confirm import _window_mean
 from phases.shared.param_space import ComplexityDecl, ParamSpace
@@ -93,7 +94,7 @@ class BctIntradayGapVolConfirm(BasePhase):
 
     def evaluate(self, ctx: PhaseContext) -> PhaseResult:
         qc = ctx.qc
-        active_by_lower = {s.value.lower(): s for s in getattr(qc, "_active", set())}
+        active_by_key = {canonical_symbol_key(s): s for s in getattr(qc, "_active", set())}  # #276b-1 FIX3
         intraday = getattr(qc, "_intraday", {})
         confirm_state = getattr(qc, "_entry_confirm", None)
         if confirm_state is None:
@@ -109,14 +110,14 @@ class BctIntradayGapVolConfirm(BasePhase):
                 kept.append(intent)
                 # already confirmed on a prior tick → still record stages 4+5 (a confirmed candidate
                 # IS gap-eligible) so the per-day dedup set stays complete. #276b-1 funnel.
-                _sym = active_by_lower.get(tk.lower())
+                _sym = active_by_key.get(canonical_symbol_key(tk))
                 if _sym is not None:
                     ctx.record_funnel("gap_eligible", _sym)
                     ctx.record_funnel("confirm_fire", _sym)
                 continue
             if cs["expired"]:
                 continue
-            sym = active_by_lower.get(tk.lower())
+            sym = active_by_key.get(canonical_symbol_key(tk))
             st = intraday.get(sym) if sym is not None else None
             if st is None:
                 reasons["no_feed"] = reasons.get("no_feed", 0) + 1

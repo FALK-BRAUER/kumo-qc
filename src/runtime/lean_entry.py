@@ -63,6 +63,7 @@ import pandas as pd
 from engine.base import DegradedDataError, DegradedScheduleError
 from engine.context import OrderIntent, PhaseContext
 from engine.engine import StrategyEngine
+from engine.symbol_key import canonical_symbol_key
 from phases.shared.oracle_helpers import score_symbol_native
 from runtime.cost_model import wire_cost_models
 from runtime.tag_schema import encode_entry_tag
@@ -127,24 +128,6 @@ def coarse_to_close(coarse: Iterable[Any]) -> dict[str, float]:
             )
         out[ticker] = price
     return out
-
-
-def canonical_symbol_key(sym: Any) -> str:
-    """THE canonical symbol-key form (single source of truth). The coarse/universe path stores
-    tickers LOWERCASE (coarse_to_dollar_volume / coarse_to_close lower `c.symbol.value` to the
-    zip-stem / qc._active.value.lower() convention) → `_ranked_today` holds LOWERCASE tickers. A QC
-    Symbol's `.value` is UPPERCASE. Any lookup that keys a QC Symbol against a coarse-derived store
-    (or vice versa) MUST normalize through THIS function or it silently misses (the rank=None
-    cloud-omit bug, #276b-1 FIX3 — the SAME bug class as the earlier inject .lower()-vs-FIRE .value
-    case mismatch). Accepts either a QC Symbol (reads `.value`) or a raw string.
-
-    TODO(#276b-1 follow-up): the hot trading-path symbol-keyed sites — candidate injection
-    (_inject... sized_orders ticker), sizing/FIRE_ENTRIES (active_by_value), and the snapshot
-    (active_by_lower) — currently each open-code their own case handling. They should MIGRATE to this
-    helper in a DEDICATED, parity-tested change (migrating the hot path's keying risks a behavior
-    change, out of scope for this observe-only-counters + rank-fix task). DO NOT migrate them here."""
-    val = getattr(sym, "value", sym)
-    return str(val).lower()
 
 
 # #276b-1 FUNNEL stages — the 9 CUMULATIVE candidate-collapse counters. The collapse STAGE localizes
@@ -815,7 +798,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         # uppercase. Match case-INSENSITIVELY to the canonical _active symbol — the same fix the
         # universe phase (dv_rank_cap) uses. (Without this the lookup always missed → 0 intraday
         # subscriptions despite INTRADAY_CAP logging — the #275b bug GATE-0 caught.)
-        active_by_lower = {s.value.lower(): s for s in self._active}
+        active_by_key = {canonical_symbol_key(s): s for s in self._active}  # #276b-1 FIX3 canonical key
         # the capped candidate slice that gets an intraday feed (scan-breadth cap, not a position cap)
         capped = candidates[: self.INTRADAY_SUBSCRIBE_CAP]
         if len(candidates) > self.INTRADAY_SUBSCRIBE_CAP:
@@ -824,7 +807,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             )
         want: set[Any] = set()
         for tk in capped:
-            sym = active_by_lower.get(tk.lower())
+            sym = active_by_key.get(canonical_symbol_key(tk))
             if sym is not None:
                 want.add(sym)
         # held names ALWAYS keep their feed (exits fire on the intraday clock)
@@ -1159,12 +1142,12 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         with a cold daily Ichimoku is SKIPPED here — the intraday side's H1 then treats a subscribed
         name with no snapshot as not-enterable (skip-loud), so a missing thesis can never fire."""
         # canonical identity, reused — never Symbol.create (the desync killer).
-        active_by_lower = {s.value.lower(): s for s in getattr(self, "_active", set())}
+        active_by_key = {canonical_symbol_key(s): s for s in getattr(self, "_active", set())}  # #276b-1 FIX3
         indicators = getattr(self, "_indicators", {})
         decision_date = self.time.date()
         snap: dict[Any, dict[str, Any]] = {}
         for ticker in winners:
-            sym = active_by_lower.get(ticker.lower())
+            sym = active_by_key.get(canonical_symbol_key(ticker))
             if sym is None:
                 continue  # decided but not yet subscribed — H1 covers it on the intraday side
             ind = indicators.get(sym)
@@ -1274,12 +1257,12 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             # session even if its protective floor sold it back to flat.
             if self.portfolio[sym].invested or sym in pending or sym in entered:
                 continue
-            # ticker=sym.value (UPPERCASE) — the SAME convention BctScoreFull emits, so the shared
-            # downstream (sizing + FIRE_ENTRIES, which resolve by active_by_value = {s.value: s})
-            # finds it. The intraday gate phases (pre-flight/confirm/floor) lowercase it for their
-            # own active_by_lower lookups, so uppercase is safe there too. (A prior `.lower()` here
-            # was case-inconsistent with sizing/FIRE → a confirmed candidate would be skipped, never
-            # fired — the silent-0 the machinery proof isolates from data-coverage.)
+            # ticker=sym.value (the QC Symbol's identity string) — #276b-1 FIX3: ALL downstream
+            # resolvers (sizing/FIRE_ENTRIES, the intraday gate phases, the snapshot) now key active
+            # symbols by canonical_symbol_key, which normalizes case at lookup → the emitted case no
+            # longer has to match any resolver's convention. (Pre-FIX3 the resolvers open-coded
+            # .value vs .value.lower(); a case-inconsistent emit here would silently skip a confirmed
+            # candidate — the silent-0 class this migration eliminates.)
             ictx.bar_state.sized_orders.append(
                 OrderIntent(ticker=sym.value, qty=0, price=0.0, stop=0.0,
                             module="signal", risk_dollars=0.0)

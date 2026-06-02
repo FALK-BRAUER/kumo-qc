@@ -47,6 +47,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
 from engine.base import BasePhase, PhaseResult
+from engine.symbol_key import canonical_symbol_key
 from engine.context import OrderIntent, PhaseContext
 from phases.shared.oracle_helpers import score_symbol_native
 from phases.shared.param_space import ComplexityDecl, ParamSpace
@@ -255,7 +256,7 @@ class OracleSignal(BasePhase):
         predictor = self.p.predictor
 
         candidates_raw = ctx.bar_state.ranked_candidates  # list of str symbol values
-        active_by_value = {s.value: s for s in getattr(qc, "_active", set())}
+        active_by_key = {canonical_symbol_key(s): s for s in getattr(qc, "_active", set())}  # #276b-1 FIX3
         trailing_dv = getattr(qc, "_trailing_dv", {})
         # Regime feature (optional): None if the engine has not stamped one for this bar.
         regime_ok = getattr(qc, "_regime_ok", None)
@@ -265,7 +266,7 @@ class OracleSignal(BasePhase):
         fired_no_count = 0  # candidates the predictor scored but declined to fire
 
         for rank, ticker in enumerate(candidates_raw):
-            symbol = active_by_value.get(ticker)
+            symbol = active_by_key.get(canonical_symbol_key(ticker))
             if symbol is None:
                 continue
             if qc.portfolio[symbol].invested:

@@ -381,7 +381,7 @@ def test_build_entry_tag_omits_rank_on_genuine_absence() -> None:
 
 
 def test_canonical_symbol_key_normalizes_symbol_and_string() -> None:
-    from runtime.lean_entry import canonical_symbol_key
+    from engine.symbol_key import canonical_symbol_key  # #276b-1 FIX3: moved to engine/ (shared base)
 
     assert canonical_symbol_key(_Sym("AAPL")) == "aapl"  # QC Symbol → lowercase .value
     assert canonical_symbol_key("MSFT") == "msft"        # raw string → lowercase

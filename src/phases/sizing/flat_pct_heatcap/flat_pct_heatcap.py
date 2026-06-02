@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from typing import Any, ClassVar
 
 from engine.base import BasePhase, PhaseResult
+from engine.symbol_key import canonical_symbol_key
 from engine.context import OrderIntent, PhaseContext
 from phases.shared.param_space import ComplexityDecl, ParamSpace
 
@@ -68,12 +69,12 @@ class FlatPctHeatcap(BasePhase):
         # Heat-cap (cash) only — no slot count. Fill ranked candidates until cash exhausted.
         committed_cash = 0.0
         available_cash = float(qc.portfolio.cash)
-        active_by_value = {s.value: s for s in getattr(qc, "_active", set())}
+        active_by_key = {canonical_symbol_key(s): s for s in getattr(qc, "_active", set())}  # #276b-1 FIX3
         filled: list[OrderIntent] = []
         skipped_cash = 0
 
         for intent in ctx.bar_state.sized_orders:
-            sym = active_by_value.get(intent.ticker)
+            sym = active_by_key.get(canonical_symbol_key(intent.ticker))
             if sym is None:
                 continue
             try:

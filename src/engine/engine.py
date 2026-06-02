@@ -27,6 +27,7 @@ from engine.base import (
 from engine.config import Slot, StrategyConfig
 from engine.context import PhaseContext
 from engine.logger import ComponentLogger
+from engine.symbol_key import canonical_symbol_key
 
 
 class FireSentinel:
@@ -415,11 +416,13 @@ class StrategyEngine:
     def _fire(self, sentinel: FireSentinel, ctx: PhaseContext) -> None:
         qc = self.qc
         date_str = ctx.time.strftime("%Y-%m-%d")
-        active_by_value: dict[str, Any] = {s.value: s for s in getattr(qc, "_active", set())}
+        # #276b-1 FIX3: key active symbols by the canonical key (single-source normalizer) so the
+        # FIRE seam resolves intent.ticker regardless of case — kills the .value-vs-.lower() drift class.
+        active_by_key: dict[str, Any] = {canonical_symbol_key(s): s for s in getattr(qc, "_active", set())}
 
         if sentinel is FIRE_ENTRIES:
             for intent in ctx.bar_state.sized_orders:
-                sym = active_by_value.get(intent.ticker)
+                sym = active_by_key.get(canonical_symbol_key(intent.ticker))
                 if sym is None or intent.qty <= 0:
                     continue
                 # #276a GUARD-3 (re-entry): a 2nd entry on a symbol that ALREADY has a live
@@ -472,7 +475,7 @@ class StrategyEngine:
                 qc.log(f"ENTRY|{date_str}|{intent.ticker}|qty={intent.qty}|price~{price:.2f}")
         elif sentinel is FIRE_EXITS:
             for intent in ctx.bar_state.exit_intents:
-                sym = active_by_value.get(intent.ticker)
+                sym = active_by_key.get(canonical_symbol_key(intent.ticker))
                 if sym is None:
                     continue
                 self._cancel_protective_stop(qc, sym, date_str)  # BEFORE the exit — no orphan
@@ -481,7 +484,7 @@ class StrategyEngine:
                 self._fired_exits += 1
         elif sentinel is FIRE_ADDS:
             for intent in ctx.bar_state.add_intents:
-                sym = active_by_value.get(intent.ticker)
+                sym = active_by_key.get(canonical_symbol_key(intent.ticker))
                 if sym is None or intent.qty <= 0:
                     continue
                 # #276a GUARD-2 (add + live stop): an add grows the position (+10→+15) but the
@@ -493,7 +496,7 @@ class StrategyEngine:
                 self._fired_adds += 1
         elif sentinel is FIRE_TRIMS:
             for intent in ctx.bar_state.trim_intents:
-                sym = active_by_value.get(intent.ticker)
+                sym = active_by_key.get(canonical_symbol_key(intent.ticker))
                 if sym is None:
                     continue
                 # #276a GUARD-1 (trim + live stop): a partial trim (+10→+6) leaves the resting

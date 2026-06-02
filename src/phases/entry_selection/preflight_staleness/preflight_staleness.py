@@ -33,6 +33,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from engine.base import BasePhase, PhaseResult
+from engine.symbol_key import canonical_symbol_key
 from engine.context import OrderIntent, PhaseContext
 from phases.shared.param_space import ComplexityDecl, ParamSpace
 
@@ -93,13 +94,13 @@ class PreFlightStaleness(BasePhase):
 
     def evaluate(self, ctx: PhaseContext) -> PhaseResult:
         qc = ctx.qc
-        active_by_lower = {s.value.lower(): s for s in getattr(qc, "_active", set())}
+        active_by_key = {canonical_symbol_key(s): s for s in getattr(qc, "_active", set())}  # #276b-1 FIX3
         intraday = getattr(qc, "_intraday", {})
         kept: list[OrderIntent] = []
         invalidated = 0
         reasons: dict[str, int] = {}
         for intent in ctx.bar_state.sized_orders:
-            sym = active_by_lower.get(intent.ticker.lower())
+            sym = active_by_key.get(canonical_symbol_key(intent.ticker))
             if sym is None:
                 invalidated += 1  # candidate not subscribed → not validatable here; H1 territory
                 continue

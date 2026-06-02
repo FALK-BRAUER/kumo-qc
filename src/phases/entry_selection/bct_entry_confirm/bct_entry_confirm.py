@@ -73,6 +73,7 @@ from typing import Any
 
 from engine.base import BasePhase, PhaseResult
 from engine.context import OrderIntent, PhaseContext
+from engine.symbol_key import canonical_symbol_key
 from phases.shared.param_space import ComplexityDecl, ParamSpace
 
 
@@ -240,7 +241,7 @@ class BctEntryConfirm(BasePhase):
         p = self.p
         date_str = ctx.time.strftime("%Y-%m-%d")
 
-        active_by_value = {s.value: s for s in getattr(qc, "_active", set())}
+        active_by_key = {canonical_symbol_key(s): s for s in getattr(qc, "_active", set())}  # #276b-1 FIX3
         indicators = getattr(qc, "_indicators", {})
 
         # Per-symbol X/4 score for a downstream methodology sizer (phase-1 sizer ignores it).
@@ -251,7 +252,7 @@ class BctEntryConfirm(BasePhase):
         declined = 0
 
         for intent in ctx.bar_state.sized_orders:
-            sym = active_by_value.get(intent.ticker)
+            sym = active_by_key.get(canonical_symbol_key(intent.ticker))
             if sym is None:
                 declined += 1
                 continue

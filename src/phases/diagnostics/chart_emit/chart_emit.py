@@ -45,6 +45,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from engine.base import BasePhase, PhaseResult
+from engine.symbol_key import canonical_symbol_key
 from engine.context import PhaseContext
 from phases.shared.oracle_helpers import score_symbol_native
 
@@ -123,11 +124,11 @@ class ChartEmit(BasePhase):
             # 3. Per-name probe scores — resolve each probe ticker to a subscribed symbol and
             #    recompute its maintained-indicator score (read-only). -1.0 sentinel when the
             #    name is not active / its indicators are not ready / scorer returns None.
-            active_by_value = {s.value: s for s in getattr(qc, "_active", set())}
+            active_by_key = {canonical_symbol_key(s): s for s in getattr(qc, "_active", set())}  # #276b-1 FIX3
             indicators = getattr(qc, "_indicators", {})
             for ticker in _SCORE_PROBES:
                 score = -1.0
-                symbol = active_by_value.get(ticker)
+                symbol = active_by_key.get(canonical_symbol_key(ticker))
                 if symbol is not None:
                     ind = indicators.get(symbol)
                     if ind is not None:

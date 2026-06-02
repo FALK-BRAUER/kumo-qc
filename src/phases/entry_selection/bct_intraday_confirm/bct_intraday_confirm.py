@@ -35,6 +35,7 @@ from typing import Any
 
 from engine.base import BasePhase, PhaseResult
 from engine.context import PhaseContext
+from engine.symbol_key import canonical_symbol_key
 from phases.shared.param_space import ComplexityDecl, ParamSpace
 
 
@@ -117,7 +118,7 @@ class BctIntradayConfirm(BasePhase):
 
     def evaluate(self, ctx: PhaseContext) -> PhaseResult:
         qc = ctx.qc
-        active_by_lower = {s.value.lower(): s for s in getattr(qc, "_active", set())}
+        active_by_key = {canonical_symbol_key(s): s for s in getattr(qc, "_active", set())}  # #276b-1 FIX3
         intraday = getattr(qc, "_intraday", {})
         confirm_state = getattr(qc, "_entry_confirm", None)
         if confirm_state is None:
@@ -136,7 +137,7 @@ class BctIntradayConfirm(BasePhase):
                 continue
             if cs["expired"]:
                 continue  # window already closed for this candidate → dropped (SG5)
-            sym = active_by_lower.get(tk.lower())
+            sym = active_by_key.get(canonical_symbol_key(tk))
             st = intraday.get(sym) if sym is not None else None
             if st is None:
                 reasons["no_feed"] = reasons.get("no_feed", 0) + 1
