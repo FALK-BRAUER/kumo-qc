@@ -30,6 +30,7 @@ from __future__ import annotations
 import gzip
 import io
 import json
+import math
 import os
 import tempfile
 import time
@@ -125,23 +126,73 @@ class OrdersFetch(Protocol):
 
 
 # --------------------------------------------------------------------------- #
+# The injected mark-to-market source for CENSORED (open-at-end) lots.
+# --------------------------------------------------------------------------- #
+@runtime_checkable
+class M2MMark(Protocol):
+    """`(symbol, end_of_data) -> (mark_price | None, source_label)` — the injected end-of-data mark.
+
+    Resolves the per-symbol closing mark for a position still OPEN at the run's end-of-data, so a
+    censored row carries a PROVISIONAL outcome instead of being dropped. Contract:
+
+      * Returns a (price, source) tuple. price is None when no mark resolves; source is one of
+        ``M2M_QC_NATIVE`` / ``M2M_LOCAL_PARQUET`` / ``M2M_UNAVAILABLE``.
+      * When price is None, source MUST be ``M2M_UNAVAILABLE`` (the row records m2m_ret=null — the
+        entry context still has learn value; the outcome is honestly unknown, NEVER faked).
+      * Prod wiring PREFERS the QC-native end-of-data mark (same data vendor as the run, consistent
+        with the run's reported return). NOTE: QC `/backtests/read` exposes only an AGGREGATE
+        `runtimeStatistics.Unrealized` — NOT a per-symbol mark — so the cloud-native per-symbol path
+        is only usable if a future channel (e.g. an end-of-data holdings chart) provides it; today
+        the practical source is the LOCAL fallback below.
+      * FALLBACK (``M2M_LOCAL_PARQUET``): the symbol's RAW/UNADJUSTED close at the LAST trading day
+        <= end_of_data from local data. NEVER an ADJUSTED price (adjusted levels corrupt the mark —
+        the split/dividend-factor trap) and NEVER "today" (always the run's end-of-data timestamp).
+
+    `end_of_data` is the run's terminal timestamp (the END_DATE / last-data day), passed by the
+    caller — NOT read from a clock here (determinism). Unit tests pass a MOCK — ZERO real LEAN/QC."""
+
+    def __call__(self, symbol: str, end_of_data: datetime) -> tuple[float | None, str]: ...
+
+
+# --------------------------------------------------------------------------- #
 # Schemas (the doc + the drift guard). Bump *_SCHEMA_VERSION on ANY field /
 # bit-order change so the mine can detect and gate on substrate drift.
 # --------------------------------------------------------------------------- #
-TRADE_SCHEMA_VERSION = 1
+# Schema v2 (#276b-1): adds the CENSORED open-position row type. This strategy is
+# cut-losers/let-winners → the CLOSED set is loser-biased BY CONSTRUCTION on EVERY run (a stop that
+# never fires leaves the WINNERS open at end-of-data; the QC closedTrades summary — and v1 of this
+# snapshotter — DROPPED them). A closed-only substrate teaches the #303 mine "these entry conditions
+# → LOSS" which is FALSE: the SAME conditions produced the censored winners. So every row now carries
+# `censored` (REQUIRED): false == a real closed trade (real exit), true == an open lot at end-of-data
+# marked-to-market provisionally (`m2m_ret` / `m2m_source`, exit_reason "censored_open"). The mine
+# gates on `schema_version` (v1 artifacts are censored-LESS) and reads `censored` to keep provisional
+# (unrealized) outcomes distinct from realized ones — that weighting is the mine's job, not ours.
+TRADE_SCHEMA_VERSION = 2
 RESULT_SCHEMA_VERSION = 1
 
 _COND_BITS = COND_BITS  # the 8 BCT conditions, stable bit order (cond_0 .. cond_7) — shared source
 
+# Censored-row exit_reason sentinel — the mine keys on this to recognise a provisional (open) row.
+CENSORED_EXIT_REASON = "censored_open"
+
+# M2M provenance labels — qc_native (preferred, same vendor as the run), local_parquet (RAW /
+# UNADJUSTED LEAN daily close at end-of-data; NEVER an adjusted price — the adjusted-price level
+# trap), or unavailable (neither resolved → m2m_ret null, NEVER faked).
+M2M_QC_NATIVE = "qc_native"
+M2M_LOCAL_PARQUET = "local_parquet"
+M2M_UNAVAILABLE = "unavailable"
+
 TRADE_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "results-archive closed-trade row",
+    "title": "results-archive trade row (closed OR censored-open)",
     "type": "object",
     "additionalProperties": False,
     "required": [
         "schema_version",
         "context_status",
-        # execution_* (from the FILLS)
+        # censored discriminator (v2) — REQUIRED on EVERY row (closed rows = false).
+        "censored",
+        # execution_* (from the FILLS). exit_dt/exit_px are null on a censored (open) row.
         "symbol", "entry_dt", "entry_px", "exit_dt", "exit_px",
         "qty", "side", "pnl", "ret", "duration_sec", "exit_reason",
         # decision_* (from the entry order TAG)
@@ -149,21 +200,27 @@ TRADE_SCHEMA: dict[str, Any] = {
         "decision_gap", "decision_vol", "decision_tdist", "decision_rank",
         # excursion (follow-on emit) — null until the exit-tag path lands
         "mfe", "mae",
+        # m2m provenance (v2) — null/"unavailable" on a closed row (it has a real exit).
+        "m2m_ret", "m2m_source",
     ]
     + [f"cond_{i}" for i in range(_COND_BITS)],
     "properties": {
         "schema_version": {"type": "integer", "const": TRADE_SCHEMA_VERSION},
         "context_status": {"enum": [ContextStatus.OK.value, ContextStatus.CORE_MISSING.value]},
-        # --- execution (always present, from real fills) ---
+        # --- censored discriminator (v2): false == real closed trade, true == open-at-end lot ---
+        "censored": {"type": "boolean"},
+        # --- execution (entry always real; exit null on a censored open row) ---
         "symbol": {"type": "string", "minLength": 1},
         "entry_dt": {"type": "string"},        # ISO 8601
         "entry_px": {"type": "number"},
-        "exit_dt": {"type": "string"},
-        "exit_px": {"type": "number"},
-        "qty": {"type": "number"},             # absolute share count of the paired lot
+        "exit_dt": {"type": ["string", "null"]},   # null on a censored (still-open) row
+        "exit_px": {"type": ["number", "null"]},   # null on a censored (still-open) row
+        "qty": {"type": "number"},             # absolute share count of the lot
         "side": {"enum": ["long", "short"]},
-        "pnl": {"type": "number"},
-        "ret": {"type": "number"},
+        # pnl/ret: realized on a closed row; PROVISIONAL mark-to-market on a censored row (null if
+        # the mark is unavailable — never faked).
+        "pnl": {"type": ["number", "null"]},
+        "ret": {"type": ["number", "null"]},
         "duration_sec": {"type": "number", "minimum": 0},
         "exit_reason": {"type": ["string", "null"]},
         # --- decision context (from the entry tag; typed; null if the field was absent) ---
@@ -176,6 +233,9 @@ TRADE_SCHEMA: dict[str, Any] = {
         # --- excursion (null until the strategy exit-tag emit follow-on) ---
         "mfe": {"type": ["number", "null"]},
         "mae": {"type": ["number", "null"]},
+        # --- m2m provenance (v2): the provisional mark's outcome + source, censored rows only ---
+        "m2m_ret": {"type": ["number", "null"]},
+        "m2m_source": {"enum": [M2M_QC_NATIVE, M2M_LOCAL_PARQUET, M2M_UNAVAILABLE, None]},
         # --- the 8 BCT conditions expanded to booleans (null when decision_cond absent) ---
         **{f"cond_{i}": {"type": ["boolean", "null"]} for i in range(_COND_BITS)},
     },
@@ -273,14 +333,22 @@ def _exit_reason(order: Mapping[str, Any]) -> str | None:
 # --------------------------------------------------------------------------- #
 # Trade pairing — FIFO entry/exit per symbol from the fills.
 # --------------------------------------------------------------------------- #
-def _pair_trades(orders: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+def _pair_trades(
+    orders: Sequence[Mapping[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Pair entry+exit fills per symbol into closed trades (FIFO lot matching).
 
     A BUY opens long lots (a SELL while flat opens a short lot); the opposite-side fill closes the
     oldest open lot(s). Each closed trade records the OPENING fill's tag as its decision context
     (the conditions the entry SAW) and the CLOSING fill for exit_dt/exit_px/exit_reason. Partial
-    fills split lots so qty/pnl stay exact. Trades still open at end of data are NOT emitted (no
-    exit → not a closed trade; the QC closedTrades summary agrees)."""
+    fills split lots so qty/pnl stay exact.
+
+    Returns ``(closed, open_residual)``. CLOSED is the realized-trade list — its pairing logic is
+    UNCHANGED (the v1 22-closed behaviour is preserved verbatim). OPEN_RESIDUAL is the leftover lots
+    still open at end of data (a filled entry whose protective stop was Submitted-never-filled →
+    status 1, so no opposite-side fill ever netted it). v1 DROPPED these; v2 emits them as CENSORED
+    rows so the loser-biased closed set is not the whole substrate. Each open lot carries its sign
+    (long/short), absolute qty, entry px/dt, and the OPENING fill's tag (same decision context)."""
     # Chronological, deterministic: sort by fill time, then order id for tie-break.
     fills = [o for o in orders if _is_filled(o) and _sym_value(o) and float(o.get("quantity") or 0) != 0]
     fills.sort(key=lambda o: (_fill_dt(o), o.get("id", 0)))
@@ -335,7 +403,26 @@ def _pair_trades(orders: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
         if abs(qty) > 1e-9:
             lots.append({"qty": qty, "px": px, "dt": dt, "tag": o.get("tag")})
 
-    return closed
+    # Collect the leftover OPEN lots (no opposite-side fill ever closed them) — the censored set.
+    # Deterministic order: by symbol, then entry dt, then entry px (stable across re-runs).
+    open_residual: list[dict[str, Any]] = []
+    for sym in sorted(open_lots):
+        for lot in open_lots[sym]:
+            if abs(lot["qty"]) < 1e-9:
+                continue
+            open_residual.append(
+                {
+                    "symbol": sym,
+                    "entry_dt": lot["dt"],
+                    "entry_px": lot["px"],
+                    "qty": abs(lot["qty"]),
+                    "side": "long" if lot["qty"] > 0 else "short",
+                    "entry_tag": lot["tag"],
+                }
+            )
+    open_residual.sort(key=lambda r: (r["symbol"], r["entry_dt"], r["entry_px"]))
+
+    return closed, open_residual
 
 
 def _trade_to_row(trade: Mapping[str, Any]) -> dict[str, Any]:
@@ -346,6 +433,8 @@ def _trade_to_row(trade: Mapping[str, Any]) -> dict[str, Any]:
     row: dict[str, Any] = {
         "schema_version": TRADE_SCHEMA_VERSION,
         "context_status": (ContextStatus.OK if core_present else ContextStatus.CORE_MISSING).value,
+        # v2: a real closed trade (real exit) — never provisional.
+        "censored": False,
         # execution
         "symbol": trade["symbol"],
         "entry_dt": _iso(trade["entry_dt"]),
@@ -363,10 +452,98 @@ def _trade_to_row(trade: Mapping[str, Any]) -> dict[str, Any]:
         # excursion — follow-on emit; null today (never block)
         "mfe": None,
         "mae": None,
+        # m2m provenance — N/A on a realized closed row (it has a real exit).
+        "m2m_ret": None,
+        "m2m_source": None,
         # cond bits
         **cond_bits,
     }
     return row
+
+
+def _open_lot_to_row(
+    lot: Mapping[str, Any],
+    *,
+    end_of_data: datetime,
+    m2m_mark: M2MMark,
+) -> dict[str, Any]:
+    """A leftover OPEN lot → a CENSORED, schema-validated row (the let-winners blind spot fix).
+
+    The entry context is REAL (the opening fill + its tag — same decision_* parse as a closed row).
+    The exit is OPEN: exit_dt = end_of_data, exit_px = null, exit_reason = ``censored_open``. The
+    outcome is PROVISIONAL — marked-to-market via the injected ``m2m_mark`` (entry_px → end-of-data
+    mark): m2m_ret (and the convenience pnl/ret mirror it). If no mark resolves, m2m_ret / pnl / ret
+    are null and m2m_source is ``unavailable`` — NEVER faked. The mine reads ``censored`` to keep
+    this provisional (unrealized) outcome distinct from realized closed-trade outcomes."""
+    decision = _parse_entry_tag(lot.get("entry_tag"))
+    cond_bits = _expand_cond(decision["decision_cond"])
+    core_present = decision["decision_score"] is not None and decision["decision_cond"] is not None
+
+    entry_px = float(lot["entry_px"])
+    side = lot["side"]
+    mark, source = m2m_mark(lot["symbol"], end_of_data)
+    # A mark is USABLE only if it is a finite, strictly-positive price from a non-unavailable
+    # source. A 0 / negative / NaN / inf mark is corrupt data — mirror _fill_price's "refuse to bank
+    # a degenerate price" stance: do NOT fabricate a -100% (or NaN — which also serialises as the
+    # invalid JSON token `NaN`) provisional outcome; degrade to the honest unavailable null instead.
+    mark_f = float(mark) if mark is not None else None
+    usable = (
+        mark_f is not None
+        and source != M2M_UNAVAILABLE
+        and math.isfinite(mark_f)
+        and mark_f > 0.0
+        and entry_px != 0.0
+    )
+    if usable:
+        assert mark_f is not None  # narrowed by usable
+        sign = 1.0 if side == "long" else -1.0
+        m2m_ret = ((mark_f - entry_px) / entry_px) * sign
+        m2m_pnl = (mark_f - entry_px) * float(lot["qty"]) * sign
+    else:
+        # No resolvable (usable) mark → honest null; do NOT fabricate. Force the unavailable label.
+        mark_f = None
+        source = M2M_UNAVAILABLE
+        m2m_ret = None
+        m2m_pnl = None
+
+    row: dict[str, Any] = {
+        "schema_version": TRADE_SCHEMA_VERSION,
+        "context_status": (ContextStatus.OK if core_present else ContextStatus.CORE_MISSING).value,
+        # v2: an open-at-end lot — outcome is provisional, not realized.
+        "censored": True,
+        # execution — entry real, exit OPEN.
+        "symbol": lot["symbol"],
+        "entry_dt": _iso(lot["entry_dt"]),
+        "entry_px": entry_px,
+        "exit_dt": _iso(end_of_data),       # marked at end-of-data, not a real exit fill
+        "exit_px": mark_f,                   # the M2M mark (None when no usable mark resolved)
+        "qty": float(lot["qty"]),
+        "side": side,
+        # provisional mark-to-market (null when the mark is unavailable — never faked)
+        "pnl": m2m_pnl,
+        "ret": m2m_ret,
+        "duration_sec": max(0.0, (_as_dt(end_of_data) - _as_dt(lot["entry_dt"])).total_seconds()),
+        "exit_reason": CENSORED_EXIT_REASON,
+        # decision (typed; null if absent) — SAME context as a closed row
+        **decision,
+        # excursion — follow-on emit; null today
+        "mfe": None,
+        "mae": None,
+        # m2m provenance
+        "m2m_ret": m2m_ret,
+        "m2m_source": source,
+        # cond bits
+        **cond_bits,
+    }
+    return row
+
+
+def _as_dt(dt: Any) -> datetime:
+    if isinstance(dt, datetime):
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    s = str(dt).replace("Z", "+00:00")
+    d = datetime.fromisoformat(s)
+    return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
 
 
 def _iso(dt: Any) -> str:
@@ -435,6 +612,8 @@ def persist_run(
     env: str,
     orders_fetch: OrdersFetch,
     dest_root: Path | str,
+    end_of_data: datetime | str | None = None,
+    m2m_mark: M2MMark | None = None,
     fetch_retries: int = 3,
     fetch_backoff: float = 2.0,
 ) -> Path:
@@ -456,6 +635,13 @@ def persist_run(
       env                 "local" | "cloud".
       orders_fetch        the injected `/orders/read` callable (retried w/ backoff; tests mock it).
       dest_root           the injected write root (tests pass tmp_path).
+      end_of_data         the run's terminal timestamp (END_DATE / last-data day) — the mark date for
+                          CENSORED open lots. Required to emit censored rows: if None (or m2m_mark is
+                          None) the censored-open capture is SKIPPED (back-compat / callers that don't
+                          wire it yet); closed-trade behaviour is unchanged either way.
+      m2m_mark            the injected per-symbol end-of-data mark source (M2MMark) for censored
+                          (open-at-end) lots. PREFER QC-native; fall back to RAW/unadjusted local at
+                          end_of_data; `unavailable` (m2m_ret null) when neither — NEVER faked.
       fetch_retries       attempts for orders_fetch on a transient error (>=1).
       fetch_backoff       base seconds for exponential backoff (delay = backoff * 2**attempt).
 
@@ -502,8 +688,22 @@ def persist_run(
     # error (a 0-price fill, a schema violation) is a REAL fail-loud. On CRASHED, tolerate it
     # (degrade to empty trades) so result.json STILL captures provenance — the 3-state intent
     # ("capture whatever's retrievable on CRASHED"); a corrupt fill must not evaporate the run dir.
+    # CENSORED open-position capture (v2, PERMANENT): this strategy is cut-losers/let-winners, so the
+    # CLOSED set is loser-biased BY CONSTRUCTION on EVERY run (a stop that never fires leaves the
+    # WINNERS open at end-of-data; v1 DROPPED them → a closed-only substrate teaches the mine "these
+    # conditions → LOSS", FALSE). We emit the leftover open lots as censored, mark-to-market rows.
+    # Requires both end_of_data and m2m_mark wired; if either is absent the censored capture is
+    # skipped (closed behaviour unchanged) — it is NOT faked.
+    eod = _as_dt(end_of_data) if end_of_data is not None else None
+    capture_open = eod is not None and m2m_mark is not None
     try:
-        rows = [_trade_to_row(t) for t in _pair_trades(orders)]
+        closed, open_residual = _pair_trades(orders)
+        rows = [_trade_to_row(t) for t in closed]
+        if capture_open:
+            assert eod is not None and m2m_mark is not None  # narrowed by capture_open
+            rows += [
+                _open_lot_to_row(lot, end_of_data=eod, m2m_mark=m2m_mark) for lot in open_residual
+            ]
         for row in rows:
             _validate_trade_row(row)
     except ArchiveError:
@@ -521,14 +721,22 @@ def persist_run(
             f"statistics carry no parseable 'Total Orders' (bt={backtest_id}, status={status.value}) "
             f"— the silent-miss guard cannot run; refusing to archive an unverifiable order count (#276b ②)"
         )
+    # The silent-miss is about ANY trade row evaporating while orders fired — a run with only
+    # censored-open lots (0 closed) still has rows, so an empty `rows` means BOTH closed and open are
+    # gone: the true silent-miss. Guard on the full row set.
     if not crashed and not rows and total_orders is not None and total_orders > 0:
         raise EmptyTradesError(
-            f"0 closed trades parsed but statistics Total Orders={total_orders} (bt={backtest_id}, "
-            f"status={status.value}) — the run would silently evaporate; fail loud (#276b silent-miss)"
+            f"0 trade rows parsed (closed+censored) but statistics Total Orders={total_orders} "
+            f"(bt={backtest_id}, status={status.value}) — the run would silently evaporate; fail loud "
+            f"(#276b silent-miss)"
         )
 
-    # 4. Write trades.jsonl.gz (atomic, gzip-from-day-1, deterministic).
-    jsonl = "".join(json.dumps(r, separators=(",", ":"), sort_keys=True) + "\n" for r in rows)
+    # 4. Write trades.jsonl.gz (atomic, gzip-from-day-1, deterministic). allow_nan=False so a stray
+    # NaN/inf (which would serialise as the INVALID JSON token `NaN`/`Infinity` and silently corrupt
+    # the substrate) RAISES instead — fail loud, never write an unparseable line (#276b data-integrity).
+    jsonl = "".join(
+        json.dumps(r, separators=(",", ":"), sort_keys=True, allow_nan=False) + "\n" for r in rows
+    )
     _atomic_write_bytes(run_dir / "trades.jsonl.gz", _gzip_bytes(jsonl))
 
     # 5. Write result.json (atomic).
@@ -545,7 +753,11 @@ def persist_run(
         "timestamp": timestamp,
         "env": env,
         "statistics": dict(statistics),
-        "n_closed_trades": len(rows),
+        # n_closed_trades counts REALIZED rows only (back-compat); n_censored_trades is the new
+        # open-at-end provisional count; n_trade_rows is the total written to trades.jsonl.gz.
+        "n_closed_trades": sum(1 for r in rows if not r["censored"]),
+        "n_censored_trades": sum(1 for r in rows if r["censored"]),
+        "n_trade_rows": len(rows),
         "total_orders": total_orders,
     }
     _atomic_write_bytes(

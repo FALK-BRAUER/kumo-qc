@@ -14,9 +14,15 @@ from urllib.parse import urlencode
 
 import pytest
 
+from datetime import datetime, timezone
+
 from sweeps.archive import (
     ArchiveError,
+    CENSORED_EXIT_REASON,
     EmptyTradesError,
+    M2M_LOCAL_PARQUET,
+    M2M_QC_NATIVE,
+    M2M_UNAVAILABLE,
     OrdersFetchError,
     RunStatus,
     SchemaValidationError,
@@ -551,3 +557,220 @@ def test_noncrashed_corrupt_fill_still_fails_loud(tmp_path):
             backtest_id="bt-clean-bad", status=RunStatus.COMPLETED_CLEAN, statistics=_stats(total_orders=5),
             orders_fetch=_fetch(bad), dest_root=tmp_path, fetch_backoff=0, **BASE_KW,
         )
+
+
+# --------------------------------------------------------------------------- #
+# CENSORED open-position rows (v2, #276b-1) — the let-winners blind-spot fix.
+#
+# The strategy is cut-losers/let-winners → the protective SELL stop is Submitted (status 1) but
+# NEVER fills for a position that keeps running. The entry BUY filled (status 3) → the lot is OPEN
+# at end-of-data. v1 dropped it (loser-biased substrate). v2 emits it as a censored, M2M row.
+# --------------------------------------------------------------------------- #
+END_OF_DATA = "2025-12-31T00:00:00Z"
+
+
+def _submitted_sell(symbol: str, qty: float, time: str, tag: str = "", oid: int = 2) -> dict:
+    """A protective SELL stop that was Submitted (status 1) but NEVER filled (no fill event). This
+    is exactly the /orders feed shape for an open held-winner at end-of-data."""
+    return {
+        "id": oid,
+        "symbol": {"value": symbol, "id": f"{symbol} R", "permtick": symbol},
+        "price": 0.0,         # a never-filled stop has no fill price
+        "quantity": qty,      # negative (a long protective stop)
+        "time": time,
+        "status": 1,          # Submitted — NOT 3 (Filled)
+        "type": 2,            # stop_market
+        "direction": 1,
+        "tag": tag,
+        "events": [{"status": "submitted", "fillPrice": 0.0, "fillQuantity": 0, "direction": "sell"}],
+    }
+
+
+def _mark(price_by_sym: dict, source: str = M2M_LOCAL_PARQUET):
+    """An injected M2MMark mock: returns (price, source) from a fixture map, or (None, unavailable)."""
+    def _m(symbol: str, end_of_data) -> tuple:
+        assert isinstance(end_of_data, datetime)  # the caller passes a real datetime, not a clock
+        if symbol in price_by_sym:
+            return float(price_by_sym[symbol]), source
+        return None, M2M_UNAVAILABLE
+    return _m
+
+
+def _open_winner_orders() -> list:
+    """One open long: BUY 100 @ 100 (entry tag) + a Submitted-never-filled protective SELL stop."""
+    return [
+        _buy("AAPL", 100, 100.0, "2025-06-02T05:00:00Z", "2025-06-02T21:00:00Z", tag=ENTRY_TAG, oid=1),
+        _submitted_sell("AAPL", -100, "2025-06-02T05:00:00Z", tag="stop @ 90", oid=2),
+    ]
+
+
+def test_open_lot_emits_censored_row_with_m2m(tmp_path):
+    """A buy filled + sell unfilled → a CENSORED row: entry context + M2M ret from the injected mark."""
+    run_dir = persist_run(
+        backtest_id="bt-cens", status=RunStatus.COMPLETED_CLEAN, statistics=_stats(total_orders=1),
+        orders_fetch=_fetch(_open_winner_orders()),
+        end_of_data=END_OF_DATA, m2m_mark=_mark({"AAPL": 130.0}),
+        dest_root=tmp_path, fetch_backoff=0, **BASE_KW,
+    )
+    rows = _read_trades(run_dir)
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["censored"] is True
+    assert r["symbol"] == "AAPL"
+    assert r["entry_px"] == 100.0
+    assert r["qty"] == 100.0
+    assert r["side"] == "long"
+    assert r["exit_dt"].startswith("2025-12-31")     # marked at end-of-data
+    assert r["exit_px"] == pytest.approx(130.0)       # the M2M mark
+    assert r["exit_reason"] == CENSORED_EXIT_REASON
+    # PROVISIONAL outcome from entry_px -> mark
+    assert r["m2m_ret"] == pytest.approx(0.30)        # (130-100)/100
+    assert r["ret"] == pytest.approx(0.30)            # ret mirrors the provisional m2m
+    assert r["pnl"] == pytest.approx(3000.0)          # (130-100)*100
+    assert r["m2m_source"] == M2M_LOCAL_PARQUET
+    # the SAME decision context as a closed row (the entry tag)
+    assert r["decision_score"] == 8
+    assert r["decision_cond"] == "11110111"
+    assert r["context_status"] == "OK"
+    assert [r[f"cond_{i}"] for i in range(8)] == [True, True, True, True, False, True, True, True]
+    assert r["schema_version"] == TRADE_SCHEMA_VERSION
+    # result.json splits the counts
+    result = json.loads((run_dir / "result.json").read_text())
+    assert result["n_closed_trades"] == 0
+    assert result["n_censored_trades"] == 1
+    assert result["n_trade_rows"] == 1
+
+
+def test_m2m_unavailable_is_null_not_faked(tmp_path):
+    """No resolvable mark → m2m_ret null + m2m_source 'unavailable' (entry context still recorded)."""
+    run_dir = persist_run(
+        backtest_id="bt-cens-unav", status=RunStatus.COMPLETED_CLEAN, statistics=_stats(total_orders=1),
+        orders_fetch=_fetch(_open_winner_orders()),
+        end_of_data=END_OF_DATA, m2m_mark=_mark({}),   # empty map → unavailable
+        dest_root=tmp_path, fetch_backoff=0, **BASE_KW,
+    )
+    r = _read_trades(run_dir)[0]
+    assert r["censored"] is True
+    assert r["m2m_ret"] is None        # NOT faked
+    assert r["ret"] is None
+    assert r["pnl"] is None
+    assert r["exit_px"] is None        # no mark → no exit px
+    assert r["m2m_source"] == M2M_UNAVAILABLE
+    # entry context still has learn value
+    assert r["decision_score"] == 8 and r["context_status"] == "OK"
+    assert r["exit_reason"] == CENSORED_EXIT_REASON
+
+
+def test_closed_and_censored_mix_preserves_closed(tmp_path):
+    """A closed loser + an open winner → one censored=false row (real exit) + one censored=true row."""
+    orders = [
+        # closed loser: buy 50 @ 200 -> sell 50 @ 180 (real exit)
+        _buy("MSFT", 50, 200.0, "2025-02-01T05:00:00Z", "2025-02-01T21:00:00Z", tag=ENTRY_TAG, oid=1),
+        _sell("MSFT", -50, 180.0, "2025-02-03T05:00:00Z", "2025-02-03T21:00:00Z", tag="stop", oid=2),
+        # open winner: buy 100 @ 100, stop submitted-never-filled
+        _buy("AAPL", 100, 100.0, "2025-06-02T05:00:00Z", "2025-06-02T21:00:00Z", tag=ENTRY_TAG, oid=3),
+        _submitted_sell("AAPL", -100, "2025-06-02T05:00:00Z", tag="stop", oid=4),
+    ]
+    run_dir = persist_run(
+        backtest_id="bt-mix", status=RunStatus.COMPLETED_CLEAN, statistics=_stats(total_orders=3),
+        orders_fetch=_fetch(orders),
+        end_of_data=END_OF_DATA, m2m_mark=_mark({"AAPL": 150.0}),
+        dest_root=tmp_path, fetch_backoff=0, **BASE_KW,
+    )
+    rows = _read_trades(run_dir)
+    assert len(rows) == 2
+    closed = [r for r in rows if not r["censored"]]
+    censored = [r for r in rows if r["censored"]]
+    assert len(closed) == 1 and len(censored) == 1
+    # closed row UNCHANGED (real exit, realized loss)
+    c = closed[0]
+    assert c["symbol"] == "MSFT"
+    assert c["exit_px"] == 180.0
+    assert c["pnl"] == pytest.approx(-1000.0)   # (180-200)*50
+    assert c["exit_reason"] == "stop"
+    assert c["m2m_ret"] is None and c["m2m_source"] is None  # N/A on a realized row
+    # censored row: provisional winner
+    o = censored[0]
+    assert o["symbol"] == "AAPL"
+    assert o["m2m_ret"] == pytest.approx(0.50)  # (150-100)/100
+    result = json.loads((run_dir / "result.json").read_text())
+    assert result["n_closed_trades"] == 1
+    assert result["n_censored_trades"] == 1
+
+
+def test_no_m2m_wiring_skips_censored_capture(tmp_path):
+    """Back-compat: without end_of_data/m2m_mark, censored capture is SKIPPED, closed unchanged."""
+    orders = _open_winner_orders() + [
+        # add a closed trade so Total Orders>0 doesn't trip the silent-miss with 0 rows
+        _buy("MSFT", 10, 50.0, "2025-01-02T05:00:00Z", "2025-01-02T21:00:00Z", tag=ENTRY_TAG, oid=3),
+        _sell("MSFT", -10, 55.0, "2025-01-03T05:00:00Z", "2025-01-03T21:00:00Z", tag="exit", oid=4),
+    ]
+    run_dir = persist_run(
+        backtest_id="bt-nocap", status=RunStatus.COMPLETED_CLEAN, statistics=_stats(total_orders=3),
+        orders_fetch=_fetch(orders), dest_root=tmp_path, fetch_backoff=0, **BASE_KW,
+    )
+    rows = _read_trades(run_dir)
+    # only the closed MSFT trade — the open AAPL lot is NOT emitted (no m2m wiring)
+    assert len(rows) == 1
+    assert rows[0]["symbol"] == "MSFT" and rows[0]["censored"] is False
+    result = json.loads((run_dir / "result.json").read_text())
+    assert result["n_censored_trades"] == 0
+
+
+def test_censored_short_lot_m2m_sign(tmp_path):
+    """A censored SHORT lot marks correctly: a mark BELOW entry is a provisional WIN for a short."""
+    orders = [
+        _sell("XYZ", -100, 100.0, "2025-06-02T05:00:00Z", "2025-06-02T21:00:00Z", tag=ENTRY_TAG, oid=1),
+        # a never-filled protective BUY-to-cover stop leaves the short open
+        {**_buy("XYZ", 100, 0.0, "2025-06-02T05:00:00Z", "2025-06-02T21:00:00Z", oid=2), "status": 1,
+         "events": [{"status": "submitted", "fillPrice": 0.0, "fillQuantity": 0, "direction": "buy"}]},
+    ]
+    run_dir = persist_run(
+        backtest_id="bt-short", status=RunStatus.COMPLETED_CLEAN, statistics=_stats(total_orders=1),
+        orders_fetch=_fetch(orders),
+        end_of_data=END_OF_DATA, m2m_mark=_mark({"XYZ": 80.0}),
+        dest_root=tmp_path, fetch_backoff=0, **BASE_KW,
+    )
+    r = _read_trades(run_dir)[0]
+    assert r["censored"] is True and r["side"] == "short"
+    # short entered @ 100, marked @ 80 → +20% provisional
+    assert r["m2m_ret"] == pytest.approx(0.20)
+    assert r["pnl"] == pytest.approx(2000.0)   # (80-100)*100*(-1)
+
+
+def test_censored_rows_are_deterministic_idempotent(tmp_path):
+    """Censored capture is byte-identical on re-run (deterministic ordering + gzip mtime=0)."""
+    kw = dict(
+        backtest_id="bt-cens-idem", status=RunStatus.COMPLETED_CLEAN, statistics=_stats(total_orders=1),
+        orders_fetch=_fetch(_open_winner_orders()),
+        end_of_data=END_OF_DATA, m2m_mark=_mark({"AAPL": 130.0}),
+        dest_root=tmp_path, fetch_backoff=0, **BASE_KW,
+    )
+    d1 = persist_run(**kw)
+    b1 = (d1 / "trades.jsonl.gz").read_bytes()
+    d2 = persist_run(**kw)
+    assert (d2 / "trades.jsonl.gz").read_bytes() == b1
+
+
+def test_schema_version_bumped_to_2():
+    assert TRADE_SCHEMA_VERSION == 2
+
+
+@pytest.mark.parametrize("bad_price", [0.0, -5.0, float("nan"), float("inf")])
+def test_degenerate_m2m_mark_degrades_to_unavailable_not_faked(tmp_path, bad_price):
+    """A 0 / negative / NaN / inf mark is corrupt data → degrade to honest unavailable null, never
+    bank a fabricated -100% (or a NaN that serialises to invalid JSON). Mirrors _fill_price."""
+    run_dir = persist_run(
+        backtest_id="bt-degen", status=RunStatus.COMPLETED_CLEAN, statistics=_stats(total_orders=1),
+        orders_fetch=_fetch(_open_winner_orders()),
+        end_of_data=END_OF_DATA, m2m_mark=lambda s, e: (bad_price, M2M_QC_NATIVE),
+        dest_root=tmp_path, fetch_backoff=0, **BASE_KW,
+    )
+    r = _read_trades(run_dir)[0]
+    assert r["censored"] is True
+    assert r["m2m_ret"] is None       # NOT a fabricated -100% / NaN
+    assert r["ret"] is None and r["pnl"] is None
+    assert r["exit_px"] is None
+    assert r["m2m_source"] == M2M_UNAVAILABLE
+    # entry context still has learn value
+    assert r["decision_score"] == 8
