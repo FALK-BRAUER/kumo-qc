@@ -1,0 +1,18 @@
+{
+  "backtest_id": "3c9cb7b801efb1e89a53486730fb2cd8",
+  "funnel": {
+    "funnel.cash_ok": "31",
+    "funnel.confirm_fire": "357",
+    "funnel.gap_eligible": "399",
+    "funnel.injection_survives": "12239",
+    "funnel.orders": "31",
+    "funnel.preflight_pass": "7817",
+    "funnel.regime_blocked_days": "42",
+    "funnel.regime_pass": "6183",
+    "funnel.signal_winners": "7007",
+    "funnel.sized": "31"
+  },
+  "funnel_semantics": {},
+  "name": "funnel-fy2025",
+  "note": "per-run funnel decomposition from /backtests/read.runtimeStatistics (captured post-run before purge); distinct vs candidate_days per funnel_semantics"
+}

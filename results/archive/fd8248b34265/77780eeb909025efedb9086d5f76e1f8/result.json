@@ -1,0 +1,162 @@
+{
+  "backtest_id": "77780eeb909025efedb9086d5f76e1f8",
+  "commit": "43d87ce89f4ca0b7d56f5ac1bbab3b3193b3abd1",
+  "config": {
+    "config_hash": "fd8248b34265",
+    "name": "champion-intraday-gapvol",
+    "phases": {
+      "diagnostics": [
+        {
+          "enabled": true,
+          "impl": "VersionMarker",
+          "params": {
+            "enabled": true
+          }
+        },
+        {
+          "enabled": true,
+          "impl": "ChartEmit",
+          "params": {
+            "chart_name": "Universe",
+            "enabled": true
+          }
+        }
+      ],
+      "entry_selection": [
+        {
+          "enabled": true,
+          "impl": "PreFlightStaleness",
+          "params": {
+            "below_kijun_invalidates": true,
+            "enabled": true,
+            "gap_up_tolerance_pct": 0.1
+          }
+        },
+        {
+          "enabled": true,
+          "impl": "BctIntradayGapVolConfirm",
+          "params": {
+            "enabled": true,
+            "gap_threshold": 0.03,
+            "vol_mult": 1.0,
+            "window_bars": 6
+          }
+        }
+      ],
+      "entry_timing": {
+        "enabled": true,
+        "impl": "ConfirmedMarketEntry",
+        "params": {
+          "enabled": true
+        }
+      },
+      "exit_hard": [
+        {
+          "enabled": true,
+          "impl": "KijunG3Exits",
+          "params": {
+            "cloud_exit_enabled": false,
+            "enabled": true,
+            "phase3_days": 56,
+            "phase3_pnl": 0.15,
+            "weekly_kijun_exit_enabled": false
+          }
+        }
+      ],
+      "protective_stop": {
+        "enabled": true,
+        "impl": "KijunProtectiveStop",
+        "params": {
+          "enabled": true
+        }
+      },
+      "regime": [
+        {
+          "enabled": true,
+          "impl": "SpySma200",
+          "params": {
+            "enabled": true
+          }
+        },
+        {
+          "enabled": true,
+          "impl": "VixPercentile",
+          "params": {
+            "enabled": true,
+            "vix_percentile_enabled": false,
+            "vix_percentile_lookback": 504,
+            "vix_percentile_threshold": 75.0
+          }
+        }
+      ],
+      "signal": {
+        "enabled": true,
+        "impl": "BctScoreFull",
+        "params": {
+          "enabled": true,
+          "min_score": 7,
+          "parabolic_threshold": 0.25
+        }
+      },
+      "sizing": {
+        "enabled": true,
+        "impl": "FlatPctHeatcap",
+        "params": {
+          "enabled": true,
+          "position_pct": 0.1,
+          "resolution": "intraday"
+        }
+      },
+      "universe": {
+        "enabled": true,
+        "impl": "DvRankCap",
+        "params": {
+          "enabled": true
+        }
+      }
+    },
+    "version": "1.0.0"
+  },
+  "config_hash": "fd8248b34265",
+  "data_fingerprint": "90f2d7e3fb80d0a4d2eb286f6a43199e1519495a3ce9d787a4d7d0dfc70c535c",
+  "env": "cloud",
+  "n_censored": 7,
+  "n_censored_trades": 7,
+  "n_closed_trades": 14,
+  "n_trade_rows": 21,
+  "objective_version": "323.v1",
+  "result_schema_version": 1,
+  "statistics": {
+    "Alpha": "0.209",
+    "Annual Standard Deviation": "0.263",
+    "Annual Variance": "0.069",
+    "Average Loss": "-1.08%",
+    "Average Win": "0%",
+    "Beta": "0.6",
+    "Compounding Annual Return": "16.228%",
+    "Drawdown": "26.200%",
+    "Drawdown Recovery": "148",
+    "End Equity": "116179.97",
+    "Estimated Strategy Capacity": "$5100000.00",
+    "Expectancy": "-1",
+    "Information Ratio": "1.056",
+    "Loss Rate": "100%",
+    "Lowest Capacity Asset": "IYE RVLEALAHHC2T",
+    "Net Profit": "16.180%",
+    "Portfolio Turnover": "0.92%",
+    "Probabilistic Sharpe Ratio": "28.743%",
+    "Profit-Loss Ratio": "0",
+    "Sharpe Ratio": "0.495",
+    "Sortino Ratio": "0.591",
+    "Start Equity": "100000",
+    "Total Fees": "$49.19",
+    "Total Orders": "42",
+    "Tracking Error": "0.247",
+    "Treynor Ratio": "0.217",
+    "Win Rate": "0%"
+  },
+  "status": "COMPLETED_CLEAN",
+  "timestamp": "2026-06-02T04:18:58.081772+00:00",
+  "total_orders": 42,
+  "trade_schema_version": 2
+}
