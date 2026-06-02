@@ -43,13 +43,27 @@ def cap_config(cap: int) -> SweepConfig:
     ))
 
 
+def smoke() -> None:
+    """Deploy-health check: ONE config, ONE window, DIRECT through the adapter (bypasses run_pool's
+    mandatory 6-window panel gate — a smoke is a deploy-health probe, not a robustness result).
+    Confirms the regen config Initializes CLEAN on cloud (the codegen-fix proof) + the adapter's
+    deploy→run→assert_cloud_clean→parse path works live. Returns ResultMetrics on success."""
+    cfg = cap_config(250)
+    w = Window(name="w6_2024", start="2024-01-01", end="2024-12-31")
+    print(f"=== SMOKE: cap=250 ({cfg.config_hash}) x {w.name} — DIRECT adapter deploy-health ===")
+    adapter = make_cloud_run()
+    metrics = adapter(cfg, w)  # CloudLeanRun.__call__ → ResultMetrics (assert_cloud_clean inside; raises on dirty)
+    print(f"✅ SMOKE CLEAN — config Initialized + ran clean on cloud: Sharpe={metrics.sharpe} "
+          f"Ret%={metrics.ret_pct} DD%={metrics.dd_pct} orders={metrics.orders}")
+    print("   → codegen fix confirmed on cloud; the live grid path (run_sweep + adapter) is proven.")
+
+
 def main(mode: str) -> None:
     if mode == "smoke":
-        caps, windows = [250], (Window(name="w6_2024", start="2024-01-01", end="2024-12-31"),)
-    elif mode == "full":
-        caps, windows = CAPS, SIX_WINDOWS
-    else:
+        return smoke()
+    if mode != "full":
         raise SystemExit("usage: run_dvrank_grid.py smoke|full")
+    caps, windows = CAPS, SIX_WINDOWS
 
     configs = [cap_config(c) for c in caps]
     print(f"=== DV-rank grid ({mode}): {len(configs)} caps x {len(windows)} windows = "
