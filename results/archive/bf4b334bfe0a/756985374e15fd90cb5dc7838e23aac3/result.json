@@ -1,0 +1,68 @@
+{
+  "backtest_id": "756985374e15fd90cb5dc7838e23aac3",
+  "commit": "434c1e2ac9986c2143c20849fd668958b0e7eb1c",
+  "config": {
+    "config_hash": "bf4b334bfe0a",
+    "name": "bf4b334bfe0a",
+    "phases": {
+      "signal": {
+        "free_params": 2,
+        "impl": "oracle_signal",
+        "params": {
+          "min_score": 7,
+          "parabolic_threshold": 0.25,
+          "predictor": {
+            "__type__": "DvRankPredictor",
+            "min_score": 7,
+            "rank_cap": 250
+          }
+        }
+      }
+    },
+    "version": "276b.v2"
+  },
+  "config_hash": "bf4b334bfe0a",
+  "data_fingerprint": "90f2d7e3fb80d0a4d2eb286f6a43199e1519495a3ce9d787a4d7d0dfc70c535c",
+  "env": "cloud",
+  "n_censored": 0,
+  "n_censored_trades": 0,
+  "n_closed_trades": 12,
+  "n_trade_rows": 12,
+  "objective_version": "323.v1",
+  "result_schema_version": 2,
+  "run_class": null,
+  "runtime_statistics": null,
+  "statistics": {
+    "Alpha": "-0.247",
+    "Annual Standard Deviation": "0.105",
+    "Annual Variance": "0.011",
+    "Average Loss": "-0.50%",
+    "Average Win": "0%",
+    "Beta": "0.565",
+    "Compounding Annual Return": "-25.839%",
+    "Drawdown": "8.700%",
+    "Drawdown Recovery": "2",
+    "End Equity": "95282.85",
+    "Estimated Strategy Capacity": "$16000000.00",
+    "Expectancy": "-1",
+    "Information Ratio": "-2.603",
+    "Loss Rate": "100%",
+    "Lowest Capacity Asset": "HCN R735QTJ8XC9X",
+    "Net Profit": "-4.717%",
+    "Portfolio Turnover": "5.46%",
+    "Probabilistic Sharpe Ratio": "6.832%",
+    "Profit-Loss Ratio": "0",
+    "Sharpe Ratio": "-2.287",
+    "Sortino Ratio": "-2.337",
+    "Start Equity": "100000",
+    "Total Fees": "$34.74",
+    "Total Orders": "42",
+    "Tracking Error": "0.097",
+    "Treynor Ratio": "-0.424",
+    "Win Rate": "0%"
+  },
+  "status": "COMPLETED_CLEAN",
+  "timestamp": "2026-06-02T08:53:40.393471+00:00",
+  "total_orders": 42,
+  "trade_schema_version": 2
+}

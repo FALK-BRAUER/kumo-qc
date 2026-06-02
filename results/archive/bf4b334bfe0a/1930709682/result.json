@@ -1,0 +1,68 @@
+{
+  "backtest_id": "1930709682",
+  "commit": "8405ec48270304dd6e8679878a6587aa2200ac73",
+  "config": {
+    "config_hash": "bf4b334bfe0a",
+    "name": "bf4b334bfe0a",
+    "phases": {
+      "signal": {
+        "free_params": 2,
+        "impl": "oracle_signal",
+        "params": {
+          "min_score": 7,
+          "parabolic_threshold": 0.25,
+          "predictor": {
+            "__type__": "DvRankPredictor",
+            "min_score": 7,
+            "rank_cap": 250
+          }
+        }
+      }
+    },
+    "version": "276b.v2"
+  },
+  "config_hash": "bf4b334bfe0a",
+  "data_fingerprint": "90f2d7e3fb80d0a4d2eb286f6a43199e1519495a3ce9d787a4d7d0dfc70c535c",
+  "env": "local",
+  "n_censored": 10,
+  "n_censored_trades": 10,
+  "n_closed_trades": 0,
+  "n_trade_rows": 10,
+  "objective_version": "323.v1",
+  "result_schema_version": 2,
+  "run_class": null,
+  "runtime_statistics": null,
+  "statistics": {
+    "Alpha": "0",
+    "Annual Standard Deviation": "0.154",
+    "Annual Variance": "0.024",
+    "Average Loss": "0%",
+    "Average Win": "0%",
+    "Beta": "0",
+    "Compounding Annual Return": "28.236%",
+    "Drawdown": "7.300%",
+    "Drawdown Recovery": "12",
+    "End Equity": "104173.04",
+    "Estimated Strategy Capacity": "$30000000.00",
+    "Expectancy": "0",
+    "Information Ratio": "1.309",
+    "Loss Rate": "0%",
+    "Lowest Capacity Asset": "SLV XOF4GF67NMG5",
+    "Net Profit": "4.173%",
+    "Portfolio Turnover": "1.63%",
+    "Probabilistic Sharpe Ratio": "53.694%",
+    "Profit-Loss Ratio": "0",
+    "Sharpe Ratio": "1.244",
+    "Sortino Ratio": "1.334",
+    "Start Equity": "100000",
+    "Total Fees": "$11.11",
+    "Total Orders": "20",
+    "Tracking Error": "0.154",
+    "Treynor Ratio": "0",
+    "Win Rate": "0%"
+  },
+  "status": "COMPLETED_CLEAN",
+  "timestamp": "2026-06-02T12:29:24.693893+00:00",
+  "total_orders": 20,
+  "trade_schema_version": 2
+}

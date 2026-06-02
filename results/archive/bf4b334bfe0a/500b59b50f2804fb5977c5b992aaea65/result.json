@@ -1,0 +1,68 @@
+{
+  "backtest_id": "500b59b50f2804fb5977c5b992aaea65",
+  "commit": "434c1e2ac9986c2143c20849fd668958b0e7eb1c",
+  "config": {
+    "config_hash": "bf4b334bfe0a",
+    "name": "bf4b334bfe0a",
+    "phases": {
+      "signal": {
+        "free_params": 2,
+        "impl": "oracle_signal",
+        "params": {
+          "min_score": 7,
+          "parabolic_threshold": 0.25,
+          "predictor": {
+            "__type__": "DvRankPredictor",
+            "min_score": 7,
+            "rank_cap": 250
+          }
+        }
+      }
+    },
+    "version": "276b.v2"
+  },
+  "config_hash": "bf4b334bfe0a",
+  "data_fingerprint": "90f2d7e3fb80d0a4d2eb286f6a43199e1519495a3ce9d787a4d7d0dfc70c535c",
+  "env": "cloud",
+  "n_censored": 0,
+  "n_censored_trades": 0,
+  "n_closed_trades": 6,
+  "n_trade_rows": 6,
+  "objective_version": "323.v1",
+  "result_schema_version": 2,
+  "run_class": null,
+  "runtime_statistics": null,
+  "statistics": {
+    "Alpha": "-0.367",
+    "Annual Standard Deviation": "0.08",
+    "Annual Variance": "0.006",
+    "Average Loss": "-0.21%",
+    "Average Win": "0%",
+    "Beta": "0.369",
+    "Compounding Annual Return": "-31.935%",
+    "Drawdown": "3.600%",
+    "Drawdown Recovery": "2",
+    "End Equity": "98431.44",
+    "Estimated Strategy Capacity": "$32000000.00",
+    "Expectancy": "-1",
+    "Information Ratio": "-4.63",
+    "Loss Rate": "100%",
+    "Lowest Capacity Asset": "TSM R735QTJ8XC9X",
+    "Net Profit": "-1.569%",
+    "Portfolio Turnover": "10.44%",
+    "Probabilistic Sharpe Ratio": "14.508%",
+    "Profit-Loss Ratio": "0",
+    "Sharpe Ratio": "-3.769",
+    "Sortino Ratio": "-6.395",
+    "Start Equity": "100000",
+    "Total Fees": "$16.00",
+    "Total Orders": "20",
+    "Tracking Error": "0.104",
+    "Treynor Ratio": "-0.815",
+    "Win Rate": "0%"
+  },
+  "status": "COMPLETED_CLEAN",
+  "timestamp": "2026-06-02T08:49:15.876918+00:00",
+  "total_orders": 20,
+  "trade_schema_version": 2
+}

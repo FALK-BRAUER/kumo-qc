@@ -1,0 +1,68 @@
+{
+  "backtest_id": "1696046150",
+  "commit": "50f920195ad1f491efbc7014d96a389e43534564",
+  "config": {
+    "config_hash": "0519949d3863",
+    "name": "0519949d3863",
+    "phases": {
+      "signal": {
+        "free_params": 2,
+        "impl": "oracle_signal",
+        "params": {
+          "min_score": 7,
+          "parabolic_threshold": 0.25,
+          "predictor": {
+            "__type__": "DvRankPredictor",
+            "min_score": 7,
+            "rank_cap": 1000000000
+          }
+        }
+      }
+    },
+    "version": "276b.v2"
+  },
+  "config_hash": "0519949d3863",
+  "data_fingerprint": "90f2d7e3fb80d0a4d2eb286f6a43199e1519495a3ce9d787a4d7d0dfc70c535c",
+  "env": "local",
+  "n_censored": 10,
+  "n_censored_trades": 10,
+  "n_closed_trades": 0,
+  "n_trade_rows": 10,
+  "objective_version": "323.v1",
+  "result_schema_version": 2,
+  "run_class": null,
+  "runtime_statistics": null,
+  "statistics": {
+    "Alpha": "0",
+    "Annual Standard Deviation": "0.122",
+    "Annual Variance": "0.015",
+    "Average Loss": "0%",
+    "Average Win": "0%",
+    "Beta": "0",
+    "Compounding Annual Return": "68.547%",
+    "Drawdown": "3.200%",
+    "Drawdown Recovery": "17",
+    "End Equity": "109116.50",
+    "Estimated Strategy Capacity": "$32000000.00",
+    "Expectancy": "0",
+    "Information Ratio": "3.727",
+    "Loss Rate": "0%",
+    "Lowest Capacity Asset": "EQT XOF4GF67NMG5",
+    "Net Profit": "9.117%",
+    "Portfolio Turnover": "1.62%",
+    "Probabilistic Sharpe Ratio": "86.144%",
+    "Profit-Loss Ratio": "0",
+    "Sharpe Ratio": "3.645",
+    "Sortino Ratio": "5.333",
+    "Start Equity": "100000",
+    "Total Fees": "$10.00",
+    "Total Orders": "20",
+    "Tracking Error": "0.122",
+    "Treynor Ratio": "0",
+    "Win Rate": "0%"
+  },
+  "status": "COMPLETED_CLEAN",
+  "timestamp": "2026-06-02T13:15:33.419908+00:00",
+  "total_orders": 20,
+  "trade_schema_version": 2
+}
