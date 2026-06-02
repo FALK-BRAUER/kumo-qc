@@ -90,6 +90,24 @@ A pythonnet-binding error is **NOT** a compile error and **NOT** a data error: i
 - Every result is pinned to **(git commit + config-hash + data-fingerprint)** via `dist/_metadata.py`, logged on startup. No result without that pinning enters `results/bt-results.csv`.
 - **`dist/` ALWAYS tracks the ACTIVE CHAMPION.** Variant/experiment MEASUREMENTS build into a THROWAWAY dir (`dist_tmp/`, gitignored), NEVER committed over `dist/`. A variant build must never displace the champion's deployable. `src/strategies/<variant>.py` configs stay (opt-in); only `dist/` tracks the champion. **(#270: the champion is the intraday-confirmed model `champion_intraday` once it lands; `champion_asis` is the retired blind-entry FIXTURE and is NOT a valid `dist/` target — it fails the fail-loud gate. Until `champion_intraday` exists, `dist/` may hold the asis fixture ONLY for the Phase-2 behaviour-unchanged parity step, clearly marked as the fixture.)**
 
+## Results-Storage (the storage-uniformity principle — #9/#276b/#303)
+
+Every result flows through ONE uniform storage stack. Each layer has a single owner + a fixed contract; nothing is hand-written ad-hoc.
+
+| Layer | What | Owner / writer | Regenerable? |
+|---|---|---|---|
+| `results/archive/<config_hash>/<backtest_id>/result.json` | provenance + full `statistics` + `run_class` + per-run config (serialized) | `persist_run` (snapshot.py) | **NO** — QC purges in hours; commit = survival |
+| `results/archive/.../trades.jsonl.gz` | closed + censored-open trade rows (cond_0..7, decision_*, m2m_*) | `persist_run` | **NO** |
+| `results/archive/.../funnel.json` | per-run signal→order attrition | substrate-gen path (not yet emitted by the sweep adapter — gap, cf. #12) | **NO** |
+| `results/sweeps/<grid>/leaderboard_*.csv` | scored + ranked sweep board (Sharpe/Ret%/DD% trio mandatory) | `run_sweep` → `leaderboard_csv` | yes (re-score from archive) |
+| `results/bt-results.csv` | the flat human index of every graded run | appended per result (currently manual/per-experiment; auto-append of sweep cells = #10, pending) | yes (rebuild from archive) |
+
+**Uniformity rules:**
+- **Single serialization path.** Config → `result.json` goes through `serialize_config` + `_jsonify` (sweeps/archive/config_serializer.py) — NEVER ad-hoc `json.dumps` of a config object. `_jsonify` NEVER raises (datetime/Path/set/Enum/dataclass all coerce; dataclass → `{"__type__": Name, …}`); `unjsonify` is the documented round-trip the #303 mine reads params back through. Bump `CONFIG_SERIALIZER_VERSION` on any shape change so the mine gates on drift.
+- **Write fail-loud, completion-marker last.** `result.json` is written LAST (after `trades.jsonl.gz`); its presence == the run dir is COMPLETE. A trades file without a valid result.json is INCOMPLETE — consumers treat it as absent. `allow_nan=False` everywhere (a stray NaN is a corrupt-substrate fail-loud, never a silent bad token).
+- **Provenance on every row.** No result enters `bt-results.csv` without (git commit + config-hash + data-fingerprint). Read every metric through `run_class` (validation vs substrate-generation — see RUN-CLASS).
+- **Archive is the source of truth; the CSV + leaderboard are projections.** Lose the CSV → rebuild from the archive. Lose the archive → the result is GONE (the May-23 lesson).
+
 ## Data (local backtest substrate)
 - `data/` = RAW daily OHLCV (built from Massive SIP parquet, `scripts/build_daily_from_parquet.py`) + RAW intraday (below). **Never back-adjusted, never mixed** (adjusted corrupts Ichimoku — the 7x-calibration lesson).
 - Zips are gitignored; `data/MANIFEST.json` (the **data fingerprint**) + `data/README.md` are tracked.
