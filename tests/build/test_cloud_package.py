@@ -222,3 +222,52 @@ def test_config_hash_deterministic(built: tuple[cp.BuildResult, Path]) -> None:
     r1, _ = built
     cfg = cp._load_config(SAMPLE)
     assert cp._config_hash(cfg) == r1.config_hash  # stable
+
+
+def _imported_names(tree: "ast.Module") -> set[str]:
+    """All names bound by `from X import a, b` in the module (the symbols main.py can reference)."""
+    import ast
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                names.add(alias.asname or alias.name)
+    return names
+
+
+def _called_class_names(tree: "ast.Module") -> set[str]:
+    """Capitalised names invoked as constructors anywhere in the module (e.g. DvRankPredictor(...),
+    OracleSignal.Params(...)). These MUST all be imported, or cloud Initialize NameErrors."""
+    import ast
+    called: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            fn = node.func
+            base = fn
+            while isinstance(base, ast.Attribute):  # OracleSignal.Params -> base OracleSignal
+                base = base.value
+            if isinstance(base, ast.Name) and base.id[:1].isupper():
+                called.add(base.id)
+    return called
+
+
+def test_injected_impl_param_import_emitted(tmp_path: Path) -> None:
+    """#322 regression: a config with an INJECTED impl object in its Params (OracleSignal's
+    predictor=DvRankPredictor(...)) must emit the import for that injected class in main.py — else
+    cloud Initialize fails 'name DvRankPredictor is not defined'. GENERAL: every class-constructor
+    name referenced in the generated main.py is bound by an import (catches any future injected
+    impl, e.g. the #286 booster phases, not just DvRankPredictor)."""
+    import ast
+    dist = tmp_path / "dist"
+    cp.build("strategies.learned_dvrank", dist_dir=dist)
+    main_src = (dist / "main.py").read_text()
+    # the specific symbol that broke the first deploy is emitted...
+    assert "import DvRankPredictor" in main_src
+    assert "DvRankPredictor(" in main_src  # ...and used in the config literal
+    # ...and GENERALLY: no class-constructor name is referenced without an import (the bug class).
+    tree = ast.parse(main_src)
+    imported = _imported_names(tree)
+    # builtins / dunder that are legitimately not imported-from (none expected here, but be safe).
+    BUILTINS = {"Slot", "StrategyConfig", "StrategyEngine"}  # all explicitly imported anyway
+    undefined = {n for n in _called_class_names(tree) if n not in imported and n not in BUILTINS}
+    assert not undefined, f"main.py references un-imported class(es): {undefined}"

@@ -374,6 +374,24 @@ def _emit_main(
         if cls not in seen_cls:
             imports.append(f"from {flat_mod} import {cls}")
             seen_cls.add(cls)
+        # INJECTED-OBJECT params (#322): a Params field whose VALUE is a dataclass INSTANCE (e.g.
+        # OracleSignal's `predictor=DvRankPredictor(...)`) renders as `ClassName(...)` via repr —
+        # that class MUST also be imported into main.py, or cloud Initialize fails with NameError
+        # ("name 'DvRankPredictor' is not defined", caught on the first learned-dvrank deploy).
+        # Import each such type from its flat module (fail loud if it's not under src/).
+        for f in dataclasses.fields(slot.params):
+            val = getattr(slot.params, f.name)
+            if dataclasses.is_dataclass(val) and not isinstance(val, type):
+                vcls = type(val).__name__
+                if vcls not in seen_cls:
+                    vfile = _module_to_file(type(val).__module__, src)
+                    if vfile is None:
+                        raise ValueError(
+                            f"injected param {f.name}={vcls}: module {type(val).__module__} "
+                            f"not under src/ — cannot import it into the deployed main.py"
+                        )
+                    imports.append(f"from {_flat_name(vfile, src)[:-3]} import {vcls}")
+                    seen_cls.add(vcls)
         params_kwargs = ", ".join(f"{f.name}={getattr(slot.params, f.name)!r}"
                                   for f in dataclasses.fields(slot.params))
         return f"Slot(impl={cls}, params={cls}.Params({params_kwargs}))"
