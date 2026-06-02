@@ -141,11 +141,19 @@ class SweepConfig:
 # --------------------------------------------------------------------------- #
 @dataclass(frozen=True, slots=True)
 class Window:
-    """One validation window — a named, ordered [start, end] date span (ISO YYYY-MM-DD)."""
+    """One validation window — a named, ordered [start, end] date span (ISO YYYY-MM-DD).
+
+    `runnable_locally` (default True): the local LEAN data substrate covers this window. False marks
+    a window whose data isn't available locally (e.g. the 2026 windows — no local coarse-universe or
+    minute feed; #338-ws3 / #261-5). LOCAL sweeps filter to runnable windows (sweeps.windows.
+    local_runnable_windows) + log the skip — never crash; CLOUD / a future backfill runs the full set.
+    The canonical panel still DECLARES all windows (Falk-locked); this flag only gates local execution.
+    """
 
     name: str
     start: str
     end: str
+    runnable_locally: bool = True
 
 
 @dataclass(frozen=True, slots=True)

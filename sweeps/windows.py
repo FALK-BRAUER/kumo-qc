@@ -33,11 +33,26 @@ SIX_WINDOWS: tuple[Window, ...] = (
     Window(name="w2_2025q2", start="2025-04-01", end="2025-06-30"),
     Window(name="w3_2025q3", start="2025-07-01", end="2025-09-30"),
     Window(name="w4_2025q4", start="2025-10-01", end="2025-12-31"),
-    Window(name="w5_2026q1", start="2026-01-01", end="2026-03-31"),
-    Window(name="w6_2026_feb_apr", start="2026-02-01", end="2026-04-30"),
+    # 2026 windows: NOT locally runnable — the local substrate has no 2026 coarse-universe or minute
+    # feed (verified #338-ws3: w5 fails loud with #261-5 'empty coarse feed 2026-01-03'). They stay
+    # in the canonical panel (Falk-locked) for CLOUD / a future 2026 backfill; LOCAL sweeps skip them.
+    Window(name="w5_2026q1", start="2026-01-01", end="2026-03-31", runnable_locally=False),
+    Window(name="w6_2026_feb_apr", start="2026-02-01", end="2026-04-30", runnable_locally=False),
 )
 
 MANDATORY_WINDOW_COUNT = 6
+
+
+def local_runnable_windows(windows: Sequence[Window] = SIX_WINDOWS) -> tuple[Window, ...]:
+    """The subset of `windows` whose data is available LOCALLY (runnable_locally). Local sweeps run
+    these + log the skipped ones — graceful, never a crash on a true data outage (#338-ws3). Cloud /
+    a future 2026 backfill runs the full canonical panel. Returns windows in their original order."""
+    runnable = tuple(w for w in windows if w.runnable_locally)
+    skipped = [w.name for w in windows if not w.runnable_locally]
+    if skipped:
+        print(f"[windows] LOCAL: running {len(runnable)}/{len(windows)} windows; "
+              f"skipped (no local data, cloud/backfill-pending): {skipped}")
+    return runnable
 
 
 class WindowPanelError(ValueError):
