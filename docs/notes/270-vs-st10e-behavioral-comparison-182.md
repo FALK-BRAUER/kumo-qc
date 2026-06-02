@@ -27,7 +27,7 @@ So: compare the **behaviors**, treat the raw Sharpe/return as indicative-not-equ
 | **Trades / FY** | ~32 positions, 23 realized exits | **665** realized trades |
 | **Avg hold** | losers cut fast; **winners 16mo+ / never realized** | **~12 days** |
 | **Compounding** | **None** — realized capital is net-negative; winners never book, so gains can't be reinvested | **Yes** — 665 realized trades, gains booked + redeployed |
-| **Capital efficiency** | **Poor** — capital locked 16mo+ in a few never-exiting positions | **High** — 12d turnover redeploys capital ~continuously |
+| **Capital efficiency** | **Poor + self-jamming** — 10% flat sizing = ~10 slots; the never-exiting winners lock 9/10 slots → **26,684 cash-exhausted rejections** of qualified candidates over FY2025 → trading throttles to 32 positions/yr (the strategy strangles itself; see below) | **High** — 12d turnover redeploys capital ~continuously |
 | **Give-back risk** | **HIGH + structural** — the Kijun trail on a +135% position sits MILES below price (Kijun lags). When a monster trend finally breaches Kijun it realizes FAR below the peak mark. The +135% paper materially **overstates** the eventual realized exit. | **Lower** — ladder trims lock gains at +15/+20/+30/+40% rungs before a full reversal; reversal exit catches tops |
 | **Measurability** | **LOW** — value is 100% unrealized paper on a few trends; UNMEASURABLE on any finite window (winners censored at the boundary); even multi-year only books on a lagging-Kijun breach | **HIGH** — 665 realized trades give a directly-measurable, statistically-meaningful realized track |
 | **Headline metric** | local FY2025 +11.35% total (ALL paper) / Sharpe 0.54 / DD 17% — but realized −16.4% | cloud FY +80.91% / pop_sharpe 1.2273 / DD n/a (provisional, sim-lineage, unreproduced in phase engine) |
@@ -45,6 +45,25 @@ win rate.
 A strategy that books **−16.4% realized** and holds the rest as paper that erodes to a lagging Kijun
 is a fundamentally different — and harder-to-trust — bet than one that **realizes and compounds** a
 measurable edge.
+
+## The portfolio-jam (verified 2026-06-02 — execution is correct, the result is diagnostic)
+
+Falk flagged "only 23 closed trades in a full year looks like a misconfiguration." Investigated:
+the execution is **correct and faithful** (champion source `position_pct=0.10` = "fixed-canonical";
+built main.py used exactly that; 64 orders reconcile = 55 fills [32 entries + 23 exits] + 9 cancelled
+GTC protective-stops; archive captured all 32 positions). The low count is **real and emergent**, not
+a bug:
+
+- 10% flat sizing → max ~10 concurrent positions.
+- No profit-take → the 9 winners ride all year, **locking 9 of 10 slots**.
+- → **26,684 cash-exhausted rejections** of qualified candidates (the signal/universe is healthy —
+  plenty qualify; the bottleneck is locked cash). Entries throttle to 32 positions/year.
+
+This **compounds** the no-profit-take problem: #270 doesn't merely fail to *realize* winners — the
+10%-sizing × no-profit-take interaction **jams the whole portfolio**, halting new entries as winners
+accumulate. (It also explains the panel-vs-continuous trade-count gap: the 6 panels each RESET cash →
+74 trades; the one continuous portfolio jams → 32.) A profit-take/trim leg fixes BOTH failure modes
+at once — it realizes gains AND frees slots to keep trading.
 
 ## HQ's read (to develop, not decide — Falk's call)
 
