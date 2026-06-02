@@ -69,32 +69,46 @@ def main(mode: str) -> None:
     # all 4 caps; parallelize there (max_workers up to QC's concurrent-BT cap), not on this first proof.
     # the DEFINED validation set (NO arbitrary years): 6 FY2025 bi-monthly panel windows (gates ①②)
     # + the FY2024 OOS holdout (gate ③). sweep_windows(include_holdout=True) = the 7-window set.
-    windows = sweep_windows(include_holdout=True)
+    #
+    # OOS IS A CLOUD GATE, NOT A LOCAL ONE (verified 2026-06-02): the FY2024 window's 750-day warmup
+    # reaches back to 2022, which the local intraday/universe backfill (#325, 2024-2025) does NOT
+    # cover → the strategy's #261-5 empty-coarse-feed guard fires (correctly) and the run aborts with
+    # 0 data points. The 6 FY2025 panels' warmup starts ~2023-06 (verified: w1 warmup begins
+    # 2023-06-21), which IS covered, so they run locally. So: the LOCAL candidate-ranking pass uses
+    # the 6 panels ONLY; the OOS holdout (gate-③) is validated on CLOUD, where the warmup data exists.
+    # This matches windows_fy2025.sweep_windows' own contract ("holdout = final-validation phase only").
     if mode == "min":
         caps, workers, adapter = [250, UNCAPPED], 1, make_cloud_run()
+        windows, oos = sweep_windows(include_holdout=True), FY2024_OOS.name
     elif mode == "full":
         caps, workers, adapter = CAPS, 1, make_cloud_run()
+        windows, oos = sweep_windows(include_holdout=True), FY2024_OOS.name
     elif mode.startswith("local"):
-        # PARALLEL LOCAL sweep (#325) — runs through `lean backtest` on the local intraday backfill,
+        # LOCAL sweep (#325) — runs through `lean backtest` on the local intraday backfill,
         # max_workers from the EMPIRICAL RAM cap (env SWEEP_WORKERS, default conservative 3). The
         # local leaderboard is a CANDIDATE RANKING; the winner is cloud-validated for the final number.
+        # 6 PANELS ONLY (OOS → cloud, see above). NOTE: the warmup PEAK (96-99%) is memory-heavy and
+        # can OOM a cell at >1 concurrency (the w5 race, 2026-06-02) — set SWEEP_WORKERS=1 for a
+        # guaranteed-clean board until #332 (warmup-cache) removes the warmup cost.
         import os as _os
         from sweeps.adapters.qc_local_prod import make_local_run
         caps = [250, UNCAPPED] if mode == "local" else CAPS  # 'local' = min grid, 'localfull' = 4-cap
         workers = int(_os.environ.get("SWEEP_WORKERS", "3"))
         adapter = make_local_run()
+        windows, oos = sweep_windows(include_holdout=False), None  # 6 FY2025 panels; OOS→cloud
     else:
         raise SystemExit("usage: run_dvrank_grid.py smoke|min|full|local|localfull")
 
     configs = [cap_config(c) for c in caps]
+    runtime = "local Docker-LEAN" if mode.startswith("local") else "cloud single-stream"
     print(f"=== DV-rank grid ({mode}): {len(configs)} caps x {len(windows)} windows = "
-          f"{len(configs) * len(windows)} cloud BTs, single-stream ===")
+          f"{len(configs) * len(windows)} BTs, {runtime}, workers={workers} ===")
     for c, cfg in zip(caps, configs):
         print(f"  cap={c:>10}  config_hash={cfg.config_hash}")
 
     pins = (git_commit(_ROOT), "live-dvrank-grid", "oracle_signal_v1")
     outcome = run_sweep(configs, adapter, windows=windows, max_workers=workers,
-                        oos_window=FY2024_OOS.name, stress_window=None, pins=pins)
+                        oos_window=oos, stress_window=None, pins=pins)
 
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / f"leaderboard_{mode}.csv").write_text(outcome.leaderboard_csv)
