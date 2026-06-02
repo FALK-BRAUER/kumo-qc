@@ -24,11 +24,20 @@ from phases.signal.bct_score_full.bct_score_full import BctScoreFull
 from phases.signal.oracle_signal.oracle_signal import (
     BctPassthroughPredictor,
     CandidateFeatures,
+    DvRankPredictor,
     OracleSignal,
     Predictor,
     PredictorError,
     PredictorOutput,
 )
+
+
+def _feat(bct_score, rank, *, ticker="AAA", price=10.0):
+    return CandidateFeatures(
+        ticker=ticker, price=price,
+        conditions=tuple([True] * bct_score + [False] * (8 - bct_score)),
+        bct_score=bct_score, rank=rank,
+    )
 
 
 # --------------------------------------------------------------------------- fakes
@@ -343,6 +352,50 @@ def test_phase_contract_metadata():
     assert OracleSignal.REQUIRES_UPSTREAM == ["universe"]
     assert OracleSignal.PROVIDES_DOWNSTREAM == ["sized_orders"]
     assert OracleSignal(OracleSignal.Params(), logger=None).version_marker == "oracle_signal_v1"
+
+
+# --- DvRankPredictor (#322 learned signal v1: BCT pool + DV-rank edge) -------------------
+
+def test_dvrank_satisfies_predictor_protocol():
+    assert isinstance(DvRankPredictor(), Predictor)
+
+
+def test_dvrank_pool_gate_blocks_sub_min_score():
+    # below min_score → no fire even at rank 0 (top DV). The pool is table-stakes; the DV edge
+    # NEVER lifts a sub-pool name into firing.
+    pred = DvRankPredictor(min_score=7, rank_cap=300)
+    assert pred.predict(_feat(bct_score=6, rank=0)).fire is False
+    assert pred.predict(_feat(bct_score=7, rank=0)).fire is True
+
+
+def test_dvrank_edge_filter_blocks_low_dv():
+    # in-pool but rank beyond rank_cap (low DV) → no fire. rank within cap → fire.
+    pred = DvRankPredictor(min_score=7, rank_cap=250)
+    assert pred.predict(_feat(bct_score=8, rank=251)).fire is False
+    assert pred.predict(_feat(bct_score=8, rank=250)).fire is True
+    assert pred.predict(_feat(bct_score=8, rank=10)).fire is True
+
+
+def test_dvrank_score_orders_by_liquidity_within_pool():
+    # higher DV (lower rank) → higher score, so survivors order top-DV-first. The bonus is a
+    # tie-break in [0,1): it never pushes one bct_score tier above the next.
+    pred = DvRankPredictor(min_score=7, rank_cap=300)
+    hi = pred.predict(_feat(bct_score=7, rank=10)).score
+    lo = pred.predict(_feat(bct_score=7, rank=290)).score
+    top = pred.predict(_feat(bct_score=7, rank=0)).score  # top DV — the strictest case
+    assert hi > lo
+    # STRICT bound: even rank-0 (max bonus) stays < 8.0, so a score-7 name never ties or outranks
+    # a score-8 name (the BCT tier always dominates the liquidity tie-break).
+    assert 7.0 <= lo < hi < top < 8.0
+    assert pred.predict(_feat(bct_score=8, rank=290)).score > top
+
+
+def test_dvrank_zero_cap_is_safe():
+    # rank_cap=0 → only rank 0 fires, dv_bonus guarded (no div-by-zero).
+    pred = DvRankPredictor(min_score=7, rank_cap=0)
+    out = pred.predict(_feat(bct_score=8, rank=0))
+    assert out.fire is True and math.isfinite(out.score)
+    assert pred.predict(_feat(bct_score=8, rank=1)).fire is False
 
 
 def test_passthrough_predictor_output_shape():

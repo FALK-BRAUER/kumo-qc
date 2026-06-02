@@ -180,6 +180,35 @@ class BctPassthroughPredictor:
         return PredictorOutput(score=score, fire=features.bct_score >= self.min_score)
 
 
+@dataclass(slots=True, frozen=True)
+class DvRankPredictor:
+    """#322 LEARNED SIGNAL v1 — BCT pool + DV-rank edge (the phase-1 mine finding, PHASE1_FINDINGS.md).
+
+    The mine's durable result: among score≥7 names, the 8 BCT conditions do NOT further-separate
+    winners from losers, but DV/liquidity RANK does — high-DV-rank names ride to winners, low-DV
+    names stop out, robust across 4/4 testable regimes (FY2021 +33pp ... FY2023-bear +6pp). So the
+    learned signal keeps the BCT screen as the POOL (score≥min_score, table-stakes) and adds the
+    DV-rank EDGE: fire only the top-liquidity slice (rank ≤ rank_cap; rank is 0-based DV-desc, so a
+    LOWER rank = HIGHER dollar-volume). `score` blends the pool strength with a bounded DV bonus so
+    survivors ORDER by (BCT score, then liquidity) — the bonus is a tie-break in [0,1), it never
+    lifts a sub-pool (score<min_score) name into firing.
+
+    rank_cap is the learned edge knob — the DV-liquidity ceiling. A first-cut hypothesis-grade
+    value; the rigorous mine (Falk-gated counterfactual) calibrates it. Stateless + frozen."""
+
+    min_score: int = 7
+    rank_cap: int = 300
+
+    def predict(self, features: CandidateFeatures) -> PredictorOutput:
+        in_pool = features.bct_score >= self.min_score
+        in_edge = features.rank <= self.rank_cap
+        # dv_bonus is STRICTLY in [0, 1) — the (rank_cap + 1) denominator keeps even rank-0 (top DV)
+        # below 1.0, so the bonus is a pure within-tier tie-break: a score-7 name can never tie or
+        # outrank a score-8 name (the BCT pool tier always dominates the liquidity bonus).
+        dv_bonus = max(0.0, (self.rank_cap - features.rank) / (self.rank_cap + 1))
+        return PredictorOutput(score=float(features.bct_score) + dv_bonus, fire=in_pool and in_edge)
+
+
 class OracleSignal(BasePhase):
     PHASE_KIND = "signal"
     PHASE_RESOLUTION = "daily"  # decision clock — qualify lane only (same as BctScoreFull)
