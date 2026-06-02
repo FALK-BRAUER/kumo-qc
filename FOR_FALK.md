@@ -35,6 +35,18 @@ Falk — what shipped while you slept, why, and what's waiting on you. All commi
    `.value` UPPERCASE vs `.value.lower()` seams). PROVEN behavior-neutral two ways: config_hash
    UNCHANGED + orders BYTE-IDENTICAL (pre/post cloud BT, 46 orders Q4 2025). suite 1152 green.
 
+## ⭐⭐ THE LEARNED SIGNAL — built + it beats the baseline (`91e2348`, #322, no-merge)
+The copy→learn payoff, demonstrated. `DvRankPredictor` (in the OracleSignal seam): BCT screen =
+the POOL (score≥7), DV-rank = the EDGE (the phase-1 finding). Local-tested on the 2021-2025 traded
+substrate (real predictor, fired-subset vs plain-screen baseline):
+- Baseline plain score≥7 (n=88): **33% win / +3.5% ret**.
+- DvRank, top-DV cap=250 (n=33): **45% win / +11.0% ret** (+12pp win, +7.5pp ret).
+- Tighter (cap=100, n=11): **64% win / +19.1% ret**. Monotonic — more DV-selective = better.
+- Per-regime: beats baseline FY2021/22/24; honest caveat — doesn't rescue the FY2023 grind-bear.
+**The DV-rank learned signal picks materially better trades than George's screen alone.** Not
+merged (your call). Full validation next = a cloud-BT of the signal, or the rigorous counterfactual
+(your hzgffl24 paste).
+
 ## The pivot (your call, mid-session): COPY → LEARN
 Stop replicating George's BCT screen; LEARN which conditions/context predict good trades. The
 8-regime substrate is the learn-fuel. The sweep is HELD. The mine (#303) ingests the substrate.
