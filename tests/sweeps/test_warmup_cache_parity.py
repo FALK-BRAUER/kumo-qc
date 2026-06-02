@@ -13,7 +13,7 @@ import pytest
 import datetime as dt
 
 from sweeps.warmup_cache.lean_indicators import (
-    ADX, SMA, Delay, Ichimoku, Maximum, Minimum, WeeklyIchimokuAsOf, monday_of_week,
+    ADX, SMA, Delay, Ichimoku, Maximum, Minimum, RateOfChange, WeeklyIchimokuAsOf, monday_of_week,
 )
 
 GOLDEN = Path.home() / "reference/Lean/Tests/TestData/spy_with_ichimoku.csv"
@@ -150,3 +150,19 @@ def test_rolling_primitives() -> None:
     assert sma.is_ready and sma.value == 6.0  # (3+6+9)/3
     sma.update(12)
     assert sma.value == 9.0  # (6+9+12)/3
+
+
+def test_rate_of_change_lean_source_formula() -> None:
+    """ROC(period) = (close[t] - close[t-period]) / close[t-period], ready at period+1 samples (LEAN
+    RateOfChange.cs:64-71). Deterministic — the golden spy_with_roc50 is a TA-Lib cross-ref (different
+    convention), so this asserts the LEAN SOURCE formula directly; the end-to-end gate is roc13's
+    real-data guard."""
+    roc = RateOfChange(13)
+    closes = [100.0] + [101.0 + i for i in range(12)] + [120.0]  # 14 closes; first 100, last 120
+    for c in closes:
+        roc.update(c)
+    assert roc.is_ready and roc.value == pytest.approx(0.20)  # (120-100)/100
+    r2 = RateOfChange(13)
+    for c in closes[:13]:
+        r2.update(c)
+    assert not r2.is_ready  # needs period+1 = 14 samples

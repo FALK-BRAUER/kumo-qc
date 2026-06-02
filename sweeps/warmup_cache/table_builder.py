@@ -19,13 +19,19 @@ from collections import deque
 from pathlib import Path
 from typing import Iterator
 
-from sweeps.warmup_cache.lean_indicators import ADX, SMA, Ichimoku, WeeklyIchimokuAsOf
+from sweeps.warmup_cache.lean_indicators import ADX, SMA, Ichimoku, RateOfChange, WeeklyIchimokuAsOf
 
-# the 14 scalars the score reads (stable key order → the consumption hook + the parity gate agree).
+# the cached scalars BctScoreFull reads (stable key order → consumption hook + parity gate agree).
+# The first 14 feed the 8-condition score_symbol_native (golden-parity'd indicators); roc13 is the
+# parabolic-block field BctScoreFull.evaluate reads separately (roc13 > parabolic_threshold → block).
+# roc13 is validated by the LEAN-source formula ((c-c[13])/c[13]) + a deterministic unit test + the
+# end-to-end gate (it materially affects which candidates block → exercised in trade-by-trade parity);
+# it is NOT golden-file-validated (the spy_with_roc50 golden is a TA-Lib cross-ref, different convention).
 SCALAR_FIELDS = (
     "d_price", "d_tenkan", "d_cloud_top", "ma200",
     "w_tenkan", "w_kijun", "w_senkou_a", "w_senkou_b", "w_close_0", "w_close_26",
     "adx_now", "plus_di", "minus_di", "adx_3back",
+    "roc13",
 )
 
 
@@ -59,6 +65,7 @@ def build_ticker_scalars(
     sma200 = SMA(200)
     adx = ADX(period=adx_period)
     weekly = WeeklyIchimokuAsOf()
+    roc13 = RateOfChange(13)
     adx_hist: deque[float] = deque(maxlen=4)  # [t-3 .. t] → adx_3back = adx_hist[0] when full
 
     for d, o, h, l, c in ((b[0], b[1], b[2], b[3], b[4]) for b in bars):
@@ -66,10 +73,11 @@ def build_ticker_scalars(
         sma200.update(c)
         adx.update(h, l, c)
         weekly.update(d, o, h, l, c)
+        roc13.update(c)
         if not adx.is_ready or not weekly.is_ready:
             continue
         adx_hist.append(adx.adx)
-        if not (d_ichi.is_ready and sma200.is_ready and len(adx_hist) == 4):
+        if not (d_ichi.is_ready and sma200.is_ready and roc13.is_ready and len(adx_hist) == 4):
             continue
         yield d, {
             "d_price": c,
@@ -86,4 +94,5 @@ def build_ticker_scalars(
             "plus_di": adx.plus_di,
             "minus_di": adx.minus_di,
             "adx_3back": adx_hist[0],  # 3 back from current (window of 4: [t-3,t-2,t-1,t])
+            "roc13": roc13.value,      # parabolic block (BctScoreFull): roc13 > parabolic_threshold → block
         }

@@ -320,3 +320,23 @@ class WeeklyIchimokuAsOf:
     @property
     def completed_weeks(self) -> int:
         return len(self._w_close)
+
+
+class RateOfChange:
+    """LEAN RateOfChange(period) port: (value − value[period back]) / value[period back]. Window of
+    size period+1; ready when full. Matches self.roc(sym, period) — the strategy's roc13 (parabolic
+    block). Fed the daily close."""
+    def __init__(self, period: int) -> None:
+        self.period = period
+        self._w: deque[float] = deque(maxlen=period + 1)
+        self.value = float("nan")
+
+    def update(self, close: float) -> None:
+        self._w.append(close)
+        if len(self._w) == self.period + 1:
+            denom = self._w[0]  # value `period` bars ago (oldest in the period+1 window)
+            self.value = 0.0 if denom == 0 else (self._w[-1] - denom) / denom
+
+    @property
+    def is_ready(self) -> bool:
+        return len(self._w) == self.period + 1
