@@ -5,3 +5,7 @@
 # directory itself is kept (this .gitignore) so persist_run's dest_root resolves on a fresh clone.
 *
 !.gitignore
+# The candidates/ subdir (#303 (B) signal-winner populations) carries its OWN .gitignore + README
+# that must survive a fresh clone — un-ignore the dir so git descends into it and that nested
+# .gitignore (which tracks README + ignores the regenerable <year>.jsonl) takes effect.
+!candidates/
