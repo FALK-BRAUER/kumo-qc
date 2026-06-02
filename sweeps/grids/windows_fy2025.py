@@ -1,61 +1,40 @@
-"""The #323 window panel — FY2025 bi-monthly + FY2024 OOS holdout.
+"""DEPRECATED PANEL SHIM (#338 workstream 3) — re-exports the ONE canonical panel.
 
-The #323 sweep evaluates EVERY config across these windows; the windows-AND-FY consistency is
-the robustness gate (a config that wins on one window but breaks elsewhere is fragile by
-construction). Defined HERE (a sweep-design artifact, owned by this grid) rather than mutating
-the shared `sweeps/windows.py` SIX_WINDOWS calendar panel (which the #214 driver scaffold owns)
-— so the two evolve independently and this refinement does not collide with that scaffold.
+The old #323 bi-monthly FY2025 panel (+ FY2024 OOS holdout) defined here was the WRONG panel the
+grids actually ran (Falk 2026-06-03). The single canonical validation panel is now
+`sweeps.windows.SIX_WINDOWS` (the 6 recent quarterly windows, 2025Q1–2026Q1 + Feb-Apr 2026). This
+module now RE-EXPORTS that single source so existing grid imports keep working but there is literally
+ONE panel everywhere (sweeps, gates, leaderboard). Do NOT add window definitions here — edit
+`sweeps/windows.py::SIX_WINDOWS`.
 
-Roles (per design A.4):
-  - PANEL  : the 6 FY2025 bi-monthly windows — the headline robustness distribution.
-  - HOLDOUT: FY2024 OOS — UNTOUCHED during search, the final out-of-sample validation; the
-    concentration guard (gates.WindowReturns.is_oos) requires it positive.
-
-W5 (sep-oct) is the window the order-density analysis flagged as the "winner" a fragile config
-leans on — the concentration guard rejects any config whose positive blend is W5-carried.
+Migration note: the old bi-monthly champion-panel / dvrank results were on the wrong panel and are
+historical. The FY2024-OOS holdout concept is retired with this panel (the 6 quarterly ARE the
+distribution; any future holdout is a separate Falk decision) — `FY2024_OOS` is kept only as a
+deprecated alias for import-compat and is NOT part of the canonical panel or roles.
 """
 from __future__ import annotations
 
 from typing import Literal
 
 from sweeps.types import Window
+from sweeps.windows import SIX_WINDOWS
 
-# The 6 FY2025 bi-monthly panel windows (the headline robustness distribution).
-W1_JAN_FEB = Window(name="w1_2025_jan_feb", start="2025-01-01", end="2025-02-28")
-W2_MAR_APR = Window(name="w2_2025_mar_apr", start="2025-03-01", end="2025-04-30")
-W3_MAY_JUN = Window(name="w3_2025_may_jun", start="2025-05-01", end="2025-06-30")
-W4_JUL_AUG = Window(name="w4_2025_jul_aug", start="2025-07-01", end="2025-08-31")
-W5_SEP_OCT = Window(name="w5_2025_sep_oct", start="2025-09-01", end="2025-10-31")
-W6_NOV_DEC = Window(name="w6_2025_nov_dec", start="2025-11-01", end="2025-12-31")
+# THE single canonical panel (re-export). Was the 6 FY2025 bi-monthly; now the 6 quarterly SIX_WINDOWS.
+FY2025_PANEL: tuple[Window, ...] = SIX_WINDOWS
 
-FY2025_PANEL: tuple[Window, ...] = (
-    W1_JAN_FEB,
-    W2_MAR_APR,
-    W3_MAY_JUN,
-    W4_JUL_AUG,
-    W5_SEP_OCT,
-    W6_NOV_DEC,
-)
-
-# FY2024 out-of-sample holdout — untouched during search, final validation only.
+# DEPRECATED: the FY2024 OOS holdout (retired with the new panel; kept for import-compat only).
+# FY2024 is NOT locally runnable (560d warmup → 2022 data gap) and is not part of the canonical panel.
 FY2024_OOS = Window(name="fy2024_oos", start="2024-01-01", end="2024-12-31")
 
 WindowRole = Literal["panel", "holdout"]
 
-WINDOW_ROLES: dict[str, WindowRole] = {
-    **{w.name: "panel" for w in FY2025_PANEL},
-    FY2024_OOS.name: "holdout",
-}
-"""Role of each #323 window: the 6 FY2025 bi-monthly are `panel`; FY2024 is the `holdout`."""
+# All canonical windows are panel; no separate holdout in the new scheme.
+WINDOW_ROLES: dict[str, WindowRole] = {w.name: "panel" for w in SIX_WINDOWS}
 
 
 def sweep_windows(*, include_holdout: bool = False) -> tuple[Window, ...]:
-    """The windows a #323 sweep ROUND runs.
-
-    `include_holdout=False` (default) returns the 6 FY2025 panel windows ONLY — the holdout is
-    NEVER read into the selector during a search round (the design's holdout-isolation rule).
-    `include_holdout=True` (final-validation phase only) appends FY2024 OOS.
+    """The ONE canonical panel (= sweeps.windows.SIX_WINDOWS, the 6 quarterly windows). The
+    `include_holdout` arg is retained for back-compat but is now a NO-OP — the canonical panel has no
+    separate OOS holdout (the FY2024 holdout is retired; a future holdout is a separate Falk decision).
     """
-    if include_holdout:
-        return (*FY2025_PANEL, FY2024_OOS)
-    return FY2025_PANEL
+    return SIX_WINDOWS
