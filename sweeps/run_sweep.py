@@ -39,7 +39,7 @@ from sweeps.pool import DEFAULT_MAX_WORKERS, run_pool
 from sweeps.provenance import LedgerRow, Provenance, ledger_rows
 from sweeps.score import ScoredConfig, score
 from sweeps.types import ConfigRun, ResultMetrics, SweepConfig, Window
-from sweeps.windows import SIX_WINDOWS
+from sweeps.windows import MANDATORY_WINDOW_COUNT, SIX_WINDOWS
 
 # Sentinel: a config whose primitive raised. orders=-1 is impossible for a real run → the runner
 # detects it post-pool and routes the config to failures (never to scoring/leaderboard).
@@ -131,6 +131,7 @@ def run_sweep(
     max_workers: int = DEFAULT_MAX_WORKERS,
     pins: tuple[str, str, str] | None = None,
     retries: int = 1,
+    min_windows: int = MANDATORY_WINDOW_COUNT,
 ) -> SweepOutcome:
     """Fire the full sweep: every config over every window via the injected primitive, scored +
     gated + ranked into a leaderboard, with the per-(config,window) ledger pinned to provenance.
@@ -146,7 +147,8 @@ def run_sweep(
     """
     failed: dict[str, str] = {}
     config_runs = run_pool(
-        list(configs), _isolating(run_primitive, failed, retries=retries), windows=windows, max_workers=max_workers
+        list(configs), _isolating(run_primitive, failed, retries=retries),
+        windows=windows, max_workers=max_workers, min_windows=min_windows,
     )
 
     # Partition: a config with ANY _FAILED window (orders==-1) is excluded from scoring.

@@ -59,17 +59,24 @@ class WindowPanelError(ValueError):
     """Raised when a sweep is run with fewer than the mandatory 6 windows (D5.1 guard)."""
 
 
-def validate_window_panel(windows: Sequence[Window]) -> None:
-    """Refuse a panel that violates the 6-window mandate (no single-number results).
+def validate_window_panel(windows: Sequence[Window], *, min_windows: int = MANDATORY_WINDOW_COUNT) -> None:
+    """Refuse a panel that violates the no-single-number mandate.
 
     The runner enforces the distribution-not-point-estimate invariant at the seam: a panel
-    with fewer than 6 windows, or duplicate window names, is rejected loud rather than
-    silently producing a thin/peaky result.
+    with fewer than `min_windows` windows, or duplicate window names, is rejected loud rather
+    than silently producing a thin/peaky result. `min_windows` defaults to the canonical 6 (cloud /
+    full panel); a LOCAL sweep on the data-runnable subset passes the runnable count explicitly
+    (#338-ws3: the 2026 windows have no local data — the 4 quarters are still a distribution, NOT a
+    point estimate). It must never be set below 2 (that would permit a single-window point estimate).
     """
-    if len(windows) < MANDATORY_WINDOW_COUNT:
+    if min_windows < 2:
         raise WindowPanelError(
-            f"window panel has {len(windows)} windows; the mandatory minimum is "
-            f"{MANDATORY_WINDOW_COUNT} (ADR D5.1: no single-number results). "
+            f"min_windows={min_windows} would permit a point estimate; the floor is 2 (D5.1)."
+        )
+    if len(windows) < min_windows:
+        raise WindowPanelError(
+            f"window panel has {len(windows)} windows; the required minimum is "
+            f"{min_windows} (ADR D5.1: no single-number results). "
             "Running fewer windows produces a point estimate, not a robustness distribution."
         )
     names = [w.name for w in windows]
