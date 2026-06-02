@@ -51,6 +51,13 @@ UNSUPPORTED_HOOKS: dict[tuple[str, str], dict[str, Any]] = {
 # entry_selection sub-phases that are GUARDS (kept on every variant), not the swept algorithm.
 ENTRY_GUARDS = frozenset({"preflight_staleness"})
 
+# kind → phases.<pkg> dir, for kinds whose package name differs from the kind (#339). The exit
+# family (exit_hard/exit_target/exit_regime/exit_rotation) all live under phases.exit/; without this
+# the phases.<kind>.<impl> convention would look in nonexistent phases.exit_hard/ etc.
+_KIND_PKG: dict[str, str] = {
+    "exit_hard": "exit", "exit_target": "exit", "exit_regime": "exit", "exit_rotation": "exit",
+}
+
 
 class UnsupportedSweepAxisError(RuntimeError):
     """A swept axis has no backing phase param yet — fail loud rather than build a silent no-op."""
@@ -61,8 +68,10 @@ def _pascal(snake: str) -> str:
 
 
 def _resolve_impl(kind: str, impl_name: str) -> type:
-    """phases.<kind>.<impl_name>.<impl_name> → the PascalCase phase class (convention)."""
-    mod = importlib.import_module(f"phases.{kind}.{impl_name}.{impl_name}")
+    """phases.<pkg>.<impl_name>.<impl_name> → the PascalCase phase class (convention). pkg == kind
+    except the exit family, which lives under phases.exit/ (see _KIND_PKG)."""
+    pkg = _KIND_PKG.get(kind, kind)
+    mod = importlib.import_module(f"phases.{pkg}.{impl_name}.{impl_name}")
     cls = getattr(mod, _pascal(impl_name), None)
     if cls is None:
         raise UnsupportedSweepAxisError(
@@ -200,6 +209,25 @@ def sweep_to_strategy_config(sweep_config: Any, *, base_module: str = BASE_MODUL
                 f"regime stack lacks the target phase; fail loud (no fabricated axis coverage)."
             )
         phases["regime"] = new_regime
+
+    # --- exit_hard (list-kind, base = [Slot(KijunG3Exits)]): SWAP the exit impl (#339). No choice
+    # → base exit verbatim (parity: the champion base keeps KijunG3 → e3b0c44298fc/4c2fc8e40607). ---
+    xch = choices.get("exit_hard")
+    if xch is not None:
+        base_ex = base.phases.get("exit_hard", [])
+        base_ex = base_ex if isinstance(base_ex, list) else [base_ex]
+        if len(base_ex) != 1:
+            raise UnsupportedSweepAxisError(
+                f"exit_hard base has {len(base_ex)} slots (expected exactly 1); a base-shape change "
+                f"would silently drop/duplicate an exit — fail loud."
+            )
+        phases["exit_hard"] = [_override_slot("exit_hard", xch, base_ex[0])]
+
+    # --- exit_rotation (NEW kind the base lacks): ADD the rotation slot when a choice provides it
+    # (the engine already schedules exit_rotation). No choice → no rotation (base behavior). ---
+    roch = choices.get("exit_rotation")
+    if roch is not None:
+        phases["exit_rotation"] = [_override_slot("exit_rotation", roch, None)]
 
     return StrategyConfig(
         name=f"sweep-{sweep_config.config_hash}",
