@@ -44,10 +44,12 @@ You asked "why idle" — you were right, there was unblocked goal-work I'd mis-s
 committed traded substrate (no lab-paste needed). The headline:
 - **George's 8 conditions do NOT separate winners from losers** (score 7.32 on BOTH sides) — the
   empirical case for copy→learn. Replicating the screen perfectly would NOT pick better trades.
-- **The outcome is exit-path-binary:** losers all stop out (~−9%, one loss mode); winners ride
-  uncapped (closed 1% win vs censored-open 88% win). The edge = "which names don't stop out."
-- **decision_rank (DV/liquidity) predicts the riders, robustly:** top-DV beats bottom-DV win-rate
-  in 4/4 testable regimes (+6 to +33pp). **The first learnable edge — weight high-DV-rank.**
+- **decision_rank (DV/liquidity) predicts winners, ROBUSTLY across regimes:** top-DV beats
+  bottom-DV win-rate in 4/4 testable regimes (+6 to +33pp, incl. losing FY2023) — regime-robust,
+  NOT a bull-confound. **The first learnable edge — weight high-DV-rank.** This is the durable result.
+- **Single loss mode:** losers all exit via the ~−9% protective stop; winners ride uncapped. (The
+  raw "1% vs 88% win" split is provisional/structural — the rigorous lab mine supplies realized
+  magnitudes; the rank-separation above is the defensible claim.)
 - **#322 hypothesis ready:** BCT screen picks the pool; the learned signal RANKS within it by DV.
 hzgffl24's rigorous mine + the untraded counterfactual (your paste) confirm + extend this.
 

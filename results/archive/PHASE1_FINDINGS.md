@@ -7,12 +7,15 @@ trades) is answerable on the committed traded data NOW, so here's the head-start
 
 **Valid subset: FY2021-2025, 119 labeled trades, 31% winners** (FY2018-2020 EXCLUDED — see data gap).
 
-## Finding 1 — George's 8 conditions DO NOT separate winners from losers (validates copy→learn)
+## Finding 1 — the 8 conditions do not FURTHER-separate winners WITHIN the traded set
 Every BCT condition's hit-rate is near-identical between winners and losers (Δ ≤ 6pp, most 0-2pp),
-and `decision_score` is **7.32 for BOTH** winners and losers. The 8-condition screen is
-**table-stakes, not predictive** — every trade already passed it (score≥7), so it can't explain
-which of those trades won. **This is the empirical case for the pivot: perfectly replicating
-George's screen would not pick better trades.** The signal must come from context the screen ignores.
+and `decision_score` is **7.32 for BOTH** winners and losers. **Precise claim (HQ):** all traded
+names already passed score≥7, so they're similar on the conditions → the condition-variance washes
+out *within the traded set*. This does NOT mean the screen is worthless — the screen's value is in
+**SELECTION** (getting names into the candidate pool vs the 6k universe), which is the
+**untraded-counterfactual question (phase-2, Falk-gated)**, not tested here. Consistent with the
+validated BCT thesis (alpha in the screen; further curation modest). The actionable phase-1 read:
+**the further-edge must be learned ELSEWHERE than the 8 conditions** — they don't rank within the pool.
 
 ## Finding 2 — `decision_rank` (DV/liquidity rank) IS a real separator (the candidate edge)
 Winners median rank **219** vs losers **527**. By rank-tercile:
@@ -37,16 +40,22 @@ the simple mechanism.** The rigorous mine must find the real conditioning.
 Censored m2m coverage: FY2018 0/6, FY2019 0/8, FY2020 0/16 — local daily 2018-2020 is absent, so
 open-at-end winners have no mark → if included they show an artificial ~0% win-rate (survivorship:
 winners dropped, losers kept). So those 3 regimes are usable for ENTRY-CONTEXT distributions but
-NOT winner/loser outcomes. **To make them outcome-usable: source 2018-2020 daily for the m2m mark,
-OR re-run with an end-date extended past the open positions' exits so they close (realized).** Until
-then, outcome analysis is FY2021-2025 only (119 trades). Flagged for the substrate's consumers.
+NOT winner/loser outcomes. **Fix HELD (not rushed)** — the naive end-date-extend POLLUTES the regime (new entries fire in the
+extension window) and a yahoo/fmp price-fetch mixes vendors vs the QC entry_px. The CLEAN version
+(HQ, for hzgffl24's rigorous pass or a deliberate data-acquisition): **extend end_date BUT DISABLE
+new entries in the extension window** → the open tail closes to realized outcomes without adding
+polluting entries, no vendor-mix. Until then, outcome analysis is FY2021-2025 only (119 trades).
+Flagged for the substrate's consumers.
 
-## Finding 4 — the outcome is EXIT-PATH-BINARY (the single loss mode)
-Valid-subset closed trades = **1% win-rate**; ALL 78 exit via `stop_market` (mean ret **−9.2%**).
-Censored (rode open) = **88% win-rate**. There is ONE loss mechanism — the protective stop, ~−9% —
-and winners are the names that NEVER hit it and ride (uncapped). So the P&L distribution is
-fat-tailed by construction (capped losses, riding winners), and the entire edge reduces to **which
-entries avoid the stop and ride**. "Pick better trades" = "pick names that won't stop out."
+## Finding 4 — single loss mode (the protective stop); the 1%/88% split is PROVISIONAL illustration
+ALL 78 valid-subset closed trades exit via `stop_market` (mean ret −9.2%) — there is ONE realized
+loss mechanism, the ~−9% protective stop. **Framing discipline (HQ): do NOT headline the
+"closed 1% win / censored 88% win" split — it is PARTLY STRUCTURAL + PROVISIONAL.** "Closed" is
+stopped-by-definition; "censored" wins are *unrealized* end-of-window M2M marks, not realized. So
+1%/88% illustrates the fat-tailed shape (capped losses ride/uncapped winners) but is NOT a
+defensible magnitude until the rigorous lab mine supplies realized counterfactual outcomes. The
+DURABLE claim is Finding 5 (the rank separation), not this split. The qualitative read stands: the
+edge reduces to **which entries avoid the stop and ride**; the magnitude is provisional.
 
 ## Finding 5 — decision_rank robustly predicts ride-vs-stop, ACROSS regimes
 Censored-winners median rank **252** vs closed-losers **534** (the same rank signal as Finding 2,
