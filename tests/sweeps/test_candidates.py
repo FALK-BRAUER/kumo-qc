@@ -151,6 +151,103 @@ def test_artifact_header_stamps_provenance() -> None:
     assert h["funnel"]["min_score"] == 7
     assert h["universe_source"] == "local-daily:2024"
     assert h["first_date"] == "2024-01-02" and h["last_date"] == "2024-12-31"
+    assert h["authoritative"] is True  # default
+
+
+def test_artifact_header_authoritative_flag() -> None:
+    """The authoritative flag + universe_membership_uncertainty thread through to the header."""
+    h = C._artifact_header(
+        ["2022-01-03"], 7, 0.25, True, "local-daily-approx-NOT-AUTHORITATIVE:2022",
+        authoritative=False,
+        universe_membership_uncertainty={"generator_signal_winners": 9999, "instrumented": 7007},
+    )
+    assert h["authoritative"] is False
+    assert h["universe_membership_uncertainty"]["instrumented"] == 7007
+
+
+# --------------------------------------------------------------------------------------
+# COARSE-CSV UNIVERSE SOURCE (#276b parity fix) — pure-logic with a fixture coarse CSV.
+# --------------------------------------------------------------------------------------
+
+
+def _write_coarse_csv(coarse_dir, ymd: str, rows: list[tuple[str, float, int, float]]) -> None:
+    """Write a fixture LEAN coarse CSV (SID,ticker,close,volume,dollar_volume,has_fund,pf,sf)."""
+    coarse_dir.mkdir(parents=True, exist_ok=True)
+    lines = []
+    for ticker, close, volume, dv in rows:
+        lines.append(f"{ticker} XSID,{ticker},{close},{volume},{dv},True,1,1")
+    (coarse_dir / f"{ymd}.csv").write_text("\n".join(lines) + "\n")
+
+
+def test_read_coarse_csv_parses_ticker_close_dv(tmp_path) -> None:
+    """read_coarse_csv yields {ticker_lower: (close, single_day_dv)} from the coarse CSV columns."""
+    cd = tmp_path / "coarse"
+    _write_coarse_csv(cd, "20240102", [("AAA", 50.0, 1_000_000, 50_000_000.0),
+                                       ("BBB", 12.0, 2_000_000, 24_000_000.0)])
+    m = C.read_coarse_csv("2024-01-02", coarse_dir=cd)
+    assert m == {"aaa": (50.0, 50_000_000.0), "bbb": (12.0, 24_000_000.0)}
+    # DV comes from the CSV column, NOT recomputed close*volume (49M != 50M proves the source).
+    _write_coarse_csv(cd, "20240103", [("CCC", 100.0, 490_000, 999_999_999.0)])
+    assert C.read_coarse_csv("2024-01-03", coarse_dir=cd)["ccc"] == (100.0, 999_999_999.0)
+
+
+def test_read_coarse_csv_drops_nonfinite_and_missing(tmp_path) -> None:
+    """A non-finite DV/close coarse row is dropped (mirrors lean_entry #261-2); missing file -> {}."""
+    cd = tmp_path / "coarse"
+    cd.mkdir(parents=True)
+    (cd / "20240102.csv").write_text(
+        "AAA XSID,AAA,50.0,1000000,50000000.0,True,1,1\n"
+        "BAD XSID,BAD,nan,1000000,inf,True,1,1\n"
+        "SHORT,SHORT,10.0\n"  # too few columns -> skipped
+    )
+    m = C.read_coarse_csv("2024-01-02", coarse_dir=cd)
+    assert m == {"aaa": (50.0, 50_000_000.0)}
+    assert C.read_coarse_csv("2099-01-01", coarse_dir=cd) == {}  # missing file
+
+
+def test_coarse_csv_exists(tmp_path) -> None:
+    cd = tmp_path / "coarse"
+    _write_coarse_csv(cd, "20240102", [("AAA", 50.0, 1_000_000, 50_000_000.0)])
+    assert C.coarse_csv_exists("2024-01-02", coarse_dir=cd)
+    assert not C.coarse_csv_exists("2024-01-03", coarse_dir=cd)
+
+
+def test_build_coarse_universe_membership_is_coarse_tickers(tmp_path) -> None:
+    """The universe for a date == the coarse CSV's tickers that clear prefilter+floors; DV from CSV.
+
+    AAA: huge DV, price 50 -> passes (prefilter 25M, price floor 10, trailing >= 100M).
+    LOW: price 5 -> fails the MIN_PRICE floor (excluded).
+    THIN: single-day DV 10M < prefilter 25M -> never builds a metric (excluded).
+    """
+    cd = tmp_path / "coarse"
+    _write_coarse_csv(cd, "20240102", [
+        ("AAA", 50.0, 1, 500_000_000.0),    # close>=10, dv>=prefilter, trailing>=100M -> in
+        ("LOW", 5.0, 1, 500_000_000.0),     # close<10 -> floored out
+        ("THIN", 80.0, 1, 10_000_000.0),    # single-day dv < prefilter -> no metric -> out
+    ])
+    univ, metrics = C.build_coarse_universe(2024, coarse_dir=cd)
+    assert univ["2024-01-02"] == ["AAA"]  # only AAA clears prefilter+floors
+    # metrics carry the coarse close + single-day DV + trailing (=sdv on first appearance).
+    assert metrics["2024-01-02"]["aaa"] == (50.0, 500_000_000.0, 500_000_000.0)
+    assert metrics["2024-01-02"]["thin"][1] == 10_000_000.0  # metric exists, just not ranked
+
+
+def test_build_coarse_universe_trailing_mean_over_appearances(tmp_path) -> None:
+    """trailing_dv == mean of the single-day coarse DV over the last ADV_WINDOW appearances."""
+    cd = tmp_path / "coarse"
+    _write_coarse_csv(cd, "20240102", [("AAA", 50.0, 1, 200_000_000.0)])
+    _write_coarse_csv(cd, "20240103", [("AAA", 50.0, 1, 400_000_000.0)])
+    univ, metrics = C.build_coarse_universe(2024, coarse_dir=cd)
+    # day 2 trailing = mean(200M, 400M) = 300M (window holds both appearances).
+    assert metrics["2024-01-03"]["aaa"][2] == pytest.approx(300_000_000.0)
+
+
+def test_build_coarse_universe_empty_when_no_csv(tmp_path) -> None:
+    """A year with NO coarse CSVs -> empty universe/metrics (caller falls back to local-daily)."""
+    cd = tmp_path / "coarse"
+    cd.mkdir(parents=True)
+    univ, metrics = C.build_coarse_universe(2022, coarse_dir=cd)
+    assert univ == {} and metrics == {}
 
 
 def test_funnel_constants_match_live_gate() -> None:
@@ -265,3 +362,59 @@ def test_streaming_dv_matches_loader() -> None:
             )
             checked += 1
     assert checked > 0, "expected to check at least one selected name"
+
+
+_skip_no_coarse = pytest.mark.skipif(
+    not rd.have_coarse_tree(), reason="local LEAN coarse tree absent (gitignored data/) — presence guard"
+)
+
+
+@pytest.mark.gdata
+@_skip_no_coarse
+def test_coarse_universe_membership_equals_coarse_csv_tickers() -> None:
+    """The authoritative universe for a real coarse session is drawn from THAT CSV's tickers, and
+    every emitted DV equals the coarse CSV's own dollar_volume column (not local close*volume)."""
+    univ, metrics = C.build_coarse_universe(2025)
+    date = "2025-09-02"
+    raw = C.read_coarse_csv(date)
+    assert raw, "expected a real coarse CSV for 2025-09-02"
+    # every ranked ticker came from the coarse CSV membership.
+    for t in univ[date]:
+        assert t.lower() in raw, f"{t} ranked but not in the coarse CSV membership"
+    # the metric DV is the coarse CSV DV (authoritative source), not a recomputed value.
+    for t in univ[date][:20]:
+        close, sdv, _trailing = metrics[date][t.lower()]
+        assert (close, sdv) == raw[t.lower()]
+
+
+@pytest.mark.gdata
+@_skip_no_coarse
+def test_coarse_coverage_drives_authoritative_decision() -> None:
+    """The authoritative decision is governed by coarse-CSV coverage (cheap to verify without the
+    full per-name scoring run): FY2025 has a coarse CSV for every trading session (-> authoritative
+    True); FY2022 has none (-> authoritative False, local-daily fallback)."""
+    univ25, _ = C.build_coarse_universe(2025)
+    assert len(univ25) > 200, "FY2025 should be fully coarse-covered (~250 sessions)"
+    # FY2022 predates the coarse tree (starts 2023-06-20) -> no coarse universe -> fallback.
+    univ22, metrics22 = C.build_coarse_universe(2022)
+    assert univ22 == {} and metrics22 == {}
+    # FY2023 is partial: coarse only from 2023-06-20 onward.
+    univ23, _ = C.build_coarse_universe(2023)
+    assert univ23, "FY2023 should have partial coarse coverage (from 2023-06-20)"
+    assert min(univ23.keys()) >= "2023-06-20"
+
+
+@pytest.mark.gdata
+@_skip_no_coarse
+def test_generate_candidates_uses_coarse_metrics_for_dv() -> None:
+    """When coarse_metrics is supplied, the emitted single_day_dv == the coarse feed DV (the
+    authoritative source), proving the universe/DV switch flows through to the row."""
+    date = "2025-09-02"
+    univ, metrics = C.build_coarse_universe(2025)
+    rows = C.generate_candidates_for_date(
+        date, univ[date], coarse_metrics=metrics[date]
+    )
+    assert rows
+    for r in rows:
+        coarse_sdv = metrics[date][r.symbol.lower()][1]
+        assert r.single_day_dv == pytest.approx(coarse_sdv)

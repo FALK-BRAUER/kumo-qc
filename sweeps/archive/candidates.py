@@ -58,6 +58,7 @@ import json
 import math
 import os
 import zipfile
+from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
@@ -81,6 +82,18 @@ from scripts.funnel_signal_count import (  # noqa: E402
     slice_as_of,
 )
 
+# LEAN CoarseFundamental CSV tree — QC's EXACT live universe membership (#276b parity fix).
+# One CSV per trading session: `<YYYYMMDD>.csv`. Columns (LEAN coarse format, NO header row):
+#   SID, ticker, close, volume, dollar_volume, has_fundamental_data, price_factor, split_factor
+# This is the feed runtime.lean_entry._coarse_selection scans live (its `.price` == coarse close,
+# its `.dollar_volume` == coarse single-day DV). Reading it reproduces the live coarse membership
+# + DV instead of the ~6.7x-too-wide local-daily-all approximation (which scanned every ~19k zip).
+_COARSE_DIR: Path = _DAILY_DIR.parent / "fundamental" / "coarse"
+# Coarse CSV column indices (0-based) — confirmed by inspecting data/.../coarse/<date>.csv.
+_COARSE_COL_TICKER: int = 1
+_COARSE_COL_CLOSE: int = 2
+_COARSE_COL_DOLLAR_VOLUME: int = 4
+
 # ---------------------------------------------------------------------------
 # Funnel constants — MIRRORED from runtime.lean_entry.LeanEntry (the live gate).
 # Kept as named constants here (lean_entry is a QC algorithm class we must NOT import/instantiate
@@ -103,6 +116,13 @@ SCHEMA_VERSION: int = 1
 
 # Number of float decimals retained in emitted feature values (determinism — no platform jitter).
 _ROUND: int = 6
+
+# INSTRUMENTED-CLOUD GROUND TRUTH (#276b acceptance bar). The instrumented FY2025 cloud funnel run
+# (bt 3c9cb7b8) recorded signal_winners (score>=7, pre-regime) for the year. The generator's local-
+# coarse reconstruction is compared to this; the ratio is stamped into the header as a documented
+# universe-membership / scoring-vendor uncertainty so the #303 mine knows the residual it carries.
+# (Per-year; only FY2025 has an instrumented baseline — others stamp None.)
+INSTRUMENTED_SIGNAL_WINNERS: dict[int, int] = {2025: 7007}
 
 
 @dataclass(slots=True)
@@ -261,6 +281,7 @@ def generate_candidates_for_date(
     apply_funnel_floors: bool = True,
     daily_dir: Path = _DAILY_DIR,
     frame_cache: dict[str, pd.DataFrame | None] | None = None,
+    coarse_metrics: dict[str, tuple[float, float, float]] | None = None,
 ) -> list[CandidateRow]:
     """Emit EVERY score>=min_score signal-winner on one decision date as a CandidateRow.
 
@@ -272,6 +293,14 @@ def generate_candidates_for_date(
 
     `apply_funnel_floors=False` = C1-parity mode: skip the prefilter/floors/rank gate (score the
     full coarse universe), so the score>=min_score count matches funnel_signal_count.py exactly.
+
+    UNIVERSE/DV SOURCE (#276b parity fix): when `coarse_metrics` is supplied (= {ticker_lower:
+    (close, single_day_dv, trailing_dv)} from the LEAN coarse CSV via build_coarse_universe), the
+    single-day DV, close-for-floor and trailing-mean DV come from QC's LIVE coarse feed — the
+    EXACT membership + DV the live _coarse_selection floors/ranks on. The 8-condition SCORE +
+    signal-time features still come from the LOCAL daily frame (those are price/indicator features;
+    only the universe membership + DV source changes). When `coarse_metrics` is None we fall back
+    to the local-daily close*volume approximation (pre-coarse years; NOT authoritative).
 
     AS-OF <= date everywhere (no look-ahead). Deterministic given (date, tickers, data).
     """
@@ -298,13 +327,25 @@ def generate_candidates_for_date(
         upto = df[df.index <= as_of]
         if upto.empty:
             continue
-        bar = upto.iloc[-1]
-        c = float(bar["close"])
-        sdv = c * float(bar["volume"])
         frames[ticker] = df
-        close_today[ticker] = c
-        single_day_dv[ticker] = sdv
-        trailing_dv[ticker] = _trailing_dv_mean(df, as_of)
+        if coarse_metrics is not None:
+            # AUTHORITATIVE: DV + close-for-floor from QC's live coarse feed (not local c*v).
+            cm = coarse_metrics.get(ticker.lower())
+            if cm is None:
+                # Ranked by the coarse builder but absent from today's coarse metrics — should not
+                # happen (the universe is derived from the same metrics); skip rather than fabricate.
+                continue
+            c_close, c_sdv, c_trailing = cm
+            close_today[ticker] = c_close
+            single_day_dv[ticker] = c_sdv
+            trailing_dv[ticker] = c_trailing
+        else:
+            # FALLBACK: local-daily close*volume approximation (pre-coarse years; not authoritative).
+            bar = upto.iloc[-1]
+            c = float(bar["close"])
+            close_today[ticker] = c
+            single_day_dv[ticker] = c * float(bar["volume"])
+            trailing_dv[ticker] = _trailing_dv_mean(df, as_of)
 
     # PREFILTER + FLOORS + RANK/CAP (the live selection gate). Keys lowered to match the runtime
     # convention (coarse_to_dollar_volume lowercases; apply_floors/rank_and_cap are case-tolerant).
@@ -469,12 +510,148 @@ def build_local_universe(
     return dict(sorted(universe.items()))
 
 
+def _coarse_csv_path(date_str: str, coarse_dir: Path = _COARSE_DIR) -> Path:
+    """Map an ISO date (YYYY-MM-DD) to its LEAN coarse CSV path (`<YYYYMMDD>.csv`)."""
+    return coarse_dir / f"{date_str.replace('-', '')}.csv"
+
+
+def coarse_csv_exists(date_str: str, coarse_dir: Path = _COARSE_DIR) -> bool:
+    """True iff the LEAN coarse CSV for this trading date is present (the authoritative source)."""
+    return _coarse_csv_path(date_str, coarse_dir).is_file()
+
+
+def read_coarse_csv(date_str: str, coarse_dir: Path = _COARSE_DIR) -> dict[str, tuple[float, float]]:
+    """Parse one LEAN coarse CSV → {ticker_lower: (close, single_day_dollar_volume)}.
+
+    This is QC's EXACT live universe membership for `date_str`: the row set == the tickers QC's
+    CoarseFundamental feed delivered that session, and close/DV are the feed's own `.price` /
+    `.dollar_volume` columns (NOT recomputed close*volume from local daily). Ticker is lowercased
+    to the on-disk/zip-stem + runtime convention (coarse_to_dollar_volume lowercases too).
+
+    FAIL-LOUD: a non-finite DV/close in the coarse CSV is dropped (it must never enter the
+    rolling-DV window — mirrors lean_entry.coarse_to_dollar_volume's #261-2 guard). A row with too
+    few columns is skipped. Missing file -> empty dict (caller decides authoritative vs fallback).
+    """
+    path = _coarse_csv_path(date_str, coarse_dir)
+    if not path.is_file():
+        return {}
+    out: dict[str, tuple[float, float]] = {}
+    with path.open() as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            p = line.split(",")
+            if len(p) <= _COARSE_COL_DOLLAR_VOLUME:
+                continue
+            ticker = p[_COARSE_COL_TICKER].strip().lower()
+            try:
+                close = float(p[_COARSE_COL_CLOSE])
+                dv = float(p[_COARSE_COL_DOLLAR_VOLUME])
+            except ValueError:
+                continue
+            if not (math.isfinite(close) and math.isfinite(dv)):
+                continue  # degraded coarse row must never poison the rolling-DV mean (#261-2)
+            out[ticker] = (close, dv)
+    return out
+
+
+def build_coarse_universe(
+    year: int,
+    *,
+    coarse_dir: Path = _COARSE_DIR,
+) -> tuple[dict[str, list[str]], dict[str, dict[str, tuple[float, float, float]]]]:
+    """Build the LIVE-coarse-authoritative universe per day for `year` from the LEAN coarse CSVs.
+
+    This reproduces runtime.lean_entry._coarse_selection EXACTLY on the same feed it scans live:
+      per trading session (each coarse CSV in `year`, in chronological order):
+        single_day_dv + close = the coarse CSV's own columns (NOT local close*volume).
+        trailing_dv = MEAN of the single-day coarse DV over the last ADV_WINDOW (20) sessions in
+                      which the ticker APPEARED in the coarse feed (the maintained rolling-20d mean
+                      qc._dv_windows holds — a name absent from a session injects nothing, the
+                      window drops oldest at maxlen). No look-ahead (only sessions <= today).
+      PREFILTER : single_day_dv >= PREFILTER_DV (25M)  -> builds the (close, trailing_dv) metric.
+      FLOORS    : apply_floors(close >= MIN_PRICE AND trailing_dv >= MIN_AVG_DOLLAR_VOLUME).
+      RANK+CAP  : rank_and_cap(DV-desc, ticker-ASC, coarse_max=COARSE_MAX).
+
+    Returns (universe, metrics):
+      universe = {date (ISO) -> [TICKERS upper]} — QC's exact ranked live selection for that day.
+      metrics  = {date (ISO) -> {ticker_lower: (close, single_day_dv, trailing_dv)}} — the coarse
+                 close + single-day DV + maintained trailing-mean DV PER NAME in the coarse feed
+                 that day (for ALL coarse names, not just the ranked set), so the scoring stage can
+                 stamp the authoritative DV/floor verdicts onto every candidate it scores.
+
+    Only sessions with a coarse CSV are included. The rolling window is maintained ACROSS years
+    boundaries within the coarse coverage by warming it from the prior ADV_WINDOW sessions before
+    `year` (so the first sessions of `year` already have a full trailing window where data exists).
+    """
+    ystr = str(year)
+    # All available coarse sessions, chronological, so the rolling window is maintained correctly
+    # (and warmed from the tail of the prior year where it exists).
+    all_dates: list[str] = []
+    if coarse_dir.is_dir():
+        for fname in sorted(os.listdir(coarse_dir)):
+            if fname.endswith(".csv") and len(fname) == 12:  # YYYYMMDD.csv
+                ds = fname[:8]
+                all_dates.append(f"{ds[:4]}-{ds[4:6]}-{ds[6:8]}")
+
+    # Maintained rolling window of the LAST ADV_WINDOW single-day coarse DVs per ticker (in feed-
+    # appearance order). Mirrors qc._dv_windows (deque maxlen=ADV_WINDOW) — absence injects nothing.
+    windows: dict[str, deque[float]] = {}
+    universe: dict[str, list[str]] = {}
+    metrics: dict[str, dict[str, tuple[float, float, float]]] = {}
+
+    for iso in all_dates:
+        coarse = read_coarse_csv(iso, coarse_dir)
+        if not coarse:
+            continue
+        # Maintain the rolling-20d window for every coarse name seen today (push once per session).
+        day_metrics: dict[str, tuple[float, float, float]] = {}
+        for ticker, (close, sdv) in coarse.items():
+            w = windows.get(ticker)
+            if w is None:
+                w = deque(maxlen=ADV_WINDOW)
+                windows[ticker] = w
+            w.append(sdv)
+            trailing = sum(w) / len(w)
+            day_metrics[ticker] = (close, sdv, trailing)
+
+        # Only emit universe/metrics for sessions IN `year` (prior sessions only warm the window).
+        if iso[:4] != ystr:
+            continue
+        metrics[iso] = day_metrics
+
+        # PREFILTER (single-day DV) -> (close, trailing_dv) metric -> FLOORS -> RANK+CAP.
+        bar_metrics: dict[str, tuple[float, float]] = {}
+        for ticker, (close, sdv, trailing) in day_metrics.items():
+            if sdv >= PREFILTER_DV:
+                bar_metrics[ticker] = (close, trailing)
+        eligible = apply_floors(
+            bar_metrics, min_price=MIN_PRICE, min_avg_dollar_volume=MIN_AVG_DOLLAR_VOLUME
+        )
+        dv_by_ticker = {t: bar_metrics[t][1] for t in eligible}
+        ranked = rank_and_cap(eligible, dv_by_ticker, coarse_max=COARSE_MAX)
+        if ranked:
+            universe[iso] = [t.upper() for t in ranked]
+
+    return dict(sorted(universe.items())), metrics
+
+
 def _artifact_header(
     dates: list[str], min_score: int, parabolic_threshold: float, apply_funnel_floors: bool,
     universe_source: str,
+    *,
+    authoritative: bool = True,
+    universe_membership_uncertainty: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Provenance/header record (first JSONL line, record_type='header') — stamps the data vendor,
-    normalization, funnel params and the exact funnel def so the lab can detect any drift."""
+    normalization, funnel params and the exact funnel def so the lab can detect any drift.
+
+    `authoritative` is False for years with NO LEAN coarse data (pre-2023-06-20) where the universe
+    is the local-daily-all approximation — the #303 mine must down-weight/exclude those years'
+    untraded counterfactual. `universe_membership_uncertainty` records the generator-vs-instrumented
+    signal_winner delta (documented residual) when measured.
+    """
     return {
         "record_type": "header",
         "schema_version": SCHEMA_VERSION,
@@ -492,6 +669,8 @@ def _artifact_header(
             "apply_funnel_floors": apply_funnel_floors,
         },
         "universe_source": universe_source,
+        "authoritative": authoritative,
+        "universe_membership_uncertainty": universe_membership_uncertainty,
         "n_dates": len(dates),
         "first_date": dates[0] if dates else None,
         "last_date": dates[-1] if dates else None,
@@ -518,11 +697,20 @@ def generate_window(
     apply_funnel_floors: bool = True,
     daily_dir: Path = _DAILY_DIR,
     universe_source: str = "polygon_universe_equity200_fy2025.json",
+    coarse_metrics: dict[str, dict[str, tuple[float, float, float]]] | None = None,
+    authoritative: bool = True,
+    universe_membership_uncertainty: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], list[CandidateRow]]:
     """Generate the candidate population over a window of decision dates.
 
     `universe` is {date -> [tickers]}; default = the FY2025 polygon snapshot. For ANY year, pass a
-    universe built by `build_local_universe(year)` (live-coarse-equivalent from local daily).
+    universe built by `build_coarse_universe(year)` (QC's exact live membership, authoritative) or
+    `build_local_universe(year)` (local-daily approximation, pre-coarse fallback).
+
+    `coarse_metrics` (when supplied) = {date -> {ticker_lower: (close, single_day_dv, trailing_dv)}}
+    from build_coarse_universe — the live coarse feed's DV/close per name. When present for a date,
+    the funnel floors/rank + emitted DV are authoritative (QC's live feed); the scoring still uses
+    the local daily frame. Absent for a date -> local-daily close*volume fallback.
 
     Returns (header, rows). `rows` is the concatenation of per-date populations in date order
     (each date already score-DESC/ticker-ASC). Deterministic given the dates + data + params.
@@ -544,10 +732,13 @@ def generate_window(
                 apply_funnel_floors=apply_funnel_floors,
                 daily_dir=daily_dir,
                 frame_cache=frame_cache,
+                coarse_metrics=(coarse_metrics or {}).get(d),
             )
         )
     header = _artifact_header(
-        date_list, min_score, parabolic_threshold, apply_funnel_floors, universe_source
+        date_list, min_score, parabolic_threshold, apply_funnel_floors, universe_source,
+        authoritative=authoritative,
+        universe_membership_uncertainty=universe_membership_uncertainty,
     )
     return header, all_rows
 
@@ -559,22 +750,113 @@ def generate_year(
     parabolic_threshold: float = DEFAULT_PARABOLIC_THRESHOLD,
     apply_funnel_floors: bool = True,
     daily_dir: Path = _DAILY_DIR,
+    coarse_dir: Path = _COARSE_DIR,
 ) -> tuple[dict[str, Any], list[CandidateRow]]:
-    """Generate the full signal-winner population for one FISCAL YEAR, computing the coarse
-    universe per-day from the local daily zips (live-coarse-equivalent). Works for any year the
-    local data covers. The per-year artifact the #303 lab joins onto its forward-outcome oracle.
+    """Generate the full signal-winner population for one FISCAL YEAR (#303 lab substrate input).
+
+    UNIVERSE SOURCE (#276b parity fix):
+      - LEAN coarse CSVs (data/.../fundamental/coarse/<YYYYMMDD>.csv) reproduce QC's EXACT live
+        coarse membership + DV (the feed runtime.lean_entry._coarse_selection scans). They exist
+        2023-06-20 onward, so:
+          * FY2024, FY2025  -> FULLY coarse-feed authoritative (authoritative=True).
+          * FY2023          -> PARTIAL (coarse from 06-20; pre-06-20 dates fall back to local-daily)
+                               -> authoritative=False (the year is not uniformly coarse-sourced).
+          * FY2022, FY2021  -> NO coarse -> local-daily-all approximation -> authoritative=False.
+      - When falling back (a date with no coarse CSV) the universe + DV come from the local-daily
+        close*volume approximation (~6.7x too wide); the header authoritative flag + universe_source
+        tag let the lab DOWN-WEIGHT/EXCLUDE those dates' untraded counterfactual.
+
+    A date in a FULLY-AUTHORITATIVE year with no coarse CSV is logged + skipped (fail-loud-ish; we
+    never fabricate a universe for a missing authoritative session). The 8-condition SCORE + the
+    signal-time features always come from the local daily frame (price/indicator features).
     """
-    universe = build_local_universe(year, daily_dir=daily_dir)
-    header, rows = generate_window(
-        sorted(universe.keys()),
-        universe,
-        min_score=min_score,
-        parabolic_threshold=parabolic_threshold,
-        apply_funnel_floors=apply_funnel_floors,
-        daily_dir=daily_dir,
-        universe_source=f"local-daily-coarse-equivalent:{year}",
-    )
+    coarse_universe, coarse_metrics = build_coarse_universe(year, coarse_dir=coarse_dir)
+    n_coarse = len(coarse_universe)
+
+    if n_coarse > 0:
+        # Coarse data exists for this year. If EVERY local-daily trading day for the year also has
+        # a coarse CSV the year is fully authoritative; otherwise it is partial (FY2023).
+        local_universe = build_local_universe(year, daily_dir=daily_dir)
+        local_dates = set(local_universe.keys())
+        coarse_dates = set(coarse_universe.keys())
+        missing = sorted(local_dates - coarse_dates)
+        fully_authoritative = not missing
+
+        if fully_authoritative:
+            universe = coarse_universe
+            universe_source = f"lean-coarse-csv-authoritative:{year}"
+            authoritative = True
+        else:
+            # PARTIAL (FY2023): coarse where present, local-daily fallback for the rest. Not
+            # uniformly authoritative -> flag the year so the lab treats the fallback dates with
+            # the same down-weight as a no-coarse year.
+            universe = dict(coarse_universe)
+            for d in missing:
+                universe[d] = local_universe[d]
+            universe = dict(sorted(universe.items()))
+            universe_source = (
+                f"lean-coarse-csv-PARTIAL-local-daily-fallback-NOT-AUTHORITATIVE:{year}"
+            )
+            authoritative = False
+            print(
+                f"[candidates] FY{year} PARTIAL coarse coverage: {len(coarse_dates)} coarse "
+                f"sessions + {len(missing)} local-daily-fallback sessions (pre-coarse) -> "
+                f"authoritative=False"
+            )
+        header, rows = generate_window(
+            sorted(universe.keys()),
+            universe,
+            min_score=min_score,
+            parabolic_threshold=parabolic_threshold,
+            apply_funnel_floors=apply_funnel_floors,
+            daily_dir=daily_dir,
+            universe_source=universe_source,
+            coarse_metrics=coarse_metrics,  # only covers coarse dates; fallback dates -> None
+            authoritative=authoritative,
+        )
+    else:
+        # NO coarse data for this year (FY2022, FY2021): local-daily-all approximation. NOT
+        # authoritative -> the lab must down-weight/exclude this year's untraded counterfactual.
+        print(
+            f"[candidates] FY{year} has NO LEAN coarse data -> local-daily-approx universe "
+            f"(NOT AUTHORITATIVE)"
+        )
+        universe = build_local_universe(year, daily_dir=daily_dir)
+        header, rows = generate_window(
+            sorted(universe.keys()),
+            universe,
+            min_score=min_score,
+            parabolic_threshold=parabolic_threshold,
+            apply_funnel_floors=apply_funnel_floors,
+            daily_dir=daily_dir,
+            universe_source=f"local-daily-approx-NOT-AUTHORITATIVE:{year}",
+            coarse_metrics=None,
+            authoritative=False,
+        )
     header["fiscal_year"] = year
+
+    # Stamp the generator-vs-instrumented signal_winner delta (documented universe-membership /
+    # scoring-vendor uncertainty) when an instrumented cloud baseline exists for the year (#276b).
+    instrumented = INSTRUMENTED_SIGNAL_WINNERS.get(year)
+    if instrumented:
+        gen_winners = sum(
+            1
+            for r in rows
+            if r.passed_prefilter and r.passed_floors and r.passed_parabolic and r.score >= min_score
+        )
+        header["universe_membership_uncertainty"] = {
+            "instrumented_signal_winners": instrumented,
+            "instrumented_source": "cloud bt 3c9cb7b8 funnel.signal_winners (FY2025, pre-regime)",
+            "generator_signal_winners": gen_winners,
+            "ratio_generator_over_instrumented": round(gen_winners / instrumented, 4),
+            "note": (
+                "Universe membership + DV are now QC's exact live coarse feed (the #276b fix); the "
+                "residual ratio is dominated by the local-vs-cloud SCORING/data-vendor delta (the "
+                "C1-documented ~40 score>=7/day local count + the ~1.10x cloud<->local universe "
+                "vendor residual), NOT a universe-membership bug. The #303 mine MUST treat the "
+                "untraded counterfactual as carrying this membership/scoring uncertainty."
+            ),
+        }
     return header, rows
 
 
