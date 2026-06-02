@@ -60,14 +60,16 @@ def _fetch_ohlcv(algorithm: Any, symbol: Any, bars: int, resolution: Any) -> pd.
     return df[["open", "high", "low", "close", "volume"]].astype(float)
 
 
-def score_symbol(algorithm: Any, symbol: Any) -> dict[str, Any] | None:
-    """History-based BCT scorer. Fetches 700 daily bars, resamples to weekly."""
-    try:
-        from QuantConnect import Resolution  # noqa: PLC0415
-    except ImportError:
-        return None  # outside LEAN environment
+def score_from_daily_frame(daily: pd.DataFrame) -> dict[str, Any] | None:
+    """PURE BCT scoring core — the exact weekly-resample + ichimoku + ADX(9 Wilder) + 200MA
+    + 8-condition math previously inline in score_symbol(), with the data-fetch separated out.
 
-    daily = _fetch_ohlcv(algorithm, symbol, _DAILY_BARS, Resolution.DAILY)
+    Input: a daily OHLCV DataFrame (columns open/high/low/close/volume, chronological, a
+    DatetimeIndex so the W-FRI resample works) sliced AS-OF the decision date (no look-ahead).
+    Returns {"score", "rating", "conditions"} or None (warmup / NaN guards), identical to the
+    behavior of the inline path. Invoked identically by the QC live path (via score_symbol →
+    _fetch_ohlcv) and the local signal-count harness (loads the daily frame from LEAN zips).
+    """
     if len(daily) < 230:
         return None
     weekly = _resample_weekly(daily)
@@ -125,6 +127,22 @@ def score_symbol(algorithm: Any, symbol: Any) -> dict[str, Any] | None:
     elif score >= 2: rating = "="
     else:            rating = "--"
     return {"score": score, "rating": rating, "conditions": conditions}
+
+
+def score_symbol(algorithm: Any, symbol: Any) -> dict[str, Any] | None:
+    """History-based BCT scorer. Fetches 700 daily bars, then scores via score_from_daily_frame.
+
+    Behavior unchanged from the prior inline implementation: the data-fetch (LEAN History API)
+    is separated from the scoring math (now score_from_daily_frame), so the EXACT same scoring
+    core runs on cloud (this path) and in the local signal-count harness.
+    """
+    try:
+        from QuantConnect import Resolution  # noqa: PLC0415
+    except ImportError:
+        return None  # outside LEAN environment
+
+    daily = _fetch_ohlcv(algorithm, symbol, _DAILY_BARS, Resolution.DAILY)
+    return score_from_daily_frame(daily)
 
 
 def score_symbol_native(algorithm: Any, symbol: Any, ind: dict[str, Any]) -> dict[str, Any] | None:
