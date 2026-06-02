@@ -30,7 +30,10 @@ sys.path[:0] = [str(_ROOT), str(_ROOT / "src")]
 from phases.shared.oracle_helpers import score_symbol_cached  # noqa: E402
 from sweeps.warmup_cache.table_builder import build_ticker_scalars, read_daily_zip  # noqa: E402
 
-_CFG = "e3b0c44298fc"  # the phase-engine champion (champion-on-panel reference)
+_CFG = "4c2fc8e40607"  # the CONTINUOUS-WEEKLY (corrected) champion (#336/#338 flag-ON identity).
+# NB: the flag-OFF identity e3b0c44298fc reproduces only 79/81 vs this cache BY DESIGN — its gappy
+# subscription-gated weekly diverges from the continuous-weekly cache on 2 entries (URBN/PEN). That
+# divergence DROVE the fix; the gate now targets the corrected flag-ON champion, where cache==live.
 _ARCHIVE = _ROOT / "results" / "archive" / _CFG
 _DAILY = Path("/Users/falk/projects/kumo-qc/data/equity/usa/daily")
 
@@ -62,15 +65,6 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="#332 SHIP GATE: 79/81 champion decisions reproduce BYTE-IDENTICAL, but 2 diverge in the "
-    "WEEKLY leg (URBN 2025-05-30 cond_1+cond_3 tenkan/cloud-green; PEN 2025-11-20 cond_2 chikou) — "
-    "consistent across the week (not date-alignment), a real weekly-value diff vs LEAN's runtime "
-    "weekly consolidator. Cache is NOT decision-neutral until fixed (2 trades would flip). Per the "
-    "parity discipline ONE flip = not shippable, so this gate FAILS by design until the weekly fix "
-    "lands (GH #336). strict=True → when fixed it XPASSes → forces removing this marker (ship signal).",
-)
 def test_end_to_end_cache_reproduces_live_decisions() -> None:
     """For every champion entry, the cache (built from the RAW daily zips) scored at the DECISION
     date (the last cached trading day strictly before the T+1 entry) must reproduce the LIVE
