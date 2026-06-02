@@ -1,0 +1,2 @@
+rank,config_hash,composite,stability,sharpe_mean,sharpe_std,ret_pct_mean,dd_pct_mean,dd_pct_worst,free_params,complexity_penalty,robustness_penalty,over_dof_budget,n_windows
+1,e3b0c44298fc,0.1953,0.4253,0.9785,2.3006,3.102,6.4333,9.4,0,0.0,0.2301,False,6
