@@ -68,6 +68,9 @@ from phases.shared.oracle_helpers import score_symbol_native
 from runtime.cost_model import wire_cost_models
 from runtime.tag_schema import encode_entry_tag
 from runtime.indicators import INDICATOR_KEYS, TBounceTracker, weekly_aggregate
+# #336/#338 continuous-weekly fix: WeeklyIchimokuAsOf is imported LAZILY inside
+# _continuous_weekly_scalars (the flag-ON path only) so the default flag-OFF load path adds NO new
+# import dependency — keeps the cloud bundle byte-untouched until the cloud leg is taken (deferred).
 from runtime.universe_select import (
     DvWindow,
     apply_floors,
@@ -321,6 +324,12 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
     # symbol list (e.g. "URBN,PEN") the weekly consolidator dumps LEAN's RUNTIME weekly OHLC + Ichimoku
     # to the log (WEEKLY_DUMP| marker) for diffing vs the warmup-cache WeeklyIchimokuAsOf. REVERSIBLE.
     WEEKLY_DUMP_SYMS: str | None = None
+    # #336/#338 ws1 — CONTINUOUS-WEEKLY fix (default OFF = byte-untouched ship path). When True, the
+    # daily decision re-derives each candidate's weekly Ichimoku from full CONTINUOUS daily history
+    # (WeeklyIchimokuAsOf over self.history — bypasses the subscription-gated consolidator at the
+    # source, the #336 root) + populates qc._warmup_cache so the BctScoreFull cache branch scores the
+    # CONTINUOUS weekly. LIVE-behavior change → flag-gated; the offline cache + gate validate it.
+    CONTINUOUS_WEEKLY: bool = False
     # #313: the daily DECISION fires on a scheduled AFTER-CLOSE event (decoupled from on_data
     # bar-presence). Minutes after SPY's close → T's daily data is complete (no T+1 look-ahead),
     # the daily indicators are warm with T's bar, the universe selection for T is current.
@@ -365,6 +374,10 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             {s.strip().lower() for s in self.WEEKLY_DUMP_SYMS.split(",") if s.strip()}
             if self.WEEKLY_DUMP_SYMS else None
         )
+        # #336/#338 continuous-weekly: flag-on → arm qc._warmup_cache so the BctScoreFull cache branch
+        # consumes the per-decision continuous-weekly scalars populated in _on_after_close_decision.
+        if self.CONTINUOUS_WEEKLY:
+            self._warmup_cache: dict[str, dict] = {}
 
         # RAW normalization everywhere — adjusted prices corrupt Ichimoku (2649e2e).
         self.universe_settings.resolution = Resolution.DAILY
@@ -871,6 +884,53 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             w_ichi.update(bar)
             w_close.add(float(wb["close"]))
 
+    def _continuous_weekly_scalars(self, sym: Any) -> dict | None:
+        """#336/#338 — the candidate's 15-scalar dict with a CONTINUOUS weekly. Daily/ADX/ROC come
+        from the live (warm) maintained indicators (they already match the cache — gate daily legs);
+        ONLY the WEEKLY is re-derived from full CONTINUOUS daily history (WeeklyIchimokuAsOf over
+        self.history) — bypassing the subscription-gated consolidator (the #336 root) at the source.
+        as-of (history at T = data <=T, no look-ahead). Returns None if the live indicators / weekly
+        aren't ready (candidate skipped — mirrors score_symbol_native returning None)."""
+        from runtime.lean_indicators import WeeklyIchimokuAsOf  # lazy — flag-ON path only (#336/#338)
+        ind = self._indicators.get(sym)
+        if ind is None:
+            return None
+        d_ichi = ind["d_ichi"]; sma200 = ind["sma200"]; adx = ind["adx"]
+        adx_window = ind["adx_window"]; roc13 = ind["roc13"]
+        if not (d_ichi.is_ready and sma200.is_ready and adx.is_ready and roc13.is_ready):
+            return None
+        if adx_window.count < 4:
+            return None
+        hist = self.history(sym, self.WARMUP_DAYS, Resolution.DAILY)
+        if hist is None or hist.empty:
+            return None
+        if isinstance(hist.index, pd.MultiIndex):
+            hist = hist.droplevel(0)
+        hist.columns = [c.lower() for c in hist.columns]
+        w = WeeklyIchimokuAsOf()
+        for ts, row in hist.iterrows():
+            d = ts.date() if hasattr(ts, "date") else ts
+            w.update(d, float(row["open"]), float(row["high"]), float(row["low"]), float(row["close"]))
+        if not w.is_ready:
+            return None
+        d_price = float(self.securities[sym].price)
+        if d_price <= 0:
+            return None
+        return {
+            "d_price": d_price,
+            "d_tenkan": d_ichi.tenkan.current.value,
+            "d_cloud_top": max(d_ichi.senkou_a.current.value, d_ichi.senkou_b.current.value),
+            "ma200": sma200.current.value,
+            "w_tenkan": w.tenkan, "w_kijun": w.kijun,
+            "w_senkou_a": w.senkou_a, "w_senkou_b": w.senkou_b,
+            "w_close_0": w.w_close(0), "w_close_26": w.w_close(26),
+            "adx_now": adx.current.value,
+            "plus_di": adx.positive_directional_index.current.value,
+            "minus_di": adx.negative_directional_index.current.value,
+            "adx_3back": adx_window[3],
+            "roc13": roc13.current.value,
+        }
+
     def _seed_daily(
         self,
         sym: Any,
@@ -1013,6 +1073,16 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         # the cap and the signal filter was bypassed → silent 0 orders; fixed here.)
         ctx = PhaseContext(qc=self, time=self.time, data=None)  # scheduled event — no slice; daily phases read maintained indicators
         ctx.clock = "daily"
+        # #336/#338 CONTINUOUS_WEEKLY (flag-gated; default OFF = live path byte-untouched). Before the
+        # phase chain reads scalars, populate qc._warmup_cache[sym][today] with the continuous-weekly
+        # 15-scalar dict (daily/ADX/ROC from the live warm indicators; the WEEKLY re-derived continuous
+        # via self.history → bypasses the subscription-gated consolidator, the #336 root). BctScoreFull's
+        # cache branch (dec9947) then scores from these. Keyed by symbol.value + today (the decision date).
+        if self.CONTINUOUS_WEEKLY:
+            for sym in list(self._indicators):
+                scalars = self._continuous_weekly_scalars(sym)
+                if scalars is not None:
+                    self._warmup_cache.setdefault(sym.value, {})[today] = scalars
         self.engine.on_data_with_ctx(ctx)
         # The daily pipeline's surviving intents == the signal winners (entry_selection/timing/sizing
         # are on the INTRADAY clock for the intraday champion, so the daily bar_state ends at signal).
