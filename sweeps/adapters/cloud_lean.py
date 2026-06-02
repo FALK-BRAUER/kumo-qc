@@ -19,6 +19,7 @@ adapter never imports it — the prod wiring passes its functions in from the ca
 """
 from __future__ import annotations
 
+import logging
 import math
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
@@ -183,8 +184,21 @@ class CloudLeanRun:
     ) -> None:
         """Invoke the injected persist hook, keeping a persist failure LOUD (re-raise). On the
         dirty path the original CloudValidationError is the primary verdict — chain the persist
-        failure onto it (`from original`) so the trace shows BOTH, never swallowing either."""
+        failure onto it (`from original`) so the trace shows BOTH, never swallowing either.
+
+        EMPTY backtest_id guard (HQ edge): a deploy/submit FAILURE yields backtest_id="" (no run
+        happened). persist_run requires a backtest_id → it would raise ArchiveError, escalating a
+        ROUTINE deploy hiccup (run-to-learn retries/skips it) into a data-integrity HALT. There is
+        nothing to archive without a run id, so SKIP persist + log; the dirty verdict still re-raises
+        in fetch() as the routine CloudValidationError. (backtest_id-REQUIRED is right for a REAL run,
+        wrong as a deploy-failure escalator.)"""
         assert self.persist is not None
+        if not result.backtest_id:
+            logging.getLogger(__name__).info(
+                "archive SKIP: no run to archive (empty backtest_id — deploy/submit failure, "
+                "status=%s); routine drop, not a data-integrity halt", status.value,
+            )
+            return
         try:
             self.persist(config=config, result=result, status=status)
         except Exception as exc:  # noqa: BLE001 — a snapshotter failure is unacceptable-silent

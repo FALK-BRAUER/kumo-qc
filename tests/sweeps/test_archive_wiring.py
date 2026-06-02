@@ -135,6 +135,21 @@ def test_crashed_cloud_run_persists_crashed_then_raises() -> None:
     assert captured == [RunStatus.CRASHED]  # archived BEFORE the winner is dropped
 
 
+def test_empty_backtest_id_skips_persist_routine_drop_not_halt() -> None:
+    # HQ edge: a deploy/submit FAILURE yields backtest_id="" (no run). persist MUST be SKIPPED
+    # (nothing to archive) — not escalated into an ArchiveError data-integrity halt. The routine
+    # CloudValidationError still re-raises (run-to-learn drops/retries it).
+    called: list[RunStatus] = []
+
+    def persist(*, config: SweepConfig, result: CloudResult, status: RunStatus) -> None:
+        called.append(status)  # must NOT be reached
+
+    res = CloudResult(backtest_id="", progress=0.0, error="submit failed: ...", raw={})
+    with pytest.raises(CloudValidationError):  # the routine dirty verdict, NOT ArchiveError
+        _cloud_adapter(res, persist).fetch(_config(), W)
+    assert called == [], "persist must be SKIPPED on an empty backtest_id (no run to archive)"
+
+
 def test_degraded_cloud_run_persists_degraded_then_raises() -> None:
     captured: list[RunStatus] = []
 
