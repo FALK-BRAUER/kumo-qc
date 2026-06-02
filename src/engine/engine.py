@@ -454,6 +454,12 @@ class StrategyEngine:
                 if not hasattr(qc, "_position_meta"):
                     qc._position_meta = {}
                 meta: dict[str, Any] = {"entry_date": ctx.time, "entry_price": price}
+                # #339 rotation: stamp the entry's decision_score (optional runtime hook) so the
+                # rotation phase can rank HELD positions by signal strength vs new candidates. No-op
+                # if the runtime doesn't provide the hook (engine stays strategy-generic).
+                _score_hook = getattr(qc, "_decision_score_for", None)
+                if callable(_score_hook):
+                    meta["decision_score"] = _score_hook(sym)
                 # #290 GTC PROTECTIVE STOP — the catastrophic floor UNDER the runtime exit. A
                 # resting broker-side stop_market (GTC by default) placed alongside the entry, so
                 # it fires intrabar on a gap/outage/halt even when the runtime exit doesn't. We

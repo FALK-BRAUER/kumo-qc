@@ -1303,6 +1303,17 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             )
         return snap
 
+    def _decision_score_for(self, sym: Any) -> "int | None":
+        """#339 rotation hook (called by the engine at FIRE_ENTRIES to stamp _position_meta). The
+        entered name's daily decision_score from its snapshot thesis — so the rotation phase can rank
+        HELD positions by signal strength vs new candidates. None if no snapshot/score (never raises:
+        this is a metadata stamp, not an authority gate — the entry already passed snapshot_for_entry)."""
+        snap = self._candidate_snapshot.get(sym)
+        if snap is None:
+            return None
+        score = snap.get("score")
+        return int(score) if score is not None else None
+
     def _inject_intraday_candidates(self, ictx: PhaseContext) -> None:
         """#276b-1 CANDIDATE INJECTION (the two-clock seam, HQ/Gemini-reviewed). ctx.bar_state is
         FRESH per 5-min tick; the standing daily candidates live in `_candidate_snapshot` (276b-0).
