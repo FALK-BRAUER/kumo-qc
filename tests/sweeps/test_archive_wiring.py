@@ -364,6 +364,33 @@ def test_local_persist_closure_writes_durable_artifact(tmp_path: Path) -> None:
     assert row["context_status"] == "OK"
 
 
+def test_local_persist_carries_funnel_from_runtime_statistics(tmp_path: Path) -> None:
+    """#12: the local persist must thread the LEAN result's runtimeStatistics (which carries the #303
+    funnel — funnel.signal_winners→…→orders + funnel._sem legend) into the archived result.json.
+    Without it the sweep cells archive funnel=None (the local-adapter gap closed here)."""
+    rp = _local_order_events(tmp_path)
+    # graft a runtimeStatistics funnel block onto the fixture result JSON
+    doc = json.loads(rp.read_text())
+    doc["runtimeStatistics"] = {
+        "Equity": "100000", "funnel.signal_winners": "6218", "funnel.orders": "28",
+        "funnel.regime_pass": "5873", "funnel._sem.orders": "fire",
+    }
+    rp.write_text(json.dumps(doc))
+    dest = tmp_path / "archive"
+    persist = make_local_persist(
+        commit="abc1234", data_fingerprint="data-fp", objective_version="323.v1",
+        dest_root=dest, clock=lambda: "2026-06-02T00:00:00+00:00",
+    )
+    cfg = _config()
+    persist(config=cfg, result_path=rp, status=RunStatus.COMPLETED_CLEAN, window=W)
+    result_doc = json.loads((dest / cfg.config_hash / "123" / "result.json").read_text())
+    rt = result_doc["runtime_statistics"]
+    assert rt is not None, "funnel/runtimeStatistics lost — the #12 gap"
+    assert rt["funnel.signal_winners"] == "6218"
+    assert rt["funnel.orders"] == "28"
+    assert rt["funnel._sem.orders"] == "fire"  # the semantics legend rides along too
+
+
 def _local_all_open_events(tmp_path: Path) -> Path:
     """An ALL-OPEN backtest fixture: entries only, NO exits (the cut-losers/let-winners shape at a
     window that ends mid-trade — every winner is still open at end-of-data). 2 buys, 0 sells →

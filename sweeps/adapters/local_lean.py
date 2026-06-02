@@ -418,6 +418,11 @@ def make_local_persist(
             dest_root=dest_root,
             end_of_data=end_of_data,  # #325 fix: capture CENSORED-OPEN (positions open at window-end)
             m2m_mark=_m2m_mark,       # local-daily provisional mark (NOT cloud-faithful; winner→cloud-validate)
+            # #12: thread the LEAN result's runtimeStatistics → archived result.json. The #303 funnel
+            # (funnel.signal_winners→…→orders + funnel._sem legend) RIDES runtimeStatistics; without
+            # this the local sweep cells archive funnel=None and the per-run attrition record is lost
+            # (the cloud path already passed it; this closes the local-adapter gap, cf the #11 doc).
+            runtime_statistics=doc.get("runtimeStatistics") or doc.get("RuntimeStatistics") or None,
         )
 
     return persist
