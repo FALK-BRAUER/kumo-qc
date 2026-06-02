@@ -26,7 +26,7 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(_ROOT), str(_ROOT / "src"), str(_ROOT / "scripts")]
 
-os.environ["SWEEP_LEAN_PARAMS"] = json.dumps({"continuous-weekly": "1"})
+os.environ["SWEEP_LEAN_PARAMS"] = json.dumps({"continuous-weekly": "1", "weekly-dump-syms": "urbn"})
 os.environ.setdefault("DOCKER_HOST", "unix:///Users/falk/.docker/run/docker.sock")
 
 from sweeps.adapters.qc_local_prod import make_local_run  # noqa: E402
@@ -66,24 +66,43 @@ def main() -> None:
     m = adapter(champ, W)
     print("METRICS:", json.dumps(m, default=str)[:3000])
 
-    # locate the most-recent run_dir + grep its order events for URBN
-    runs = sorted(glob.glob(str(_ROOT / "sweeps" / "runs" / "*")), key=os.path.getmtime)
-    if runs:
-        rd = runs[-1]
-        print(f"run_dir: {rd}")
-        orders = glob.glob(f"{rd}/**/*order-events*.json", recursive=True) + \
-            glob.glob(f"{rd}/**/orders/*.json", recursive=True)
-        print(f"order-event files: {orders[:3]}")
-        for of in orders[:1]:
-            try:
-                data = json.loads(Path(of).read_text())
-                urbn = [o for o in (data if isinstance(data, list) else data.values())
-                        if isinstance(o, dict) and "URBN" in str(o.get("symbol", o.get("Symbol", "")))]
-                print(f"  URBN order events: {len(urbn)}")
-                for o in urbn[:4]:
-                    print("   ", json.dumps(o, default=str)[:300])
-            except Exception as e:  # noqa: BLE001
-                print(f"  (could not parse {of}: {e})")
+    # SINGLE-SOURCE PROOF: diff the LIVE continuous-weekly scalars (CW_SCALARS log lines) vs the
+    # OFFLINE cache for URBN at each decision date. Match → self.history-weekly == zip-weekly == fix.
+    _diff_live_vs_offline_urbn()
+
+
+_WEEKLY_FIELDS = ("w_tenkan", "w_kijun", "w_senkou_a", "w_senkou_b", "w_close_0", "w_close_26")
+
+
+def _diff_live_vs_offline_urbn() -> None:
+    from sweeps.warmup_cache.table_builder import build_ticker_scalars, read_daily_zip
+
+    logs = glob.glob(str(_ROOT / "sweeps" / "runs" / "e3b0c44298fc" / "w2_2025q2" / "**" / "*-log.txt"),
+                     recursive=True)
+    logs = sorted(logs, key=os.path.getmtime)
+    if not logs:
+        print("SINGLE-SOURCE: no log file found")
+        return
+    live: dict[str, dict] = {}
+    for line in Path(logs[-1]).read_text().splitlines():
+        if "CW_SCALARS|URBN|" in line:
+            _, _sym, d, payload = line.split("CW_SCALARS|", 1)[1].split("|", 3)
+            live[d] = json.loads(payload)
+    zp = _DAILY / "urbn.zip"
+    offline = {dd.isoformat(): s for dd, s in build_ticker_scalars(read_daily_zip(zp))} if zp.exists() else {}
+    print(f"SINGLE-SOURCE: {len(live)} URBN CW_SCALARS log lines captured")
+    mismatches = 0
+    for d in sorted(live):
+        if d not in offline:
+            continue
+        lw = {k: round(float(live[d][k]), 6) for k in _WEEKLY_FIELDS}
+        ow = {k: round(float(offline[d][k]), 6) for k in _WEEKLY_FIELDS}
+        ok = lw == ow
+        if not ok:
+            mismatches += 1
+            print(f"  MISMATCH {d}: live={lw} offline={ow}")
+    print(f"SINGLE-SOURCE RESULT: {len(live)} dates, {mismatches} weekly mismatches "
+          f"→ {'PROVEN single-sourced' if mismatches == 0 and live else 'DIVERGENCE — STOP'}")
 
 
 if __name__ == "__main__":

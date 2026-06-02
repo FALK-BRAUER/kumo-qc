@@ -369,7 +369,11 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self.set_benchmark("SPY")
         self.set_time_zone("America/New_York")  # match legacy champion (scheduling/timestamps)
         self.set_warmup(timedelta(days=self.WARMUP_DAYS))
-        # #336 diagnostic flag (default None → OFF): parse the injected symbol-allowlist once.
+        # #336 diagnostic flag (default None → OFF): parse the injected symbol-allowlist once. The
+        # `weekly-dump-syms` LEAN parameter can set the allowlist for a run (absent → class-attr default).
+        _dump_param = self.get_parameter("weekly-dump-syms", "")
+        if _dump_param:
+            self.WEEKLY_DUMP_SYMS = _dump_param
         self._weekly_dump_syms = (
             {s.strip().lower() for s in self.WEEKLY_DUMP_SYMS.split(",") if s.strip()}
             if self.WEEKLY_DUMP_SYMS else None
@@ -1087,6 +1091,12 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                 scalars = self._continuous_weekly_scalars(sym)
                 if scalars is not None:
                     self._warmup_cache.setdefault(sym.value, {})[today] = scalars
+                    # #336 single-source PROOF instrumentation (reversible; gated on the diagnostic
+                    # allowlist): dump the LIVE continuous-weekly scalars so they can be diffed
+                    # byte-for-byte vs the OFFLINE cache (proves self.history-weekly == zip-weekly).
+                    if self._weekly_dump_syms and sym.value.lower() in self._weekly_dump_syms:
+                        self.log("CW_SCALARS|" + sym.value + "|" + today.isoformat() + "|"
+                                 + json.dumps(scalars, separators=(",", ":"), default=float))
         self.engine.on_data_with_ctx(ctx)
         # The daily pipeline's surviving intents == the signal winners (entry_selection/timing/sizing
         # are on the INTRADAY clock for the intraday champion, so the daily bar_state ends at signal).
