@@ -116,6 +116,20 @@ def main(mode: str) -> None:
 
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / f"leaderboard_{mode}.csv").write_text(outcome.leaderboard_csv)
+    # #10: worktree-local sweep index in bt-results.csv format (single-writer-on-main → merge via
+    # scripts/merge_sweep_index.py on demand; never append to bt-results.csv from a worktree).
+    if outcome.ledger:
+        from datetime import datetime, timezone
+        from sweeps.provenance import git_branch
+        from sweeps.sweep_index import sweep_index_rows, to_index_csv
+        env = "local" if mode.startswith("local") else "cloud"
+        rows = sweep_index_rows(
+            outcome.ledger, windows={w.name: w for w in windows}, branch=git_branch(_ROOT),
+            env=env, grid=f"dvrank_{mode}", date_run=datetime.now(timezone.utc).isoformat(),
+        )
+        (OUT / f"sweep_index_{mode}.csv").write_text(to_index_csv(rows))
+        print(f"  sweep_index_{mode}.csv: {len(rows)} rows (merge on main: "
+              f"python3 scripts/merge_sweep_index.py)")
     print(f"\n=== LEADERBOARD ({mode}) — {len(outcome.leaderboard)} ranked, {len(outcome.failures)} failed ===")
     print(outcome.leaderboard_csv)
     for sc in outcome.scorecards:

@@ -109,6 +109,20 @@ def git_commit(repo_root: Path | None = None) -> str:
     return out.stdout.strip()
 
 
+def git_branch(repo_root: Path | None = None) -> str:
+    """Current git branch (abbreviated ref). For the bt-results `branch` column. Detached HEAD →
+    'HEAD'; never raises into the caller's path on a benign read (returns 'unknown' on failure)."""
+    cwd = str(repo_root) if repo_root is not None else None
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=cwd, capture_output=True, text=True, check=True,
+        )
+        return out.stdout.strip() or "unknown"
+    except Exception:
+        return "unknown"
+
+
 def ledger_rows(
     run: ConfigRun,
     provenance: Provenance,
