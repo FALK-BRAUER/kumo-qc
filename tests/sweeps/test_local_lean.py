@@ -103,11 +103,22 @@ def test_per_config_window_dir_isolation(tmp_path: Path) -> None:
 
 
 def test_data_symlink_created(tmp_path: Path) -> None:
-    adapter = _adapter(tmp_path, fixture="lean_result_clean.json")
+    import dataclasses
+    # symlink_data is opt-in (default False — a project data-symlink HANGS lean in-workspace, 2026-06-02);
+    # this exercises the feature for out-of-workspace run_dirs that need their own data mount.
+    adapter = dataclasses.replace(_adapter(tmp_path, fixture="lean_result_clean.json"), symlink_data=True)
     adapter(_config(), W)
     link = adapter._run_dir(_config(), W) / "data"
     assert link.is_symlink()
     assert link.resolve() == adapter.data_root.resolve()
+
+
+def test_data_symlink_skipped_by_default(tmp_path: Path) -> None:
+    # DEFAULT (symlink_data=False): NO project data symlink — run_dirs use the root lean.json
+    # data-folder; a project symlink would hang lean (the Docker bind-mount cannot mount a symlink).
+    adapter = _adapter(tmp_path, fixture="lean_result_clean.json")
+    adapter(_config(), W)
+    assert not (adapter._run_dir(_config(), W) / "data").exists()
 
 
 def test_marker_mismatch_raises(tmp_path: Path) -> None:

@@ -196,6 +196,12 @@ class LocalLeanRun:
     run_lean: RunLean = _default_run_lean
     find_result: FindResult = _default_find_result
     persist: ArchivePersister | None = None
+    # When run_dirs live INSIDE the lean workspace, lean resolves data via the ROOT lean.json
+    # data-folder — a PROJECT-level `data/` symlink then HANGS lean (the Docker bind-mount cannot
+    # mount a symlinked dir; verified 2026-06-02: a project data-symlink → 0 output / hang; removing
+    # it → the BT runs). So symlink_data defaults False; set True only for standalone out-of-workspace
+    # run_dirs that need their own data mount.
+    symlink_data: bool = False
 
     def _run_dir(self, config: SweepConfig, window: Window) -> Path:
         """The UNIQUE isolated project dir for this (config, window) — no cross-run collision."""
@@ -216,7 +222,8 @@ class LocalLeanRun:
         run_dir.mkdir(parents=True, exist_ok=True)
 
         expected_marker = self.dist_builder(config, window, run_dir)
-        self._symlink_data(run_dir)
+        if self.symlink_data:
+            self._symlink_data(run_dir)  # only for out-of-workspace run_dirs (hangs lean in-workspace)
 
         rc = self.run_lean(run_dir)
         if rc != 0:
