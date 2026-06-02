@@ -389,19 +389,24 @@ class StrategyEngine:
             adds=self._fired_adds,
         )
 
-    def _submit(self, qc: Any, sym: Any, intent: Any) -> Any:
+    def _submit(self, qc: Any, sym: Any, intent: Any, tag: str = "") -> Any:
         """#276a fire-seam: submit ONE order, dispatching on intent.order_type. ONLY the engine's
         FIRE_* path calls the broker API — phases emit OrderIntent only. Returns the order ticket
-        (for protective-stop tracking / cancel-on-exit). Unknown order_type → fail loud."""
+        (for protective-stop tracking / cancel-on-exit). Unknown order_type → fail loud.
+
+        `tag` (#archive B2): a per-order context string carried on the entry order so the results
+        archive can recover the conditions-at-decision from /orders/read (the one durable channel —
+        logs/charts/ObjectStore are dead). Empty for non-entry fires. Passed as a kwarg so a broker
+        stub that does not accept it (older fakes) fails loud rather than mis-binding positionally."""
         ot = getattr(intent, "order_type", "market_on_open")
         if ot == "market_on_open":
-            return qc.market_on_open_order(sym, intent.qty)
+            return qc.market_on_open_order(sym, intent.qty, tag=tag)
         if ot == "market":
-            return qc.market_order(sym, intent.qty)
+            return qc.market_order(sym, intent.qty, tag=tag)
         if ot == "stop_market":
-            return qc.stop_market_order(sym, intent.qty, intent.stop)
+            return qc.stop_market_order(sym, intent.qty, intent.stop, tag=tag)
         if ot == "limit":
-            return qc.limit_order(sym, intent.qty, intent.price)
+            return qc.limit_order(sym, intent.qty, intent.price, tag=tag)
         raise ConfigError(
             f"unknown OrderIntent.order_type {ot!r} for {intent.ticker} — the fire seam dispatches "
             f"market_on_open|market|stop_market|limit only (#276a)"
@@ -430,7 +435,12 @@ class StrategyEngine:
                         f"— would orphan the prior GTC stop (over-sell risk). The cancel-replace "
                         f"lifecycle (#276b) must handle re-entry before this combo is allowed (#276a)"
                     )
-                self._submit(qc, sym, intent)  # the entry, per intent.order_type
+                # #archive B2: build the per-entry context tag (the learn-substrate channel) via an
+                # optional runtime hook — no-op string if the runtime doesn't emit it. Engine stays
+                # generic: it doesn't know the strategy's context, the hook gathers it from qc state.
+                _build_tag = getattr(qc, "_build_entry_tag", None)
+                tag = _build_tag(sym) if callable(_build_tag) else ""
+                self._submit(qc, sym, intent, tag=tag)  # the entry, per intent.order_type
                 # #276b-1 (Gemini fix #1): mark the entry IN-FLIGHT so the runtime's intraday
                 # candidate-injection won't re-inject this sym before the order resolves (double-
                 # entry). Optional hook — no-op if the runtime doesn't track pending entries.

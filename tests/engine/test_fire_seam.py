@@ -71,16 +71,16 @@ class FakeQC:
     def Log(self, m: str) -> None: ...
     def log(self, m: str) -> None: ...
 
-    def market_on_open_order(self, sym, qty):
+    def market_on_open_order(self, sym, qty, tag=""):
         self.calls.append(("moo", sym.value, qty)); return FakeTicket()
 
-    def market_order(self, sym, qty):
+    def market_order(self, sym, qty, tag=""):
         self.calls.append(("market", sym.value, qty)); return FakeTicket()
 
-    def limit_order(self, sym, qty, price):
+    def limit_order(self, sym, qty, price, tag=""):
         self.calls.append(("limit", sym.value, qty, price)); return FakeTicket()
 
-    def stop_market_order(self, sym, qty, stop):
+    def stop_market_order(self, sym, qty, stop, tag=""):
         self.calls.append(("stop_market", sym.value, qty, stop))
         t = FakeTicket(); self._tickets.append(t); return t
 

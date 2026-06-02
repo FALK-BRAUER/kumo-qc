@@ -27,7 +27,7 @@ class FakeQC:
     def log(self, msg: str) -> None:
         self.logged.append(msg)
 
-    def market_on_open_order(self, symbol: Any, qty: int) -> None:
+    def market_on_open_order(self, symbol: Any, qty: int, tag: str = "") -> None:
         self.orders.append((symbol, qty))
 
 

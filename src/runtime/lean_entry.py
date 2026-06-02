@@ -283,6 +283,13 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
     # (runtime.cost_model.wire_cost_models) — local AND cloud, one code path, no `if cloud` branch.
     SLIPPAGE_PERCENT: float = 0.0005
 
+    # #archive B2: the per-entry context tag length cap. The entry order's `tag` is the ONE durable
+    # learn-substrate channel (recovered via /orders/read; logs/charts/ObjectStore are dead). The
+    # tag NEVER silently truncates — over the cap is fail-loud (a truncated tag = corrupt learn
+    # data). PROVISIONAL 200; refine via the EMPIRICAL probe (submit increasing-length tags to QC,
+    # find the real truncation/reject point, set this to <90% of it + a CI assert). #archive-followup.
+    ENTRY_TAG_MAX: int = 200
+
     def initialize(self) -> None:
         self.set_start_date(*self.START_DATE)
         self.set_end_date(*self.END_DATE)
@@ -967,6 +974,54 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             return int(getattr(slot.params, "min_score", 7))
         except Exception:
             return 7
+
+    def _build_entry_tag(self, sym: Any) -> str:
+        """#archive B2 — the per-entry CONTEXT tag (URL-query), set on the entry order by the engine
+        fire seam (the optional `_build_entry_tag` hook). Recovered post-run via /orders/read → the
+        results archive's per-trade `decision_*` context (the conditions the entry SAW). The durable
+        channel: logs/charts/ObjectStore are unretrievable; the order tag is.
+
+        decision_* fields (HQ: separate decision-context from execution-fill): score + the 8 BCT
+        conditions (the learn-substrate core, from the snapshot) + the intraday confirm context
+        (gap_pct, vol_ratio, tenkan_dist, recomputed from _intraday + the snapshot's signal_price) +
+        scanner rank. Best-effort + bounded: a piece that can't be cleanly resolved is OMITTED, never
+        faked. Fail-LOUD (DegradedDataError) if the tag exceeds ENTRY_TAG_MAX — never silent-truncate
+        (a truncated tag = corrupt learn data). Regime (spy>200ma, vix) = #archive-followup."""
+        from urllib.parse import urlencode
+
+        snap = getattr(self, "_candidate_snapshot", {}).get(sym, {})
+        ist = getattr(self, "_intraday", {}).get(sym, {})
+        fields: dict[str, Any] = {}
+        if snap.get("score") is not None:
+            fields["decision_score"] = snap["score"]
+        conds = snap.get("conditions") or []
+        if conds:
+            fields["decision_cond"] = "".join("1" if c else "0" for c in conds)  # 8-bit, stable order
+        sp = snap.get("signal_price")
+        last_close = ist.get("last_close")
+        if sp and last_close is not None:
+            fields["decision_gap"] = f"{(last_close - sp) / sp:.4f}"
+        vw = ist.get("vol_window")
+        last_bar = ist.get("last_bar")
+        n = getattr(vw, "count", 0) if vw is not None else 0
+        if n > 0 and last_bar is not None:
+            mean_vol = sum(vw[i] for i in range(n)) / n
+            if mean_vol > 0:
+                fields["decision_vol"] = f"{float(last_bar.volume) / mean_vol:.3f}"
+        tk = ist.get("intraday_tenkan")
+        if tk is not None and getattr(tk, "is_ready", False) and last_close:
+            fields["decision_tdist"] = f"{(last_close - float(tk.current.value)) / last_close:.4f}"
+        ranked = getattr(self, "_ranked_today", [])
+        val = getattr(sym, "value", None)
+        if val in ranked:
+            fields["decision_rank"] = ranked.index(val)
+        tag = urlencode(fields)
+        if len(tag) > self.ENTRY_TAG_MAX:
+            raise DegradedDataError(
+                f"entry tag {len(tag)} > ENTRY_TAG_MAX={self.ENTRY_TAG_MAX} for {val} — would "
+                f"truncate the learn-substrate context; fail loud (#archive B2, never silent-truncate)"
+            )
+        return tag
 
     def _capture_candidate_snapshot(self, winners: "list[str]") -> None:
         """#276b-0/#276b-1 daily→intraday handoff. Snapshot each DECIDED candidate's thesis

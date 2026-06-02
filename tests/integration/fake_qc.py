@@ -266,7 +266,7 @@ class FakeQC:
         self.plots: list[tuple[str, str, float]] = []
 
     # ---- order API (engine._fire) ----
-    def market_on_open_order(self, symbol: Any, qty: int) -> None:
+    def market_on_open_order(self, symbol: Any, qty: int, tag: str = "") -> None:
         self.orders.append((symbol, qty))
 
     # ---- logging ----

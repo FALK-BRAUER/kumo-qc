@@ -271,3 +271,66 @@ def test_session_end_clears_entered_guard(monkeypatch) -> None:
     qc.on_end_of_day()
     assert qc._entered_today == set()
     assert _inject(qc) == ["SHOP"], "next session the name is entry-eligible again"
+
+
+# ── #archive B2: the entry-context tag (the durable learn-substrate channel) ──
+
+def test_build_entry_tag_emits_decision_context() -> None:
+    from urllib.parse import parse_qs
+
+    class _Vol:
+        def __init__(self, vals: list) -> None: self._v = vals
+        @property
+        def count(self) -> int: return len(self._v)
+        def __getitem__(self, i: int): return self._v[i]
+
+    class _Bar: volume = 2000.0
+    class _Cur:
+        def __init__(self, v: float) -> None: self.value = v
+    class _Tk:
+        is_ready = True
+        def __init__(self, v: float) -> None: self.current = _Cur(v)
+
+    sym = _Sym("AAPL")
+    a = BctEngineAlgorithm()
+    a._candidate_snapshot = {sym: {"signal_price": 100.0, "score": 8,
+                                   "conditions": [True, True, True, True, True, True, True, True]}}
+    a._intraday = {sym: {"last_close": 104.0, "vol_window": _Vol([1000.0, 1000.0]),
+                         "last_bar": _Bar(), "intraday_tenkan": _Tk(102.0)}}
+    a._ranked_today = ["MSFT", "AAPL"]
+    q = parse_qs(a._build_entry_tag(sym))
+    assert q["decision_score"] == ["8"]
+    assert q["decision_cond"] == ["11111111"]          # 8 bits, stable order
+    assert q["decision_gap"] == ["0.0400"]             # (104-100)/100
+    assert q["decision_vol"] == ["2.000"]              # 2000 / mean(1000,1000)
+    assert q["decision_tdist"] == ["0.0192"]           # (104-102)/104
+    assert q["decision_rank"] == ["1"]                 # index in _ranked_today
+
+
+def test_build_entry_tag_omits_missing_pieces_never_fakes() -> None:
+    # a sparse state → only the resolvable fields appear (no fabricated zeros).
+    sym = _Sym("AAPL")
+    a = BctEngineAlgorithm()
+    a._candidate_snapshot = {sym: {"signal_price": 100.0, "score": 7, "conditions": []}}
+    a._intraday = {sym: {}}
+    a._ranked_today = []
+    from urllib.parse import parse_qs
+    q = parse_qs(a._build_entry_tag(sym))
+    assert q["decision_score"] == ["7"]
+    assert "decision_cond" not in q and "decision_gap" not in q and "decision_vol" not in q
+
+
+def test_build_entry_tag_fails_loud_over_cap() -> None:
+    from engine.base import DegradedDataError
+    sym = _Sym("AAPL")
+    a = BctEngineAlgorithm()
+    a.ENTRY_TAG_MAX = 10  # force the cap
+    a._candidate_snapshot = {sym: {"signal_price": 100.0, "score": 8,
+                                   "conditions": [True] * 8}}
+    a._intraday = {sym: {}}
+    a._ranked_today = []
+    try:
+        a._build_entry_tag(sym)
+        assert False, "must fail loud over the tag cap"
+    except DegradedDataError as e:
+        assert "truncate" in str(e)

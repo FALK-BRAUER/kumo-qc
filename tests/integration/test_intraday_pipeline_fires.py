@@ -117,15 +117,15 @@ class _FakeQC:
         self.logged.append(m)
 
     # order placement (the FIRE_ENTRIES seam)
-    def market_order(self, sym: Any, qty: int) -> Any:
+    def market_order(self, sym: Any, qty: int, tag: str = "") -> Any:
         self.orders.append(("market", sym, qty))
         return _Ticket()
 
-    def market_on_open_order(self, sym: Any, qty: int) -> Any:
+    def market_on_open_order(self, sym: Any, qty: int, tag: str = "") -> Any:
         self.orders.append(("moo", sym, qty))
         return _Ticket()
 
-    def stop_market_order(self, sym: Any, qty: int, stop: float) -> Any:
+    def stop_market_order(self, sym: Any, qty: int, stop: float, tag: str = "") -> Any:
         self.orders.append(("stop_market", sym, qty))
         return _Ticket()
 
