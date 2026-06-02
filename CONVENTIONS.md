@@ -58,6 +58,14 @@ The #218 retrofit experiments often USED forbidden mechanics (fixed slots, max-p
 2. **Windows before FY, ALWAYS.** After gate 0, run the multi-window validation; only THEN the full-FY-in-cloud run. **Never FY-first.**
 3. **Cloud + local in PARALLEL per step** (not sequential).
 
+### RUN-CLASS — every run DECLARES its class (Falk 2026-06-02; never conflate the two)
+Every backtest is one of two classes, declared up front (the `run_class` field on the archived `result.json` — `persist_run(run_class=…)`). They are NOT interchangeable and their metrics mean different things:
+
+- **VALIDATION** (a candidate/champion grade): **window-then-FY, NEVER FY-first; the 6 bi-monthly windows are mandatory** (gate above). Its **Sharpe / Ret / DD ARE grades** — they decide whether a config advances. This is the only class whose metrics may be cited as a result.
+- **SUBSTRATE-GENERATION** (mine fuel for #303): **full-year is OK** (the goal is trade COUNT / regime coverage, not a grade), **but** it MUST (a) emit the per-window funnel decomposition and (b) be **FLAGGED `run_class:"substrate-generation"`** so its metrics are never read as validation grades.
+
+**The slack this fixes:** the FY2024→2020 substrate runs were substrate-gen by intent (correct) but were reported with Sharpe/Ret/DD like validation runs — a full-year metric presented as if it were a window-validated grade. **A substrate-gen run's full-year Sharpe is NOT a validation result.** Declaring the class on every run makes the distinction un-skippable; a reader/reviewer who sees `run_class:"substrate-generation"` knows the metrics are descriptive, not a grade. (No retro-redo of those runs — they are retro-flagged in their `result.json` + the archive README.)
+
 Applies to **#277 champion_intraday re-baseline** + the **276b-1 proof-of-life smoke** (both run gate-0 2wk trade-by-trade FIRST). Minor local↔cloud misalignment is EXPECTED (vendor delta); the trade-by-trade diff — never a bare Sharpe comparison — is what proves it benign. This extends (does not replace) the divergence-debug protocol below.
 
 - **#262/#268 MOO-parity is RETIRED (#270).** The local↔cloud "1-bar entry-fill offset" was a SYMPTOM of the wrong blind-market-on-open model (the engine blind-filled an open it should never have filled), not a parity defect to fix. It retires with that model. Parity is re-established on the NEW daily-signal→intraday-confirmed model — and the same delivery-timing question now applies to the **intraday (5-min) clock**: confirm local and cloud deliver intraday bars on the same clock (de-risk with a two-clock SMOKE BT before the full build, then re-baseline). Do not resurrect the MOO-parity chase.

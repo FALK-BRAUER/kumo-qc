@@ -168,7 +168,7 @@ class M2MMark(Protocol):
 # gates on `schema_version` (v1 artifacts are censored-LESS) and reads `censored` to keep provisional
 # (unrealized) outcomes distinct from realized ones — that weighting is the mine's job, not ours.
 TRADE_SCHEMA_VERSION = 2
-RESULT_SCHEMA_VERSION = 1
+RESULT_SCHEMA_VERSION = 2  # v2 adds run_class (validation | substrate-generation | null); v1 lacks it
 
 _COND_BITS = COND_BITS  # the 8 BCT conditions, stable bit order (cond_0 .. cond_7) — shared source
 
@@ -615,6 +615,7 @@ def persist_run(
     end_of_data: datetime | str | None = None,
     m2m_mark: M2MMark | None = None,
     runtime_statistics: Mapping[str, Any] | None = None,
+    run_class: str | None = None,
     fetch_retries: int = 3,
     fetch_backoff: float = 2.0,
 ) -> Path:
@@ -634,6 +635,12 @@ def persist_run(
                           commit+config-hash+data-fingerprint is invalid).
       timestamp           caller-supplied ISO string — NOT computed here (no Date.now / determinism).
       env                 "local" | "cloud".
+      run_class           "validation" | "substrate-generation" (Falk 2026-06-02, CONVENTIONS run-class
+                          protocol). VALIDATION = a candidate/champion grade (window-then-FY, 6-window
+                          mandatory) — its Sharpe/Ret/DD ARE grades. SUBSTRATE-GENERATION = mine fuel
+                          (full-year OK for trade count) — its metrics are NOT validation grades and
+                          MUST NOT be read as such. Validated if given; None = undeclared (a protocol
+                          gap to fix, not an error here — back-compat for callers not yet threading it).
       orders_fetch        the injected `/orders/read` callable (retried w/ backoff; tests mock it).
       dest_root           the injected write root (tests pass tmp_path).
       end_of_data         the run's terminal timestamp (END_DATE / last-data day) — the mark date for
@@ -678,6 +685,11 @@ def persist_run(
         raise ArchiveError("config_hash is REQUIRED — refusing to archive")
     if env not in ("local", "cloud"):
         raise ArchiveError(f"env must be 'local' or 'cloud', got {env!r}")
+    if run_class is not None and run_class not in ("validation", "substrate-generation"):
+        raise ArchiveError(
+            f"run_class must be 'validation' or 'substrate-generation' (or None/undeclared), "
+            f"got {run_class!r} — never conflate a substrate-gen run's metrics with a validation grade"
+        )
 
     run_dir = Path(dest_root) / config_hash / backtest_id
     crashed = status is RunStatus.CRASHED
@@ -753,6 +765,9 @@ def persist_run(
         "objective_version": objective_version,
         "timestamp": timestamp,
         "env": env,
+        # run-class (Falk 2026-06-02): "validation" metrics ARE grades; "substrate-generation"
+        # metrics are NOT (mine fuel — full-year-OK, per-window decomp required). None = undeclared.
+        "run_class": run_class,
         "statistics": dict(statistics),
         # #303 funnel: the per-run cumulative funnel.* counters (signal_winners→…→orders) + the
         # funnel._sem legend, captured INLINE here (they ride /backtests/read.runtimeStatistics at

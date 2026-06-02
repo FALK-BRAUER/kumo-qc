@@ -125,6 +125,7 @@
   "n_trade_rows": 31,
   "objective_version": "323.v1",
   "result_schema_version": 1,
+  "run_class": "substrate-generation",
   "statistics": {
     "Alpha": "0.06",
     "Annual Standard Deviation": "0.136",
