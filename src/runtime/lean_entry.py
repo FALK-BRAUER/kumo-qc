@@ -317,6 +317,10 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
     # NOTE: this is the FULL-SIGNAL warmup. A Step-A-parity-only override may set ~40d; that is
     # NOT the strategy default and must never be hardcoded here.
     WARMUP_DAYS: int = 560
+    # #336 DIAGNOSTIC (default None = OFF, byte-untouched ship path): when injected with a comma-
+    # symbol list (e.g. "URBN,PEN") the weekly consolidator dumps LEAN's RUNTIME weekly OHLC + Ichimoku
+    # to the log (WEEKLY_DUMP| marker) for diffing vs the warmup-cache WeeklyIchimokuAsOf. REVERSIBLE.
+    WEEKLY_DUMP_SYMS: str | None = None
     # #313: the daily DECISION fires on a scheduled AFTER-CLOSE event (decoupled from on_data
     # bar-presence). Minutes after SPY's close → T's daily data is complete (no T+1 look-ahead),
     # the daily indicators are warm with T's bar, the universe selection for T is current.
@@ -356,6 +360,11 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self.set_benchmark("SPY")
         self.set_time_zone("America/New_York")  # match legacy champion (scheduling/timestamps)
         self.set_warmup(timedelta(days=self.WARMUP_DAYS))
+        # #336 diagnostic flag (default None → OFF): parse the injected symbol-allowlist once.
+        self._weekly_dump_syms = (
+            {s.strip().lower() for s in self.WEEKLY_DUMP_SYMS.split(",") if s.strip()}
+            if self.WEEKLY_DUMP_SYMS else None
+        )
 
         # RAW normalization everywhere — adjusted prices corrupt Ichimoku (2649e2e).
         self.universe_settings.resolution = Resolution.DAILY
@@ -667,6 +676,22 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         def _on_weekly(_: Any, bar: TradeBar) -> None:
             w_ichi.update(bar)
             w_close.add(bar.close)
+            # #336 DIAGNOSTIC (flag + symbol-allowlist gated; REVERSIBLE — not in the ship path):
+            # dump LEAN's RUNTIME weekly OHLC bar + Ichimoku to the log so the warmup-cache's
+            # WeeklyIchimokuAsOf can be diffed BAR-BY-BAR vs LEAN. flag-OFF = byte-untouched.
+            dump_syms = getattr(self, "_weekly_dump_syms", None)
+            if dump_syms is not None and sym.value.lower() in dump_syms:
+                wc0 = w_close[0] if w_close.count >= 1 else float("nan")
+                wc26 = w_close[26] if w_close.count >= 27 else float("nan")
+                self.log(
+                    f"WEEKLY_DUMP|{sym.value}|{bar.time.date()}|{float(bar.open):.6f}|"
+                    f"{float(bar.high):.6f}|{float(bar.low):.6f}|{float(bar.close):.6f}|"
+                    f"{(w_ichi.tenkan.current.value if w_ichi.is_ready else float('nan')):.6f}|"
+                    f"{(w_ichi.kijun.current.value if w_ichi.is_ready else float('nan')):.6f}|"
+                    f"{(w_ichi.senkou_a.current.value if w_ichi.is_ready else float('nan')):.6f}|"
+                    f"{(w_ichi.senkou_b.current.value if w_ichi.is_ready else float('nan')):.6f}|"
+                    f"{wc0:.6f}|{wc26:.6f}"
+                )
 
         consolidator.data_consolidated += _on_weekly
         self.subscription_manager.add_consolidator(sym, consolidator)
