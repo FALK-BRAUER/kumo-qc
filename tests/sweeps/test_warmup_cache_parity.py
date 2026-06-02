@@ -10,7 +10,11 @@ from pathlib import Path
 
 import pytest
 
-from sweeps.warmup_cache.lean_indicators import ADX, SMA, Delay, Ichimoku, Maximum, Minimum
+import datetime as dt
+
+from sweeps.warmup_cache.lean_indicators import (
+    ADX, SMA, Delay, Ichimoku, Maximum, Minimum, WeeklyIchimokuAsOf, monday_of_week,
+)
 
 GOLDEN = Path.home() / "reference/Lean/Tests/TestData/spy_with_ichimoku.csv"
 GOLDEN_ADX = Path.home() / "reference/Lean/Tests/TestData/spy_with_adx.txt"
@@ -65,6 +69,40 @@ def test_adx_matches_lean_golden() -> None:
                 f"{col} mismatch on {row['Date']}: port={port_val} golden={gold}")
             checked[key] += 1
     assert all(c > 50 for c in checked.values()), f"too few ADX rows checked: {checked}"
+
+
+def test_monday_of_week_bucketing() -> None:
+    # 2025-06-02 is a Monday; Tue..Fri of that week all bucket to it; next Mon = 06-09.
+    mon = dt.date(2025, 6, 2)
+    for off in range(5):  # Mon..Fri
+        assert monday_of_week(mon + dt.timedelta(days=off)) == mon
+    assert monday_of_week(dt.date(2025, 6, 9)) == dt.date(2025, 6, 9)  # next Monday → own week
+
+
+def test_weekly_asof_no_lookahead_and_boundary_emit() -> None:
+    """The as-of weekly close advances ONLY at a week boundary (first trading day of the next week),
+    and NEVER exposes the in-progress week (look-ahead). Includes a holiday-short week (no Monday)."""
+    w = WeeklyIchimokuAsOf()
+    # week A (Mon 06-02 .. Fri 06-06), week B HOLIDAY-SHORT (Mon 06-09 missing → starts Tue 06-10),
+    # week C (Mon 06-16 ..). closes chosen distinct per week.
+    bars = [
+        (dt.date(2025, 6, 2), 10), (dt.date(2025, 6, 3), 11), (dt.date(2025, 6, 6), 12),  # week A, close 12
+        (dt.date(2025, 6, 10), 20), (dt.date(2025, 6, 13), 22),                            # week B (holiday Mon), close 22
+        (dt.date(2025, 6, 16), 30),                                                         # week C, first day
+    ]
+    seen_completed = []
+    for d, px in bars:
+        w.update(d, px, px, px, px)
+        seen_completed.append(w.completed_weeks)
+    # During week A (3 bars): 0 completed weeks available yet (in-progress, not emitted).
+    assert seen_completed[:3] == [0, 0, 0], "in-progress week A leaked as completed (look-ahead)"
+    # First bar of week B (Tue 06-10, holiday Mon) → week A emits → 1 completed. Stable within week B.
+    assert seen_completed[3] == 1 and seen_completed[4] == 1
+    # First bar of week C (06-16) → week B emits → 2 completed.
+    assert seen_completed[5] == 2
+    # the latest completed weekly close at week C's first day is week B's close (22), NOT week C's (30).
+    assert w.w_close(0) == 22.0    # most-recent COMPLETED, never the in-progress week
+    assert w.w_close(1) == 12.0    # week A
 
 
 def test_rolling_primitives() -> None:

@@ -12,6 +12,7 @@ This module ports the indicator MATH; the table builder (separate) drives it ove
 """
 from __future__ import annotations
 
+import datetime as _dt
 from collections import deque
 
 
@@ -236,3 +237,86 @@ class ADX:
     def is_ready(self) -> bool:
         import math
         return not math.isnan(self.adx) and self._adx_wma.is_ready
+
+
+def monday_of_week(d: _dt.date) -> _dt.date:
+    """LEAN Calendar.WEEKLY bucket key: the Monday of d's week. Calendar.Weekly buckets [Monday,
+    next Monday); EndOfWeek(dt)=next Monday, start=that−7=this Monday. Python weekday(): Mon=0 →
+    d − weekday days = that Monday. (Equity daily bars are weekdays; Sat/Sun would map to that
+    week's Monday too, consistent with LEAN mapping Sunday to the prior Monday's week.)"""
+    return d - _dt.timedelta(days=d.weekday())
+
+
+class WeeklyIchimokuAsOf:
+    """As-of-faithful weekly Ichimoku for the warmup-cache (#332). Feed daily (date, o,h,l,c) bars in
+    order; at each daily date the exposed weekly scalars + w_close window are EXACTLY what LEAN's
+    TradeBarConsolidator(Calendar.WEEKLY) → weekly IchimokuKinkoHyo would have AVAILABLE at that daily
+    timestamp — no look-ahead.
+
+    TIMING (the as-of, matching LEAN's emit-on-next-period, PeriodCountConsolidatorBase L192): week W
+    is emitted when the FIRST daily bar of week W+1 arrives. So on the first trading day of a new week
+    we FINALIZE + feed the just-completed prior week BEFORE exposing this day's as-of — making week W's
+    weekly Ichimoku 'current' from week W+1's first trading day onward (and unchanged within a week).
+    A completed week's OHLC = open(first)/high(max)/low(min)/close(last) of its daily bars."""
+
+    def __init__(self) -> None:
+        self._w_ichi = Ichimoku()
+        self._w_close: deque[float] = deque(maxlen=64)  # completed weekly closes, newest at [-1]
+        self._cur_monday: _dt.date | None = None
+        self._cur: dict[str, float] | None = None  # accumulating (incomplete) week OHLC
+
+    def _finalize_current_week(self) -> None:
+        if self._cur is not None:
+            self._w_ichi.update(self._cur["high"], self._cur["low"], self._cur["close"])
+            self._w_close.append(self._cur["close"])
+            self._cur = None
+
+    def update(self, d: _dt.date, open_: float, high: float, low: float, close: float) -> None:
+        """Process daily bar d. On a week-boundary day, finalize+feed the prior week FIRST (the
+        emission), then start accumulating the new week with this bar."""
+        mt = monday_of_week(d)
+        if self._cur_monday is None:
+            self._cur_monday = mt
+        elif mt > self._cur_monday:                 # first bar of a new week → emit the prior week
+            self._finalize_current_week()
+            self._cur_monday = mt
+        if self._cur is None:                        # start the new (current, incomplete) week
+            self._cur = {"open": open_, "high": high, "low": low, "close": close}
+        else:                                        # extend the current week
+            self._cur["high"] = max(self._cur["high"], high)
+            self._cur["low"] = min(self._cur["low"], low)
+            self._cur["close"] = close
+
+    # --- as-of reads (the value AVAILABLE at the current daily date, excludes the in-progress week) ---
+    @property
+    def is_ready(self) -> bool:
+        return self._w_ichi.is_ready and len(self._w_close) >= 27
+
+    @property
+    def tenkan(self) -> float:
+        return self._w_ichi.tenkan
+
+    @property
+    def kijun(self) -> float:
+        return self._w_ichi.kijun
+
+    @property
+    def senkou_a(self) -> float:
+        return self._w_ichi.senkou_a
+
+    @property
+    def senkou_b(self) -> float:
+        return self._w_ichi.senkou_b
+
+    @property
+    def cloud_top(self) -> float:
+        return max(self._w_ichi.senkou_a, self._w_ichi.senkou_b)
+
+    def w_close(self, back: int) -> float:
+        """Completed weekly close `back` weeks ago (0 = latest completed). The chikou condition reads
+        w_close(0) vs w_close(26)."""
+        return self._w_close[-1 - back]
+
+    @property
+    def completed_weeks(self) -> int:
+        return len(self._w_close)
