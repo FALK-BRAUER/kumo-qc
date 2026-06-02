@@ -91,10 +91,14 @@ def main(mode: str) -> None:
         # can OOM a cell at >1 concurrency (the w5 race, 2026-06-02) — set SWEEP_WORKERS=1 for a
         # guaranteed-clean board until #332 (warmup-cache) removes the warmup cost.
         import os as _os
+        from sweeps.adapters.local_lean import WarmupGate
         from sweeps.adapters.qc_local_prod import make_local_run
         caps = [250, UNCAPPED] if mode == "local" else CAPS  # 'local' = min grid, 'localfull' = 4-cap
         workers = int(_os.environ.get("SWEEP_WORKERS", "3"))
-        adapter = make_local_run()
+        # (C) WARMUP-SEMAPHORE: at >1 concurrency, share ONE WarmupGate so only one cell warms at a
+        # time (the OOM control) while execution runs parallel. workers=1 → ungated (serial, no need).
+        gate = WarmupGate() if workers > 1 else None
+        adapter = make_local_run(warmup_gate=gate)
         windows, oos = sweep_windows(include_holdout=False), None  # 6 FY2025 panels; OOS→cloud
     else:
         raise SystemExit("usage: run_dvrank_grid.py smoke|min|full|local|localfull")

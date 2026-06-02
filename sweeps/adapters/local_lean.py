@@ -28,7 +28,8 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-from collections.abc import Callable, Mapping
+import threading
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -98,6 +99,70 @@ def _default_run_lean(project_dir: Path) -> int:
         check=False,
     )
     return proc.returncode
+
+
+class WarmupGate:
+    """(C) — serialize the memory-heavy WARMUP phase across concurrent local cells while keeping
+    post-warmup EXECUTION parallel.
+
+    WHY: the warmup LOAD (LEAN's progressive 750-day history + indicator build) is the OOM trigger
+    at >1 concurrency — two cells both mid-load blow host memory (the w5 death, 2026-06-02, died at
+    54% warmup beside a sibling). Execution AFTER warmup is light (steady-state RSS). So a capacity-1
+    gate around the WARMUP phase only — a cell holds the gate from launch until LEAN logs the
+    transition marker `Algorithm finished warming up.`, then RELEASES it so the next cell can begin
+    warming while this one trades on. At most one warmup load in flight; N>1 cells still execute
+    concurrently. This buys reliable parallelism today without #332's warmup-cache (which removes the
+    warmup cost entirely but needs a LEAN feasibility spike first).
+
+    NOT a workaround branch (CLAUDE.md §parity): it changes only the ORCHESTRATION (when cells start),
+    never the strategy code or data path — every cell runs the identical `lean backtest` it would run
+    serially. A cell that dies mid-warmup (no marker) releases the gate on process exit — no deadlock.
+    Capacity-1 at workers=1 is a no-op (the gate is always immediately available)."""
+
+    DONE_MARKER = "Algorithm finished warming up."
+
+    def __init__(self, capacity: int = 1) -> None:
+        # Semaphore(1): exactly one cell in the warmup phase at a time. capacity>1 would allow more
+        # concurrent warmups (raise only if a bigger host proves it safe — empirically 1 is right).
+        self._sem = threading.Semaphore(capacity)
+
+    def run(self, argv: list[str], env: Mapping[str, str],
+            popen: Callable[..., Any] | None = None) -> int:
+        """Launch `argv` under the gate: acquire, stream stdout, release at the warmup-done marker
+        (or on process exit if the marker never appears), return the exit code. `popen` is injected
+        in tests (a FakePopen); prod uses subprocess.Popen with merged stderr + line buffering."""
+        _popen = popen or (lambda: subprocess.Popen(  # noqa: E731 — thin prod default
+            argv, env=dict(env), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, bufsize=1,
+        ))
+        self._sem.acquire()
+        proc = _popen()
+        return self._stream(proc.stdout, proc.wait, proc)
+
+    def _stream(self, lines: Iterable[str], wait: Callable[[], int], proc: Any) -> int:
+        """Consume the line stream; release the gate the instant the warmup-done marker is seen, then
+        drain to exit. Pure-logic core (testable with a fake line iterable + wait/returncode)."""
+        released = False
+        try:
+            for line in lines:
+                if not released and self.DONE_MARKER in line:
+                    self._sem.release()
+                    released = True
+            wait()
+            return getattr(proc, "returncode", 0)
+        finally:
+            if not released:  # marker never seen (crash/OOM mid-warmup, or no stdout) — free the lane
+                self._sem.release()
+
+
+def make_gated_run_lean(gate: WarmupGate) -> RunLean:
+    """Build a RunLean closure that runs `lean backtest <dir>` through the WarmupGate (the Docker
+    host fix preserved). Drop-in for `run_lean` on LocalLeanRun — same `(project_dir) -> int`."""
+    def run_lean(project_dir: Path) -> int:
+        env = dict(os.environ)
+        env.setdefault("DOCKER_HOST", "unix:///Users/falk/.docker/run/docker.sock")
+        return gate.run(["lean", "backtest", str(project_dir)], env)
+    return run_lean
 
 
 def read_local_orders(result_path: Path) -> list[Mapping[str, Any]]:

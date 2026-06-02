@@ -18,8 +18,10 @@ from typing import Any
 
 from sweeps.adapters.local_lean import (
     LocalLeanRun,
+    WarmupGate,
     _default_find_result,
     _default_run_lean,
+    make_gated_run_lean,
     make_local_persist,
 )
 from sweeps.objective.selector import OBJECTIVE_VERSION
@@ -69,15 +71,23 @@ def make_local_run(
     runs_root: Path | None = None,
     marker_check: bool = True,
     archive: bool = True,
+    warmup_gate: WarmupGate | None = None,
 ) -> LocalLeanRun:
     """The production local RunConfig primitive: LocalLeanRun wired with the real DistBuilder +
     local toolchain (`lean backtest` w/ the Docker host fix) + the durable persist. Provenance
     (commit + data_fingerprint) is pinned once from a reference build (the data is identical across
     cells). `data_root` = the repo data tree (the #325 minute backfill lives there); `runs_root` =
-    the gitignored isolation root (sweeps/runs/)."""
+    the gitignored isolation root (sweeps/runs/).
+
+    `warmup_gate` (C): an OPTIONAL shared WarmupGate serializing the memory-heavy warmup phase across
+    concurrent cells (the OOM control for parallel local sweeps — see local_lean.WarmupGate). Pass ONE
+    gate instance shared across the run when max_workers>1; the SAME adapter is reused for every cell
+    by run_pool, so the gate is shared naturally. None (default) = ungated (serial, or the caller
+    accepts unbounded concurrent warmups). At workers=1 a gate is a harmless no-op."""
     data_root = data_root or (_REPO / "data")
     runs_root = runs_root or (_REPO / "sweeps" / "runs")
     runs_root.mkdir(parents=True, exist_ok=True)
+    run_lean = make_gated_run_lean(warmup_gate) if warmup_gate is not None else _default_run_lean
 
     persist = None
     if archive:
@@ -104,7 +114,7 @@ def make_local_run(
         data_root=data_root,
         runs_root=runs_root,
         marker_check=marker_check,
-        run_lean=_default_run_lean,
+        run_lean=run_lean,
         find_result=_default_find_result,
         persist=persist,
     )
