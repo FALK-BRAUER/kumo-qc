@@ -71,11 +71,20 @@ def main(mode: str) -> None:
     # + the FY2024 OOS holdout (gate ③). sweep_windows(include_holdout=True) = the 7-window set.
     windows = sweep_windows(include_holdout=True)
     if mode == "min":
-        caps, workers = [250, UNCAPPED], 1
+        caps, workers, adapter = [250, UNCAPPED], 1, make_cloud_run()
     elif mode == "full":
-        caps, workers = CAPS, 1
+        caps, workers, adapter = CAPS, 1, make_cloud_run()
+    elif mode.startswith("local"):
+        # PARALLEL LOCAL sweep (#325) — runs through `lean backtest` on the local intraday backfill,
+        # max_workers from the EMPIRICAL RAM cap (env SWEEP_WORKERS, default conservative 3). The
+        # local leaderboard is a CANDIDATE RANKING; the winner is cloud-validated for the final number.
+        import os as _os
+        from sweeps.adapters.qc_local_prod import make_local_run
+        caps = [250, UNCAPPED] if mode == "local" else CAPS  # 'local' = min grid, 'localfull' = 4-cap
+        workers = int(_os.environ.get("SWEEP_WORKERS", "3"))
+        adapter = make_local_run()
     else:
-        raise SystemExit("usage: run_dvrank_grid.py smoke|min|full")
+        raise SystemExit("usage: run_dvrank_grid.py smoke|min|full|local|localfull")
 
     configs = [cap_config(c) for c in caps]
     print(f"=== DV-rank grid ({mode}): {len(configs)} caps x {len(windows)} windows = "
@@ -83,7 +92,6 @@ def main(mode: str) -> None:
     for c, cfg in zip(caps, configs):
         print(f"  cap={c:>10}  config_hash={cfg.config_hash}")
 
-    adapter = make_cloud_run()  # REAL QC; CloudLeanRun is the RunConfig primitive (assert_cloud_clean inside)
     pins = (git_commit(_ROOT), "live-dvrank-grid", "oracle_signal_v1")
     outcome = run_sweep(configs, adapter, windows=windows, max_workers=workers,
                         oos_window=FY2024_OOS.name, stress_window=None, pins=pins)
