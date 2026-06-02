@@ -753,9 +753,11 @@ def persist_run(
         "timestamp": timestamp,
         "env": env,
         "statistics": dict(statistics),
-        # n_closed_trades counts REALIZED rows only (back-compat); n_censored_trades is the new
-        # open-at-end provisional count; n_trade_rows is the total written to trades.jsonl.gz.
+        # n_closed_trades counts REALIZED rows only (back-compat); n_censored / n_censored_trades is
+        # the open-at-end provisional count (both keys for the mine's gate convenience — #303 reads
+        # n_censored without decompressing the jsonl); n_trade_rows is the total written.
         "n_closed_trades": sum(1 for r in rows if not r["censored"]),
+        "n_censored": sum(1 for r in rows if r["censored"]),
         "n_censored_trades": sum(1 for r in rows if r["censored"]),
         "n_trade_rows": len(rows),
         "total_orders": total_orders,
