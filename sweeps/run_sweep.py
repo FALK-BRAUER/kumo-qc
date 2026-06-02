@@ -98,16 +98,24 @@ def _window_returns(
 
 
 def _isolating(run_primitive: Callable[[SweepConfig, Window], ResultMetrics],
-               failures: dict[str, str]):
+               failures: dict[str, str], retries: int = 1):
     """Wrap the injected primitive so a raised BT is recorded (by config_hash) + returns the
-    _FAILED sentinel, instead of propagating through executor.map and killing the whole sweep."""
+    _FAILED sentinel, instead of propagating through executor.map and killing the whole sweep.
+
+    RETRY-ON-TRANSIENT (#333): a cell that raises is re-attempted up to `retries` extra times before
+    being recorded a failure — a single transient death (e.g. a memory-pressure kill mid-warmup at
+    higher concurrency) shouldn't void the cell AND (via run_sweep's per-config exclusion) the whole
+    config + the long run. Only a cell that fails EVERY attempt is recorded."""
 
     def wrapped(config: SweepConfig, window: Window) -> ResultMetrics:
-        try:
-            return run_primitive(config, window)
-        except Exception as exc:  # dirty run / assert_cloud_clean / parse error — isolate it
-            failures.setdefault(config.config_hash, f"{type(exc).__name__}: {exc}")
-            return _FAILED
+        last: Exception | None = None
+        for _ in range(retries + 1):
+            try:
+                return run_primitive(config, window)
+            except Exception as exc:  # dirty run / assert_cloud_clean / parse error / transient kill
+                last = exc
+        failures.setdefault(config.config_hash, f"{type(last).__name__}: {last} (after {retries + 1} attempts)")
+        return _FAILED
 
     return wrapped
 
@@ -122,6 +130,7 @@ def run_sweep(
     dof_budget: int = DEFAULT_DOF_BUDGET,
     max_workers: int = DEFAULT_MAX_WORKERS,
     pins: tuple[str, str, str] | None = None,
+    retries: int = 1,
 ) -> SweepOutcome:
     """Fire the full sweep: every config over every window via the injected primitive, scored +
     gated + ranked into a leaderboard, with the per-(config,window) ledger pinned to provenance.
@@ -137,7 +146,7 @@ def run_sweep(
     """
     failed: dict[str, str] = {}
     config_runs = run_pool(
-        list(configs), _isolating(run_primitive, failed), windows=windows, max_workers=max_workers
+        list(configs), _isolating(run_primitive, failed, retries=retries), windows=windows, max_workers=max_workers
     )
 
     # Partition: a config with ANY _FAILED window (orders==-1) is excluded from scoring.

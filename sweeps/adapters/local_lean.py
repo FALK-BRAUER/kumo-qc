@@ -56,7 +56,7 @@ class ArchivePersister(Protocol):
     spy. Single code path with cloud — local differs ONLY in env + orders_fetch source + dest."""
 
     def __call__(
-        self, *, config: SweepConfig, result_path: Path, status: RunStatus
+        self, *, config: SweepConfig, result_path: Path, status: RunStatus, window: Window
     ) -> None: ...
 
 # Injected steps (defaults shell to the real toolchain; tests override with fakes).
@@ -254,21 +254,24 @@ class LocalLeanRun:
             # contract as cloud: a dropped run still leaves a durable artifact, the persist call
             # propagates if it fails (never swallows the run verdict).
             if self.persist is not None:
-                self._archive(config, result_path, RunStatus.COMPLETED_DEGRADED)
+                self._archive(config, result_path, RunStatus.COMPLETED_DEGRADED, window)
             raise DegradedDataError(
                 f"degraded run for config {config.config_hash} window {window.name}: "
                 f"orders={run_result.metrics.orders} (empty-warmup-coarse / data outage) — "
                 f"crashing rather than banking a mirage metric (G-DATA gate)"
             )
         if self.persist is not None:
-            self._archive(config, result_path, RunStatus.COMPLETED_CLEAN)
+            self._archive(config, result_path, RunStatus.COMPLETED_CLEAN, window)
         return run_result
 
-    def _archive(self, config: SweepConfig, result_path: Path, status: RunStatus) -> None:
+    def _archive(self, config: SweepConfig, result_path: Path, status: RunStatus, window: Window) -> None:
         """Invoke the injected persist hook. A persist failure is LOUD — it propagates, it never
-        silently swallows the run verdict (the snapshotter's fail-loud contract, #276b)."""
+        silently swallows the run verdict (the snapshotter's fail-loud contract, #276b). The window
+        is threaded so the persist can capture CENSORED-OPEN rows (positions open at the window's end
+        — common for a short sweep window; without it, an all-open window archives 0 rows → the
+        EmptyTradesError fires on a legitimately-open run, the #325 first-use gap)."""
         assert self.persist is not None
-        self.persist(config=config, result_path=result_path, status=status)
+        self.persist(config=config, result_path=result_path, status=status, window=window)
 
     def __call__(self, config: SweepConfig, window: Window) -> ResultMetrics:
         """The RunConfig Protocol surface: returns the leaderboard-facing metrics trio."""
@@ -281,6 +284,7 @@ def make_local_persist(
     data_fingerprint: str,
     objective_version: str,
     dest_root: Path,
+    data_root: Path | None = None,
     clock: Callable[[], str] | None = None,
 ) -> ArchivePersister:
     """Build the local durable-archive persist closure (#276b) — the local twin of
@@ -301,11 +305,39 @@ def make_local_persist(
     """
     from sweeps.archive import persist_run  # local import: keep module import-light
 
-    now_iso = clock or (lambda: datetime.now(timezone.utc).isoformat())
+    from sweeps.archive import M2M_LOCAL_PARQUET, M2M_UNAVAILABLE
 
-    def persist(*, config: SweepConfig, result_path: Path, status: RunStatus) -> None:
+    now_iso = clock or (lambda: datetime.now(timezone.utc).isoformat())
+    daily_root = (data_root or (Path(__file__).resolve().parents[2] / "data")) / "equity" / "usa" / "daily"
+
+    def _m2m_mark(symbol: str, end_of_data: datetime) -> tuple[float | None, str]:
+        """Local-daily close at-or-before end_of_data for a position open at the window's end (the
+        CENSORED-OPEN provisional mark). RAW/unadjusted (÷10000). Unavailable → null mark, NEVER
+        faked. NOTE: local-daily M2M is NOT cloud-faithful on the unrealized leg (vendor delta) —
+        fine for candidate-RANKING if consistent within the run; the winner is cloud-validated."""
+        import zipfile
+        zp = daily_root / f"{symbol.lower()}.zip"
+        if not zp.exists():
+            return (None, M2M_UNAVAILABLE)
+        eod = end_of_data.date() if hasattr(end_of_data, "date") else end_of_data
+        best: float | None = None
+        try:
+            with zipfile.ZipFile(zp) as z:
+                for line in z.read(z.namelist()[0]).decode().splitlines():
+                    p = line.split(",")
+                    d = p[0][:8]
+                    dd = datetime(int(d[:4]), int(d[4:6]), int(d[6:8])).date()
+                    if dd <= eod:
+                        best = float(p[4]) / 10000.0
+        except Exception:
+            return (None, M2M_UNAVAILABLE)
+        return (best, M2M_LOCAL_PARQUET) if best and best > 0 else (None, M2M_UNAVAILABLE)
+
+    def persist(*, config: SweepConfig, result_path: Path, status: RunStatus, window: Window) -> None:
         doc = json.loads(result_path.read_text(encoding="utf-8"))
         bt_id = result_path.stem  # the LEAN <id>.json stem == the run id (the archive's key)
+        sy, sm, sd = (int(x) for x in window.end.split("-"))
+        end_of_data = datetime(sy, sm, sd)  # the window's END — mark date for CENSORED-OPEN lots
         persist_run(
             config=serialize_config(config),
             config_hash=config.config_hash,
@@ -319,6 +351,8 @@ def make_local_persist(
             env="local",
             orders_fetch=lambda _bid: read_local_orders(result_path),
             dest_root=dest_root,
+            end_of_data=end_of_data,  # #325 fix: capture CENSORED-OPEN (positions open at window-end)
+            m2m_mark=_m2m_mark,       # local-daily provisional mark (NOT cloud-faithful; winner→cloud-validate)
         )
 
     return persist

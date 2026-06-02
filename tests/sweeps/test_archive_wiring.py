@@ -281,7 +281,7 @@ def test_local_persist_closure_writes_durable_artifact(tmp_path: Path) -> None:
         dest_root=dest, clock=lambda: "2026-06-02T00:00:00+00:00",
     )
     cfg = _config()
-    persist(config=cfg, result_path=rp, status=RunStatus.COMPLETED_CLEAN)
+    persist(config=cfg, result_path=rp, status=RunStatus.COMPLETED_CLEAN, window=W)
 
     run_dir = dest / cfg.config_hash / "123"  # backtest_id = result-JSON stem
     result_doc = json.loads((run_dir / "result.json").read_text())
@@ -297,6 +297,62 @@ def test_local_persist_closure_writes_durable_artifact(tmp_path: Path) -> None:
     assert row["symbol"] == "AAPL"
     assert row["decision_score"] == 8
     assert row["context_status"] == "OK"
+
+
+def _local_all_open_events(tmp_path: Path) -> Path:
+    """An ALL-OPEN backtest fixture: entries only, NO exits (the cut-losers/let-winners shape at a
+    window that ends mid-trade — every winner is still open at end-of-data). 2 buys, 0 sells →
+    0 CLOSED trades. Stats Total Orders=2. WITHOUT the censored-open wiring this is the
+    EmptyTradesError (0 rows while orders>0); WITH it, the open lots become censored rows."""
+    rd = tmp_path / "backtests" / "2025-06-02_00-00-00"
+    rd.mkdir(parents=True)
+    events = [
+        {"orderId": 1, "status": "filled", "symbolValue": "AAPL", "fillPrice": 100.0,
+         "fillQuantity": 100.0, "quantity": 100.0, "direction": "buy", "time": 1735794000.0},
+        {"orderId": 2, "status": "filled", "symbolValue": "MSFT", "fillPrice": 200.0,
+         "fillQuantity": 50.0, "quantity": 50.0, "direction": "buy", "time": 1736196000.0},
+    ]
+    (rd / "456-order-events.json").write_text(json.dumps(events))
+    result = {
+        "statistics": _stats(total_orders=2),
+        "orders": {
+            "1": {"id": 1, "symbol": {"value": "AAPL"}, "tag":
+                  "decision_score=8&decision_cond=11110111", "price": 100.0, "status": 3},
+            "2": {"id": 2, "symbol": {"value": "MSFT"}, "tag":
+                  "decision_score=7&decision_cond=11110011", "price": 200.0, "status": 3},
+        },
+    }
+    rp = rd / "456.json"
+    rp.write_text(json.dumps(result))
+    return rp
+
+
+def test_local_persist_all_open_window_writes_censored_no_error(tmp_path: Path) -> None:
+    """THE CENSORED-OPEN WIRING (#325 fix): an all-open window (entries, no exits) must NOT raise
+    EmptyTradesError — make_local_persist derives end_of_data from the window + supplies an m2m_mark,
+    so persist_run captures the open lots as CENSORED rows. (No local daily data on tmp_path → the
+    mark is 'unavailable' / m2m_ret null — NEVER faked — but the censored rows ARE written, which is
+    what defeats the silent-miss guard.)"""
+    rp = _local_all_open_events(tmp_path)
+    dest = tmp_path / "archive"
+    persist = make_local_persist(
+        commit="abc1234", data_fingerprint="data-fp", objective_version="323.v1",
+        dest_root=dest, data_root=tmp_path / "data",  # no daily zips → m2m unavailable, not faked
+        clock=lambda: "2026-06-02T00:00:00+00:00",
+    )
+    cfg = _config()
+    # must NOT raise EmptyTradesError despite 0 closed trades + Total Orders=2
+    persist(config=cfg, result_path=rp, status=RunStatus.COMPLETED_CLEAN, window=W)
+
+    run_dir = dest / cfg.config_hash / "456"
+    lines = gzip.decompress((run_dir / "trades.jsonl.gz").read_bytes()).decode().splitlines()
+    assert len(lines) == 2, "both open lots must be captured as censored rows"
+    rows = [json.loads(x) for x in lines]
+    assert all(r["censored"] is True for r in rows), "all rows are open-at-end → censored"
+    # m2m unavailable (no daily data) is recorded honestly, never faked
+    assert all(r["m2m_ret"] is None for r in rows)
+    result_doc = json.loads((run_dir / "result.json").read_text())
+    assert result_doc["n_censored_trades"] == 2
 
 
 # --------------------------------------------------------------------------- #
@@ -406,7 +462,7 @@ def _local_run(tmp_path: Path, *, persist, result_fixture: dict) -> LocalLeanRun
 def test_local_clean_run_persists_completed_clean(tmp_path: Path) -> None:
     captured: list[RunStatus] = []
 
-    def persist(*, config: SweepConfig, result_path: Path, status: RunStatus) -> None:
+    def persist(*, config: SweepConfig, result_path: Path, status: RunStatus, window=None) -> None:
         captured.append(status)
 
     adapter = _local_run(tmp_path, persist=persist, result_fixture={"statistics": _stats()})
@@ -418,7 +474,7 @@ def test_local_degraded_run_persists_degraded_then_raises(tmp_path: Path) -> Non
     from sweeps.types import DegradedDataError
     captured: list[RunStatus] = []
 
-    def persist(*, config: SweepConfig, result_path: Path, status: RunStatus) -> None:
+    def persist(*, config: SweepConfig, result_path: Path, status: RunStatus, window=None) -> None:
         captured.append(status)
 
     # 0-order result → parse_run_result flags is_degraded (full metric trio present so the parse
@@ -431,7 +487,7 @@ def test_local_degraded_run_persists_degraded_then_raises(tmp_path: Path) -> Non
 
 
 def test_local_persist_failure_propagates(tmp_path: Path) -> None:
-    def persist(*, config: SweepConfig, result_path: Path, status: RunStatus) -> None:
+    def persist(*, config: SweepConfig, result_path: Path, status: RunStatus, window=None) -> None:
         raise RuntimeError("local archive failed")
 
     adapter = _local_run(tmp_path, persist=persist, result_fixture={"statistics": _stats()})

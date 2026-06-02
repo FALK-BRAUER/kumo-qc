@@ -95,6 +95,7 @@ def make_local_run(
             data_fingerprint=data_fp,
             objective_version=OBJECTIVE_VERSION,
             dest_root=_REPO / "results" / "archive",
+            data_root=data_root,
             clock=lambda: datetime.now(timezone.utc).isoformat(),
         )
 

@@ -173,6 +173,35 @@ def test_sweep_does_not_transform_metrics() -> None:
 
 # --- parsing / fail-loud: a missing metric raises in the primitive, isolated by the runner
 
+def test_retry_on_transient_recovers() -> None:
+    """RETRY-ON-TRANSIENT (#333): a cell that raises ONCE then succeeds is retried → NOT recorded a
+    failure. A single transient death (e.g. a memory-pressure kill) shouldn't void the config."""
+    configs = enumerate_catalog(MOCK_CATALOG)[:1]  # type: ignore[arg-type]
+    calls = {"n": 0}
+
+    def flaky_once(config: SweepConfig, window: Window) -> ResultMetrics:
+        calls["n"] += 1
+        if calls["n"] == 1:  # first call (first window) dies once
+            raise RuntimeError("transient memory kill")
+        return GOOD
+
+    out = run_sweep(configs, flaky_once, retries=2)
+    assert out.failures == []          # the transient was retried, not recorded
+    assert len(out.leaderboard) == 1   # the config survived
+
+
+def test_retry_exhausted_still_fails() -> None:
+    """A cell that fails EVERY attempt is still recorded (the guard is not neutered)."""
+    configs = enumerate_catalog(MOCK_CATALOG)[:1]  # type: ignore[arg-type]
+
+    def always_fails(config: SweepConfig, window: Window) -> ResultMetrics:
+        raise RuntimeError("hard failure")
+
+    out = run_sweep(configs, always_fails, retries=2)
+    assert len(out.failures) == 1
+    assert "after 3 attempts" in out.failures[0].error
+
+
 def test_missing_metric_in_table_is_isolated() -> None:
     configs = enumerate_catalog(MOCK_CATALOG)[:2]  # type: ignore[arg-type]
     # table missing every cell for configs[1] → make_runner raises KeyError → isolated to failures.
