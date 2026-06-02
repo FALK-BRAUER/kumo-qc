@@ -337,6 +337,14 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         # re-injectable next tick (a transient reject is not a permanently-lost trade). Driven by
         # on_order_event terminal status; cleared at session end.
         self._pending_entry_today: set[Any] = set()
+        # SAME-SESSION RE-ENTRY GUARD (the SHOP-churn fix): syms whose ENTRY FILLED this session.
+        # A filled entry that then stops out (e.g. the #290 GTC floor firing intrabar → flat again,
+        # no longer invested ∪ pending) was RE-INJECTABLE → re-confirmed → re-fired → instant
+        # stop-out churn (SHOP fired 7× in 30min on the FY baseline). One entry-FILL per name per
+        # session: injection also skips _entered_today. Marked on entry FILL (not submit, not a
+        # reject — a Canceled/Invalid reject stays re-injectable, the retry-on-reject intent).
+        # Cleared at session end (no T+2 bleed).
+        self._entered_today: set[Any] = set()
 
         # #313 WATCHDOG (the permanent protection vs silent no-fire): the daily decision must keep
         # pace with elapsed trading days. _sched_trading_days counts post-warmup trading days (the
@@ -1039,9 +1047,13 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         if not snapshot:
             return
         pending = getattr(self, "_pending_entry_today", set())
+        entered = getattr(self, "_entered_today", set())  # same-session re-entry guard (SHOP churn)
         injected = 0
         for sym in snapshot:  # insertion order == rank order (rank-preserving)
-            if self.portfolio[sym].invested or sym in pending:
+            # skip invested ∪ pending ∪ already-entered-this-session. The last kills the instant
+            # stop-out → re-inject → re-fire churn: a name whose entry FILLED today is done for the
+            # session even if its protective floor sold it back to flat.
+            if self.portfolio[sym].invested or sym in pending or sym in entered:
                 continue
             # ticker=sym.value (UPPERCASE) — the SAME convention BctScoreFull emits, so the shared
             # downstream (sizing + FIRE_ENTRIES, which resolve by active_by_value = {s.value: s})
@@ -1094,6 +1106,11 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             OrderStatus.Filled, OrderStatus.PartiallyFilled, OrderStatus.Canceled, OrderStatus.Invalid
         }:
             self._pending_entry_today.discard(sym)
+            # SHOP-churn guard: a real entry FILL (not a Canceled/Invalid reject) marks the name as
+            # entered THIS session → not re-injectable even if its protective floor sells it back to
+            # flat. A reject is NOT marked → stays re-injectable (retry-on-reject intent preserved).
+            if status in {OrderStatus.Filled, OrderStatus.PartiallyFilled}:
+                self._entered_today.add(sym)  # always init'd in __init__ (mutate the real set, not a default)
         # GTC-floor-fill cleanup: the FULLY-filled order IS the tracked protective stop → floor done.
         # FILLED-ONLY (NOT PartiallyFilled — Gemini): a partial stop-fill leaves the REMAINDER LIVE at
         # the broker; popping _position_meta on a partial would LOSE the ticket → orphan stop → the
@@ -1118,6 +1135,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         confirm progress + pending-entry markers reset."""
         self._entry_confirm = {}
         self._pending_entry_today = set()
+        self._entered_today = set()  # SHOP-churn guard resets each session (next session re-allows entry)
 
     def on_end_of_day(self, symbol: Any = None) -> None:
         """QC session-end hook — clear the intraday-confirm progress (H3/SG9). Idempotent (QC fires

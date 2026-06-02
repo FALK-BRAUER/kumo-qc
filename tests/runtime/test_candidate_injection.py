@@ -75,6 +75,7 @@ def _qc(order: list[str], *, invested: tuple[str, ...] = (), pending: tuple[str,
         syms[v]: {"signal_price": 100.0, "daily_kijun": 95.0, "decision_date": "T"} for v in order
     }
     qc._pending_entry_today = {syms[v] for v in pending}
+    qc._entered_today = set()  # initialize() sets this in prod; the local harness mirrors it
     qc.portfolio = _Portfolio({syms[v]: _Hold(True) for v in invested})
     qc._syms = syms
     return qc
@@ -226,3 +227,47 @@ def test_runtime_exit_already_popped_meta_is_noop(monkeypatch) -> None:
     qc._position_meta = {}  # FIRE_EXITS already popped it
     qc.on_order_event(_OE(sym, _OS.Filled, order_id=5))    # must not raise
     assert qc._position_meta == {}
+
+
+# ── SHOP same-session re-entry guard (the churn fix) ──
+
+def test_filled_entry_blocks_same_session_reentry_after_stopout(monkeypatch) -> None:
+    # THE SHOP churn: entry FILLS → invested. Its #290 GTC floor fires same-minute → flat again
+    # (not invested, not pending). WITHOUT the guard it was re-injectable → re-fired → instant
+    # stop-out churn (SHOP 7× in 30min). The _entered_today guard: a filled entry is done for the
+    # session even when flat.
+    monkeypatch.setattr(lean_entry, "OrderStatus", _OS)
+    qc = _qc(["SHOP"], pending=("SHOP",))
+    assert _inject(qc) == []                                  # in-flight → skipped
+    qc.on_order_event(_OE(qc._syms["SHOP"], _OS.Filled))      # entry filled
+    assert qc._syms["SHOP"] in qc._entered_today
+    # broker floor sells it back to flat: not invested, not pending — but entered THIS session
+    assert _inject(qc) == [], "a filled-then-stopped name must NOT re-enter the same session"
+
+
+def test_partial_fill_also_marks_entered(monkeypatch) -> None:
+    monkeypatch.setattr(lean_entry, "OrderStatus", _OS)
+    qc = _qc(["AAPL"], pending=("AAPL",))
+    qc.on_order_event(_OE(qc._syms["AAPL"], _OS.PartiallyFilled))
+    assert qc._syms["AAPL"] in qc._entered_today
+    assert _inject(qc) == []
+
+
+def test_reject_does_not_mark_entered_stays_reinjectable(monkeypatch) -> None:
+    # a Canceled/Invalid reject is NOT a fill → must NOT enter _entered_today (retry-on-reject lives).
+    monkeypatch.setattr(lean_entry, "OrderStatus", _OS)
+    qc = _qc(["AAPL"], pending=("AAPL",))
+    qc.on_order_event(_OE(qc._syms["AAPL"], _OS.Canceled))
+    assert qc._syms["AAPL"] not in qc._entered_today
+    assert _inject(qc) == ["AAPL"]                            # still re-injectable
+
+
+def test_session_end_clears_entered_guard(monkeypatch) -> None:
+    # next session re-allows entry (no T+2 bleed).
+    monkeypatch.setattr(lean_entry, "OrderStatus", _OS)
+    qc = _qc(["SHOP"], pending=("SHOP",))
+    qc.on_order_event(_OE(qc._syms["SHOP"], _OS.Filled))
+    assert _inject(qc) == []
+    qc.on_end_of_day()
+    assert qc._entered_today == set()
+    assert _inject(qc) == ["SHOP"], "next session the name is entry-eligible again"
