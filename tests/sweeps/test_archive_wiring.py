@@ -71,6 +71,33 @@ def test_serialize_config_named() -> None:
     assert out["name"] == "champion_intraday"
 
 
+def test_serialize_config_injected_impl_param_is_json_safe() -> None:
+    """#322 regression: a Params field whose VALUE is an injected dataclass (e.g. OracleSignal's
+    predictor=DvRankPredictor(...)) must serialize to a JSON-safe dict — else persist_run's
+    json.dumps raises 'Object of type DvRankPredictor is not JSON serializable' (caught on the
+    first learned-dvrank smoke, post-assert_cloud_clean, in the archive persist). The injected
+    object is recorded as {"__type__": <cls>, <field>: <val>} so result.json serializes AND the
+    mine reads the booster's params (rank_cap) back."""
+    import dataclasses
+
+    @dataclasses.dataclass(frozen=True)
+    class _Pred:
+        min_score: int = 7
+        rank_cap: int = 250
+
+    from sweeps.types import PhaseChoice
+
+    cfg = SweepConfig(choices=(PhaseChoice(
+        kind="signal", impl_name="oracle_signal",
+        params=(("min_score", 7), ("predictor", _Pred())), free_params=2,
+    ),))
+    out = serialize_config(cfg)
+    # the whole thing must json.dumps without raising (the bug was a TypeError here).
+    json.dumps(out, sort_keys=True)
+    pred = out["phases"]["signal"]["params"]["predictor"]
+    assert pred == {"__type__": "_Pred", "min_score": 7, "rank_cap": 250}
+
+
 def test_serialize_config_deterministic() -> None:
     cfg = _config()
     a = json.dumps(serialize_config(cfg), sort_keys=True)

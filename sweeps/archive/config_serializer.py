@@ -27,12 +27,33 @@ ever stores JSON-native scalars in PhaseChoice.params, so no lossy coercion is a
 """
 from __future__ import annotations
 
+import dataclasses
 from typing import Any
 
 from sweeps.types import SweepConfig
 
 # Bump on ANY change to the emitted dict SHAPE so the mine can gate on serializer drift.
-CONFIG_SERIALIZER_VERSION = "276b.v1"
+# v2 (#322): injected-impl param VALUES (e.g. OracleSignal's predictor=DvRankPredictor(...)) are
+# JSON-flattened to {"__type__": <cls>, <field>: <val>, ...} instead of passed through verbatim
+# (a dataclass object is not JSON-serializable → persist_run's json.dumps raised TypeError).
+CONFIG_SERIALIZER_VERSION = "276b.v2"
+
+
+def _jsonify(value: Any) -> Any:
+    """JSON-safe a PhaseChoice param value. Scalars pass through; an INJECTED impl object (a
+    dataclass instance, e.g. a predictor) is recorded as {"__type__": ClassName, <field>: <val>}
+    so result.json is serializable AND the #303 mine reads the booster's params (e.g. rank_cap)
+    back from the archive. Recurses through dicts / lists / nested dataclasses."""
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        out: dict[str, Any] = {"__type__": type(value).__name__}
+        for f in dataclasses.fields(value):
+            out[f.name] = _jsonify(getattr(value, f.name))
+        return out
+    if isinstance(value, dict):
+        return {k: _jsonify(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonify(v) for v in value]
+    return value
 
 
 def serialize_config(config: SweepConfig, *, name: str | None = None) -> dict[str, Any]:
@@ -46,7 +67,7 @@ def serialize_config(config: SweepConfig, *, name: str | None = None) -> dict[st
     for choice in sorted(config.choices, key=lambda c: c.kind):
         phases[choice.kind] = {
             "impl": choice.impl_name,
-            "params": dict(choice.params),
+            "params": {k: _jsonify(v) for k, v in choice.params},
             "free_params": choice.free_params,
         }
     return {
