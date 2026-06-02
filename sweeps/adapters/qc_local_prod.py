@@ -61,7 +61,18 @@ def local_dist_builder(config: SweepConfig, window: Window, run_dir: Path) -> st
     if marker not in s:
         s = f"# {marker}\n" + s
     main.write_text(s)
-    (run_dir / "lean.json").write_text('{ "description": "sweep cell", "parameters": {} }\n')
+    # lean.json parameters: optional env-provided JSON (e.g. the #336 continuous-weekly flag, or any
+    # future sweep param). Absent → the exact original empty-params bytes (no-param path unchanged).
+    import json as _json
+    import os as _os
+
+    _params = _json.loads(_os.environ.get("SWEEP_LEAN_PARAMS", "{}"))
+    if _params:
+        (run_dir / "lean.json").write_text(
+            _json.dumps({"description": "sweep cell", "parameters": _params}) + "\n"
+        )
+    else:
+        (run_dir / "lean.json").write_text('{ "description": "sweep cell", "parameters": {} }\n')
     return marker
 
 
