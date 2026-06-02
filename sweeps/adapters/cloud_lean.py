@@ -22,9 +22,10 @@ from __future__ import annotations
 import math
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Protocol
 
 from sweeps.adapters.result_parse import parse_run_result
+from sweeps.archive.snapshot import RunStatus
 from sweeps.types import (
     CloudValidationError,
     ResultMetrics,
@@ -33,6 +34,18 @@ from sweeps.types import (
     TradeRecord,
     Window,
 )
+
+
+class ArchivePersister(Protocol):
+    """The INJECTED durable-archive hook (#276b). The adapter calls it AFTER a cloud run reaches a
+    terminal verdict, passing the config + cloud result + mapped RunStatus; the prod closure
+    (built in qc_cloud_prod) wraps `sweeps.archive.persist_run` with the provenance bundle, the
+    `/orders/read` orders_fetch, the caller-stamped timestamp, env='cloud', and dest_root. Tests
+    pass a spy. Decoupled here so the adapter never imports qc_v2_cloud (keychain side effects)."""
+
+    def __call__(
+        self, *, config: SweepConfig, result: "CloudResult", status: RunStatus
+    ) -> None: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,6 +111,23 @@ RunBacktest = Callable[[str, str], CloudResult]
 """Submit + poll a cloud BT (name, compileId) -> CloudResult (raw read document + progress/error)."""
 
 
+def _cloud_status(result: CloudResult) -> RunStatus:
+    """Map a non-clean cloud verdict to the 3-state RunStatus for the durable archive (#276b).
+
+    CRASHED    — the run errored or never completed (error != None, or progress != 1): a wiring /
+                 runtime failure, capture whatever's retrievable (the #318 completed-but-crashed
+                 trap is `error` set on a completed read → still CRASHED).
+    DEGRADED   — ran to completion (no error, progress == 1) but failed a non-fatal liveness /
+                 finiteness check (0 orders 'flat', NaN metric): provenance survives, the caller
+                 excludes it from learning.
+
+    (The CLEAN verdict is handled inline in fetch() once assert_cloud_clean passes — this helper
+    only classifies the assert_cloud_clean FAILURES.)"""
+    if result.error or result.progress != 1:
+        return RunStatus.CRASHED
+    return RunStatus.COMPLETED_DEGRADED
+
+
 @dataclass(frozen=True, slots=True)
 class CloudLeanRun:
     """The real cloud run-a-config primitive (ground truth). Integration-flagged; unit-tested
@@ -106,21 +136,61 @@ class CloudLeanRun:
 
     `deploy` builds+deploys the config's closure and returns a compileId. `run_backtest`
     submits+polls and returns a CloudResult. `assert_cloud_clean` gates promotion: a winner
-    that fails the cloud gate is DROPPED (raises), never promoted (local was a mirage)."""
+    that fails the cloud gate is DROPPED (raises), never promoted (local was a mirage).
+
+    `persist` (optional, #276b) is the INJECTED durable-archive hook: called with the mapped
+    RunStatus AFTER every terminal verdict — COMPLETED_CLEAN once assert passes, and DEGRADED /
+    CRASHED on the assert failure path (before the CloudValidationError re-raises) so a dropped
+    winner STILL leaves a durable artifact (config + stats + provenance) before QC purges it. A
+    persist FAILURE is LOUD: it propagates, it never silently swallows the run verdict."""
 
     deploy: Deploy
     run_backtest: RunBacktest
+    persist: ArchivePersister | None = None
 
     def _bt_name(self, config: SweepConfig, window: Window) -> str:
         return f"sweep-{config.config_hash}-{window.name}"
 
     def fetch(self, config: SweepConfig, window: Window) -> CloudResult:
-        """Deploy + run + GATE. Returns the clean CloudResult or RAISES CloudValidationError.
-        No positive-outcome claim on a dirty cloud run (the §Parity lesson)."""
+        """Deploy + run + GATE + ARCHIVE. Returns the clean CloudResult or RAISES
+        CloudValidationError. No positive-outcome claim on a dirty cloud run (the §Parity lesson).
+
+        Persist contract (#276b): on a CLEAN run, persist COMPLETED_CLEAN then return. On a dirty
+        run, persist the mapped DEGRADED/CRASHED status (best-effort, the run already failed) then
+        re-raise the original CloudValidationError. A persist failure is NOT swallowed — it
+        propagates loud; for the dirty path we chain it onto the original verdict so neither is
+        lost (the snapshotter's fail-loud contract: an unwritable archive is unacceptable-silent)."""
         compile_id = self.deploy(config, window)
         result = self.run_backtest(self._bt_name(config, window), compile_id)
-        assert_cloud_clean(result)  # raises on any miss — no unclean result is returned
+        try:
+            assert_cloud_clean(result)  # raises on any miss — no unclean result is returned
+        except CloudValidationError as verdict:
+            # Dirty run: archive what's retrievable (DEGRADED/CRASHED) BEFORE dropping the winner.
+            if self.persist is not None:
+                self._archive(config, result, _cloud_status(result), original=verdict)
+            raise
+        if self.persist is not None:
+            self._archive(config, result, RunStatus.COMPLETED_CLEAN)
         return result
+
+    def _archive(
+        self,
+        config: SweepConfig,
+        result: CloudResult,
+        status: RunStatus,
+        *,
+        original: BaseException | None = None,
+    ) -> None:
+        """Invoke the injected persist hook, keeping a persist failure LOUD (re-raise). On the
+        dirty path the original CloudValidationError is the primary verdict — chain the persist
+        failure onto it (`from original`) so the trace shows BOTH, never swallowing either."""
+        assert self.persist is not None
+        try:
+            self.persist(config=config, result=result, status=status)
+        except Exception as exc:  # noqa: BLE001 — a snapshotter failure is unacceptable-silent
+            if original is not None:
+                raise exc from original
+            raise
 
     def run_result(self, config: SweepConfig, window: Window) -> RunResult:
         """The full cloud RunResult (gated). Parsed through the SAME parser as local."""

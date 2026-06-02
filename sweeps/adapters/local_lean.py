@@ -28,12 +28,15 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from sweeps.adapters.result_parse import parse_run_result
+from sweeps.archive.config_serializer import serialize_config
+from sweeps.archive.snapshot import RunStatus
 from sweeps.types import (
     DegradedDataError,
     MarkerMismatchError,
@@ -43,6 +46,18 @@ from sweeps.types import (
     SweepConfig,
     Window,
 )
+
+
+class ArchivePersister(Protocol):
+    """The INJECTED durable-archive hook (#276b). The adapter calls it after a local run reaches a
+    terminal verdict, passing the config + the LEAN result-JSON path + the mapped RunStatus; the
+    prod closure wraps `sweeps.archive.persist_run` with the provenance bundle, the order-events
+    reader as orders_fetch, the caller-stamped timestamp, env='local', and dest_root. Tests pass a
+    spy. Single code path with cloud — local differs ONLY in env + orders_fetch source + dest."""
+
+    def __call__(
+        self, *, config: SweepConfig, result_path: Path, status: RunStatus
+    ) -> None: ...
 
 # Injected steps (defaults shell to the real toolchain; tests override with fakes).
 DistBuilder = Callable[[SweepConfig, Window, Path], str]
@@ -85,6 +100,77 @@ def _default_run_lean(project_dir: Path) -> int:
     return proc.returncode
 
 
+def read_local_orders(result_path: Path) -> list[Mapping[str, Any]]:
+    """Read the LEAN `*-order-events.json` beside `result_path` and reconstruct order-shaped dicts
+    the snapshotter's `_pair_trades` consumes (the cloud `/orders/read` shape: order-level status /
+    quantity / price / symbol / lastFillTime / tag).
+
+    WHY a transform: LEAN emits a FLAT list of order *events* (submitted/filled/...), NOT the
+    order-level shape `_pair_trades` expects. We fold each order's events into one order dict —
+    taking the FILLED event for fillPrice/fillQuantity/time, signing quantity by `direction`
+    (buy=+, sell=-) so the FIFO pairing sees the side correctly.
+
+    DECISION CONTEXT: order EVENTS carry no `tag`, but the LEAN result JSON's `orders` map does
+    (identical shape to cloud — verified). We merge the tag in from the sibling result JSON keyed
+    by orderId, so the local archive preserves the entry decision_* context (not all CORE_MISSING).
+    If the events file is absent, FAIL LOUD (a missing artifact is not 'no orders')."""
+    events_path = _find_order_events(result_path)
+    if events_path is None:
+        raise ResultParseError(
+            f"no *-order-events.json beside {result_path} — cannot reconstruct local orders "
+            f"for the durable archive (fail loud, #276b)"
+        )
+    events: list[Mapping[str, Any]] = json.loads(events_path.read_text(encoding="utf-8"))
+    tags = _order_tags_from_result(result_path)
+
+    # Fold events per orderId into one order dict (status=filled iff a fill event exists).
+    by_order: dict[Any, dict[str, Any]] = {}
+    for ev in events:
+        oid = ev.get("orderId")
+        if oid is None:
+            continue
+        if str(ev.get("status", "")).lower() != "filled":
+            continue
+        sign = -1.0 if str(ev.get("direction", "")).lower() == "sell" else 1.0
+        qty = abs(float(ev.get("fillQuantity") or ev.get("quantity") or 0.0)) * sign
+        by_order[oid] = {
+            "id": oid,
+            "symbol": {"value": ev.get("symbolValue") or ev.get("symbol")},
+            "quantity": qty,
+            "price": float(ev.get("fillPrice") or 0.0),
+            "status": "filled",
+            "time": ev.get("time"),
+            "lastFillTime": ev.get("time"),
+            "tag": tags.get(oid),
+            "type": None,
+        }
+    return list(by_order.values())
+
+
+def _find_order_events(result_path: Path) -> Path | None:
+    matches = sorted(result_path.parent.glob("*-order-events.json"))
+    return matches[0] if matches else None
+
+
+def _order_tags_from_result(result_path: Path) -> dict[Any, str | None]:
+    """Pull each order's `tag` + `type` from the LEAN result JSON's `orders` map (cloud-shaped),
+    keyed by order id, so the reconstructed order dicts carry the entry decision tag + exit type.
+    Best-effort: a malformed/absent orders map yields no tags (rows degrade to CORE_MISSING, never
+    crash) — the events themselves are the load-bearing fill source."""
+    try:
+        doc = json.loads(result_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    orders = doc.get("orders")
+    if not isinstance(orders, Mapping):
+        return {}
+    out: dict[Any, str | None] = {}
+    for o in orders.values():
+        if isinstance(o, Mapping) and o.get("id") is not None:
+            out[o["id"]] = o.get("tag") or None
+    return out
+
+
 def _read_executed_marker(result_path: Path) -> str | None:
     """Read the executed-code marker from the run's code/main.py snapshot (the contamination
     guard, scripts/lean-bt.sh). Returns the main.py text, or None if the snapshot is absent."""
@@ -109,6 +195,7 @@ class LocalLeanRun:
     marker_check: bool = True
     run_lean: RunLean = _default_run_lean
     find_result: FindResult = _default_find_result
+    persist: ArchivePersister | None = None
 
     def _run_dir(self, config: SweepConfig, window: Window) -> Path:
         """The UNIQUE isolated project dir for this (config, window) — no cross-run collision."""
@@ -156,13 +243,75 @@ class LocalLeanRun:
         result: dict[str, Any] = json.loads(result_path.read_text(encoding="utf-8"))
         run_result = parse_run_result(result)
         if run_result.is_degraded:
+            # Archive the DEGRADED verdict (provenance survives) BEFORE raising — same fail-loud
+            # contract as cloud: a dropped run still leaves a durable artifact, the persist call
+            # propagates if it fails (never swallows the run verdict).
+            if self.persist is not None:
+                self._archive(config, result_path, RunStatus.COMPLETED_DEGRADED)
             raise DegradedDataError(
                 f"degraded run for config {config.config_hash} window {window.name}: "
                 f"orders={run_result.metrics.orders} (empty-warmup-coarse / data outage) — "
                 f"crashing rather than banking a mirage metric (G-DATA gate)"
             )
+        if self.persist is not None:
+            self._archive(config, result_path, RunStatus.COMPLETED_CLEAN)
         return run_result
+
+    def _archive(self, config: SweepConfig, result_path: Path, status: RunStatus) -> None:
+        """Invoke the injected persist hook. A persist failure is LOUD — it propagates, it never
+        silently swallows the run verdict (the snapshotter's fail-loud contract, #276b)."""
+        assert self.persist is not None
+        self.persist(config=config, result_path=result_path, status=status)
 
     def __call__(self, config: SweepConfig, window: Window) -> ResultMetrics:
         """The RunConfig Protocol surface: returns the leaderboard-facing metrics trio."""
         return self.run_result(config, window).metrics
+
+
+def make_local_persist(
+    *,
+    commit: str,
+    data_fingerprint: str,
+    objective_version: str,
+    dest_root: Path,
+    clock: Callable[[], str] | None = None,
+) -> ArchivePersister:
+    """Build the local durable-archive persist closure (#276b) — the local twin of
+    qc_cloud_prod.make_cloud_run's persist hook. SINGLE CODE PATH with cloud: identical persist_run
+    call, differing ONLY in env='local', orders_fetch (the order-events reader), and dest_root —
+    legitimate adapter polymorphism, NOT a strategy branch.
+
+    Provenance (commit / data_fingerprint) is INJECTED here because the local dist_builder returns
+    only a marker, not a BuildResult; the caller threads the BuildResult fields in. The persist
+    `timestamp` is stamped via `clock` (defaults to UTC now ISO) — NEVER inside snapshot.py.
+
+    Mapping per run:
+      config       → serialize_config(SweepConfig)
+      backtest_id  → the LEAN run-dir id (the result-JSON stem, e.g. '1230337650') — uniqueness key
+      statistics   → the result JSON's `statistics` block
+      orders_fetch → read_local_orders(result_path) (ignores the bid arg — local has one result dir)
+      env          → 'local'
+    """
+    from sweeps.archive import persist_run  # local import: keep module import-light
+
+    now_iso = clock or (lambda: datetime.now(timezone.utc).isoformat())
+
+    def persist(*, config: SweepConfig, result_path: Path, status: RunStatus) -> None:
+        doc = json.loads(result_path.read_text(encoding="utf-8"))
+        bt_id = result_path.stem  # the LEAN <id>.json stem == the run id (the archive's key)
+        persist_run(
+            config=serialize_config(config),
+            config_hash=config.config_hash,
+            backtest_id=bt_id,
+            status=status,
+            statistics=doc.get("statistics", {}) or {},
+            commit=commit,
+            data_fingerprint=data_fingerprint,
+            objective_version=objective_version,
+            timestamp=now_iso(),
+            env="local",
+            orders_fetch=lambda _bid: read_local_orders(result_path),
+            dest_root=dest_root,
+        )
+
+    return persist
