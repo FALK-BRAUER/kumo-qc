@@ -32,13 +32,36 @@ from sweeps.adapters.qc_local_prod import make_local_run  # noqa: E402
 from sweeps.grids.windows_fy2025 import sweep_windows  # noqa: E402
 from sweeps.provenance import git_commit  # noqa: E402
 from sweeps.run_sweep import run_sweep  # noqa: E402
-from sweeps.types import SweepConfig  # noqa: E402
+from sweeps.types import SweepConfig, Window  # noqa: E402
 
 OUT = _ROOT / "results" / "sweeps" / "champion_panel"
 
+# FY2025 CONTINUOUS full-year (one window) — the let-winners-run DIAGNOSTIC. The 6 bi-monthly panels
+# TRUNCATE holding every ~60 days (a censored-M2M close at each boundary); a let-winners-run strategy
+# needs continuous holding, so the panel decomposition may UNDERSTATE it. This single window holds
+# positions across the whole year. NOT a robustness grade (it's one window) — it answers whether the
+# "3/6 positive panels" fragility is real or a holding-period-truncation artifact.
+FY2025_FULL = Window(name="fy2025_full", start="2025-01-01", end="2025-12-31")
 
-def main() -> None:
+
+def main(mode: str = "panel") -> None:
     champion = SweepConfig(choices=())  # pure phase-engine champion base (no swept phases)
+
+    if mode == "full":
+        # FULL-FY DIAGNOSTIC: one continuous window, DIRECT adapter call (bypasses run_sweep's
+        # mandatory 6-window panel gate — a single window is not a robustness board). Answers whether
+        # the panel "3/6 positive" fragility is a holding-period-truncation artifact (panels cut
+        # winners every 60d) vs real. NOT a validation grade.
+        adapter = make_local_run(warmup_gate=None)  # 1 cell, no gate needed
+        print(f"=== CHAMPION FULL-FY2025 DIAGNOSTIC (continuous holding) — champion_intraday_gapvol "
+              f"#270 {champion.config_hash}, NOT sT10e/1.2273 ===")
+        m = adapter(champion, FY2025_FULL)
+        print(f"\n=== FULL-FY2025 (one continuous window) ===")
+        print(f"  Sharpe={m.sharpe}  Net={m.ret_pct}%  DD={m.dd_pct}%  Orders={m.orders}")
+        print(f"  vs 6-panel decomposition: sharpe_mean 0.979, 3/6 positive, w5=78% of net "
+              f"(truncates holding every ~60d). Continuous-hold full-FY tests the let-winners-run leg.")
+        return
+
     windows = sweep_windows(include_holdout=False)  # 6 FY2025 panels; OOS → cloud
     workers = int(os.environ.get("SWEEP_WORKERS", "2"))
     gate = WarmupGate() if workers > 1 else None
@@ -64,4 +87,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1] if len(sys.argv) > 1 else "panel")
