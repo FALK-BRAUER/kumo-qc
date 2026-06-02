@@ -112,6 +112,37 @@ def _strip_docstrings(source: str) -> str:
     return "\n".join(line for i, line in enumerate(source.split("\n"), start=1) if i not in drop)
 
 
+def _strip_comments(source: str) -> str:
+    """Remove COMMENTS from a generated dist file (#276b deploy-size: QC's 64,000-char/file cap —
+    lean_entry.py grew past it even docstring-stripped, from the funnel/tag/censored instrumentation).
+    The dist is GENERATED + deploy-only + not-human-read; src/ keeps the comments (the rationale lives
+    where humans read it). config_hash is over the CONFIG, not file contents → UNAFFECTED.
+
+    TOKENIZE-SAFE (string-aware): drops only true COMMENT tokens (never a `#` inside a string literal).
+    A full-line comment → its line is dropped; a trailing inline comment → only the comment is cut, the
+    code (rstripped) is kept. Pre-existing blank lines + all code/strings are preserved (a blank line
+    inside a real triple-quoted string is untouched — only comment-emptied lines are dropped)."""
+    import io
+    import tokenize
+
+    lines = source.split("\n")
+    blanked_full: set[int] = set()
+    try:
+        toks = list(tokenize.generate_tokens(io.StringIO(source).readline))
+    except (tokenize.TokenError, IndentationError):
+        return source  # never corrupt the dist over a tokenize edge — fall back to un-stripped
+    for tok in toks:
+        if tok.type != tokenize.COMMENT:
+            continue
+        r, c = tok.start[0] - 1, tok.start[1]
+        before = lines[r][:c]
+        if before.strip():
+            lines[r] = before.rstrip()       # code + trailing comment → keep code only
+        else:
+            blanked_full.add(r)              # full-line comment → drop the line
+    return "\n".join(line for i, line in enumerate(lines) if i not in blanked_full)
+
+
 def _imports_in(path: Path) -> list[str]:
     tree = ast.parse(path.read_text(), filename=str(path))
     mods: list[str] = []
@@ -272,9 +303,10 @@ def _build_core(
     included: list[str] = []
     for f in sorted(closure):
         flat = _flat_name(f, src)
-        # #276b-1: strip docstrings from the generated dist file (QC 64k/file deploy cap — src/
-        # keeps the rationale; dist is deploy-only). config_hash unaffected (hashes the config).
-        (dist / flat).write_text(_strip_docstrings(_rewrite_imports(f.read_text())))
+        # #276b-1/#276b: strip docstrings AND comments from the generated dist file (QC 64k/file
+        # deploy cap — lean_entry.py grew past it even docstring-only-stripped; src/ keeps the
+        # rationale, dist is deploy-only + not-human-read). config_hash unaffected (hashes the config).
+        (dist / flat).write_text(_strip_comments(_strip_docstrings(_rewrite_imports(f.read_text()))))
         included.append(flat)
 
     # generated flat entry + manifest + metadata
