@@ -97,14 +97,28 @@ def test_snapshot_captures_score_and_8_conditions(monkeypatch) -> None:
     # indicator suite) → assert the threading, not the scorer internals.
     import runtime.lean_entry as le
     aapl = FakeSym("AAPL")
-    bits = [True, True, False, True, True, True, False, True]  # 6/8
-    monkeypatch.setattr(le, "score_symbol_native", lambda algo, sym, ind: {"score": 6, "conditions": bits})
+    bits = [True, True, False, True, True, True, True, True]  # 7/8 (>= default min_score 7)
+    monkeypatch.setattr(le, "score_symbol_native", lambda algo, sym, ind: {"score": 7, "conditions": bits})
     a = _algo([aapl], ["aapl"], {aapl: {"d_ichi": FakeDIchi(140.0)}}, {aapl: 150.0})
     a._capture_candidate_snapshot(a._ranked_today)
     snap = a._candidate_snapshot[aapl]
-    assert snap["score"] == 6
+    assert snap["score"] == 7
     assert snap["conditions"] == bits  # all 8, in the stable documented bit order
     assert len(snap["conditions"]) == 8
+
+
+def test_snapshot_drops_drifted_rescore_below_min_score(monkeypatch) -> None:
+    # HQ drift tripwire: a winner re-scoring BELOW min_score (ind desync) must NOT record its
+    # (untrustworthy) booleans — flag suspect: score=None, conditions=[], CONTEXT_GAP logged.
+    import runtime.lean_entry as le
+    aapl = FakeSym("AAPL")
+    monkeypatch.setattr(le, "score_symbol_native",
+                        lambda algo, sym, ind: {"score": 5, "conditions": [True] * 5 + [False] * 3})
+    a = _algo([aapl], ["aapl"], {aapl: {"d_ichi": FakeDIchi(140.0)}}, {aapl: 150.0})  # default min_score=7
+    a._capture_candidate_snapshot(a._ranked_today)
+    snap = a._candidate_snapshot[aapl]
+    assert snap["score"] is None and snap["conditions"] == [], "drifted re-score must not be trusted"
+    assert any("score-drift" in m for m in a.logged)
 
 
 def test_capture_skips_unsubscribed_candidate() -> None:

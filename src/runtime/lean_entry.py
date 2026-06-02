@@ -956,6 +956,18 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                 f"decisions (gap {gap} > 1) — the scheduled after-close trigger under-fired."
             )
 
+    def _signal_min_score(self) -> int:
+        """The configured BCT signal threshold (the score a winner was selected at) — for the
+        snapshot drift tripwire. Reads the signal slot's params; default 7 (champion) if it can't
+        resolve (never crash the snapshot over the guard's own input)."""
+        try:
+            slot = self.engine.config.phases.get("signal")
+            if isinstance(slot, list):
+                slot = slot[0]
+            return int(getattr(slot.params, "min_score", 7))
+        except Exception:
+            return 7
+
     def _capture_candidate_snapshot(self, winners: "list[str]") -> None:
         """#276b-0/#276b-1 daily→intraday handoff. Snapshot each DECIDED candidate's thesis
         ({signal_price, daily_kijun, decision_date}) so the intraday clock (PreFlightStaleness +
@@ -1009,6 +1021,19 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                 _log = getattr(self, "log", None)
                 if callable(_log):
                     _log(f"CONTEXT_GAP|{decision_date}|{getattr(sym, 'value', sym)}|rescore-failed:{type(exc).__name__}")
+            # DRIFT/DESYNC TRIPWIRE (HQ): the re-score is the SAME score_symbol_native on the SAME
+            # maintained ind the signal selected on → identical BY CONSTRUCTION. But "identical needs
+            # a guard, not an assumption" — a silent boolean drift poisons the whole learn-mine. A true
+            # winner was selected at score >= min_score; if the re-score lands BELOW that, ind desynced
+            # between the signal eval and here → the booleans are NOT trustworthy. Flag suspect (don't
+            # record drifted booleans as truth): score=None, conditions=[], LOUD log.
+            min_score = self._signal_min_score()
+            if scored is not None and int(scored["score"]) < min_score:
+                _log = getattr(self, "log", None)
+                if callable(_log):
+                    _log(f"CONTEXT_GAP|{decision_date}|{getattr(sym, 'value', sym)}|score-drift:"
+                         f"rescore={scored['score']}<min_score={min_score} — booleans suspect, dropped")
+                scored = None
             conditions = [bool(c) for c in scored["conditions"]] if scored else []
             snap[sym] = {
                 "signal_price": float(self.securities[sym].price),
