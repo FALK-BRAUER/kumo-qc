@@ -65,6 +65,11 @@ def local_dist_builder(config: SweepConfig, window: Window, run_dir: Path) -> st
         # reliable local lever; e.g. the #336 CONTINUOUS_WEEKLY flag). repr() → valid Python literals
         # (True/False, quoted str). Absent env → no extra attrs (byte-identical no-flag path).
         extra = _json.loads(_os.environ.get("SWEEP_CLASS_ATTRS", "{}"))
+        # #336/#338: the config's continuous_weekly field is AUTHORITATIVE for the flag — it drives
+        # BOTH the BCTAlgorithm behavior (this class-attr) AND the config_hash identity, so a flag-ON
+        # archive can never be confused with flag-OFF. (Env SWEEP_CLASS_ATTRS stays for ad-hoc attrs.)
+        if getattr(config, "continuous_weekly", False):
+            extra.setdefault("CONTINUOUS_WEEKLY", True)
         attr_lines = "".join(f"    {k} = {v!r}\n" for k, v in extra.items())
         s = s.replace(
             "    STRATEGY_CONFIG = STRATEGY_CONFIG\n", _window_class_attrs(window) + attr_lines, 1

@@ -111,6 +111,12 @@ class SweepConfig:
     """
 
     choices: tuple[PhaseChoice, ...]
+    # #336/#338: the CONTINUOUS_WEEKLY correctness fix is a DIFFERENT strategy (it makes different
+    # decisions on the corrected weekly), so it belongs in the config IDENTITY → its own config_hash
+    # + archive. Default False = the legacy/prod strategy; it enters the hash ONLY when True (non-
+    # default), so an all-default config hashes EXACTLY as before (e3b0c44298fc unchanged) — the
+    # canonical archive/test/dist-pin keys never move. flag-ON → a new distinct hash.
+    continuous_weekly: bool = False
 
     @property
     def total_free_params(self) -> int:
@@ -123,6 +129,10 @@ class SweepConfig:
         for c in sorted(self.choices, key=lambda x: x.kind):
             params_repr = ",".join(f"{k}={v!r}" for k, v in c.params)
             parts.append(f"{c.kind}:{c.impl_name}:{params_repr}")
+        # non-default ONLY: append the identity dimension when the fix is ON, so the legacy
+        # all-default hash is byte-identical to before (backward-compatible by construction).
+        if self.continuous_weekly:
+            parts.append("continuous_weekly:1")
         return hashlib.sha256("|".join(parts).encode()).hexdigest()[:12]
 
 
