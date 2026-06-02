@@ -61,9 +61,16 @@ def smoke() -> None:
 def main(mode: str) -> None:
     if mode == "smoke":
         return smoke()
-    if mode != "full":
-        raise SystemExit("usage: run_dvrank_grid.py smoke|full")
-    caps, windows = CAPS, SIX_WINDOWS
+    # MINIMAL-first (HQ throughput): prove the full chain end-to-end on the smallest meaningful grid
+    # — the booster (cap=250) vs the baseline (uncapped == all score≥7) over the 6-window panel
+    # (12 BTs ~80min serial), enough to produce + prove the first real leaderboard. `full` scales to
+    # all 4 caps; parallelize there (max_workers up to QC's concurrent-BT cap), not on this first proof.
+    if mode == "min":
+        caps, windows, workers = [250, UNCAPPED], SIX_WINDOWS, 1
+    elif mode == "full":
+        caps, windows, workers = CAPS, SIX_WINDOWS, 1
+    else:
+        raise SystemExit("usage: run_dvrank_grid.py smoke|min|full")
 
     configs = [cap_config(c) for c in caps]
     print(f"=== DV-rank grid ({mode}): {len(configs)} caps x {len(windows)} windows = "
@@ -73,7 +80,7 @@ def main(mode: str) -> None:
 
     adapter = make_cloud_run()  # REAL QC; CloudLeanRun is the RunConfig primitive (assert_cloud_clean inside)
     pins = (git_commit(_ROOT), "live-dvrank-grid", "oracle_signal_v1")
-    outcome = run_sweep(configs, adapter, windows=windows, max_workers=1,
+    outcome = run_sweep(configs, adapter, windows=windows, max_workers=workers,
                         oos_window="w6_2024", stress_window=None, pins=pins)
 
     OUT.mkdir(parents=True, exist_ok=True)
