@@ -21,10 +21,10 @@ sys.path[:0] = [str(_ROOT), str(_ROOT / "src"), str(_ROOT / "scripts")]
 
 from phases.signal.oracle_signal.oracle_signal import DvRankPredictor  # noqa: E402
 from sweeps.adapters.qc_cloud_prod import make_cloud_run  # noqa: E402
+from sweeps.grids.windows_fy2025 import FY2024_OOS, sweep_windows  # noqa: E402  the DEFINED panel + OOS
 from sweeps.provenance import git_commit  # noqa: E402
 from sweeps.run_sweep import run_sweep  # noqa: E402
 from sweeps.types import PhaseChoice, SweepConfig, Window  # noqa: E402
-from sweeps.windows import SIX_WINDOWS  # noqa: E402
 
 UNCAPPED = 10**9  # rank_cap so large all score≥7 fire == the baseline champion (gate-④ anchor)
 CAPS = [100, 250, 500, UNCAPPED]
@@ -49,7 +49,9 @@ def smoke() -> None:
     Confirms the regen config Initializes CLEAN on cloud (the codegen-fix proof) + the adapter's
     deploy→run→assert_cloud_clean→parse path works live. Returns ResultMetrics on success."""
     cfg = cap_config(250)
-    w = Window(name="w6_2024", start="2024-01-01", end="2024-12-31")
+    # SHORT window — a smoke proves cloud-Initialize only; the window is irrelevant to that (don't
+    # burn a full-FY BT to prove deploy-health). §Parity gate-0 2-week window.
+    w = Window(name="smoke_2wk", start="2025-01-01", end="2025-01-15")
     print(f"=== SMOKE: cap=250 ({cfg.config_hash}) x {w.name} — DIRECT adapter deploy-health ===")
     adapter = make_cloud_run()
     metrics = adapter(cfg, w)  # CloudLeanRun.__call__ → ResultMetrics (assert_cloud_clean inside; raises on dirty)
@@ -65,10 +67,13 @@ def main(mode: str) -> None:
     # — the booster (cap=250) vs the baseline (uncapped == all score≥7) over the 6-window panel
     # (12 BTs ~80min serial), enough to produce + prove the first real leaderboard. `full` scales to
     # all 4 caps; parallelize there (max_workers up to QC's concurrent-BT cap), not on this first proof.
+    # the DEFINED validation set (NO arbitrary years): 6 FY2025 bi-monthly panel windows (gates ①②)
+    # + the FY2024 OOS holdout (gate ③). sweep_windows(include_holdout=True) = the 7-window set.
+    windows = sweep_windows(include_holdout=True)
     if mode == "min":
-        caps, windows, workers = [250, UNCAPPED], SIX_WINDOWS, 1
+        caps, workers = [250, UNCAPPED], 1
     elif mode == "full":
-        caps, windows, workers = CAPS, SIX_WINDOWS, 1
+        caps, workers = CAPS, 1
     else:
         raise SystemExit("usage: run_dvrank_grid.py smoke|min|full")
 
@@ -81,7 +86,7 @@ def main(mode: str) -> None:
     adapter = make_cloud_run()  # REAL QC; CloudLeanRun is the RunConfig primitive (assert_cloud_clean inside)
     pins = (git_commit(_ROOT), "live-dvrank-grid", "oracle_signal_v1")
     outcome = run_sweep(configs, adapter, windows=windows, max_workers=workers,
-                        oos_window="w6_2024", stress_window=None, pins=pins)
+                        oos_window=FY2024_OOS.name, stress_window=None, pins=pins)
 
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / f"leaderboard_{mode}.csv").write_text(outcome.leaderboard_csv)
