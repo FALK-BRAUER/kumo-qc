@@ -614,6 +614,7 @@ def persist_run(
     dest_root: Path | str,
     end_of_data: datetime | str | None = None,
     m2m_mark: M2MMark | None = None,
+    runtime_statistics: Mapping[str, Any] | None = None,
     fetch_retries: int = 3,
     fetch_backoff: float = 2.0,
 ) -> Path:
@@ -753,6 +754,11 @@ def persist_run(
         "timestamp": timestamp,
         "env": env,
         "statistics": dict(statistics),
+        # #303 funnel: the per-run cumulative funnel.* counters (signal_winners→…→orders) + the
+        # funnel._sem legend, captured INLINE here (they ride /backtests/read.runtimeStatistics at
+        # run-time, same as the trio — folded in so new runs carry their own per-year funnel
+        # decomposition without a post-hoc step). None when not supplied (e.g. local runs).
+        "runtime_statistics": dict(runtime_statistics) if runtime_statistics else None,
         # n_closed_trades counts REALIZED rows only (back-compat); n_censored / n_censored_trades is
         # the open-at-end provisional count (both keys for the mine's gate convenience — #303 reads
         # n_censored without decompressing the jsonl); n_trade_rows is the total written.
