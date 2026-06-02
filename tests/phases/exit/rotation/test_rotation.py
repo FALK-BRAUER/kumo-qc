@@ -90,10 +90,17 @@ def test_rotates_weakest_weakening_when_outscored():
     assert len(intents) == 1 and intents[0].ticker == "LAG" and intents[0].qty == -100
 
 
-def test_no_rotation_when_not_outscored_by_margin():
-    # NEW(7) vs LAG(6): 7 > 6+1.0 is False → no rotation
-    res, intents = _run(_scene(cash=100.0, new_score=7))
+def test_no_rotation_when_edge_below_margin():
+    # NEW(6) vs LAG(6): edge 0 < margin 1.0 → no rotation (not out-scored)
+    res, intents = _run(_scene(cash=100.0, new_score=6))
     assert res.facts["rotations"] == 0 and len(intents) == 0
+
+
+def test_one_point_edge_fires():
+    # the REAL case: champion holds 7s, an 8 appears → edge 1 >= margin 1.0 → ROTATE (this was the
+    # bug: strict `> worst+margin` needed a 2-pt edge → never fired on 8-vs-7).
+    res, intents = _run(_scene(cash=100.0, lag_score=7, new_score=8))
+    assert res.facts["rotations"] == 1 and intents[0].ticker == "LAG"
 
 
 def test_never_rotates_trending_winner():

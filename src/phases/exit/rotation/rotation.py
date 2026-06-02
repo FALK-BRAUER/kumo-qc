@@ -98,8 +98,14 @@ class Rotation(BasePhase):
         best_new_sym, best_new_score = max(new_cands, key=lambda x: x[1])
         worst_held_sym, worst_held_score = min(held_scored, key=lambda x: x[1])
 
+        # margin = the MINIMUM score EDGE (points) the new candidate must beat the weakest held by.
+        # Scores are integers (≤8) and the champion holds 7s while 8s appear → the realistic edge is
+        # exactly 1 point; margin=1.0 with a strict `best > worst + margin` would need a 2-point edge
+        # (impossible) → rotation never fires (verified: 8-vs-7 days). Use `edge >= margin` so a
+        # ≥1-point edge fires (8 beats 7).
         rotations = 0
-        if best_new_score > worst_held_score + self.p.margin and self._is_weakening(qc, worst_held_sym, snap):
+        edge = best_new_score - worst_held_score
+        if edge >= self.p.margin and self._is_weakening(qc, worst_held_sym, snap):
             holding = pf[worst_held_sym]
             ctx.bar_state.exit_intents.append(
                 OrderIntent(
