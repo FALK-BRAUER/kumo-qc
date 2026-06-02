@@ -374,8 +374,12 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             {s.strip().lower() for s in self.WEEKLY_DUMP_SYMS.split(",") if s.strip()}
             if self.WEEKLY_DUMP_SYMS else None
         )
-        # #336/#338 continuous-weekly: flag-on → arm qc._warmup_cache so the BctScoreFull cache branch
-        # consumes the per-decision continuous-weekly scalars populated in _on_after_close_decision.
+        # #336/#338 continuous-weekly: the LEAN `continuous-weekly` parameter can enable the flag for a
+        # run (absent/"0" → unchanged → flag-OFF byte-identical; the class-attr default stays the master).
+        if self.get_parameter("continuous-weekly", "0") == "1":
+            self.CONTINUOUS_WEEKLY = True
+        # flag-on → arm qc._warmup_cache so the BctScoreFull cache branch consumes the per-decision
+        # continuous-weekly scalars populated in _on_after_close_decision.
         if self.CONTINUOUS_WEEKLY:
             self._warmup_cache: dict[str, dict] = {}
 
