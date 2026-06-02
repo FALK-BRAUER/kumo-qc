@@ -205,3 +205,38 @@ def score_symbol_native(algorithm: Any, symbol: Any, ind: dict[str, Any]) -> dic
     elif score >= 2: rating = "="
     else:            rating = "--"
     return {"score": score, "rating": rating, "conditions": conditions}
+
+
+# --- #332 warmup-cache CONSUMPTION path (flag-ON) — score_symbol_native stays UNTOUCHED above -----
+# The 14 cached scalars (sweeps.warmup_cache.table_builder.SCALAR_FIELDS) the live indicators produce,
+# read back instead of replaying the 560d warmup. score_symbol_cached applies the IDENTICAL 8
+# conditions to those scalars. A committed decision-neutrality unit gate asserts it produces the SAME
+# conditions/score as score_symbol_native given the same values — so the duplicate logic can't drift.
+def score_symbol_cached(scalars: dict[str, float]) -> dict[str, Any]:
+    """The 8-condition BCT score from the #332 cached scalars (flag-ON warmup-cache path). MIRRORS
+    score_symbol_native's conditions EXACTLY — same comparisons, same order, same rating — but reads
+    the param-free table instead of qc._indicators. Parity is guaranteed by (1) the byte-identical
+    indicator ports that produced the scalars + (2) this identical condition logic; the end-to-end
+    gate proves it on real trades. `scalars` MUST carry all 14 SCALAR_FIELDS (the builder only emits
+    ready dates, so no readiness gate here — an absent field is a fail-loud KeyError, never a guess)."""
+    d_price = scalars["d_price"]
+    w_cloud_top = max(scalars["w_senkou_a"], scalars["w_senkou_b"])
+    adx_rising = scalars["adx_now"] > scalars["adx_3back"]  # now vs 3-back == live adx_window[0]>[3]
+    conditions: list[bool] = [
+        bool(d_price > w_cloud_top),                                              # 1
+        bool(scalars["w_tenkan"] > scalars["w_kijun"]),                           # 2
+        bool(scalars["w_close_0"] > scalars["w_close_26"]),                       # 3
+        bool(scalars["w_senkou_a"] > scalars["w_senkou_b"]),                      # 4 weekly cloud green
+        bool(d_price > scalars["d_cloud_top"]),                                   # 5
+        bool(d_price > scalars["d_tenkan"]),                                      # 6
+        bool(adx_rising and scalars["plus_di"] > scalars["minus_di"]
+             and scalars["adx_now"] >= 20),                                       # 7
+        bool(d_price > scalars["ma200"]),                                         # 8
+    ]
+    score = sum(conditions)
+    if score == 8:   rating = "+++"
+    elif score >= 6: rating = "++"
+    elif score >= 4: rating = "+"
+    elif score >= 2: rating = "="
+    else:            rating = "--"
+    return {"score": score, "rating": rating, "conditions": conditions}
