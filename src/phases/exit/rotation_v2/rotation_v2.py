@@ -96,10 +96,15 @@ class RotationV2(BasePhase):
 
         meta = getattr(qc, "_position_meta", {})
         indicators = getattr(qc, "_indicators", {})
-        # EVICTABLE pool = stalled-green held names only (with a decision_score to rank).
+        # ONE pass over pf.items() (LEAN's Portfolio yields KeyValuePairs — never `for s in pf` +
+        # pf[s], that get_Item-fails on the KVP). Collect held_syms + the stalled-green evictable pool.
         evictable = []
+        held_syms = set()
         for sym, holding in list(pf.items()):
-            if not getattr(holding, "invested", False) or indicators.get(sym) is None:
+            if not getattr(holding, "invested", False):
+                continue
+            held_syms.add(sym)
+            if indicators.get(sym) is None:
                 continue
             m = meta.get(sym)
             sc = m.get("decision_score") if m else None
@@ -108,7 +113,6 @@ class RotationV2(BasePhase):
             if self._is_stalled_green(qc, sym, ctx.time):
                 evictable.append((sym, int(sc)))
 
-        held_syms = {s for s, _ in [(s, 0) for s in pf if getattr(pf[s], "invested", False)]}
         snap = getattr(qc, "_candidate_snapshot", {})
         new_cands = [(s, int(snap[s]["score"])) for s in snap
                      if s not in held_syms and snap[s].get("score") is not None]
