@@ -386,16 +386,8 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self.set_cash(self.CASH)
         self.set_benchmark("SPY")
         self.set_time_zone("America/New_York")  # match legacy champion (scheduling/timestamps)
-        # #358b WARMUP-SKIP (ALL-OR-NOTHING): skip the 560d set_warmup ONLY when every daily-clock
-        # consumer is cache-fed (see _can_skip_warmup) — then the heavy warmup + the daily seeds
-        # (_should_seed_daily) are both off → the WarmupGate cap lifts → cache-on parallel-N. ANY leg
-        # not armed → run the canonical set_warmup (fail-closed). Default (no WARMUP_DAILY_CACHE_FP) =
-        # set_warmup runs, byte-untouched.
-        if self._can_skip_warmup():
-            self.log("#358b WARMUP-SKIP: set_warmup SKIPPED — daily_scalar cache armed, all daily-clock "
-                     "consumers cache-fed (signal/exit/regime/snapshot) + daily seeds skipped")
-        else:
-            self.set_warmup(timedelta(days=self.WARMUP_DAYS))
+        # NOTE: the set_warmup decision is DEFERRED to AFTER the cache-arming blocks below — _can_skip_warmup
+        # reads _daily_cache_fp, which is set by the daily-cache arming. (#358b order fix.)
         # #336/#338 continuous-weekly: CONTINUOUS_WEEKLY is the class-attr master switch (default OFF =
         # byte-untouched ship path; set True via class-attr injection for a flag-on run). flag-on → arm
         # qc._warmup_cache so the BctScoreFull cache branch consumes the per-decision
@@ -428,6 +420,17 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         if self.CONTINUOUS_WEEKLY and self.WARMUP_DAILY_CACHE_FP and getattr(self, "object_store", None) is not None:
             self._daily_cache_fp = self.WARMUP_DAILY_CACHE_FP
             self.log(f"#358b daily-scalar cache: per-symbol lazy-load ARMED (fp {self._daily_cache_fp[:12]}…)")
+
+        # #358b WARMUP-SKIP (ALL-OR-NOTHING) — DECIDED HERE, after the cache arming (so _daily_cache_fp
+        # is set). Skip the 560d set_warmup ONLY when every daily-clock consumer is cache-fed
+        # (_can_skip_warmup); then the heavy warmup + the daily seeds (_should_seed_daily) are both off
+        # → the WarmupGate cap lifts → cache-on parallel-N. ANY leg not armed → canonical set_warmup
+        # (fail-closed). Default (no WARMUP_DAILY_CACHE_FP) → set_warmup runs, byte-untouched.
+        if self._can_skip_warmup():
+            self.log("#358b WARMUP-SKIP: set_warmup SKIPPED — daily_scalar cache armed, all daily-clock "
+                     "consumers cache-fed (signal/exit/regime/snapshot) + daily seeds skipped")
+        else:
+            self.set_warmup(timedelta(days=self.WARMUP_DAYS))
 
         # RAW normalization everywhere — adjusted prices corrupt Ichimoku (2649e2e).
         self.universe_settings.resolution = Resolution.DAILY
