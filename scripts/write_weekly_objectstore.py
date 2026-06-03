@@ -2,9 +2,10 @@
 
 Reads the #332 per-symbol jsonl cache (``results/warmup_cache/<fp>/*.jsonl``), extracts the 6 weekly
 Ichimoku scalars per (sym, date), and writes the ObjectStore blob (loader.dump_weekly_blob) to
-``<storage>/<key>``. The LOCAL harness then sets ``WARMUP_WEEKLY_CACHE_KEY=<key>`` +
-``WARMUP_WEEKLY_CACHE_FP=<fp>``; the runtime reads it via ``self.object_store`` and skips the
-per-decision history(560d) weekly re-derivation.
+``<storage>/<per-symbol-key>`` (one key per symbol). The LOCAL harness then sets ONLY
+``WARMUP_WEEKLY_CACHE_FP=<fp>``; the runtime DERIVES each per-symbol key from it via the shared
+weekly_cache_key(fp, sym) + lazy-reads via ``self.object_store``, skipping the per-decision
+history(560d) weekly re-derivation.
 
 LOCAL-ONLY: this key is a perf accelerator — NEVER upload it to the cloud project (cloud's
 ObjectStore won't have the key → contains_key False → fail-closed → live re-derive). The embedded
