@@ -96,6 +96,13 @@ class BctScoreFull(BasePhase):
 
         candidates: list[tuple[Any, int, float]] = []  # (symbol, score, dollar_volume)
         blocked_log: list[str] = []
+        # #348 feature-capture fix: stamp each winner's score + 8 conditions HERE, at signal-PASS,
+        # keyed by symbol. The daily→intraday snapshot reads these instead of RE-scoring (which threw
+        # for ~5/36 entries incl the biggest winners HOOD/GLW → context_status=CORE_MISSING, blind
+        # winners). These ARE the values the signal selected on (native or cached path) → authoritative
+        # by construction, no drift. Learn-substrate metadata only — NOT a trade gate (the snapshot
+        # score gates nothing; H1 checks existence+date, preflight uses price/kijun) → trade-identical.
+        signal_feats: dict[Any, dict[str, Any]] = {}
 
         # #332 warmup-cache CONSUMPTION (flag-ON): when lean_entry has loaded qc._warmup_cache (and
         # skipped SetWarmUp), score from the cached scalars for (symbol, today) instead of the live
@@ -128,6 +135,8 @@ class BctScoreFull(BasePhase):
                 if scalars["roc13"] > parabolic_threshold:  # E51 parabolic block (cached roc13)
                     blocked_log.append(ticker)
                     continue
+                signal_feats[symbol] = {"score": int(result["score"]),
+                                        "conditions": [bool(c) for c in result.get("conditions", [])]}
                 candidates.append((symbol, result["score"], float(trailing_dv.get(ticker.lower(), 0.0))))
                 continue
 
@@ -166,7 +175,12 @@ class BctScoreFull(BasePhase):
             # Dollar-volume tiebreak from the live trailing DV (no per-bar history). 0.0 if absent.
             dollar_volume = float(trailing_dv.get(ticker.lower(), 0.0))
 
+            signal_feats[symbol] = {"score": int(result["score"]),
+                                    "conditions": [bool(c) for c in result.get("conditions", [])]}
             candidates.append((symbol, result["score"], dollar_volume))
+
+        # #348: publish the pass-time features for the snapshot to read (fresh each daily decision).
+        qc._signal_features = signal_feats
 
         # Sort: score DESC, dollar_vol DESC — matches oracle L589-590
         candidates.sort(key=lambda x: (x[1], x[2]), reverse=True)

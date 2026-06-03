@@ -1239,26 +1239,34 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             # failure must NOT crash the snapshot (→ silent-0 entries); log it LOUD as a context gap
             # and proceed on the already-validated signal_price/daily_kijun (conditions just absent
             # from the learn-substrate for this name — a data gap, not a trade blocker).
-            try:
-                scored = score_symbol_native(self, sym, ind)
-            except Exception as exc:  # incomplete/edge ind — should not happen for a fresh winner
-                scored = None
-                _log = getattr(self, "log", None)
-                if callable(_log):
-                    _log(f"CONTEXT_GAP|{decision_date}|{getattr(sym, 'value', sym)}|rescore-failed:{type(exc).__name__}")
-            # DRIFT/DESYNC TRIPWIRE (HQ): the re-score is the SAME score_symbol_native on the SAME
-            # maintained ind the signal selected on → identical BY CONSTRUCTION. But "identical needs
-            # a guard, not an assumption" — a silent boolean drift poisons the whole learn-mine. A true
-            # winner was selected at score >= min_score; if the re-score lands BELOW that, ind desynced
-            # between the signal eval and here → the booleans are NOT trustworthy. Flag suspect (don't
-            # record drifted booleans as truth): score=None, conditions=[], LOUD log.
-            min_score = self._signal_min_score()
-            if scored is not None and int(scored["score"]) < min_score:
-                _log = getattr(self, "log", None)
-                if callable(_log):
-                    _log(f"CONTEXT_GAP|{decision_date}|{getattr(sym, 'value', sym)}|score-drift:"
-                         f"rescore={scored['score']}<min_score={min_score} — booleans suspect, dropped")
-                scored = None
+            # #348 FEATURE-CAPTURE FIX: read the pass-time features the SIGNAL phase stamped
+            # (qc._signal_features), keyed by the same canonical Symbol. These ARE the score + 8
+            # conditions the signal selected this name on (native or cached path) → authoritative by
+            # construction, NO re-score. The old re-score path threw for ~5/36 entries incl the biggest
+            # winners HOOD/GLW (score_symbol_native on a live ind that went cold between signal-eval and
+            # here) → context_status=CORE_MISSING, blind winners with null features — the #348 blind
+            # spot. No drift check needed on this path: it is the signal's own decision, not a re-derive.
+            feat = getattr(self, "_signal_features", {}).get(sym)
+            if feat is not None:
+                scored = {"score": int(feat["score"]), "conditions": list(feat["conditions"])}
+            else:
+                # Defensive fallback (a winner somehow absent from _signal_features — should not occur):
+                # re-score + the DRIFT TRIPWIRE (a sub-min_score re-score = desynced ind → booleans
+                # untrustworthy → drop to None rather than record drifted truth).
+                try:
+                    scored = score_symbol_native(self, sym, ind)
+                except Exception as exc:  # incomplete/edge ind
+                    scored = None
+                    _log = getattr(self, "log", None)
+                    if callable(_log):
+                        _log(f"CONTEXT_GAP|{decision_date}|{getattr(sym, 'value', sym)}|rescore-failed:{type(exc).__name__}")
+                min_score = self._signal_min_score()
+                if scored is not None and int(scored["score"]) < min_score:
+                    _log = getattr(self, "log", None)
+                    if callable(_log):
+                        _log(f"CONTEXT_GAP|{decision_date}|{getattr(sym, 'value', sym)}|score-drift:"
+                             f"rescore={scored['score']}<min_score={min_score} — booleans suspect, dropped")
+                    scored = None
             conditions = [bool(c) for c in scored["conditions"]] if scored else []
             snap[sym] = {
                 "signal_price": float(self.securities[sym].price),
