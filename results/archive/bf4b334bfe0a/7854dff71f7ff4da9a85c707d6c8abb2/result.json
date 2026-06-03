@@ -1,0 +1,68 @@
+{
+  "backtest_id": "7854dff71f7ff4da9a85c707d6c8abb2",
+  "commit": "434c1e2ac9986c2143c20849fd668958b0e7eb1c",
+  "config": {
+    "config_hash": "bf4b334bfe0a",
+    "name": "bf4b334bfe0a",
+    "phases": {
+      "signal": {
+        "free_params": 2,
+        "impl": "oracle_signal",
+        "params": {
+          "min_score": 7,
+          "parabolic_threshold": 0.25,
+          "predictor": {
+            "__type__": "DvRankPredictor",
+            "min_score": 7,
+            "rank_cap": 250
+          }
+        }
+      }
+    },
+    "version": "276b.v2"
+  },
+  "config_hash": "bf4b334bfe0a",
+  "data_fingerprint": "90f2d7e3fb80d0a4d2eb286f6a43199e1519495a3ce9d787a4d7d0dfc70c535c",
+  "env": "cloud",
+  "n_censored": 0,
+  "n_censored_trades": 0,
+  "n_closed_trades": 3,
+  "n_trade_rows": 3,
+  "objective_version": "323.v1",
+  "result_schema_version": 2,
+  "run_class": null,
+  "runtime_statistics": null,
+  "statistics": {
+    "Alpha": "0.821",
+    "Annual Standard Deviation": "0.206",
+    "Annual Variance": "0.043",
+    "Average Loss": "-0.58%",
+    "Average Win": "0%",
+    "Beta": "1.75",
+    "Compounding Annual Return": "213.485%",
+    "Drawdown": "8.200%",
+    "Drawdown Recovery": "21",
+    "End Equity": "121040.14",
+    "Estimated Strategy Capacity": "$5500000.00",
+    "Expectancy": "-1",
+    "Information Ratio": "6.954",
+    "Loss Rate": "100%",
+    "Lowest Capacity Asset": "U XHYQYCUDLKKL",
+    "Net Profit": "21.040%",
+    "Portfolio Turnover": "2.39%",
+    "Probabilistic Sharpe Ratio": "89.889%",
+    "Profit-Loss Ratio": "0",
+    "Sharpe Ratio": "5.927",
+    "Sortino Ratio": "5.761",
+    "Start Equity": "100000",
+    "Total Fees": "$15.50",
+    "Total Orders": "24",
+    "Tracking Error": "0.143",
+    "Treynor Ratio": "0.698",
+    "Win Rate": "0%"
+  },
+  "status": "COMPLETED_CLEAN",
+  "timestamp": "2026-06-02T09:16:02.362186+00:00",
+  "total_orders": 24,
+  "trade_schema_version": 2
+}

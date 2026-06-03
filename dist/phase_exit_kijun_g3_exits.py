@@ -1,22 +1,3 @@
-"""Exit phase: Kijun stop + G3 cloud-bottom trailing + optional cloud/weekly-kijun.
-
-Kind: exit_hard
-Marker: kijun_g3_exits_v1
-Tested params: cloud_exit_enabled=False, weekly_kijun_exit_enabled=False,
-phase3_days=56, phase3_pnl=0.15 (champion-asis-v1)
-Charter: single code path, exits run UNCONDITIONALLY — this phase always has
-blocked=False. Faithful carve of oracle _rebalance L429-468 (baseline-oracle-v0).
-DO NOT modify evaluate() stop logic — breaks champion-asis-v1 parity (ARCH-C ±0.01 gate).
-
-CHARTER NOTE — phase3_days is NOT a forbidden time-exit / max-hold. It is George's Rule #13
-phase-progression AGE GATE: once a position is ≥phase3_days held AND ≥phase3_pnl in profit,
-the trailing stop LOOSENS from Kijun to cloud-bottom (a LOWER stop, evaluate() L81-104). It
-NEVER forces an exit and NEVER caps holding time — maturity widens the leash, the position
-still only exits on a price-stop breach. Distinct from a genuine time-exit (max_hold_days /
-exit_after_days …) which the charter (CONVENTIONS §Charter rules) forbids — that rule is
-code-review-enforced, not an engine param-name scan (the FORBIDDEN_PARAMS blocklist was
-removed as brittle). phase3_days is a trail-loosen age gate, reviewer-judged legitimate.
-"""
 from __future__ import annotations
 
 from dataclasses import dataclass

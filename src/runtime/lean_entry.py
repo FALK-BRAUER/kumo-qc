@@ -61,9 +61,16 @@ from typing import Any
 import pandas as pd
 
 from engine.base import DegradedDataError, DegradedScheduleError
-from engine.context import PhaseContext
+from engine.context import OrderIntent, PhaseContext
 from engine.engine import StrategyEngine
+from engine.symbol_key import canonical_symbol_key
+from phases.shared.oracle_helpers import score_symbol_native
+from runtime.cost_model import wire_cost_models
+from runtime.tag_schema import encode_entry_tag
 from runtime.indicators import INDICATOR_KEYS, TBounceTracker, weekly_aggregate
+# #336/#338 continuous-weekly fix: WeeklyIchimokuAsOf is imported LAZILY inside
+# _continuous_weekly_scalars (the flag-ON path only) so the default flag-OFF load path adds NO new
+# import dependency — keeps the cloud bundle byte-untouched until the cloud leg is taken (deferred).
 from runtime.universe_select import (
     DvWindow,
     apply_floors,
@@ -126,6 +133,63 @@ def coarse_to_close(coarse: Iterable[Any]) -> dict[str, float]:
     return out
 
 
+# #276b-1 FUNNEL stages — the 9 CUMULATIVE candidate-collapse counters. The collapse STAGE localizes
+# Falk's "78 is too sparse" verdict (legit selectivity vs a bug). Order = the candidate's path
+# through the two clocks:
+#   DAILY:    signal_winners → regime_pass  (+ regime_blocked_days, the SEPARATE regime cut)
+#   INTRADAY: preflight_pass → gap_eligible → confirm_fire → injection_survives → sized → cash_ok
+#   FIRE:     orders
+# The INTRADAY stages are recorded as per-tick survivor SETS on ctx.bar_state.funnel by the gate
+# phases (observe-only, zero behavior change); the runtime folds them at session end.
+FUNNEL_DAILY_STAGES: tuple[str, ...] = ("signal_winners", "regime_pass", "regime_blocked_days")
+FUNNEL_INTRADAY_STAGES: tuple[str, ...] = (
+    "preflight_pass", "gap_eligible", "confirm_fire", "injection_survives", "sized", "cash_ok",
+)
+FUNNEL_FIRE_STAGES: tuple[str, ...] = ("orders",)
+FUNNEL_STAGES: tuple[str, ...] = (
+    FUNNEL_DAILY_STAGES + FUNNEL_INTRADAY_STAGES + FUNNEL_FIRE_STAGES
+)
+
+# #276b-1 FIX (#303 mine clean-counter): the SEMANTIC LEGEND. Each stage counts ONE of three units —
+# the mine MUST NOT compute a cross-stage pass-RATE without first reading this legend, because the
+# units differ (a "rate" between two different units is nonsense). The clean funnel run showed
+# preflight_pass (7817) + injection_survives (12239) EXCEEDING signal_winners (7007) → a misread
+# >100% rate: an unentered candidate persists in the snapshot and RE-INJECTS every day until
+# entered/refreshed, so a per-DAY count of those two stages counts candidate-DAYS-incl-reinjection,
+# not distinct candidates. Fix: those two stages count DISTINCT candidates (each symbol once, the
+# first time it EVER reaches the stage, via a run-cumulative symbol set). The semantics:
+#   "distinct"        — each distinct candidate (by symbol) counted ONCE over the whole run (the
+#                       run-cumulative symbol set; reinjection/re-evaluation does NOT re-count).
+#   "candidate_days"  — a (candidate, day) pair counted once: a name reaching the stage on N
+#                       distinct days legitimately counts N (a per-day survivor set, accumulated).
+#   "daily"           — a per-decision count summed across days (signal_winners = winners/day summed;
+#                       regime_pass likewise; regime_blocked_days = #days blocked).
+#   "fire"            — distinct order fires (each entry fire is one order; no dedup).
+# DISTINCT-candidate stages (a name counted once over the run): preflight_pass, injection_survives.
+# CANDIDATE-DAY stages (a name reaching the stage on N days counts N): gap_eligible, confirm_fire,
+# sized, cash_ok. The asymmetry is intentional — a gap on N distinct days IS N gap-eligible-days.
+FUNNEL_DISTINCT_STAGES: tuple[str, ...] = ("preflight_pass", "injection_survives")
+# the per-day-accumulated intraday stages (the original per-candidate-DAY semantics).
+FUNNEL_CANDIDATE_DAY_STAGES: tuple[str, ...] = tuple(
+    s for s in FUNNEL_INTRADAY_STAGES if s not in FUNNEL_DISTINCT_STAGES
+)
+# stage → semantic-unit map (module-level constant; the robust, machine-readable legend the mine
+# reads to avoid misreading a rate). DO NOT rename the runtime-stat keys (that breaks the existing
+# read) — this legend is the ADDITIVE label.
+FUNNEL_STAGE_SEMANTICS: dict[str, str] = {
+    "signal_winners": "daily",
+    "regime_pass": "daily",
+    "regime_blocked_days": "daily",
+    "preflight_pass": "distinct",
+    "gap_eligible": "candidate_days",
+    "confirm_fire": "candidate_days",
+    "injection_survives": "distinct",
+    "sized": "candidate_days",
+    "cash_ok": "candidate_days",
+    "orders": "fire",
+}
+
+
 def active_set_hash(symbols: Iterable[str]) -> tuple[int, str]:
     """(count, sha256-of-sorted-symbols) for the live-selected ranked set. Logged each
     rebalance so divergence-debug can diff the selection local-vs-cloud — the rung between
@@ -152,6 +216,7 @@ try:  # pragma: no cover - QC runtime import; absent in the dev venv / unit test
         IchimokuKinkoHyo,
         Market,
         MovingAverageType,
+        OrderStatus,
         QCAlgorithm,
         Resolution,
         RollingWindow,
@@ -164,7 +229,7 @@ except ImportError:  # pragma: no cover
     QCAlgorithm = object
     DataNormalizationMode = Resolution = SecurityType = Market = Symbol = None
     Calendar = IchimokuKinkoHyo = RollingWindow = TradeBar = TradeBarConsolidator = None
-    Field = MovingAverageType = None
+    Field = MovingAverageType = OrderStatus = None
 
 
 def _to_decimal(x: Any) -> Decimal:
@@ -255,6 +320,12 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
     # NOTE: this is the FULL-SIGNAL warmup. A Step-A-parity-only override may set ~40d; that is
     # NOT the strategy default and must never be hardcoded here.
     WARMUP_DAYS: int = 560
+    # #336/#338 ws1 — CONTINUOUS-WEEKLY fix (default OFF = byte-untouched ship path). When True, the
+    # daily decision re-derives each candidate's weekly Ichimoku from full CONTINUOUS daily history
+    # (WeeklyIchimokuAsOf over self.history — bypasses the subscription-gated consolidator at the
+    # source, the #336 root) + populates qc._warmup_cache so the BctScoreFull cache branch scores the
+    # CONTINUOUS weekly. LIVE-behavior change → flag-gated; the offline cache + gate validate it.
+    CONTINUOUS_WEEKLY: bool = False
     # #313: the daily DECISION fires on a scheduled AFTER-CLOSE event (decoupled from on_data
     # bar-presence). Minutes after SPY's close → T's daily data is complete (no T+1 look-ahead),
     # the daily indicators are warm with T's bar, the universe selection for T is current.
@@ -272,6 +343,21 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
     INTRADAY_TENKAN: int = 9
     INTRADAY_VOL_WINDOW: int = 20
 
+    # #321 realistic IBKR cost+slippage. SLIPPAGE_PERCENT = the EXPLICIT, version-pinned per-side
+    # slippage fed to ConstantSlippageModel (5 bps; conservative for the liquid ADV>=$100M universe).
+    # Same treatment as the universe knobs above: a lean_entry class attr (single source), NOT in
+    # STRATEGY_CONFIG → config_hash is byte-unchanged; the GIT COMMIT records the cost change. The
+    # IB fee + this slippage are installed on every equity via a security initializer in initialize()
+    # (runtime.cost_model.wire_cost_models) — local AND cloud, one code path, no `if cloud` branch.
+    SLIPPAGE_PERCENT: float = 0.0005
+
+    # #archive B2: the per-entry context tag length cap. The entry order's `tag` is the ONE durable
+    # learn-substrate channel (recovered via /orders/read; logs/charts/ObjectStore are dead). The
+    # tag NEVER silently truncates — over the cap is fail-loud (a truncated tag = corrupt learn
+    # data). PROVISIONAL 200; refine via the EMPIRICAL probe (submit increasing-length tags to QC,
+    # find the real truncation/reject point, set this to <90% of it + a CI assert). #archive-followup.
+    ENTRY_TAG_MAX: int = 200
+
     def initialize(self) -> None:
         self.set_start_date(*self.START_DATE)
         self.set_end_date(*self.END_DATE)
@@ -279,6 +365,12 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self.set_benchmark("SPY")
         self.set_time_zone("America/New_York")  # match legacy champion (scheduling/timestamps)
         self.set_warmup(timedelta(days=self.WARMUP_DAYS))
+        # #336/#338 continuous-weekly: CONTINUOUS_WEEKLY is the class-attr master switch (default OFF =
+        # byte-untouched ship path; set True via class-attr injection for a flag-on run). flag-on → arm
+        # qc._warmup_cache so the BctScoreFull cache branch consumes the per-decision
+        # continuous-weekly scalars populated in _on_after_close_decision.
+        if self.CONTINUOUS_WEEKLY:
+            self._warmup_cache: dict[str, dict] = {}
 
         # RAW normalization everywhere — adjusted prices corrupt Ichimoku (2649e2e).
         self.universe_settings.resolution = Resolution.DAILY
@@ -309,9 +401,47 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self._intraday: dict[Any, dict[str, Any]] = {}
         self._intraday_active: set[Any] = set()
 
-        # #313: the date the daily DECISION clock last ran — the once-per-date idempotency guard in
-        # the scheduled after-close callback (_on_after_close_decision). None until the first decision.
+        # #276b-0 daily→intraday SNAPSHOT handoff. _candidate_snapshot[sym] = {signal_price,
+        # daily_kijun, decision_date}: each DECIDED candidate's thesis, captured on the daily clock
+        # (in the #313 scheduled after-close callback) for the intraday clock (PreFlightStaleness +
+        # confirm read it). REUSE-IDENTITY: keyed by the SAME canonical Symbol _active/_intraday use
+        # — never a re-created Symbol (kills the subscribed≠decided desync by construction). Rebuilt
+        # fresh each daily decision. _entry_confirm = the deferred intraday-confirm PROGRESS store
+        # (populated by the #276b-1 confirm phase), cleared at session-end (on_end_of_day, H3/SG9).
+        # _last_daily_date = the most-recent daily-decision date — serves BOTH #313's once-per-date
+        # guard (_on_after_close_decision) AND 276b-0's H2 staleness check (snapshot_for_entry).
+        self._candidate_snapshot: dict[Any, dict[str, Any]] = {}
         self._last_daily_date: Any = None
+        self._entry_confirm: dict[Any, Any] = {}
+        # #276b-1 candidate-injection PENDING-STATE (Gemini fix #1): syms with an entry order
+        # IN-FLIGHT this session. Injection skips invested ∪ pending so an in-flight entry is not
+        # re-injected (double-entry); a broker REJECT (Canceled/Invalid) drops it from pending →
+        # re-injectable next tick (a transient reject is not a permanently-lost trade). Driven by
+        # on_order_event terminal status; cleared at session end.
+        self._pending_entry_today: set[Any] = set()
+        # SAME-SESSION RE-ENTRY GUARD (the SHOP-churn fix): syms whose ENTRY FILLED this session.
+        # A filled entry that then stops out (e.g. the #290 GTC floor firing intrabar → flat again,
+        # no longer invested ∪ pending) was RE-INJECTABLE → re-confirmed → re-fired → instant
+        # stop-out churn (SHOP fired 7× in 30min on the FY baseline). One entry-FILL per name per
+        # session: injection also skips _entered_today. Marked on entry FILL (not submit, not a
+        # reject — a Canceled/Invalid reject stays re-injectable, the retry-on-reject intent).
+        # Cleared at session end (no T+2 bleed).
+        self._entered_today: set[Any] = set()
+
+        # #276b-1 FUNNEL — the 9 cumulative candidate-collapse counters (localizes Falk's "78 is too
+        # sparse"). See FUNNEL_STAGE_SEMANTICS for the per-stage UNIT. _funnel_cum[stage] = the
+        # FY-cumulative counter. _funnel_today[stage] = the per-DAY survivor SYMBOL SET for the
+        # intraday stages (set membership = the per-day dedup: a candidate evaluated every 5-min tick
+        # counts ONCE/day at each stage). _funnel_seen[stage] = the RUN-cumulative symbol set for the
+        # DISTINCT stages (preflight_pass/injection_survives) — it persists across the whole run (never
+        # reset per-day) so each distinct candidate is counted ONCE, the first time it EVER reaches the
+        # stage (the reinjection-overcount fix; #303 mine clean-counter). The daily stages + the fire
+        # stage (orders) accumulate DIRECTLY into _funnel_cum. At session end the intraday per-day sets
+        # fold into _funnel_cum (candidate-day stages += len; distinct stages = len(_funnel_seen)).
+        # Observe-only: NOTHING in the trading path reads these. Pushed as QC runtime stats.
+        self._funnel_cum: dict[str, int] = {stage: 0 for stage in FUNNEL_STAGES}
+        self._funnel_today: dict[str, set[Any]] = {stage: set() for stage in FUNNEL_INTRADAY_STAGES}
+        self._funnel_seen: dict[str, set[Any]] = {stage: set() for stage in FUNNEL_DISTINCT_STAGES}
 
         # #313 WATCHDOG (the permanent protection vs silent no-fire): the daily decision must keep
         # pace with elapsed trading days. _sched_trading_days counts post-warmup trading days (the
@@ -355,6 +485,11 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             self._on_after_close_decision,
         )
         self._schedule_armed = True  # #313 watchdog engages only in a real armed run (not selection-harness unit tests)
+
+        # #321: realistic IBKR cost+slippage — IB brokerage model + a security initializer that
+        # installs InteractiveBrokersFeeModel + ConstantSlippageModel on every equity (universe,
+        # intraday, SPY); indices (VIX) skipped. Single code path, no `if cloud` branch (charter).
+        wire_cost_models(self, slippage_percent=self.SLIPPAGE_PERCENT)
 
         self.engine = StrategyEngine(config=self.STRATEGY_CONFIG, qc=self)
 
@@ -678,7 +813,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         # uppercase. Match case-INSENSITIVELY to the canonical _active symbol — the same fix the
         # universe phase (dv_rank_cap) uses. (Without this the lookup always missed → 0 intraday
         # subscriptions despite INTRADAY_CAP logging — the #275b bug GATE-0 caught.)
-        active_by_lower = {s.value.lower(): s for s in self._active}
+        active_by_key = {canonical_symbol_key(s): s for s in self._active}  # #276b-1 FIX3 canonical key
         # the capped candidate slice that gets an intraday feed (scan-breadth cap, not a position cap)
         capped = candidates[: self.INTRADAY_SUBSCRIBE_CAP]
         if len(candidates) > self.INTRADAY_SUBSCRIBE_CAP:
@@ -687,7 +822,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             )
         want: set[Any] = set()
         for tk in capped:
-            sym = active_by_lower.get(tk.lower())
+            sym = active_by_key.get(canonical_symbol_key(tk))
             if sym is not None:
                 want.add(sym)
         # held names ALWAYS keep their feed (exits fire on the intraday clock)
@@ -725,6 +860,53 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             )
             w_ichi.update(bar)
             w_close.add(float(wb["close"]))
+
+    def _continuous_weekly_scalars(self, sym: Any) -> dict | None:
+        """#336/#338 — the candidate's 15-scalar dict with a CONTINUOUS weekly. Daily/ADX/ROC come
+        from the live (warm) maintained indicators (they already match the cache — gate daily legs);
+        ONLY the WEEKLY is re-derived from full CONTINUOUS daily history (WeeklyIchimokuAsOf over
+        self.history) — bypassing the subscription-gated consolidator (the #336 root) at the source.
+        as-of (history at T = data <=T, no look-ahead). Returns None if the live indicators / weekly
+        aren't ready (candidate skipped — mirrors score_symbol_native returning None)."""
+        from runtime.lean_indicators import WeeklyIchimokuAsOf  # lazy — flag-ON path only (#336/#338)
+        ind = self._indicators.get(sym)
+        if ind is None:
+            return None
+        d_ichi = ind["d_ichi"]; sma200 = ind["sma200"]; adx = ind["adx"]
+        adx_window = ind["adx_window"]; roc13 = ind["roc13"]
+        if not (d_ichi.is_ready and sma200.is_ready and adx.is_ready and roc13.is_ready):
+            return None
+        if adx_window.count < 4:
+            return None
+        hist = self.history(sym, self.WARMUP_DAYS, Resolution.DAILY)
+        if hist is None or hist.empty:
+            return None
+        if isinstance(hist.index, pd.MultiIndex):
+            hist = hist.droplevel(0)
+        hist.columns = [c.lower() for c in hist.columns]
+        w = WeeklyIchimokuAsOf()
+        for ts, row in hist.iterrows():
+            d = ts.date() if hasattr(ts, "date") else ts
+            w.update(d, float(row["open"]), float(row["high"]), float(row["low"]), float(row["close"]))
+        if not w.is_ready:
+            return None
+        d_price = float(self.securities[sym].price)
+        if d_price <= 0:
+            return None
+        return {
+            "d_price": d_price,
+            "d_tenkan": d_ichi.tenkan.current.value,
+            "d_cloud_top": max(d_ichi.senkou_a.current.value, d_ichi.senkou_b.current.value),
+            "ma200": sma200.current.value,
+            "w_tenkan": w.tenkan, "w_kijun": w.kijun,
+            "w_senkou_a": w.senkou_a, "w_senkou_b": w.senkou_b,
+            "w_close_0": w.w_close(0), "w_close_26": w.w_close(26),
+            "adx_now": adx.current.value,
+            "plus_di": adx.positive_directional_index.current.value,
+            "minus_di": adx.negative_directional_index.current.value,
+            "adx_3back": adx_window[3],
+            "roc13": roc13.current.value,
+        }
 
     def _seed_daily(
         self,
@@ -828,7 +1010,14 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             if fed_intraday:
                 ictx = PhaseContext(qc=self, time=self.time, data=data)
                 ictx.clock = "intraday"
+                # #276b-1: seed the standing daily candidates into this fresh per-tick bar_state
+                # BEFORE the intraday clock runs, so entry_selection can gate them (the two-clock seam).
+                self._inject_intraday_candidates(ictx)
                 self.engine.on_intraday_bar(ictx)
+                # #276b-1 FUNNEL: fold this tick's per-stage survivor sets into the per-DAY sets (set
+                # membership = the per-day dedup — a candidate evaluated every tick counts ONCE/day at
+                # each stage) and accumulate this tick's fired entries (stage 9). Observe-only.
+                self._fold_intraday_funnel(ictx)
 
         # #313: the DAILY DECISION clock is NO LONGER triggered here. on_data carries ONLY the
         # intraday execution clock (above). The daily decision runs on a scheduled AFTER-CLOSE event
@@ -854,12 +1043,49 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             return  # once-per-date idempotency (defense-in-depth — the scheduled event fires once/day anyway)
         self._last_daily_date = today
         self._sched_decisions = getattr(self, "_sched_decisions", 0) + 1  # #313 watchdog: decision fired
-        # #275b-fix (LAG): reconcile intraday subs BEFORE the pipeline — qc._active/_ranked_today are
-        # CURRENT for T (on_securities_changed has fired), so T's candidates get their T+1 5-min feed.
-        self._sync_intraday_subscriptions(getattr(self, "_ranked_today", []))
+        # #276b-1: run the daily pipeline FIRST, then hand the SIGNAL WINNERS (not the pre-signal
+        # universe) to the intraday clock. The daily SIGNAL (BctScoreFull score>=7) is the WHO; the
+        # intraday clock confirms the WHEN on exactly those names. (#276b-0 originally synced/snap'd
+        # qc._ranked_today = the ~hundreds-name ranked UNIVERSE → the intraday feeds were starved by
+        # the cap and the signal filter was bypassed → silent 0 orders; fixed here.)
         ctx = PhaseContext(qc=self, time=self.time, data=None)  # scheduled event — no slice; daily phases read maintained indicators
         ctx.clock = "daily"
+        # #336/#338 CONTINUOUS_WEEKLY (flag-gated; default OFF = live path byte-untouched). Before the
+        # phase chain reads scalars, populate qc._warmup_cache[sym][today] with the continuous-weekly
+        # 15-scalar dict (daily/ADX/ROC from the live warm indicators; the WEEKLY re-derived continuous
+        # via self.history → bypasses the subscription-gated consolidator, the #336 root). BctScoreFull's
+        # cache branch (dec9947) then scores from these. Keyed by symbol.value + today (the decision date).
+        if self.CONTINUOUS_WEEKLY:
+            for sym in list(self._indicators):
+                scalars = self._continuous_weekly_scalars(sym)
+                if scalars is not None:
+                    self._warmup_cache.setdefault(sym.value, {})[today] = scalars
         self.engine.on_data_with_ctx(ctx)
+        # The daily pipeline's surviving intents == the signal winners (entry_selection/timing/sizing
+        # are on the INTRADAY clock for the intraday champion, so the daily bar_state ends at signal).
+        # #277 REGIME GATE → INTRADAY: if a regime/cash phase BLOCKED the daily bar, capture NO
+        # candidates → ZERO intraday entries this session. Without this the daily regime gate was
+        # confined to the daily clock; the intraday gap+loud entries ignored it → over-traded the
+        # bad regimes (the W1/W2 robustness loss). A blocked regime now gates the intraday champion.
+        # #276b-1 FUNNEL stage 1 (signal_winners): the daily SIGNAL output (BctScoreFull score>=7),
+        # captured BEFORE the regime gate masks it. The signal phase runs ahead of regime in
+        # PHASE_ORDER, so ctx.bar_state.sized_orders holds the raw signal winners regardless of the
+        # block. This is the ~40-names/day C1 proved — the funnel's top of stack. Observe-only.
+        signal_winner_tickers = [intent.ticker for intent in ctx.bar_state.sized_orders]
+        blocked = bool(getattr(ctx.bar_state, "bar_blocked", False))
+        self._accumulate_daily_funnel(signal_winner_tickers, blocked)
+        if blocked:
+            winners: list[str] = []
+            log = getattr(self, "log", None)
+            if callable(log):
+                log(f"REGIME_GATE|{today}|blocked — zero intraday candidates captured (#277)")
+        else:
+            winners = signal_winner_tickers
+        # subscribe ONLY the winners for T+1's 5-min feed (all fit INTRADAY_SUBSCRIBE_CAP) + held
+        # names (handled inside _sync) — so every confirmable candidate actually has intraday data.
+        self._sync_intraday_subscriptions(winners)
+        # capture the WINNERS' theses (signal_price + daily_kijun) for the intraday confirm + floor.
+        self._capture_candidate_snapshot(winners)
 
     def _assert_schedule_health(self) -> None:
         """#313 WATCHDOG — the daily DECISION must keep pace with elapsed trading days. Called from
@@ -884,6 +1110,11 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         would never fire). This is the end-of-backtest final reconciliation: total daily decisions
         must match elapsed post-warmup trading days within the 1-day pending tolerance, else the
         scheduled trigger under-fired across the run → CRASH (never silently report a dark run)."""
+        # #276b-1 FUNNEL: final flush + publish BEFORE the watchdog raise — the collapse-stage
+        # diagnostic is MOST valuable when the run ends (incl. a crash). Idempotent: the per-day sets
+        # were already flushed + reset by the last on_end_of_day, so this folds at most the final
+        # session's residual then re-publishes the cumulative counters. Observe-only.
+        self._process_eod_funnel()
         if not getattr(self, "_schedule_armed", False):
             return  # scheduler never armed (selection-harness context) — nothing to reconcile
         gap = getattr(self, "_sched_trading_days", 0) - getattr(self, "_sched_decisions", 0)
@@ -893,3 +1124,416 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                 f"{self._sched_trading_days} post-warmup trading days vs {self._sched_decisions} "
                 f"decisions (gap {gap} > 1) — the scheduled after-close trigger under-fired."
             )
+
+    def _signal_min_score(self) -> int:
+        """The configured BCT signal threshold (the score a winner was selected at) — for the
+        snapshot drift tripwire. Reads the signal slot's params; default 7 (champion) if it can't
+        resolve (never crash the snapshot over the guard's own input)."""
+        try:
+            slot = self.engine.config.phases.get("signal")
+            if isinstance(slot, list):
+                slot = slot[0]
+            return int(getattr(slot.params, "min_score", 7))
+        except Exception:
+            return 7
+
+    def _build_entry_tag(self, sym: Any) -> str:
+        """#archive B2 — the per-entry CONTEXT tag (URL-query), set on the entry order by the engine
+        fire seam (the optional `_build_entry_tag` hook). Recovered post-run via /orders/read → the
+        results archive's per-trade `decision_*` context (the conditions the entry SAW). The durable
+        channel: logs/charts/ObjectStore are unretrievable; the order tag is.
+
+        decision_* fields (HQ: separate decision-context from execution-fill): score + the 8 BCT
+        conditions (the learn-substrate core, from the snapshot) + the intraday confirm context
+        (gap_pct, vol_ratio, tenkan_dist, recomputed from _intraday + the snapshot's signal_price) +
+        scanner rank. Best-effort + bounded: a piece that can't be cleanly resolved is OMITTED, never
+        faked. Fail-LOUD (DegradedDataError) if the tag exceeds ENTRY_TAG_MAX — never silent-truncate
+        (a truncated tag = corrupt learn data). Regime (spy>200ma, vix) = #archive-followup.
+
+        #archive ①: the ENCODE lives in the SHARED tag_schema module (single source of truth) so
+        this emit and the parse in sweeps.archive.snapshot CANNOT desync — a key/format change
+        round-trips by construction (test_tag_schema). tag_schema is bundled into dist/ via the build
+        import-closure (lean_entry imports it → the cloud side can emit)."""
+        snap = getattr(self, "_candidate_snapshot", {}).get(sym, {})
+        ist = getattr(self, "_intraday", {}).get(sym, {})
+        # gather the RAW values; None = unresolvable → encode_entry_tag OMITS it (never fakes).
+        sp = snap.get("signal_price")
+        last_close = ist.get("last_close")
+        gap = (last_close - sp) / sp if (sp and last_close is not None) else None
+        vol = None
+        vw = ist.get("vol_window")
+        last_bar = ist.get("last_bar")
+        n = getattr(vw, "count", 0) if vw is not None else 0
+        if n > 0 and last_bar is not None:
+            mean_vol = sum(vw[i] for i in range(n)) / n
+            if mean_vol > 0:
+                vol = float(last_bar.volume) / mean_vol
+        tk = ist.get("intraday_tenkan")
+        tdist = ((last_close - float(tk.current.value)) / last_close
+                 if (tk is not None and getattr(tk, "is_ready", False) and last_close) else None)
+        # SCANNER RANK — the candidate's position in today's ranked universe (_ranked_today).
+        # #276b-1 FIX3: _ranked_today holds LOWERCASE tickers (coarse-derived) but sym.value is
+        # UPPERCASE → the old `val in ranked` was ALWAYS False on cloud (rank omitted for EVERY
+        # entry). Normalize BOTH sides through canonical_symbol_key (the single-source key form) so
+        # rank resolves regardless of case. OMIT-on-genuine-absence preserved: a candidate not in
+        # _ranked_today → key not in the index → rank=None (encode_entry_tag omits it; never faked).
+        val = getattr(sym, "value", None)
+        ranked = getattr(self, "_ranked_today", [])
+        # first-occurrence wins (matches the old list.index semantics; _ranked_today is deduped).
+        ranked_key_to_rank: dict[str, int] = {}
+        for i, t in enumerate(ranked):
+            ranked_key_to_rank.setdefault(canonical_symbol_key(t), i)
+        rank = ranked_key_to_rank.get(canonical_symbol_key(sym)) if val is not None else None
+        tag = encode_entry_tag(score=snap.get("score"), conditions=(snap.get("conditions") or None),
+                               gap=gap, vol=vol, tdist=tdist, rank=rank)
+        if len(tag) > self.ENTRY_TAG_MAX:
+            raise DegradedDataError(
+                f"entry tag {len(tag)} > ENTRY_TAG_MAX={self.ENTRY_TAG_MAX} for {val} — would "
+                f"truncate the learn-substrate context; fail loud (#archive B2, never silent-truncate)"
+            )
+        return tag
+
+    def _capture_candidate_snapshot(self, winners: "list[str]") -> None:
+        """#276b-0/#276b-1 daily→intraday handoff. Snapshot each DECIDED candidate's thesis
+        ({signal_price, daily_kijun, decision_date}) so the intraday clock (PreFlightStaleness +
+        confirm, #276b-1) can validate against it.
+
+        `winners` = the daily SIGNAL winners (BctScoreFull score>=7, from the daily pipeline's
+        ctx.bar_state.sized_orders) — the WHO. #276b-1 fix: snapshot THESE, not the pre-signal
+        ranked universe (qc._ranked_today) — snapshotting the universe bypassed the signal filter +
+        starved the capped intraday feeds → silent 0 orders.
+
+        REUSE-IDENTITY (the desync killer, HQ): key the snapshot by the SAME canonical Symbol that
+        `_active`/`_intraday` already hold — resolve the winner tickers via `_active` (the
+        `{value.lower(): sym}` idiom), NEVER `Symbol.create(...)`. If we never re-create a Symbol,
+        a subscribed≠decided key drift cannot occur by construction.
+
+        signal_price = T's decision-bar close (the gap reference); daily_kijun = the maintained
+        daily Ichimoku (O(1), no history). Rebuilt fresh each daily decision → a name dropped from
+        today's winner set disappears. A candidate not yet subscribed (on_securities_changed lag) or
+        with a cold daily Ichimoku is SKIPPED here — the intraday side's H1 then treats a subscribed
+        name with no snapshot as not-enterable (skip-loud), so a missing thesis can never fire."""
+        # canonical identity, reused — never Symbol.create (the desync killer).
+        active_by_key = {canonical_symbol_key(s): s for s in getattr(self, "_active", set())}  # #276b-1 FIX3
+        indicators = getattr(self, "_indicators", {})
+        decision_date = self.time.date()
+        snap: dict[Any, dict[str, Any]] = {}
+        for ticker in winners:
+            sym = active_by_key.get(canonical_symbol_key(ticker))
+            if sym is None:
+                continue  # decided but not yet subscribed — H1 covers it on the intraday side
+            ind = indicators.get(sym)
+            d_ichi = ind.get("d_ichi") if ind else None
+            if d_ichi is None or not getattr(d_ichi, "is_ready", False):
+                continue  # cold daily thesis → not enterable; never snapshot a half-formed thesis
+            # #archive B1: capture the LEARN-SUBSTRATE at decision time — the BCT score + the 8
+            # conditions INDIVIDUALLY (the mine learns WHICH of George's conditions predict R, not
+            # just "score>=7"). score_symbol_native re-reads the SAME maintained indicators (O(1),
+            # history-free) the signal phase scored on → identical result, no signal-phase threading.
+            # BIT ORDER (STABLE — a change is a schema_version bump; see results-archive-design.md):
+            #   0 weekly price>cloud · 1 weekly tenkan>kijun · 2 weekly chikou(price>price26ago) ·
+            #   3 weekly cloud green(SpanA>SpanB) · 4 daily price>cloud · 5 daily price>tenkan ·
+            #   6 ADX rising ∧ +DI>-DI ∧ ADX>=20 · 7 daily price>200ma  (== CLAUDE.md BCT stack).
+            # Winners just passed score_symbol_native in the signal phase (same decision, same
+            # maintained ind) → re-scoring here succeeds in prod. Guard defensively: a re-score
+            # failure must NOT crash the snapshot (→ silent-0 entries); log it LOUD as a context gap
+            # and proceed on the already-validated signal_price/daily_kijun (conditions just absent
+            # from the learn-substrate for this name — a data gap, not a trade blocker).
+            try:
+                scored = score_symbol_native(self, sym, ind)
+            except Exception as exc:  # incomplete/edge ind — should not happen for a fresh winner
+                scored = None
+                _log = getattr(self, "log", None)
+                if callable(_log):
+                    _log(f"CONTEXT_GAP|{decision_date}|{getattr(sym, 'value', sym)}|rescore-failed:{type(exc).__name__}")
+            # DRIFT/DESYNC TRIPWIRE (HQ): the re-score is the SAME score_symbol_native on the SAME
+            # maintained ind the signal selected on → identical BY CONSTRUCTION. But "identical needs
+            # a guard, not an assumption" — a silent boolean drift poisons the whole learn-mine. A true
+            # winner was selected at score >= min_score; if the re-score lands BELOW that, ind desynced
+            # between the signal eval and here → the booleans are NOT trustworthy. Flag suspect (don't
+            # record drifted booleans as truth): score=None, conditions=[], LOUD log.
+            min_score = self._signal_min_score()
+            if scored is not None and int(scored["score"]) < min_score:
+                _log = getattr(self, "log", None)
+                if callable(_log):
+                    _log(f"CONTEXT_GAP|{decision_date}|{getattr(sym, 'value', sym)}|score-drift:"
+                         f"rescore={scored['score']}<min_score={min_score} — booleans suspect, dropped")
+                scored = None
+            conditions = [bool(c) for c in scored["conditions"]] if scored else []
+            snap[sym] = {
+                "signal_price": float(self.securities[sym].price),
+                "daily_kijun": float(d_ichi.kijun.current.value),
+                # #339: cloud bottom (min Senkou A/B) — the structural floor for CloudProtectiveStop
+                # (the G3-winning cloud-bottom stop). Additive; KijunProtectiveStop ignores it.
+                "daily_cloud_bottom": float(min(d_ichi.senkou_a.current.value,
+                                                d_ichi.senkou_b.current.value)),
+                "decision_date": decision_date,
+                "score": int(scored["score"]) if scored else None,   # the aggregate (back-compat)
+                "conditions": conditions,                            # the 8 booleans (learn-substrate core)
+            }
+        self._candidate_snapshot = snap
+        log = getattr(self, "log", None)
+        if callable(log):
+            log(f"SNAPSHOT|{decision_date}|candidates={len(snap)}")
+
+    def snapshot_for_entry(self, sym: Any) -> "dict[str, Any] | None":
+        """#276b-0 H1 + H2 — the guarded accessor the intraday entry phases (#276b-1) MUST use to
+        read a candidate's thesis. SINGLE authority gate so the desync/staleness checks cannot be
+        bypassed per-phase.
+
+        H1 (snapshot-is-authority): a symbol with NO snapshot entry is NOT enterable → return None
+        + skip-loud (logged); the caller skips it, NEVER falls back to entering. A subscribed name
+        the daily clock did not decide cannot fire an unauthorized entry.
+
+        H2 (staleness fail-loud): the snapshot's decision_date MUST be the most-recent daily
+        decision (`_last_daily_date`). An older date = a missed/failed daily handoff → acting on it
+        would trade a stale thesis → DegradedDataError (the SG9 desync tripwire), never a silent
+        2-day-stale entry."""
+        snap = self._candidate_snapshot.get(sym)
+        if snap is None:
+            log = getattr(self, "log", None)
+            if callable(log):
+                log(f"SNAPSHOT_SKIP|{getattr(sym, 'value', sym)}|no decided thesis — not enterable (H1)")
+            return None
+        if self._last_daily_date is not None and snap["decision_date"] != self._last_daily_date:
+            raise DegradedDataError(
+                f"stale candidate snapshot for {getattr(sym, 'value', sym)}: decision_date="
+                f"{snap['decision_date']} but last daily decision={self._last_daily_date} — a "
+                f"missed daily→intraday handoff. Refusing to enter a stale thesis (#276b-0 H2, SG9)."
+            )
+        return snap
+
+    def _decision_score_for(self, sym: Any) -> "int | None":
+        """#339 rotation hook (called by the engine at FIRE_ENTRIES to stamp _position_meta). The
+        entered name's daily decision_score from its snapshot thesis — so the rotation phase can rank
+        HELD positions by signal strength vs new candidates. None if no snapshot/score (never raises:
+        this is a metadata stamp, not an authority gate — the entry already passed snapshot_for_entry)."""
+        snap = self._candidate_snapshot.get(sym)
+        if snap is None:
+            return None
+        score = snap.get("score")
+        return int(score) if score is not None else None
+
+    def _inject_intraday_candidates(self, ictx: PhaseContext) -> None:
+        """#276b-1 CANDIDATE INJECTION (the two-clock seam, HQ/Gemini-reviewed). ctx.bar_state is
+        FRESH per 5-min tick; the standing daily candidates live in `_candidate_snapshot` (276b-0).
+        Seed a qty=0 OrderIntent STUB per ELIGIBLE candidate into ictx.bar_state.sized_orders so the
+        intraday entry_selection phases (PreFlightStaleness → BctIntradayConfirm) can gate them, then
+        entry_timing → sizing → FIRE_ENTRIES fire the confirmed/sized ones.
+
+        RANK-PRESERVING (Gemini fix #3): `_candidate_snapshot` is built by iterating `_ranked_today`
+        into an insertion-ordered dict, so iterating it here preserves rank → on a capital-constrained
+        tick, sizing/BP is consumed highest-rank first.
+
+        ELIGIBILITY (Gemini fix #1): inject iff NOT invested AND NOT pending. `invested` blocks
+        re-entry on a held name (its EXITS run on the intraday clock via exit_hard, never re-injected
+        as an entry — SG8). `pending` (an entry order in-flight this session) blocks double-entry; a
+        broker reject drops it from pending (on_order_event) → re-injectable next tick.
+
+        The qty=0 stub is an INTERNAL artifact — FIRE_ENTRIES's `qty <= 0` guard (Gemini fix #2)
+        ensures a stub that no phase sized NEVER reaches the broker."""
+        snapshot = getattr(self, "_candidate_snapshot", {})
+        if not snapshot:
+            return
+        pending = getattr(self, "_pending_entry_today", set())
+        entered = getattr(self, "_entered_today", set())  # same-session re-entry guard (SHOP churn)
+        injected = 0
+        for sym in snapshot:  # insertion order == rank order (rank-preserving)
+            # skip invested ∪ pending ∪ already-entered-this-session. The last kills the instant
+            # stop-out → re-inject → re-fire churn: a name whose entry FILLED today is done for the
+            # session even if its protective floor sold it back to flat.
+            if self.portfolio[sym].invested or sym in pending or sym in entered:
+                continue
+            # ticker=sym.value (the QC Symbol's identity string) — #276b-1 FIX3: ALL downstream
+            # resolvers (sizing/FIRE_ENTRIES, the intraday gate phases, the snapshot) now key active
+            # symbols by canonical_symbol_key, which normalizes case at lookup → the emitted case no
+            # longer has to match any resolver's convention. (Pre-FIX3 the resolvers open-coded
+            # .value vs .value.lower(); a case-inconsistent emit here would silently skip a confirmed
+            # candidate — the silent-0 class this migration eliminates.)
+            ictx.bar_state.sized_orders.append(
+                OrderIntent(ticker=sym.value, qty=0, price=0.0, stop=0.0,
+                            module="signal", risk_dollars=0.0)
+            )
+            ictx.record_funnel("injection_survives", sym)  # #276b-1 funnel stage 6
+            injected += 1
+        if injected:
+            log = getattr(self, "log", None)
+            if callable(log):
+                log(f"INTRADAY_INJECT|{self.time.date()}|candidates={injected}")
+
+    def _mark_entry_pending(self, sym: Any) -> None:
+        """#276b-1 (Gemini fix #1) — engine hook called when an ENTRY order is SUBMITTED. Marks the
+        sym as having an entry in-flight so `_inject_intraday_candidates` won't re-inject it before
+        the order resolves. Resolved by `on_order_event` (filled → invested covers it; rejected →
+        re-injectable). Optional hook (engine guards with getattr) — no-op if the runtime omits it."""
+        self._pending_entry_today.add(sym)
+
+    def on_order_event(self, order_event: Any) -> None:
+        """#276b-1 entry PENDING-STATE machine + #277 GTC-floor-fill cleanup.
+
+        ENTRY pending (Gemini fix #1): an entry submission is NOT a success — a broker reject
+        (insufficient BP, halt, locate, gross-cap) leaves the position un-invested. So on any
+        TERMINAL status for a pending sym, drop it from pending — Filled/PartiallyFilled → now
+        invested (invested-check blocks re-injection); Canceled/Invalid → re-injectable next tick.
+
+        GTC-FLOOR-FILL cleanup (#277): the #290 protective stop (protective_stop_ticket in
+        _position_meta) is a BROKER-side GTC — it can FIRE intrabar (gap/halt) WITHOUT the runtime
+        FIRE_EXITS path running. FIRE_EXITS is the ONLY path that pops _position_meta; so a
+        broker-floor fill leaves STALE meta → a later re-entry of that name (no longer invested, the
+        floor sold it) hits GUARD-3 fail-loud (#276a — re-entry with a 'live' tracked stop). Fix:
+        when the order that FILLED IS the tracked protective_stop_ticket (match by order id), pop
+        _position_meta[sym] + clear pending so the re-entry is clean. Distinct from the deferred
+        #181 cancel-replace (resize-on-trim/add); this is just the broker-floor-fill cleanup.
+        A runtime FIRE_EXITS already popped meta → this is then a harmless no-op (idempotent pop)."""
+        sym = getattr(order_event, "symbol", None)
+        if sym is None:
+            return
+        status = getattr(order_event, "status", None)
+        if OrderStatus is None:
+            return  # dev venv / no QC enum — nothing to compare statuses against
+        # ENTRY pending machine
+        if sym in self._pending_entry_today and status in {
+            OrderStatus.Filled, OrderStatus.PartiallyFilled, OrderStatus.Canceled, OrderStatus.Invalid
+        }:
+            self._pending_entry_today.discard(sym)
+            # SHOP-churn guard: a real entry FILL (not a Canceled/Invalid reject) marks the name as
+            # entered THIS session → not re-injectable even if its protective floor sells it back to
+            # flat. A reject is NOT marked → stays re-injectable (retry-on-reject intent preserved).
+            if status in {OrderStatus.Filled, OrderStatus.PartiallyFilled}:
+                self._entered_today.add(sym)  # always init'd in __init__ (mutate the real set, not a default)
+        # GTC-floor-fill cleanup: the FULLY-filled order IS the tracked protective stop → floor done.
+        # FILLED-ONLY (NOT PartiallyFilled — Gemini): a partial stop-fill leaves the REMAINDER LIVE at
+        # the broker; popping _position_meta on a partial would LOSE the ticket → orphan stop → the
+        # orphan fires later + over-sells (long→short). A stop is "done" only when fully Filled or
+        # Canceled. (The entry-pending path above correctly uses Filled∪PartiallyFilled — a partial
+        # ENTRY = position open → invested-check covers it. Different terminal semantics per path.)
+        if status == OrderStatus.Filled:
+            meta = getattr(self, "_position_meta", {}).get(sym)
+            ticket = meta.get("protective_stop_ticket") if meta else None
+            if ticket is not None:
+                ev_id = getattr(order_event, "order_id", getattr(order_event, "OrderId", None))
+                tk_id = getattr(ticket, "order_id", getattr(ticket, "OrderId", None))
+                if ev_id is not None and tk_id is not None and ev_id == tk_id:
+                    self._position_meta.pop(sym, None)        # floor sold the position — clear its meta
+                    self._pending_entry_today.discard(sym)    # and any stale pending (re-entry now clean)
+
+    # ------------------------------------------------------------------------------------
+    # #276b-1 FUNNEL — the 9 cumulative candidate-collapse counters. Observe-only: nothing in the
+    # trading path reads these; they localize WHERE the ~40-names/day daily signal collapses to ~78
+    # orders/FY (Falk's "78 is too sparse" verdict — the collapse stage IS the legit-vs-bug answer).
+    # ------------------------------------------------------------------------------------
+    def _ensure_funnel_state(self) -> None:
+        """Lazy-init the funnel state. initialize() sets it for a real run; a bare-constructed algo
+        (a unit-test fixture that never runs initialize()) reaches the accumulators without it. Init
+        on demand (idempotent) so the funnel is observe-only AND robust — never crashes a hot path."""
+        if not hasattr(self, "_funnel_cum"):
+            self._funnel_cum = {stage: 0 for stage in FUNNEL_STAGES}
+        if not hasattr(self, "_funnel_today"):
+            self._funnel_today = {stage: set() for stage in FUNNEL_INTRADAY_STAGES}
+        if not hasattr(self, "_funnel_seen"):
+            self._funnel_seen = {stage: set() for stage in FUNNEL_DISTINCT_STAGES}
+
+    def _accumulate_daily_funnel(self, signal_winner_tickers: "list[str]", blocked: bool) -> None:
+        """Fold the DAILY funnel stages into the cumulative counters (called once per daily decision).
+        signal_winners += the raw signal-winner count (pre-regime). regime_pass += that same count on
+        a non-blocked day (the winners passed the regime gate) or 0 on a blocked day; regime_blocked_days
+        += 1 on a blocked day — kept SEPARATE so the regime cut never masquerades as the confirm cut."""
+        self._ensure_funnel_state()
+        n = len(signal_winner_tickers)
+        self._funnel_cum["signal_winners"] += n
+        if blocked:
+            self._funnel_cum["regime_blocked_days"] += 1
+            # regime_pass += 0 (no winner survived the gate this day)
+        else:
+            self._funnel_cum["regime_pass"] += n
+
+    def _fold_intraday_funnel(self, ictx: Any) -> None:
+        """Fold ONE intraday tick's per-stage survivor sets (ctx.bar_state.funnel, written by the gate
+        phases) into the per-DAY sets, and accumulate this tick's fired entries (stage 9 `orders`).
+        Set membership IS the per-day dedup — a candidate evaluated every 5-min tick is counted ONCE
+        per day at each stage. The per-day sets accumulate into _funnel_cum at session end
+        (_flush_funnel_day). `orders` accumulates directly (each fire is a distinct order, no dedup)."""
+        self._ensure_funnel_state()
+        bar_funnel = getattr(ictx.bar_state, "funnel", {})
+        for stage in FUNNEL_INTRADAY_STAGES:
+            survivors = bar_funnel.get(stage)
+            if survivors:
+                self._funnel_today[stage].update(survivors)
+        # stage 9 (orders): the entries the engine ACTUALLY fired this tick (the FIRE_ENTRIES count).
+        self._funnel_cum["orders"] += int(getattr(self.engine, "_fired_entries", 0))
+
+    def _process_eod_funnel(self) -> None:
+        """End-of-day funnel processing (DRY — called by on_end_of_day AND the on_end_of_algorithm
+        backstop): flush the per-day intraday survivor sets into the cumulative counters + reset, then
+        re-publish the runtime stats. GUARDED for a selection-harness/test path that never ran
+        initialize() (no funnel state). Idempotent (flush resets the sets → a repeat call adds 0)."""
+        if hasattr(self, "_funnel_today") and hasattr(self, "_funnel_cum"):
+            self._flush_funnel_day()
+            self._push_funnel_runtime_stats()
+
+    def _flush_funnel_day(self) -> None:
+        """At session end: fold each intraday per-day survivor set into its cumulative counter, then
+        reset the per-day sets for T+1. The daily stages + `orders` already accumulated directly
+        (per-decision / per-fire), so only the intraday per-day sets flush here. Two semantics (see
+        FUNNEL_STAGE_SEMANTICS):
+          - CANDIDATE-DAY stages (gap_eligible/confirm_fire/sized/cash_ok): += len(per-day set). A
+            name reaching the stage on N distinct days legitimately counts N (a gap on N days IS N
+            gap-eligible-days).
+          - DISTINCT stages (preflight_pass/injection_survives): UNION the per-day set into the
+            RUN-cumulative _funnel_seen[stage], then set the counter = len(that run-set). Each distinct
+            candidate is counted ONCE the first time it EVER reaches the stage — re-injection /
+            re-evaluation on later days does NOT re-count (the #303 reinjection-overcount fix that made
+            those two stages misread as a >100% pass-rate vs signal_winners). Idempotent under QC's
+            per-symbol on_end_of_day: the per-day set resets to empty, so a repeat flush unions {} (no
+            change) and re-asserts the same len (no double-count)."""
+        # defensive: a hand-constructed fixture may set _funnel_today/_funnel_cum but not _funnel_seen
+        # (the real __init__/_ensure_funnel_state always create all three together). Ensure it here so
+        # the distinct-stage fold below never AttributeErrors. Idempotent (only creates if absent).
+        if not hasattr(self, "_funnel_seen"):
+            self._funnel_seen = {stage: set() for stage in FUNNEL_DISTINCT_STAGES}
+        for stage in FUNNEL_CANDIDATE_DAY_STAGES:
+            self._funnel_cum[stage] += len(self._funnel_today[stage])
+            self._funnel_today[stage] = set()
+        for stage in FUNNEL_DISTINCT_STAGES:
+            self._funnel_seen[stage] |= self._funnel_today[stage]
+            self._funnel_cum[stage] = len(self._funnel_seen[stage])
+            self._funnel_today[stage] = set()
+
+    def _push_funnel_runtime_stats(self) -> None:
+        """Expose the 9 cumulative funnel counters as QC RUNTIME STATISTICS (the retrievable channel:
+        logs/charts/ObjectStore are dead; runtime stats survive). GUARDED — set_runtime_statistic /
+        SetRuntimeStatistic may be ABSENT locally (QCAlgorithm==object in the dev venv); the
+        _funnel_cum attrs always hold the numbers regardless, for local/tests. Single code path, no
+        if-cloud branch. Best-effort: a missing API is a silent no-op (the attrs are the source).
+
+        #303 legend: ALSO push the per-stage SEMANTIC UNIT under a SEPARATE key namespace
+        (funnel._sem.<stage> → distinct|candidate_days|daily|fire). The existing funnel.<stage> count
+        keys are UNCHANGED (renaming them breaks the existing read) — the legend is purely additive so
+        the mine can tell a distinct-candidate count from a candidate-DAY count and never compute a
+        nonsense cross-unit pass-rate (the preflight/injection >100% misread)."""
+        setter = getattr(self, "set_runtime_statistic", None) or getattr(self, "SetRuntimeStatistic", None)
+        if not callable(setter):
+            return
+        for stage in FUNNEL_STAGES:
+            setter(f"funnel.{stage}", str(self._funnel_cum[stage]))
+            setter(f"funnel._sem.{stage}", FUNNEL_STAGE_SEMANTICS[stage])
+
+    def _clear_intraday_session_state(self) -> None:
+        """#276b-0 H3/SG9 — clear the deferred intraday-confirm PROGRESS + the entry PENDING set at
+        session end so neither an unconfirmed candidate nor an in-flight-entry marker bleeds into
+        T+2's session. _candidate_snapshot is NOT cleared here (it is overwritten by the next daily
+        decision — a held thesis legitimately survives the same-day boundary); only the per-session
+        confirm progress + pending-entry markers reset."""
+        self._entry_confirm = {}
+        self._pending_entry_today = set()
+        self._entered_today = set()  # SHOP-churn guard resets each session (next session re-allows entry)
+        # #276b-1 FUNNEL: flush the per-day intraday survivor sets into the cumulative counters and
+        # reset for T+1, then re-publish the runtime stats. SAFE under QC's per-symbol on_end_of_day
+        # firing: the first call accumulates len(set) + resets the sets to empty, so subsequent calls
+        # this session add 0 (idempotent). Observe-only, never affects trading.
+        self._process_eod_funnel()
+
+    def on_end_of_day(self, symbol: Any = None) -> None:
+        """QC session-end hook — clear the intraday-confirm progress (H3/SG9). Idempotent (QC fires
+        it per-symbol; clearing an already-empty store is a no-op)."""
+        self._clear_intraday_session_state()

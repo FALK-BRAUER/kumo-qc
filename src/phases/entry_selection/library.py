@@ -4,7 +4,7 @@ Mirrors the signal catalog (phases/signal/library.py — the #228 template): eve
 exposes a `<KIND>_PHASES` tuple of DIRECT CLASS REFERENCES, the canonical type-checked
 enumeration a sweep/discovery runner (#214) selects from for that kind:
 
-    ENTRY_SELECTION_PHASES: tuple[type[BasePhase], ...] = (BctEntryConfirm,)
+    ENTRY_SELECTION_PHASES: tuple[type[BasePhase], ...] = (PreFlightStaleness, BctEntryConfirm)
 
 Why a typed tuple of class refs (NOT a string registry):
   - Conforms to CONVENTIONS.md "DIRECT CLASS REFERENCES, not strings". A registry may exist
@@ -24,5 +24,21 @@ from __future__ import annotations
 
 from engine.base import BasePhase
 from phases.entry_selection.bct_entry_confirm.bct_entry_confirm import BctEntryConfirm
+from phases.entry_selection.bct_intraday_confirm.bct_intraday_confirm import BctIntradayConfirm
+from phases.entry_selection.bct_intraday_hold_confirm.bct_intraday_hold_confirm import (
+    BctIntradayHoldConfirm,
+)
+from phases.entry_selection.bct_intraday_gap_vol_confirm.bct_intraday_gap_vol_confirm import (
+    BctIntradayGapVolConfirm,
+)
+from phases.entry_selection.preflight_staleness.preflight_staleness import PreFlightStaleness
 
-ENTRY_SELECTION_PHASES: tuple[type[BasePhase], ...] = (BctEntryConfirm,)
+# BctEntryConfirm = DAILY (#253) confirm. The two INTRADAY (#270) confirms are MECHANIC VARIANTS:
+# BctIntradayConfirm = tenkan-reclaim CROSS (≤→>); BctIntradayHoldConfirm = above-Tenkan HOLD + vol
+# (the gap-up-compatible experiment — reclaim-cross fires ~0 on gap-ups, no_reclaim_cross-dominated).
+# All MUTUALLY EXCLUSIVE in a wired config (entry_selection shares one clock — engine _phase_clock).
+# The catalog lists all (discovery/sweep only — wiring picks the clock-consistent subset).
+ENTRY_SELECTION_PHASES: tuple[type[BasePhase], ...] = (
+    PreFlightStaleness, BctEntryConfirm, BctIntradayConfirm, BctIntradayHoldConfirm,
+    BctIntradayGapVolConfirm,
+)

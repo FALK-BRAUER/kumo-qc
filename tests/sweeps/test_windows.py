@@ -23,8 +23,16 @@ def test_six_windows_panel_is_six_and_unique() -> None:
 
 
 def test_validate_rejects_fewer_than_six() -> None:
-    with pytest.raises(WindowPanelError, match="mandatory minimum"):
+    with pytest.raises(WindowPanelError, match="required minimum"):
         validate_window_panel(SIX_WINDOWS[:5])
+
+
+def test_validate_accepts_documented_local_subset() -> None:
+    # #338-ws3: a LOCAL sweep on the data-runnable subset passes its count via min_windows (still a
+    # distribution, not a point estimate). The floor is 2.
+    validate_window_panel(SIX_WINDOWS[:4], min_windows=4)
+    with pytest.raises(WindowPanelError, match="point estimate"):
+        validate_window_panel(SIX_WINDOWS[:1], min_windows=1)
 
 
 def test_validate_rejects_duplicate_window_names() -> None:

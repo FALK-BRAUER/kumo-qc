@@ -1,0 +1,68 @@
+{
+  "backtest_id": "1204990297",
+  "commit": "8405ec48270304dd6e8679878a6587aa2200ac73",
+  "config": {
+    "config_hash": "0519949d3863",
+    "name": "0519949d3863",
+    "phases": {
+      "signal": {
+        "free_params": 2,
+        "impl": "oracle_signal",
+        "params": {
+          "min_score": 7,
+          "parabolic_threshold": 0.25,
+          "predictor": {
+            "__type__": "DvRankPredictor",
+            "min_score": 7,
+            "rank_cap": 1000000000
+          }
+        }
+      }
+    },
+    "version": "276b.v2"
+  },
+  "config_hash": "0519949d3863",
+  "data_fingerprint": "90f2d7e3fb80d0a4d2eb286f6a43199e1519495a3ce9d787a4d7d0dfc70c535c",
+  "env": "local",
+  "n_censored": 9,
+  "n_censored_trades": 9,
+  "n_closed_trades": 3,
+  "n_trade_rows": 12,
+  "objective_version": "323.v1",
+  "result_schema_version": 2,
+  "run_class": null,
+  "runtime_statistics": null,
+  "statistics": {
+    "Alpha": "0",
+    "Annual Standard Deviation": "0.19",
+    "Annual Variance": "0.036",
+    "Average Loss": "-1.06%",
+    "Average Win": "0%",
+    "Beta": "0",
+    "Compounding Annual Return": "124.755%",
+    "Drawdown": "9.100%",
+    "Drawdown Recovery": "5",
+    "End Equity": "114492.98",
+    "Estimated Strategy Capacity": "$7600000.00",
+    "Expectancy": "-1",
+    "Information Ratio": "4.197",
+    "Loss Rate": "100%",
+    "Lowest Capacity Asset": "NLR XOF4GF67NMG5",
+    "Net Profit": "14.493%",
+    "Portfolio Turnover": "2.37%",
+    "Probabilistic Sharpe Ratio": "83.114%",
+    "Profit-Loss Ratio": "0",
+    "Sharpe Ratio": "4.144",
+    "Sortino Ratio": "4.542",
+    "Start Equity": "100000",
+    "Total Fees": "$15.16",
+    "Total Orders": "24",
+    "Tracking Error": "0.19",
+    "Treynor Ratio": "0",
+    "Win Rate": "0%"
+  },
+  "status": "COMPLETED_CLEAN",
+  "timestamp": "2026-06-02T12:43:35.315807+00:00",
+  "total_orders": 24,
+  "trade_schema_version": 2
+}

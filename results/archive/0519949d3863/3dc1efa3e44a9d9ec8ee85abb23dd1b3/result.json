@@ -1,0 +1,68 @@
+{
+  "backtest_id": "3dc1efa3e44a9d9ec8ee85abb23dd1b3",
+  "commit": "434c1e2ac9986c2143c20849fd668958b0e7eb1c",
+  "config": {
+    "config_hash": "0519949d3863",
+    "name": "0519949d3863",
+    "phases": {
+      "signal": {
+        "free_params": 2,
+        "impl": "oracle_signal",
+        "params": {
+          "min_score": 7,
+          "parabolic_threshold": 0.25,
+          "predictor": {
+            "__type__": "DvRankPredictor",
+            "min_score": 7,
+            "rank_cap": 1000000000
+          }
+        }
+      }
+    },
+    "version": "276b.v2"
+  },
+  "config_hash": "0519949d3863",
+  "data_fingerprint": "90f2d7e3fb80d0a4d2eb286f6a43199e1519495a3ce9d787a4d7d0dfc70c535c",
+  "env": "cloud",
+  "n_censored": 0,
+  "n_censored_trades": 0,
+  "n_closed_trades": 12,
+  "n_trade_rows": 12,
+  "objective_version": "323.v1",
+  "result_schema_version": 2,
+  "run_class": null,
+  "runtime_statistics": null,
+  "statistics": {
+    "Alpha": "-0.267",
+    "Annual Standard Deviation": "0.131",
+    "Annual Variance": "0.017",
+    "Average Loss": "-0.60%",
+    "Average Win": "0%",
+    "Beta": "0.785",
+    "Compounding Annual Return": "-28.316%",
+    "Drawdown": "8.900%",
+    "Drawdown Recovery": "14",
+    "End Equity": "94761.05",
+    "Estimated Strategy Capacity": "$5700000.00",
+    "Expectancy": "-1",
+    "Information Ratio": "-2.667",
+    "Loss Rate": "100%",
+    "Lowest Capacity Asset": "BHGE WLXQGVHQ03MT",
+    "Net Profit": "-5.239%",
+    "Portfolio Turnover": "5.47%",
+    "Probabilistic Sharpe Ratio": "7.738%",
+    "Profit-Loss Ratio": "0",
+    "Sharpe Ratio": "-1.962",
+    "Sortino Ratio": "-1.859",
+    "Start Equity": "100000",
+    "Total Fees": "$40.17",
+    "Total Orders": "42",
+    "Tracking Error": "0.101",
+    "Treynor Ratio": "-0.327",
+    "Win Rate": "0%"
+  },
+  "status": "COMPLETED_CLEAN",
+  "timestamp": "2026-06-02T09:40:26.878127+00:00",
+  "total_orders": 42,
+  "trade_schema_version": 2
+}

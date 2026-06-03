@@ -78,6 +78,71 @@ def _rewrite_imports(text: str) -> str:
     return text
 
 
+def _strip_docstrings(source: str) -> str:
+    """Remove module/class/function DOCSTRINGS from a generated dist file (#276b-1 deploy-size: QC
+    caps each file at 64,000 chars on /files/update; the verbose two-clock-seam docstrings push
+    dist/lean_entry.py past it). The dist is GENERATED + deploy-only + not-linted + not-human-read —
+    src/ KEEPS the full docstrings (the rationale lives where humans read it). config_hash is over
+    the CONFIG, not file contents → UNAFFECTED.
+
+    AST-SAFE line-range removal: preserves comments + formatting + ALL code; drops ONLY a true
+    docstring (the body's FIRST statement, an Expr wrapping a str Constant), and ONLY when the body
+    has other statements (never empties a body, e.g. a docstring-only stub) and the docstring is not
+    sharing the def/class header line. A module-level string that is NOT the first statement (a real
+    value) is untouched."""
+    tree = ast.parse(source)
+    drop: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        body = getattr(node, "body", [])
+        if len(body) <= 1:
+            continue  # never empty a body
+        first = body[0]
+        if not (isinstance(first, ast.Expr)
+                and isinstance(getattr(first, "value", None), ast.Constant)
+                and isinstance(first.value.value, str)):
+            continue
+        if not isinstance(node, ast.Module) and first.lineno == node.lineno:
+            continue  # docstring shares the header line — don't touch the header
+        for ln in range(first.lineno, (first.end_lineno or first.lineno) + 1):
+            drop.add(ln)
+    if not drop:
+        return source
+    return "\n".join(line for i, line in enumerate(source.split("\n"), start=1) if i not in drop)
+
+
+def _strip_comments(source: str) -> str:
+    """Remove COMMENTS from a generated dist file (#276b deploy-size: QC's 64,000-char/file cap —
+    lean_entry.py grew past it even docstring-stripped, from the funnel/tag/censored instrumentation).
+    The dist is GENERATED + deploy-only + not-human-read; src/ keeps the comments (the rationale lives
+    where humans read it). config_hash is over the CONFIG, not file contents → UNAFFECTED.
+
+    TOKENIZE-SAFE (string-aware): drops only true COMMENT tokens (never a `#` inside a string literal).
+    A full-line comment → its line is dropped; a trailing inline comment → only the comment is cut, the
+    code (rstripped) is kept. Pre-existing blank lines + all code/strings are preserved (a blank line
+    inside a real triple-quoted string is untouched — only comment-emptied lines are dropped)."""
+    import io
+    import tokenize
+
+    lines = source.split("\n")
+    blanked_full: set[int] = set()
+    try:
+        toks = list(tokenize.generate_tokens(io.StringIO(source).readline))
+    except (tokenize.TokenError, IndentationError):
+        return source  # never corrupt the dist over a tokenize edge — fall back to un-stripped
+    for tok in toks:
+        if tok.type != tokenize.COMMENT:
+            continue
+        r, c = tok.start[0] - 1, tok.start[1]
+        before = lines[r][:c]
+        if before.strip():
+            lines[r] = before.rstrip()       # code + trailing comment → keep code only
+        else:
+            blanked_full.add(r)              # full-line comment → drop the line
+    return "\n".join(line for i, line in enumerate(lines) if i not in blanked_full)
+
+
 def _imports_in(path: Path) -> list[str]:
     tree = ast.parse(path.read_text(), filename=str(path))
     mods: list[str] = []
@@ -164,21 +229,54 @@ def _data_fingerprint() -> str:
     return "unknown"
 
 
+def _params_canonical(params: Any) -> str:
+    """Params string for the config hash, EXCLUDING a phase's STRUCTURAL fields
+    (`Params._HASH_EXCLUDE`). MUST stay byte-identical to engine._params_canonical — the build hash
+    is asserted == the engine pin. #276b-1: `resolution` (clock-routing) is phase-determined (the
+    chain-clock guard enforces it) → redundant for behavioral identity, excluded so champion-asis
+    stays at e573e84b1ce1 when the shared sizer gains the structural knob. (DRY DEBT: this duplicates
+    engine._config_hash — see #297; they MUST match. Unify in a shared module in a follow-up.)"""
+    exclude = getattr(type(params), "_HASH_EXCLUDE", frozenset())
+    if not exclude or not dataclasses.is_dataclass(params):
+        return repr(params)
+    inner = ", ".join(
+        f"{f.name}={getattr(params, f.name)!r}"
+        for f in dataclasses.fields(params) if f.name not in exclude
+    )
+    return f"{type(params).__qualname__}({inner})"
+
+
 def _config_hash(config: Any) -> str:
     parts = [config.name, config.version]
     for kind in sorted(config.phases):
         value = config.phases[kind]
         slots = value if isinstance(value, list) else [value]
         for s in slots:
-            parts.append(f"{kind}:{s.impl.__name__}:{s.enabled}:{s.params!r}")
+            parts.append(f"{kind}:{s.impl.__name__}:{s.enabled}:{_params_canonical(s.params)}")
     return hashlib.sha256("|".join(parts).encode()).hexdigest()[:12]
 
 
 def build(strategy_module: str, *, dist_dir: Path | None = None, verbose: bool = False) -> BuildResult:
-    src = _src_root()
-    dist = dist_dir if dist_dir is not None else src.parent / "dist"
     config = _load_config(strategy_module)
     deployable = _is_deployable(strategy_module)
+    return _build_core(config, deployable, dist_dir, strategy_module, verbose)
+
+
+def build_from_config(
+    config: Any, *, deployable: bool = True, dist_dir: Path | None = None, verbose: bool = False
+) -> BuildResult:
+    """Build a dist from an IN-MEMORY StrategyConfig object (the #323 sweep bridge — a
+    SweepConfig is mapped to a StrategyConfig that has no backing module file). Identical
+    closure/emit/audit path as build(strategy_module); `deployable` is explicit (no LEAN_ENTRY
+    module flag to read). The generated main.py carries config.name as its marker."""
+    return _build_core(config, deployable, dist_dir, getattr(config, "name", "config"), verbose)
+
+
+def _build_core(
+    config: Any, deployable: bool, dist_dir: Path | None, label: str, verbose: bool
+) -> BuildResult:
+    src = _src_root()
+    dist = dist_dir if dist_dir is not None else src.parent / "dist"
     enabled = _enabled_slots(config)
 
     # seed = enabled phase module files + engine core
@@ -205,7 +303,10 @@ def build(strategy_module: str, *, dist_dir: Path | None = None, verbose: bool =
     included: list[str] = []
     for f in sorted(closure):
         flat = _flat_name(f, src)
-        (dist / flat).write_text(_rewrite_imports(f.read_text()))
+        # #276b-1/#276b: strip docstrings AND comments from the generated dist file (QC 64k/file
+        # deploy cap — lean_entry.py grew past it even docstring-only-stripped; src/ keeps the
+        # rationale, dist is deploy-only + not-human-read). config_hash unaffected (hashes the config).
+        (dist / flat).write_text(_strip_comments(_strip_docstrings(_rewrite_imports(f.read_text()))))
         included.append(flat)
 
     # generated flat entry + manifest + metadata
@@ -225,7 +326,7 @@ def build(strategy_module: str, *, dist_dir: Path | None = None, verbose: bool =
         if item.is_dir():
             raise RuntimeError(f"dist/ has a subdir {item.name} — flat invariant violated")
     if verbose:
-        print(f"built {strategy_module}: {len(included)} phase/engine files + main/manifest/metadata")
+        print(f"built {label}: {len(included)} phase/engine files + main/manifest/metadata")
         print(f"hash={result.config_hash} data={result.data_fingerprint} commit={result.git_commit[:8]}")
     return result
 
@@ -273,6 +374,24 @@ def _emit_main(
         if cls not in seen_cls:
             imports.append(f"from {flat_mod} import {cls}")
             seen_cls.add(cls)
+        # INJECTED-OBJECT params (#322): a Params field whose VALUE is a dataclass INSTANCE (e.g.
+        # OracleSignal's `predictor=DvRankPredictor(...)`) renders as `ClassName(...)` via repr —
+        # that class MUST also be imported into main.py, or cloud Initialize fails with NameError
+        # ("name 'DvRankPredictor' is not defined", caught on the first learned-dvrank deploy).
+        # Import each such type from its flat module (fail loud if it's not under src/).
+        for f in dataclasses.fields(slot.params):
+            val = getattr(slot.params, f.name)
+            if dataclasses.is_dataclass(val) and not isinstance(val, type):
+                vcls = type(val).__name__
+                if vcls not in seen_cls:
+                    vfile = _module_to_file(type(val).__module__, src)
+                    if vfile is None:
+                        raise ValueError(
+                            f"injected param {f.name}={vcls}: module {type(val).__module__} "
+                            f"not under src/ — cannot import it into the deployed main.py"
+                        )
+                    imports.append(f"from {_flat_name(vfile, src)[:-3]} import {vcls}")
+                    seen_cls.add(vcls)
         params_kwargs = ", ".join(f"{f.name}={getattr(slot.params, f.name)!r}"
                                   for f in dataclasses.fields(slot.params))
         return f"Slot(impl={cls}, params={cls}.Params({params_kwargs}))"

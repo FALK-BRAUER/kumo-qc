@@ -1,0 +1,16 @@
+# #303 learn-substrate — DURABLE + COMMITTED (HQ-approved durability hygiene, 2026-06-02).
+#
+# Each run writes <config_hash>/<backtest_id>/{result.json, trades.jsonl.gz, funnel.json}. These
+# are the learn-substrate the #303 mine consumes — and they are NON-REGENERABLE: QC PURGES
+# backtests within HOURS (proven: bt 3c9cb7b8's orders went 62->0; a re-persist failed). So the
+# ONLY durable copy is here, and committing + pushing them off-machine is the substrate's SURVIVAL
+# (the May-23 local-dir-loss lesson — local-only = single point of failure). Design-consistent:
+# results-archive-design.md made JSONL the git-trackable source of truth (sqlite a later view).
+#
+# So: TRACK the per-run artifacts (NO blanket `*` ignore). Ignore ONLY scratch/temp.
+*.tmp
+*.partial
+*~
+# candidates/ keeps its OWN nested .gitignore — the <year>.jsonl populations stay ignored until
+# the coarse-feed-fix validates the AUTHORITATIVE universe (generator-FY2025 ~= funnel 7007); then
+# the authoritative candidate universes get committed too.

@@ -42,6 +42,7 @@ from hashlib import sha256
 from typing import Any
 
 from engine.base import BasePhase, PhaseResult, UniverseLoadError
+from engine.symbol_key import canonical_symbol_key
 from engine.context import PhaseContext
 
 
@@ -86,11 +87,11 @@ class DvRankCap(BasePhase):
         # order (iterate the ranked list, not the active set) — the #182 fix. Iterating
         # qc._active here would reorder by the set's hash order = nondeterministic.
         # CASE: ranked tickers are lowercase (zip stems / coarse value lowered); QC
-        # Symbol.value is uppercase. Match case-insensitively and EMIT the canonical _active
-        # value (what the signal phase keys its symbol lookup on, active_by_value[ticker]).
-        active_by_lower = {s.value.lower(): s.value for s in getattr(qc, "_active", set())}
+        # Symbol.value is uppercase. #276b-1 FIX3: match through canonical_symbol_key (the single
+        # normalizer all resolvers now share) and EMIT the canonical _active value string.
+        active_by_key = {canonical_symbol_key(s): s.value for s in getattr(qc, "_active", set())}  # #276b-1 FIX3
         ctx.bar_state.ranked_candidates = [
-            active_by_lower[t.lower()] for t in ranked_today if t.lower() in active_by_lower
+            active_by_key[canonical_symbol_key(t)] for t in ranked_today if canonical_symbol_key(t) in active_by_key
         ]
 
         # Diff-ladder TRACKED-CANDIDATE rung: count + sha256 of the emitted ranked_candidates

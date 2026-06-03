@@ -28,8 +28,9 @@ from dataclasses import dataclass
 from typing import Any
 
 from engine.base import BasePhase, PhaseResult
+from engine.symbol_key import canonical_symbol_key
 from engine.context import OrderIntent, PhaseContext
-from phases.shared.oracle_helpers import score_symbol_native
+from phases.shared.oracle_helpers import score_symbol_cached, score_symbol_native
 from phases.shared.param_space import ComplexityDecl, ParamSpace
 
 
@@ -84,7 +85,7 @@ class BctScoreFull(BasePhase):
         candidates_raw = ctx.bar_state.ranked_candidates  # list of str symbol values
 
         # Build symbol lookup from qc._active
-        active_by_value = {s.value: s for s in getattr(qc, "_active", set())}
+        active_by_key = {canonical_symbol_key(s): s for s in getattr(qc, "_active", set())}  # #276b-1 FIX3
 
         # #238: dollar-volume tiebreak from the LIVE per-ticker trailing-mean DV
         # (qc._trailing_dv, computed once-daily by lean_entry._coarse_selection), NOT the
@@ -96,13 +97,38 @@ class BctScoreFull(BasePhase):
         candidates: list[tuple[Any, int, float]] = []  # (symbol, score, dollar_volume)
         blocked_log: list[str] = []
 
+        # #332 warmup-cache CONSUMPTION (flag-ON): when lean_entry has loaded qc._warmup_cache (and
+        # skipped SetWarmUp), score from the cached scalars for (symbol, today) instead of the live
+        # qc._indicators. Decision-NEUTRAL by construction — same pre-filter / score_symbol_cached
+        # (== native, proven by the 1000-tuple drift gate) / parabolic logic on the same scalar values
+        # (== live indicators, proven by the golden ports + the end-to-end gate). flag-OFF (no cache
+        # attr) leaves the live path below BYTE-UNTOUCHED.
+        cache = getattr(qc, "_warmup_cache", None)
+        cur_date = ctx.time.date() if cache is not None else None
+
         for ticker in candidates_raw:
-            symbol = active_by_value.get(ticker)
+            symbol = active_by_key.get(canonical_symbol_key(ticker))
             if symbol is None:
                 continue
             if qc.portfolio[symbol].invested:
                 continue
             if qc.transactions.get_open_orders(symbol):
+                continue
+
+            if cache is not None:
+                scalars = cache.get(symbol.value, {}).get(cur_date)
+                if scalars is None:
+                    continue  # no cached row for (symbol, today) == live "indicator not ready" → skip
+                price = scalars["d_price"]
+                if price <= 0 or price < scalars["ma200"] or price < scalars["d_cloud_top"]:
+                    continue  # pre-filter: cond8/cond5 can't reach min_score → skip (mirrors live)
+                result = score_symbol_cached(scalars)
+                if result["score"] < min_score:
+                    continue
+                if scalars["roc13"] > parabolic_threshold:  # E51 parabolic block (cached roc13)
+                    blocked_log.append(ticker)
+                    continue
+                candidates.append((symbol, result["score"], float(trailing_dv.get(ticker.lower(), 0.0))))
                 continue
 
             ind = getattr(qc, "_indicators", {}).get(symbol)

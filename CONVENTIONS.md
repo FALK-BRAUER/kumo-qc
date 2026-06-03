@@ -58,6 +58,14 @@ The #218 retrofit experiments often USED forbidden mechanics (fixed slots, max-p
 2. **Windows before FY, ALWAYS.** After gate 0, run the multi-window validation; only THEN the full-FY-in-cloud run. **Never FY-first.**
 3. **Cloud + local in PARALLEL per step** (not sequential).
 
+### RUN-CLASS — every run DECLARES its class (Falk 2026-06-02; never conflate the two)
+Every backtest is one of two classes, declared up front (the `run_class` field on the archived `result.json` — `persist_run(run_class=…)`). They are NOT interchangeable and their metrics mean different things:
+
+- **VALIDATION** (a candidate/champion grade): **window-then-FY, NEVER FY-first; the 6 bi-monthly windows are mandatory** (gate above). Its **Sharpe / Ret / DD ARE grades** — they decide whether a config advances. This is the only class whose metrics may be cited as a result.
+- **SUBSTRATE-GENERATION** (mine fuel for #303): **full-year is OK** (the goal is trade COUNT / regime coverage, not a grade), **but** it MUST (a) emit the per-window funnel decomposition and (b) be **FLAGGED `run_class:"substrate-generation"`** so its metrics are never read as validation grades.
+
+**The slack this fixes:** the FY2024→2020 substrate runs were substrate-gen by intent (correct) but were reported with Sharpe/Ret/DD like validation runs — a full-year metric presented as if it were a window-validated grade. **A substrate-gen run's full-year Sharpe is NOT a validation result.** Declaring the class on every run makes the distinction un-skippable; a reader/reviewer who sees `run_class:"substrate-generation"` knows the metrics are descriptive, not a grade. (No retro-redo of those runs — they are retro-flagged in their `result.json` + the archive README.)
+
 Applies to **#277 champion_intraday re-baseline** + the **276b-1 proof-of-life smoke** (both run gate-0 2wk trade-by-trade FIRST). Minor local↔cloud misalignment is EXPECTED (vendor delta); the trade-by-trade diff — never a bare Sharpe comparison — is what proves it benign. This extends (does not replace) the divergence-debug protocol below.
 
 - **#262/#268 MOO-parity is RETIRED (#270).** The local↔cloud "1-bar entry-fill offset" was a SYMPTOM of the wrong blind-market-on-open model (the engine blind-filled an open it should never have filled), not a parity defect to fix. It retires with that model. Parity is re-established on the NEW daily-signal→intraday-confirmed model — and the same delivery-timing question now applies to the **intraday (5-min) clock**: confirm local and cloud deliver intraday bars on the same clock (de-risk with a two-clock SMOKE BT before the full build, then re-baseline). Do not resurrect the MOO-parity chase.
@@ -67,6 +75,7 @@ Applies to **#277 champion_intraday re-baseline** + the **276b-1 proof-of-life s
 - **Divergence-debug protocol** — when cloud ≠ local on the short-window check, do NOT chase the residual blindly. Run a SHORT window, pull BOTH cloud + local logs + trade lists, and DIFF them to the mechanical root-cause (this is how #182 — the alphabetical-vs-volume rank — was found). A divergence is NOT dismissable as tolerance noise until the diff proves it is the known cloud-vendor residual. This guard is how we avoid repeating the days-long debugging scars.
 - **v2 is the corrected RAW pipeline — judged on its OWN merits, NOT a champion clone.** The v1 champion's numbers were computed with ADJUSTED prices (SPY + traded equities via `add_equity` default); v2 is RAW everywhere — SPY, universe, traded equities (the 1.079 / 2649e2e lesson: adjusted prices corrupt Ichimoku). So the v2 baseline will DIVERGE from the champion's adjusted numbers **by design**. Validate v2 on its own merits (G1–G5 / DSR / PBO), **NEVER by matching a champion figure** — matching an adjusted-data number means reintroducing the contamination v2 exists to remove (same artifact class as 1.079). Golden-master stays logic-correctness on IDENTICAL input bars (v2 phase logic == monolith logic given the same raw bars), never end-to-end number-matching against the champion.
 - **POST-RUN error-assert (#318 — `completed=True` is NOT a result).** Every cloud BT result is **INVALID until `assert_cloud_clean(bt)` passes**: `bt["error"]`/`bt["stacktrace"]` is None **AND** `progress == 1` **AND** a liveness sanity (`orders > 0` / decisions ≈ trading-days). QC marks a **crashed partial** `completed=True / progress=1` with the runtime error in `bt["error"]` — reading the stats off that gives a fabricated "result" (this is how a crashed −0.611/72-order partial got banked as the #313 ratification AND the parity row, both void). The check is a **helper the cloud-deploy path CALLS** (`scripts/qc_v2_cloud.py::assert_cloud_clean`, error-checked BEFORE any result is read), never a manual eyeball. No cloud number enters `results/` or a parity claim until it passes.
+- **CAPTURE INLINE — QC purges a finished BT in TIERS, not at once (2026-06-02).** Two measured purge windows: **`statistics` + `runtimeStatistics` (the #303 funnel channel) purge in ~25min; `orders` survive hours.** So the old "QC purges within hours" premise is imprecise — the stats/funnel die FIRST. Rule: **capture EVERYTHING inline at run-time, never post-hoc** — snapshot `statistics` + write `funnel.json` (from `runtimeStatistics`) seconds after the run reports done, fetch orders/tags promptly. A delayed funnel fetch silently returns EMPTY (verified: a 25-min-late `/backtests/read` returned an empty backtest object while `/orders/read` still had all 54 orders). The substrate runner writes `funnel.json` immediately after persist (`scripts/build_funnel_json.py`, **fail-loud on empty** — never a faked/zero funnel). A committed `funnel.json` must carry real non-zero stage counts; verify it isn't a silently-empty post-purge artifact.
 
 ## CloudSafety (#318 — runtime .NET-interop is a distinct failure class)
 A pythonnet-binding error is **NOT** a compile error and **NOT** a data error: it passes mypy + local unit tests + the local backtest (local LEAN's pythonnet binds it), then detonates ONLY at **cloud runtime** — and `completed=True` then masks it. Three layers:
@@ -80,6 +89,24 @@ A pythonnet-binding error is **NOT** a compile error and **NOT** a data error: i
 - The build (`build/cloud_package.py`) packages ONLY the active config's phase closure, and is itself unit-tested.
 - Every result is pinned to **(git commit + config-hash + data-fingerprint)** via `dist/_metadata.py`, logged on startup. No result without that pinning enters `results/bt-results.csv`.
 - **`dist/` ALWAYS tracks the ACTIVE CHAMPION.** Variant/experiment MEASUREMENTS build into a THROWAWAY dir (`dist_tmp/`, gitignored), NEVER committed over `dist/`. A variant build must never displace the champion's deployable. `src/strategies/<variant>.py` configs stay (opt-in); only `dist/` tracks the champion. **(#270: the champion is the intraday-confirmed model `champion_intraday` once it lands; `champion_asis` is the retired blind-entry FIXTURE and is NOT a valid `dist/` target — it fails the fail-loud gate. Until `champion_intraday` exists, `dist/` may hold the asis fixture ONLY for the Phase-2 behaviour-unchanged parity step, clearly marked as the fixture.)**
+
+## Results-Storage (the storage-uniformity principle — #9/#276b/#303)
+
+Every result flows through ONE uniform storage stack. Each layer has a single owner + a fixed contract; nothing is hand-written ad-hoc.
+
+| Layer | What | Owner / writer | Regenerable? |
+|---|---|---|---|
+| `results/archive/<config_hash>/<backtest_id>/result.json` | provenance + full `statistics` + `run_class` + per-run config (serialized) | `persist_run` (snapshot.py) | **NO** — QC purges in hours; commit = survival |
+| `results/archive/.../trades.jsonl.gz` | closed + censored-open trade rows (cond_0..7, decision_*, m2m_*) | `persist_run` | **NO** |
+| `results/archive/.../funnel.json` | per-run signal→order attrition | substrate-gen path (not yet emitted by the sweep adapter — gap, cf. #12) | **NO** |
+| `results/sweeps/<grid>/leaderboard_*.csv` | scored + ranked sweep board (Sharpe/Ret%/DD% trio mandatory) | `run_sweep` → `leaderboard_csv` | yes (re-score from archive) |
+| `results/bt-results.csv` | the flat human index of every graded run | appended per result (currently manual/per-experiment; auto-append of sweep cells = #10, pending) | yes (rebuild from archive) |
+
+**Uniformity rules:**
+- **Single serialization path.** Config → `result.json` goes through `serialize_config` + `_jsonify` (sweeps/archive/config_serializer.py) — NEVER ad-hoc `json.dumps` of a config object. `_jsonify` NEVER raises (datetime/Path/set/Enum/dataclass all coerce; dataclass → `{"__type__": Name, …}`); `unjsonify` is the documented round-trip the #303 mine reads params back through. Bump `CONFIG_SERIALIZER_VERSION` on any shape change so the mine gates on drift.
+- **Write fail-loud, completion-marker last.** `result.json` is written LAST (after `trades.jsonl.gz`); its presence == the run dir is COMPLETE. A trades file without a valid result.json is INCOMPLETE — consumers treat it as absent. `allow_nan=False` everywhere (a stray NaN is a corrupt-substrate fail-loud, never a silent bad token).
+- **Provenance on every row.** No result enters `bt-results.csv` without (git commit + config-hash + data-fingerprint). Read every metric through `run_class` (validation vs substrate-generation — see RUN-CLASS).
+- **Archive is the source of truth; the CSV + leaderboard are projections.** Lose the CSV → rebuild from the archive. Lose the archive → the result is GONE (the May-23 lesson).
 
 ## Data (local backtest substrate)
 - `data/` = RAW daily OHLCV (built from Massive SIP parquet, `scripts/build_daily_from_parquet.py`) + RAW intraday (below). **Never back-adjusted, never mixed** (adjusted corrupts Ichimoku — the 7x-calibration lesson).
@@ -99,6 +126,28 @@ A pythonnet-binding error is **NOT** a compile error and **NOT** a data error: i
   - **Direct LEAN (native engine, no Docker) = the SWEEP runtime.** Docker per-run overhead × many configs is too slow for mass backtests, so sweeps run the engine natively for speed. **NOT set up yet** (Docker-only on disk today) — standing up direct-LEAN + the reconciliation below is a SWEEP ENABLER (flag in #214 / a new enabler ticket), NOT on the engine-rebuild critical path. (Second reason for direct-on-sweep, Falk: the Docker bind-mount does NOT follow an inner `data/equity → …` symlink — only a whole-`data` symlink resolves — a per-run fragility direct LEAN avoids. For a LOCAL point-test/validation BT, Docker is correct + fine; the worktree `data/` must be a WHOLE-dir symlink for any Docker BT.)
   - **GATE — direct≈Docker reconciliation (a NEW parity surface).** Before trusting ANY sweep result, a one-time reconciliation must prove the direct-LEAN engine matches the Docker/cloud engine on a reference config (same discipline as local≈cloud — don't assume direct==Docker; engine builds/versions can differ). A sweep finding on an unreconciled direct engine is not trustworthy.
 - **Version pin (#270 reference clone).** Local engine = LEAN **v2.5.0.0** (Python 3.11.9). The version-matched LEAN SOURCE reference clone (for reading bar-delivery / consolidator / fill-model internals during the rebuild) pins to v2.5.0.0. CLOUD's engine version is NOT assumed equal — confirm it from a cloud BT log header before relying on a version match.
+
+### Local-sweep FIDELITY BOUNDS (#325, measured 2026-06-02 — the local sweep is a CANDIDATE RANKING)
+The local intraday sweep runs on the kumo-trader 5-min parquet (3,254 union-liquid names × 2024-25,
+RAW). It is the fast SEARCH; the WINNER is cloud-validated for the final exact number. Three measured,
+bounded divergences from cloud (a local-vs-cloud reconciliation on cap250 Sep-2025 quantified them):
+- **Vendor-residual (selection):** local (Massive) vs cloud (QC) 5-min bars differ at decision MARGINS
+  → a borderline gap-confirm (3%-gap/1×-vol) candidate flips. Measured 83% selection match (cap250);
+  the ~17% is the WEAKEST marginal trades, and it is **COMMON-MODE** (flips ~the same names across all
+  cap configs) → the RELATIVE ranking (cap-curve, booster-vs-baseline) is robust; only absolute numbers
+  carry it. This is the irreducible #173 data-vendor delta, not a bug.
+- **Fill-residual (`_quote`):** the parquet is TRADE bars only → no quote data → LEAN fills at trade
+  price (no spread). Residual ≈ the bid-ask spread, ~bps on liquid top-DV (cap250's names). Irreducible
+  (no quote source); affects fill-PRICE, not trade-SELECTION. Cloud validates the winner's quote-fills.
+- **Spacing-skip (low-DV):** the #261 guard skips irregular-5-min ticker-days (~16% of ticker-days,
+  concentrated in the LOW-DV tail). cap250 (top-DV) is ~unaffected (0 skip-trades in the recon window);
+  the baseline (uncapped, low-DV) IS skip-affected → ASYMMETRIC: the baseline avoids low-DV losers it'd
+  trade on cloud → looks artificially better → a local booster-WIN is CONSERVATIVE (true cloud edge ≥
+  local-measured). High-price large-caps (BKNG/FICO) skip too (sparse 5-min prints) — irreducible.
+**Rule:** the local leaderboard ranks CANDIDATES (trustworthy for config selection — common-mode +
+weakest-trade residual); the selected winner goes to CLOUD for the validated final result. State this
+on every local leaderboard. A reconciliation mismatch NOT in the skip-ledger = vendor-residual OR a
+bug — classify it (`scripts/recon_selection_diff.py`), never pass it off as skip-divergence blind.
 
 ## Git workflow
 - **Rebase, never merge-commit.** Linear history. Rebase a feature branch onto latest `main`, then `--ff-only` merge.

@@ -25,6 +25,15 @@ contract + a `*_PHASES` catalog tuple; they never hardcode signal/champion speci
   hash); CSV / Markdown render with the metrics trio + complexity + config-hash on every row.
 - `provenance.py` — pin every result to (commit + config-hash + data-fingerprint); write the
   canonical ledger rows (round-trips). Promotion target: `results/bt-results.csv`.
+- `adapters/` — the **REAL** `RunConfig` impls behind the Protocol (#214). `result_parse.py`
+  = the single QC-stats→`RunResult` parser shared by both (local JSON + cloud `/read` use the
+  same QC key names). `local_lean.py::LocalLeanRun` drives `lean backtest` in an isolated
+  `runs/<config_hash>/<window>/` dir (data symlink, window-inject, marker-verify, fail-loud on
+  degraded). `cloud_lean.py::CloudLeanRun` drives a cloud deploy+run and gates on
+  `assert_cloud_clean` (raises `CloudValidationError` — fail-loud A.6 contract). Both satisfy
+  `RunConfig` (`__call__ -> ResultMetrics`) AND `RichRunConfig` (`run_result -> RunResult` with
+  trades + daily returns for the #323 objective layer). The dist-build / lean-run / cloud-call
+  steps are INJECTED — unit-tested on fixture result dirs / mocked cloud responses (ZERO spend).
 
 ## Layout
 - `grids/` — permutation specs (TRACKED).

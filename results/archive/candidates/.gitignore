@@ -1,0 +1,7 @@
+# (B) signal-winner candidate-universe artifacts (#303 learn-substrate input). The per-year
+# <year>.jsonl populations are REGENERABLE outputs of scripts/gen_candidate_universe.py — not
+# source, not git-tracked (they'd bloat the repo; the #303 mine regenerates/consumes them). The
+# directory + its README are tracked so the output path + artifact contract resolve on a fresh clone.
+*
+!.gitignore
+!README.md

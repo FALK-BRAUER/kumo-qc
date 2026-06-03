@@ -1,0 +1,68 @@
+{
+  "backtest_id": "1854523578",
+  "commit": "8405ec48270304dd6e8679878a6587aa2200ac73",
+  "config": {
+    "config_hash": "bf4b334bfe0a",
+    "name": "bf4b334bfe0a",
+    "phases": {
+      "signal": {
+        "free_params": 2,
+        "impl": "oracle_signal",
+        "params": {
+          "min_score": 7,
+          "parabolic_threshold": 0.25,
+          "predictor": {
+            "__type__": "DvRankPredictor",
+            "min_score": 7,
+            "rank_cap": 250
+          }
+        }
+      }
+    },
+    "version": "276b.v2"
+  },
+  "config_hash": "bf4b334bfe0a",
+  "data_fingerprint": "90f2d7e3fb80d0a4d2eb286f6a43199e1519495a3ce9d787a4d7d0dfc70c535c",
+  "env": "local",
+  "n_censored": 9,
+  "n_censored_trades": 9,
+  "n_closed_trades": 1,
+  "n_trade_rows": 10,
+  "objective_version": "323.v1",
+  "result_schema_version": 2,
+  "run_class": null,
+  "runtime_statistics": null,
+  "statistics": {
+    "Alpha": "0",
+    "Annual Standard Deviation": "0.13",
+    "Annual Variance": "0.017",
+    "Average Loss": "-1.71%",
+    "Average Win": "0%",
+    "Beta": "0",
+    "Compounding Annual Return": "62.138%",
+    "Drawdown": "3.400%",
+    "Drawdown Recovery": "11",
+    "End Equity": "108411.87",
+    "Estimated Strategy Capacity": "$78000000.00",
+    "Expectancy": "-1",
+    "Information Ratio": "3.185",
+    "Loss Rate": "100%",
+    "Lowest Capacity Asset": "RBLX XOF4GF67NMG5",
+    "Net Profit": "8.412%",
+    "Portfolio Turnover": "1.75%",
+    "Probabilistic Sharpe Ratio": "80.436%",
+    "Profit-Loss Ratio": "0",
+    "Sharpe Ratio": "3.108",
+    "Sortino Ratio": "4.258",
+    "Start Equity": "100000",
+    "Total Fees": "$11.00",
+    "Total Orders": "20",
+    "Tracking Error": "0.13",
+    "Treynor Ratio": "0",
+    "Win Rate": "0%"
+  },
+  "status": "COMPLETED_CLEAN",
+  "timestamp": "2026-06-02T12:28:23.368938+00:00",
+  "total_orders": 20,
+  "trade_schema_version": 2
+}

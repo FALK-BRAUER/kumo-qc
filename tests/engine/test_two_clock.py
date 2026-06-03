@@ -38,7 +38,11 @@ def _ctx() -> PhaseContext:
 def _champion(**extra: object) -> StrategyConfig:
     """A complete champion stack (passes the #272 gate) for clock tests."""
     phases: dict[str, object] = {
-        "universe": slot("universe"), "signal": slot("signal"), "sizing": slot("sizing"),
+        "universe": slot("universe"), "signal": slot("signal"),
+        # sizing is IN the entry-execution chain → it must share the entry clock (#276b-1 chain
+        # guard). Bind it to entry_timing's resolution so the test stack is chain-consistent by
+        # construction (an explicit mismatch is tested separately in test_entry_chain_*).
+        "sizing": slot("sizing", **_res(extra, "entry_timing")),
         "entry_timing": slot("entry_timing", **_res(extra, "entry_timing")),
         "exit_hard": slot("exit_hard", **_res(extra, "exit_hard")),
     }
@@ -163,3 +167,64 @@ def test_fire_exits_routes_independently_of_fire_entries() -> None:
     assert FIRE_ENTRIES not in eng._intraday_order
     assert FIRE_EXITS in eng._intraday_order, "FIRE_EXITS should follow intraday exit_hard"
     assert FIRE_EXITS not in eng._daily_order
+
+
+# ── SG8 (Falk, #270/#276b-0): the daily clock DECIDES ONLY — fires ZERO orders ──
+
+def _champion_intraday_exec() -> StrategyConfig:
+    """The champion EXECUTION shape: decision phases daily; the entry-execution chain
+    (entry_selection + entry_timing + SIZING) on the intraday clock (the #276b-1 chain-clock
+    invariant — sizing sizes the confirmed entry at confirm time); exit_hard intraday here too."""
+    return StrategyConfig(name="champ-intraday", version="1.0.0", phases={
+        "universe": slot("universe"), "signal": slot("signal"),
+        "sizing": slot("sizing", resolution="intraday"),  # IN the entry-execution chain → intraday
+        "entry_selection": slot("entry_selection", resolution="intraday"),
+        "entry_timing": slot("entry_timing", resolution="intraday"),
+        "exit_hard": slot("exit_hard", resolution="intraday"),
+    })
+
+
+def test_sg8_order_producing_fires_are_off_the_daily_clock() -> None:
+    # SG8 (structural): with the entry + exit execution phases intraday, the order-PRODUCING fire
+    # sentinels (FIRE_ENTRIES, FIRE_EXITS) are NOT on the daily clock → the daily clock cannot fill.
+    # A daily-clock fill IS the retired blind-MOO model; this is the guard it can't creep back.
+    eng = StrategyEngine(config=_champion_intraday_exec(), qc=FakeQC())
+    assert FIRE_ENTRIES not in eng._daily_order, "SG8: FIRE_ENTRIES must not be on the daily clock"
+    assert FIRE_EXITS not in eng._daily_order, "SG8: FIRE_EXITS must not be on the daily clock"
+    assert FIRE_ENTRIES in eng._intraday_order and FIRE_EXITS in eng._intraday_order
+
+
+def test_sg8_daily_clock_run_fires_zero_orders() -> None:
+    # SG8 (behavioral): replaying the daily decision clock fires NOTHING — it produces candidates
+    # + the snapshot, never an order.
+    eng = StrategyEngine(config=_champion_intraday_exec(), qc=FakeQC())
+    eng.on_data_with_ctx(_ctx())
+    assert eng._fired_entries == 0 and eng._fired_exits == 0 and eng._fired_adds == 0, \
+        "SG8 violated: the daily clock fired an order"
+
+
+def test_entry_chain_mixed_clock_fails_loud() -> None:
+    # #276b-1 chain-clock guard: a phase IN the entry-execution chain (sizing) on a different clock
+    # than FIRE_ENTRIES (entry intraday, sizing daily) → stubs reach the fire seam UNSIZED → silent
+    # 0 orders. Must CRASH at init, not silently fire nothing (the footgun the proof-of-life hit).
+    phases = {
+        "universe": slot("universe"), "signal": slot("signal"),
+        "sizing": slot("sizing", resolution="daily"),            # MISMATCH (chain is daily here)
+        "entry_timing": slot("entry_timing", resolution="intraday"),
+        "exit_hard": slot("exit_hard", resolution="intraday"),
+    }
+    cfg = StrategyConfig(name="mixed-chain", version="1.0.0", phases=phases)
+    with pytest.raises(ConfigError, match="entry-execution chain mixed clocks"):
+        StrategyEngine(config=cfg, qc=FakeQC())
+
+
+def test_entry_chain_consistent_intraday_ok() -> None:
+    # the consistent case: entire entry-execution chain (sizing + entry_timing) intraday → no raise.
+    phases = {
+        "universe": slot("universe"), "signal": slot("signal"),
+        "sizing": slot("sizing", resolution="intraday"),
+        "entry_timing": slot("entry_timing", resolution="intraday"),
+        "exit_hard": slot("exit_hard", resolution="daily"),       # exit_hard OUTSIDE the chain — OK
+    }
+    cfg = StrategyConfig(name="consistent", version="1.0.0", phases=phases)
+    StrategyEngine(config=cfg, qc=FakeQC())  # must NOT raise

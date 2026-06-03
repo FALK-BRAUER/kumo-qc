@@ -1,0 +1,28 @@
+{
+  "backtest_id": "822f2f8f14f320385064ed78551e07e7",
+  "funnel": {
+    "funnel.cash_ok": "18",
+    "funnel.confirm_fire": "459",
+    "funnel.gap_eligible": "501",
+    "funnel.injection_survives": "907",
+    "funnel.orders": "18",
+    "funnel.preflight_pass": "815",
+    "funnel.regime_blocked_days": "0",
+    "funnel.regime_pass": "7954",
+    "funnel.signal_winners": "7954",
+    "funnel.sized": "18"
+  },
+  "funnel_semantics": {
+    "cash_ok": "candidate_days",
+    "confirm_fire": "candidate_days",
+    "gap_eligible": "candidate_days",
+    "injection_survives": "distinct",
+    "orders": "fire",
+    "preflight_pass": "distinct",
+    "regime_blocked_days": "daily",
+    "regime_pass": "daily",
+    "signal_winners": "daily",
+    "sized": "candidate_days"
+  },
+  "name": "substrate-fy2021"
+}

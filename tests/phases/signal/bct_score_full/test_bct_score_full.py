@@ -261,6 +261,60 @@ def test_parabolic_not_ready_does_not_block():
     assert result.facts["parabolic_blocked"] == 0
 
 
+# ---------------------------------------------------------------------------
+# #332 warmup-cache CONSUMPTION branch (flag-ON = qc._warmup_cache present). flag-OFF (no attr) is
+# covered by ALL the tests above (FakeQC has no _warmup_cache → live path, unchanged). These prove
+# the cache branch fires, bypasses the live score_symbol_native, and applies pre-filter/parabolic.
+# ---------------------------------------------------------------------------
+def _pass_scalars(roc13=0.10):
+    return {  # scores 8; pre-filter passes (price>ma200, price>d_cloud_top)
+        "d_price": 100.0, "d_tenkan": 90.0, "d_cloud_top": 88.0, "ma200": 80.0,
+        "w_tenkan": 70.0, "w_kijun": 60.0, "w_senkou_a": 55.0, "w_senkou_b": 50.0,
+        "w_close_0": 65.0, "w_close_26": 40.0,
+        "adx_now": 30.0, "plus_di": 25.0, "minus_di": 10.0, "adx_3back": 22.0, "roc13": roc13,
+    }
+
+
+def test_cache_branch_fires_and_bypasses_native():
+    qc, sym = _setup_qc_with_symbol("AAPL", price=999.0)  # live price irrelevant — cache used
+    qc._warmup_cache = {"AAPL": {datetime(2025, 1, 2).date(): _pass_scalars()}}
+    phase = BctScoreFull(BctScoreFull.Params(min_score=7), logger=None)
+    ctx = make_ctx(qc, ["AAPL"])  # ctx.time = 2025-01-02
+    with patch("phases.signal.bct_score_full.bct_score_full.score_symbol_native") as mock_native:
+        phase.evaluate(ctx)
+        mock_native.assert_not_called()  # cache path bypasses the live scorer
+    assert len(ctx.bar_state.sized_orders) == 1 and ctx.bar_state.sized_orders[0].ticker == "AAPL"
+
+
+def test_cache_miss_skips_symbol():
+    qc, sym = _setup_qc_with_symbol("MSFT")
+    qc._warmup_cache = {"MSFT": {datetime(2024, 1, 1).date(): _pass_scalars()}}  # wrong date → miss
+    phase = BctScoreFull(BctScoreFull.Params(min_score=7), logger=None)
+    ctx = make_ctx(qc, ["MSFT"])  # ctx.time = 2025-01-02 → no row → skip
+    phase.evaluate(ctx)
+    assert len(ctx.bar_state.sized_orders) == 0
+
+
+def test_cache_branch_parabolic_block_via_cached_roc13():
+    qc, sym = _setup_qc_with_symbol("NVDA")
+    qc._warmup_cache = {"NVDA": {datetime(2025, 1, 2).date(): _pass_scalars(roc13=0.40)}}  # >0.25
+    phase = BctScoreFull(BctScoreFull.Params(min_score=7, parabolic_threshold=0.25), logger=None)
+    ctx = make_ctx(qc, ["NVDA"])
+    result = phase.evaluate(ctx)
+    assert len(ctx.bar_state.sized_orders) == 0
+    assert result.facts["parabolic_blocked"] == 1
+
+
+def test_cache_branch_prefilter_below_ma200_skips():
+    qc, sym = _setup_qc_with_symbol("GOOG")
+    s = _pass_scalars(); s["d_price"] = 70.0  # 70 < ma200 80 → pre-filter cond8 → skip
+    qc._warmup_cache = {"GOOG": {datetime(2025, 1, 2).date(): s}}
+    phase = BctScoreFull(BctScoreFull.Params(min_score=7), logger=None)
+    ctx = make_ctx(qc, ["GOOG"])
+    phase.evaluate(ctx)
+    assert len(ctx.bar_state.sized_orders) == 0
+
+
 def test_indicators_none_skips_symbol():
     # EDGE: `ind is None` (src — getattr(qc, "_indicators", {}).get(symbol) is None) → symbol skipped,
     # score never computed, no order. Symbol is active + priced but has NO indicator entry.

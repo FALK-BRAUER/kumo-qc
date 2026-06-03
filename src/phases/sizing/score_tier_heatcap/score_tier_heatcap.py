@@ -50,6 +50,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from engine.base import BasePhase, PhaseResult
+from engine.symbol_key import canonical_symbol_key
 from engine.context import OrderIntent, PhaseContext
 from phases.shared.param_space import ComplexityDecl, ParamSpace
 
@@ -133,14 +134,14 @@ class ScoreTierHeatcap(BasePhase):
         # until cash is exhausted (oracle breaks, not continues — verbatim from flat_pct_heatcap).
         committed_cash = 0.0
         available_cash = float(qc.portfolio.cash)
-        active_by_value = {s.value: s for s in getattr(qc, "_active", set())}
+        active_by_key = {canonical_symbol_key(s): s for s in getattr(qc, "_active", set())}  # #276b-1 FIX3
         filled: list[OrderIntent] = []
         skipped_cash = 0
         declined_score = 0   # <min_score tier 0.0 (defensive — should be gated upstream)
         declined_missing = 0  # no published score (broken stack — DECLINE, do not flat-fall-back)
 
         for intent in ctx.bar_state.sized_orders:
-            sym = active_by_value.get(intent.ticker)
+            sym = active_by_key.get(canonical_symbol_key(intent.ticker))
             if sym is None:
                 continue
 

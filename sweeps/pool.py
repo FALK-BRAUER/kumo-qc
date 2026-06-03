@@ -37,7 +37,7 @@ from sweeps.types import (
     Window,
     WindowResult,
 )
-from sweeps.windows import SIX_WINDOWS, validate_window_panel
+from sweeps.windows import MANDATORY_WINDOW_COUNT, SIX_WINDOWS, validate_window_panel
 
 DEFAULT_MAX_WORKERS = 4
 """Default concurrency cap. The real LEAN adapter is subprocess-bound; keep modest to avoid
@@ -59,18 +59,20 @@ def run_pool(
     *,
     windows: Sequence[Window] = SIX_WINDOWS,
     max_workers: int = DEFAULT_MAX_WORKERS,
+    min_windows: int = MANDATORY_WINDOW_COUNT,
 ) -> list[ConfigRun]:
     """Run every config over every window via the injected primitive, capped + isolated.
 
     Returns one ConfigRun per input config, in INPUT ORDER, each with its window_results in
-    WINDOW ORDER — deterministic regardless of thread scheduling. Validates the 6-window
-    mandate before scheduling any work.
+    WINDOW ORDER — deterministic regardless of thread scheduling. Validates the no-single-number
+    mandate (>= `min_windows`, default the canonical 6) before scheduling any work; a LOCAL sweep on
+    the data-runnable subset passes the runnable count (#338-ws3 — still a distribution, not a point).
 
     Isolation: each unit is an independent call to `run(config, window)` with no shared
     mutable state. Concurrency is capped at `max_workers`. The mock primitive in tests is
     pure; the real adapter isolates LEAN runs behind the same Protocol.
     """
-    validate_window_panel(windows)
+    validate_window_panel(windows, min_windows=min_windows)
     if max_workers < 1:
         raise ValueError(f"max_workers must be >= 1, got {max_workers}")
 

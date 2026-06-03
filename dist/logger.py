@@ -1,9 +1,3 @@
-"""Structured JSON-lines logger.
-
-Ports v1 arch-a ComponentLogger. JSON-lines (not pipe-delimited) so parity_diff
-parses deterministically even when facts contain '|' or ','. Adds log_phase_loaded
-(per-phase marker at init — observability of which code loaded).
-"""
 from __future__ import annotations
 
 import json

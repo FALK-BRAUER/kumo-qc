@@ -1,0 +1,68 @@
+{
+  "backtest_id": "dc9f3d831c8e995f32110d05403167a1",
+  "commit": "434c1e2ac9986c2143c20849fd668958b0e7eb1c",
+  "config": {
+    "config_hash": "bf4b334bfe0a",
+    "name": "bf4b334bfe0a",
+    "phases": {
+      "signal": {
+        "free_params": 2,
+        "impl": "oracle_signal",
+        "params": {
+          "min_score": 7,
+          "parabolic_threshold": 0.25,
+          "predictor": {
+            "__type__": "DvRankPredictor",
+            "min_score": 7,
+            "rank_cap": 250
+          }
+        }
+      }
+    },
+    "version": "276b.v2"
+  },
+  "config_hash": "bf4b334bfe0a",
+  "data_fingerprint": "90f2d7e3fb80d0a4d2eb286f6a43199e1519495a3ce9d787a4d7d0dfc70c535c",
+  "env": "cloud",
+  "n_censored": 0,
+  "n_censored_trades": 0,
+  "n_closed_trades": 8,
+  "n_trade_rows": 8,
+  "objective_version": "323.v1",
+  "result_schema_version": 2,
+  "run_class": null,
+  "runtime_statistics": null,
+  "statistics": {
+    "Alpha": "-0.156",
+    "Annual Standard Deviation": "0.113",
+    "Annual Variance": "0.013",
+    "Average Loss": "-0.71%",
+    "Average Win": "0%",
+    "Beta": "0.789",
+    "Compounding Annual Return": "-18.854%",
+    "Drawdown": "6.500%",
+    "Drawdown Recovery": "3",
+    "End Equity": "96566.42",
+    "Estimated Strategy Capacity": "$5300000.00",
+    "Expectancy": "-1",
+    "Information Ratio": "-1.768",
+    "Loss Rate": "100%",
+    "Lowest Capacity Asset": "UAUA TFUSUWQOV97P",
+    "Net Profit": "-3.434%",
+    "Portfolio Turnover": "4.00%",
+    "Probabilistic Sharpe Ratio": "13.383%",
+    "Profit-Loss Ratio": "0",
+    "Sharpe Ratio": "-1.653",
+    "Sortino Ratio": "-1.974",
+    "Start Equity": "100000",
+    "Total Fees": "$25.76",
+    "Total Orders": "34",
+    "Tracking Error": "0.083",
+    "Treynor Ratio": "-0.236",
+    "Win Rate": "0%"
+  },
+  "status": "COMPLETED_CLEAN",
+  "timestamp": "2026-06-02T09:19:48.465561+00:00",
+  "total_orders": 34,
+  "trade_schema_version": 2
+}

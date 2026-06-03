@@ -1,0 +1,12 @@
+{
+  "statistics": {
+    "Total Orders": "5",
+    "Sharpe Ratio": "NaN",
+    "Net Profit": "1%",
+    "Drawdown": "2%"
+  },
+  "totalPerformance": {
+    "closedTrades": []
+  },
+  "charts": {}
+}

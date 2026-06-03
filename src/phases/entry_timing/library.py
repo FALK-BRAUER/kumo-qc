@@ -16,6 +16,11 @@ Membership rule: an entry_timing impl lands here when merged-correct. Phase-2 va
 from __future__ import annotations
 
 from engine.base import BasePhase
+from phases.entry_timing.confirmed_market_entry.confirmed_market_entry import ConfirmedMarketEntry
 from phases.entry_timing.market_on_open_entry.market_on_open_entry import MarketOnOpenEntry
 
-ENTRY_TIMING_PHASES: tuple[type[BasePhase], ...] = (MarketOnOpenEntry,)
+# MarketOnOpenEntry = the DAILY/fixture baseline (next-open MOO); ConfirmedMarketEntry = the #270
+# INTRADAY confirmed-market entry (fire now at confirm). Mutually exclusive in a wired config
+# (entry_timing instances share one clock — engine _phase_clock). champion_intraday wires
+# ConfirmedMarketEntry; the catalog lists both (discovery/sweep only).
+ENTRY_TIMING_PHASES: tuple[type[BasePhase], ...] = (MarketOnOpenEntry, ConfirmedMarketEntry)

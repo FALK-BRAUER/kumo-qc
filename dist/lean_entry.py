@@ -1,54 +1,3 @@
-"""LEAN entry (#213 / #238) — the single code path that runs the engine LOCAL and CLOUD.
-
-This is the historic #182 divergence site. The legacy main.py diverged because it loaded
-the universe from DISK locally but ObjectStore on cloud, AND silently fell through when the
-cloud key was missing — so cloud and local selected different stocks from day 1.
-
-#238 replaces the stored-universe-file mechanism (the 326 scar — a frozen date→ticker file
-shipped to ObjectStore) with a LIVE once-daily computation. Per Falk's Y ruling, the floors
-+ rank are applied AT THE SELECTION GATE (here, in _coarse_selection) — NOT in a per-bar
-phase. The filtering is NOT removed: it MOVES to selection, where it now bounds SUBSCRIPTION
-(only qualifying names get tracked + Ichimoku'd). The redundant per-bar filter phase is
-dropped. This is Falk's exact model: "filter selects tickers, passes them to Ichimoku."
-
-  - QC's coarse-fundamental feed is GROUND TRUTH. `add_universe(coarse_selection)` runs the
-    selection ONCE-DAILY:
-      1. MAINTAIN a rolling 20-day dollar-volume per coarse name from the coarse feed's
-         single-day DV (qc._dv_windows; NO history() call) → bar_metrics {ticker: (close,
-         trailing_dv)} where close = the coarse row's close and trailing_dv = mean of the
-         maintained window. (SCALING FIX: replaces the per-day RAW history() fan-out over the
-         survivors — ~20x slower on cloud — with an O(1)/name maintained rolling mean. Local:
-         coarse single-day DV is bit-identical to RAW close*volume by the #238 conform (GATE 1
-         — a local tautology, NOT cloud proof). Cloud robustness rests on DV being split-
-         invariant — sound for a LIQUIDITY floor, does not cover dividend-adjust; validated at
-         the cloud Step-A active-set parity, not asserted here. ASSUMPTION: the rolling-20d mean
-         equals the old history(20) mean only if the coarse feed delivers every tradeable name
-         each day it trades; a 1-19d coarse gap would blend stale DV on reappearance — benign
-         under the normal QC coarse contract.);
-      2. `apply_floors` (close >= MIN_PRICE AND trailing_dv >= MIN_AVG_DOLLAR_VOLUME) →
-         eligible (the SELECTION GATE — the floor that used to be a per-bar phase);
-      3. `rank_and_cap` (DV-desc, ticker-asc tiebreak, cap COARSE_MAX) → ranked.
-    `qc._ranked_today` = the floored+ranked+capped selection (the universe phase exposes it);
-    `qc._trailing_dv` = the dv view for the signal's tiebreak; `qc._bar_metrics` = the full
-    survivor metric map, kept for the diff-ladder (no phase reads it). SUBSCRIBE ONLY the
-    ranked qualifying set — the whole point of Y: only what passes the floors gets tracked +
-    Ichimoku'd → no 2x indicator load. NO stored universe file, NO ObjectStore artifact, NO
-    fingerprint-verify-on-file (those guarded the file mechanism that no longer exists).
-  - LOCAL SIMULATES CLOUD: local runs the IDENTICAL coarse_selection over conformed-coarse
-    data (the local-coarse conform is a separate HQ decision — see #238 step E flag). NO
-    `if cloud:` branch — one code path both sides.
-  - RAW normalization on every subscription (the 2649e2e lesson — adjusted prices corrupt
-    Ichimoku). The maintained rolling-DV needs no history() at all; the rolling window FILLS
-    DURING WARMUP (the coarse callback runs each warmup day too), so with WARMUP_DAYS ≥ 20 the
-    window is full before live trading — NO startup history() seed needed.
-  - ACTIVE-SET hash logged each rebalance (count + sha256 of the sorted ranked tickers) —
-    the diff-ladder selection rung between the universe selection and the trades.
-
-`coarse_to_dollar_volume` is PURE (no QC types) and unit-tested with a fake coarse list.
-`apply_floors` / `rank_and_cap` (runtime.universe_select) are golden-mastered. The QC-runtime
-glue (coarse_selection's history() + add_universe + Symbol construction) is integration-
-verified on a LEAN run — pragma:no cover, not unit-testable in the dev venv.
-"""
 from __future__ import annotations
 
 import math
@@ -61,7 +10,7 @@ from typing import Any
 import pandas as pd
 
 from base import DegradedDataError, DegradedScheduleError
-from context import PhaseContext
+from context import OrderIntent, PhaseContext
 from engine import StrategyEngine
 from indicators import INDICATOR_KEYS, TBounceTracker, weekly_aggregate
 from universe_select import (
@@ -74,15 +23,6 @@ from universe_select import (
 
 
 def coarse_to_dollar_volume(coarse: Iterable[Any]) -> dict[str, float]:
-    """Extract {ticker -> single-day dollar volume} from a coarse-fundamental feed.
-
-    PURE (no QC types): each `c` is any object exposing `.symbol.value` (the ticker) and
-    `.dollar_volume` (single-day $). Ticker is lower-cased to the on-disk/zip-stem convention
-    so it matches qc._active.value.lower() downstream (the universe phase + signal compare
-    case-insensitively). This is the prefilter input AND the per-day value pushed into the
-    maintained rolling-DV windows (qc._dv_windows) — a LOOSE perf-bound on which names build a
-    (close, trailing_dv) metric, NOT a strategy threshold.
-    """
     out: dict[str, float] = {}
     for c in coarse:
         ticker = str(c.symbol.value).lower()
@@ -100,16 +40,6 @@ def coarse_to_dollar_volume(coarse: Iterable[Any]) -> dict[str, float]:
 
 
 def coarse_to_close(coarse: Iterable[Any]) -> dict[str, float]:
-    """Extract {ticker -> RAW close price} from a coarse-fundamental feed for the price floor.
-
-    PURE (no QC types): each `c` exposes `.symbol.value` + `.price`. Uses `.price` (the RAW
-    price — LEAN CoarseFundamental.Price, verified against the LEAN docs) NOT `.adjusted_price`
-    (split/dividend-adjusted prices corrupt the RAW-price contract — the 2649e2e lesson). This
-    replaces the per-day history() close. (LOCAL: coarse `.price` == RAW history close exactly,
-    0.000% over the 2025 sample — but that is bit-identical BY the #238 conform, a tautology
-    that confirms the field mapping, NOT cloud proof. On cloud the price floor reads QC's coarse
-    `.price`, which is the RAW price per the LEAN field contract.) Ticker lower-cased to the
-    zip-stem / qc._active convention. The price floor (apply_floors close-leg) reads this map."""
     out: dict[str, float] = {}
     for c in coarse:
         ticker = str(c.symbol.value).lower()
@@ -127,10 +57,6 @@ def coarse_to_close(coarse: Iterable[Any]) -> dict[str, float]:
 
 
 def active_set_hash(symbols: Iterable[str]) -> tuple[int, str]:
-    """(count, sha256-of-sorted-symbols) for the live-selected ranked set. Logged each
-    rebalance so divergence-debug can diff the selection local-vs-cloud — the rung between
-    the universe selection and the trade list. A small delta is the accepted cloud-vendor
-    coverage residual; a material delta gets root-caused."""
     syms = sorted(symbols)
     h = sha256(",".join(syms).encode("utf-8")).hexdigest()
     return len(syms), h
@@ -152,6 +78,7 @@ try:  # pragma: no cover - QC runtime import; absent in the dev venv / unit test
         IchimokuKinkoHyo,
         Market,
         MovingAverageType,
+        OrderStatus,
         QCAlgorithm,
         Resolution,
         RollingWindow,
@@ -164,14 +91,10 @@ except ImportError:  # pragma: no cover
     QCAlgorithm = object
     DataNormalizationMode = Resolution = SecurityType = Market = Symbol = None
     Calendar = IchimokuKinkoHyo = RollingWindow = TradeBar = TradeBarConsolidator = None
-    Field = MovingAverageType = None
+    Field = MovingAverageType = OrderStatus = None
 
 
 def _to_decimal(x: Any) -> Decimal:
-    """python float → System.Decimal-safe value (#318 FY crash). Cloud pythonnet rejects a raw
-    python ``float`` on a Decimal-typed property ("'float' value cannot be converted to
-    System.Decimal") AND rejects NaN/inf. So convert to ``decimal.Decimal`` and finite-guard
-    (a missing-volume bar → NaN → would otherwise crash deep in the run, as the FY did at ~69%)."""
     xf = float(x)
     if not math.isfinite(xf):
         return Decimal("0")
@@ -182,19 +105,6 @@ def _make_trade_bar(
     time: Any, symbol: Any, open_: float, high: float, low: float, close: float,
     volume: float, period: Any,
 ) -> Any:
-    """Cloud-safe SYNTHETIC TradeBar construction (#318) — used by ``_seed_weekly`` ONLY (the
-    aggregated weekly bar has no native-history source to read). The two real-history seeds
-    (``_seed_intraday`` / ``_seed_daily``) read native bars via ``self.history[TradeBar]`` and
-    construct NOTHING — that kills the cloud-interop class at those sites entirely.
-
-    Two cloud pythonnet failure modes are avoided here, both observed in #318:
-      1. the 8-positional-arg ctor's overload resolution on a ``datetime.timedelta`` period (the
-         first crash, at ``_seed_intraday``) → use the no-arg ctor + single-target property setters
-         (no overload ambiguity);
-      2. ``float → System.Decimal`` coercion on the Decimal OHLCV/volume setters (the FY crash at
-         ~69%) → assign ``decimal.Decimal`` values, finite-guarded (``_to_decimal``).
-    Behaviour-identical to the positional ctor: same OHLCV + period ⇒ same bar
-    (``end_time == time + period``)."""
     bar = TradeBar()
     bar.symbol = symbol
     bar.time = time
@@ -208,12 +118,6 @@ def _make_trade_bar(
 
 
 class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
-    """Thin LEAN wrapper. Subclass in main.py sets STRATEGY_CONFIG / dates / cash / the
-    universe-selection knobs. initialize() subscribes SPY+VIX RAW, registers the live
-    coarse-driven SELECTION GATE (add_universe → maintain rolling-DV → prefilter → apply_floors
-    → rank_and_cap → qc._ranked_today; subscribe ONLY the ranked qualifying set — Falk's Y
-    model, floors at selection, no per-bar filter phase), and runs StrategyEngine per
-    scheduled bar."""
 
     # set by the generated main.py subclass
     STRATEGY_CONFIG: Any = None
@@ -309,9 +213,24 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self._intraday: dict[Any, dict[str, Any]] = {}
         self._intraday_active: set[Any] = set()
 
-        # #313: the date the daily DECISION clock last ran — the once-per-date idempotency guard in
-        # the scheduled after-close callback (_on_after_close_decision). None until the first decision.
+        # #276b-0 daily→intraday SNAPSHOT handoff. _candidate_snapshot[sym] = {signal_price,
+        # daily_kijun, decision_date}: each DECIDED candidate's thesis, captured on the daily clock
+        # (in the #313 scheduled after-close callback) for the intraday clock (PreFlightStaleness +
+        # confirm read it). REUSE-IDENTITY: keyed by the SAME canonical Symbol _active/_intraday use
+        # — never a re-created Symbol (kills the subscribed≠decided desync by construction). Rebuilt
+        # fresh each daily decision. _entry_confirm = the deferred intraday-confirm PROGRESS store
+        # (populated by the #276b-1 confirm phase), cleared at session-end (on_end_of_day, H3/SG9).
+        # _last_daily_date = the most-recent daily-decision date — serves BOTH #313's once-per-date
+        # guard (_on_after_close_decision) AND 276b-0's H2 staleness check (snapshot_for_entry).
+        self._candidate_snapshot: dict[Any, dict[str, Any]] = {}
         self._last_daily_date: Any = None
+        self._entry_confirm: dict[Any, Any] = {}
+        # #276b-1 candidate-injection PENDING-STATE (Gemini fix #1): syms with an entry order
+        # IN-FLIGHT this session. Injection skips invested ∪ pending so an in-flight entry is not
+        # re-injected (double-entry); a broker REJECT (Canceled/Invalid) drops it from pending →
+        # re-injectable next tick (a transient reject is not a permanently-lost trade). Driven by
+        # on_order_event terminal status; cleared at session end.
+        self._pending_entry_today: set[Any] = set()
 
         # #313 WATCHDOG (the permanent protection vs silent no-fire): the daily decision must keep
         # pace with elapsed trading days. _sched_trading_days counts post-warmup trading days (the
@@ -369,32 +288,6 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         )
 
     def _coarse_selection(self, coarse: Any) -> Any:
-        """Once-daily LIVE SELECTION GATE (#238 / Y, Falk): coarse feed → MAINTAIN rolling DV →
-        build metrics → FLOORS → RANK+CAP. The floors live HERE (Falk's Y: "filter selects
-        tickers, passes them to Ichimoku") — they bound SUBSCRIPTION, so only qualifying names
-        get tracked + Ichimoku'd (no 2x indicator load). NO redundant per-bar filter phase.
-
-        SCALING FIX (incremental-DV): the trailing DV is MAINTAINED as a rolling 20-day window
-        per coarse name (qc._dv_windows), pushed once per day from the coarse feed's single-day
-        DV — NO per-day history() fan-out (that was ~20x slower on cloud). The window fills
-        DURING WARMUP (this callback runs each warmup day too), so with WARMUP_DAYS ≥ ADV_WINDOW
-        it is full before live trading — no startup history() seed. NO history() anywhere here.
-
-        One code path both sides (local simulates cloud). Steps:
-          1. coarse_to_dollar_volume(coarse) / coarse_to_close(coarse) → today's single-day DV +
-             RAW close per ticker (the coarse row's `.dollar_volume` / `.price`).
-          2. update_dv_windows(qc._dv_windows, coarse_dv) → push today's DV into each rolling
-             window (drop-oldest at ADV_WINDOW), evict long-absent names. PREFILTER (≥
-             PREFILTER_DV, a loose perf-bound) restricts WHICH names build a (close, trailing)
-             metric — trailing = rolling_dv_mean(window), close = the coarse RAW price.
-          3. apply_floors (close >= MIN_PRICE AND trailing_dv >= MIN_AVG_DOLLAR_VOLUME) → the
-             SELECTION GATE; then rank_and_cap (DV-desc, ticker-asc tiebreak, cap COARSE_MAX).
-          4. store qc._ranked_today (the floored+ranked+capped selection; the universe phase
-             exposes it) + qc._trailing_dv (dv view of the selected set; signal tiebreak) +
-             qc._bar_metrics (full survivor map; diff-ladder only). SUBSCRIBE ONLY the ranked
-             qualifying set; log the active-set hash (selection rung); return the Symbols.
-        QC subscribes the returned Symbols (on_securities_changed owns qc._active); names
-        without substrate data drop naturally (the ∩-substrate residual)."""
         date_str = self.time.strftime("%Y-%m-%d")
         coarse_dv = coarse_to_dollar_volume(coarse)
         coarse_close = coarse_to_close(coarse)
@@ -494,8 +387,6 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         return [Symbol.create(t.upper(), SecurityType.EQUITY, Market.USA) for t in ranked]
 
     def on_securities_changed(self, changes: Any) -> None:
-        """Register indicators for newly-subscribed symbols, dispose on removal — EXACT
-        legacy carve. Owns qc._active (the truly-subscribed set the phases intersect against)."""
         for s in changes.added_securities:
             sym = s.symbol
             self._active.add(sym)
@@ -515,10 +406,6 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                 del self._indicators[sym]
 
     def _register_indicators(self, sym: Any) -> None:
-        """Build the per-symbol indicators into the qc._indicators[sym] contract (INDICATOR_KEYS).
-        Daily ichimoku 9/26/26/52/26/26 + sma200 (QC native), weekly ichimoku fed by a MANUAL
-        TradeBarConsolidator (Calendar.WEEKLY) — the proven QC-cloud resample-timeout fix
-        (8048c29). EXACT legacy carve."""
         d_ichi = self.ichimoku(sym, 9, 26, 26, 52, 26, 26)
         sma200 = self.sma(sym, 200)
         # #213f maintained indicators so the SIGNAL reads O(1)/candidate (no per-bar history).
@@ -610,9 +497,6 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
     # intraday feed for T+1 (candidate∩CAP + holdings); these manage subscribe/seed/teardown.
     # ------------------------------------------------------------------------------------
     def _subscribe_intraday(self, sym: Any) -> None:
-        """Add a 5-min ("minute") subscription + the intraday indicator suite for `sym`, seeding
-        it so it is WARM before its first intraday score (#275b). Idempotent — a no-op if already
-        subscribed. Periods are in 5-MIN-BAR units (INTRADAY_TENKAN(9) = 45 min)."""
         if sym in self._intraday:
             return
         # RAW minute subscription (delivers our 5-min Massive bars stored as minute-res zips).
@@ -639,10 +523,6 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self.log(f"INTRADAY_SUBSCRIBE|{sym.value}|n_active={len(self._intraday_active)}")
 
     def _seed_intraday(self, sym: Any, intraday_tenkan: Any, vol_window: Any) -> None:
-        """Warm the intraday indicators from 5-min ("minute") history so a post-warmup entrant is
-        ready before its first intraday score (#275b — the anti-cold-mirage seed, mirrors
-        _seed_daily). Forward-only: history rows dated >= today are dropped (the #213f/#259 guard).
-        Enough bars to warm the longest intraday pole (the Ichimoku 78-bar pole)."""
         # ~78 5-min bars/day; pull enough days to clear the 78-bar Ichimoku pole + a buffer.
         # #318: TYPED HISTORY — iterate NATIVE TradeBar objects (native Decimal fields, no manual
         # construction). Kills the cloud-interop class at this site (no ctor, no float→Decimal).
@@ -656,10 +536,6 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             vol_window.add(float(bar.volume))
 
     def _unsubscribe_intraday(self, sym: Any) -> None:
-        """Tear down `sym`'s 5-min subscription + intraday indicators on rotation out of the
-        candidate set (#275b — THE LEAK AVOIDANCE: RemoveSecurity does NOT auto-dispose user
-        indicators, confirmed in the LEAN source, so we explicitly drop our state + remove the
-        subscription). Idempotent. NEVER remove a held name (don't drop a position's data feed)."""
         if sym not in self._intraday:
             return
         if self.portfolio[sym].invested:
@@ -670,10 +546,6 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self.log(f"INTRADAY_UNSUBSCRIBE|{sym.value}|n_active={len(self._intraday_active)}")
 
     def _sync_intraday_subscriptions(self, candidates: list[str]) -> None:
-        """Reconcile the intraday subscription set to (today's candidates ∩ CAP) + current
-        holdings (#275b). Called once-daily after the selection produces the candidate list — the
-        daily clock deciding WHO gets a 5-min feed for T+1. Subscribes new, tears down dropped
-        (non-held). CAP is explicit + logged — never the whole universe (#213e OOM scar)."""
         # CASE: ranked `candidates` are lowercase (coarse value lowered); QC Symbol.value is
         # uppercase. Match case-INSENSITIVELY to the canonical _active symbol — the same fix the
         # universe phase (dv_rank_cap) uses. (Without this the lookup always missed → 0 intraday
@@ -701,9 +573,6 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             self._unsubscribe_intraday(sym)
 
     def _seed_weekly(self, sym: Any, w_ichi: Any, w_close: Any) -> None:
-        """Seed the weekly ichimoku + close window from history using the MANUAL weekly
-        aggregation (runtime.indicators.weekly_aggregate) — NOT df.resample (the cloud-timeout
-        fix). Feeds each aggregated weekly bar to w_ichi/w_close in chronological order."""
         hist = self.history(sym, self.WARMUP_DAYS, Resolution.DAILY)
         if hist is None or hist.empty:
             return
@@ -738,36 +607,6 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         vol_sma20: Any,
         tbounce: Any,
     ) -> None:
-        """History-seed the DAILY indicator suite for a name subscribed AFTER warmup (#259).
-
-        Mirrors _seed_weekly's idiom: pull WARMUP_DAYS of daily bars and replay them in
-        chronological order, feeding each indicator the SAME way its live subscription would,
-        so the suite is is_ready immediately rather than ~9-10 months later (the empty-warmup
-        amplifier, #173).
-
-        Per-indicator feed (matching the live wiring in _register_indicators):
-          - d_ichi / adx  : consume the full TradeBar (.update(bar)). adx.updated fires the
-            adx_window lambda automatically, so the rolling ADX window fills as a side effect.
-          - sma200        : price-series indicator — .update(time, close).
-          - roc13         : price-series indicator — .update(time, close).
-          - macd          : price-series indicator — .update(time, close). macd.updated fires
-            the macd_hist_window lambda automatically.
-          - vol_sma20     : VOLUME-field SMA — .update(time, volume).
-          - tbounce       : the daily consolidator's _on_daily feeds it OHLC + the live daily
-            Tenkan; replay the same (using d_ichi's tenkan once d_ichi.is_ready, else 0.0).
-
-        FORWARD-ONLY GUARD (the daily analogue of _seed_weekly's Monday-seed lesson, #213f):
-        IchimokuKinkoHyo + ADX are forward-only — an .update() with a timestamp <= the
-        indicator's last sample is REJECTED ("This is a forward only indicator"). On the day a
-        name is subscribed, QC has ALREADY fed the live daily bar (timed at the session close,
-        e.g. 16:00Z) to the auto-updated d_ichi/adx BEFORE on_securities_changed runs the seed,
-        and history() returns that same current day as its LAST row at the intraday data time
-        (e.g. 13:00Z) → seeding it would be a backward update (13:00 < 16:00) → rejected + a
-        polluted partial bar. FIX: drop any history row dated >= the current algorithm DAY, so
-        the seed feeds ONLY strictly-earlier complete bars and the live feed owns today's bar.
-        This keeps the seed monotonic with the live stream (same invariant the Monday-seed
-        gives the weekly path). Single code path, RAW (history inherits RAW). No cloud branch.
-        """
         # #318: TYPED HISTORY — iterate NATIVE TradeBar objects (native Decimal, no manual
         # construction). Kills the cloud-interop class at this site (no ctor, no float→Decimal).
         # Forward-only guard: seed only bars whose data is STRICTLY BEFORE today (the live feed
@@ -796,16 +635,6 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             tbounce.update(o, h, lo, c, float(tk))
 
     def on_data(self, data: Any) -> None:
-        """The INTRADAY execution clock ONLY (#313). on_data feeds the 5-min ("minute") bars to the
-        intraday indicators + runs the engine's INTRADAY clock (on_intraday_bar). The DAILY DECISION
-        clock NO LONGER runs here — it fires on a scheduled AFTER-CLOSE event
-        (`_on_after_close_decision`, wired in initialize). (#274/#275b routed both clocks through
-        on_data via SPY-bar-presence; #313 retired that proxy — it was broken both ways: over-fire
-        390/day patched by #311 → under-fire 1/window revealed by the 276b-0 smoke.)
-
-        WARMUP GUARD (exact legacy pattern): skip while warming up. Orders can't submit during
-        warm-up, and the full pipeline over WARMUP_DAYS × the dynamic universe is wrong+slow. QC
-        auto-warms registered indicators during warm-up independently of on_data."""
         if self.is_warming_up:
             return
 
@@ -828,6 +657,9 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             if fed_intraday:
                 ictx = PhaseContext(qc=self, time=self.time, data=data)
                 ictx.clock = "intraday"
+                # #276b-1: seed the standing daily candidates into this fresh per-tick bar_state
+                # BEFORE the intraday clock runs, so entry_selection can gate them (the two-clock seam).
+                self._inject_intraday_candidates(ictx)
                 self.engine.on_intraday_bar(ictx)
 
         # #313: the DAILY DECISION clock is NO LONGER triggered here. on_data carries ONLY the
@@ -836,17 +668,6 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         # broken both ways (over-fire 390/day → #311 → under-fire 1/window, the 276b-0 smoke).
 
     def _on_after_close_decision(self) -> None:
-        """#313 — the DAILY DECISION clock, fired by a SCHEDULED AFTER-CLOSE event (decoupled from
-        on_data / bar-presence). At T's close + AFTER_CLOSE_MIN: T's daily data is COMPLETE (no
-        T+1 look-ahead), the daily indicators are warm with T's bar, and the universe selection for
-        T is current (on_securities_changed has fired). Reconciles the intraday subscription set (so
-        T's ranked candidates get their T+1 5-min feed — the #275b-fix LAG intent), then runs the
-        daily pipeline ONCE. Fires reliably every trading day regardless of whether SPY is
-        intraday-subscribed (kills the bar-presence failure class).
-
-        SG8: this is the DECISION clock — it produces candidates only; it fires ZERO orders (all
-        fills happen on the intraday execution clock). Warm-or-fail-loud: cold daily indicators at
-        fire time raise DegradedDataError inside the phases (#261), never a silent skip."""
         if self.is_warming_up:
             return  # no decisions during indicator warmup (#213d)
         today = self.time.date()
@@ -854,21 +675,24 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             return  # once-per-date idempotency (defense-in-depth — the scheduled event fires once/day anyway)
         self._last_daily_date = today
         self._sched_decisions = getattr(self, "_sched_decisions", 0) + 1  # #313 watchdog: decision fired
-        # #275b-fix (LAG): reconcile intraday subs BEFORE the pipeline — qc._active/_ranked_today are
-        # CURRENT for T (on_securities_changed has fired), so T's candidates get their T+1 5-min feed.
-        self._sync_intraday_subscriptions(getattr(self, "_ranked_today", []))
+        # #276b-1: run the daily pipeline FIRST, then hand the SIGNAL WINNERS (not the pre-signal
+        # universe) to the intraday clock. The daily SIGNAL (BctScoreFull score>=7) is the WHO; the
+        # intraday clock confirms the WHEN on exactly those names. (#276b-0 originally synced/snap'd
+        # qc._ranked_today = the ~hundreds-name ranked UNIVERSE → the intraday feeds were starved by
+        # the cap and the signal filter was bypassed → silent 0 orders; fixed here.)
         ctx = PhaseContext(qc=self, time=self.time, data=None)  # scheduled event — no slice; daily phases read maintained indicators
         ctx.clock = "daily"
         self.engine.on_data_with_ctx(ctx)
+        # The daily pipeline's surviving intents == the signal winners (entry_selection/timing/sizing
+        # are on the INTRADAY clock for the intraday champion, so the daily bar_state ends at signal).
+        winners = [intent.ticker for intent in ctx.bar_state.sized_orders]
+        # subscribe ONLY the winners for T+1's 5-min feed (all fit INTRADAY_SUBSCRIBE_CAP) + held
+        # names (handled inside _sync) — so every confirmable candidate actually has intraday data.
+        self._sync_intraday_subscriptions(winners)
+        # capture the WINNERS' theses (signal_price + daily_kijun) for the intraday confirm + floor.
+        self._capture_candidate_snapshot(winners)
 
     def _assert_schedule_health(self) -> None:
-        """#313 WATCHDOG — the daily DECISION must keep pace with elapsed trading days. Called from
-        the per-trading-day coarse tick (post-warmup). The scheduled after-close decision fires once
-        per trading day; at this start-of-day check today's decision is still PENDING, so a
-        trading_days − decisions gap of 1 is normal. A gap > 1 means a prior trading day's decision
-        was MISSED — the scheduled after-close event has silently stopped firing (a LEAN/QC change or
-        a cloud divergence — the 276b-0 under-fire class). The decision clock is dark → CRASH, never
-        run blind (the charter anti-mirage mandate)."""
         gap = getattr(self, "_sched_trading_days", 0) - getattr(self, "_sched_decisions", 0)
         if gap > 1:
             raise DegradedScheduleError(
@@ -879,11 +703,6 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             )
 
     def on_end_of_algorithm(self) -> None:
-        """#313 watchdog BACKSTOP (Gemini/HQ placement). The per-trading-day _assert_schedule_health
-        is the PRIMARY guard (fails fast mid-run — essential for LIVE, where an end-of-run check
-        would never fire). This is the end-of-backtest final reconciliation: total daily decisions
-        must match elapsed post-warmup trading days within the 1-day pending tolerance, else the
-        scheduled trigger under-fired across the run → CRASH (never silently report a dark run)."""
         if not getattr(self, "_schedule_armed", False):
             return  # scheduler never armed (selection-harness context) — nothing to reconcile
         gap = getattr(self, "_sched_trading_days", 0) - getattr(self, "_sched_decisions", 0)
@@ -893,3 +712,87 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                 f"{self._sched_trading_days} post-warmup trading days vs {self._sched_decisions} "
                 f"decisions (gap {gap} > 1) — the scheduled after-close trigger under-fired."
             )
+
+    def _capture_candidate_snapshot(self, winners: "list[str]") -> None:
+        # canonical identity, reused — never Symbol.create (the desync killer).
+        active_by_lower = {s.value.lower(): s for s in getattr(self, "_active", set())}
+        indicators = getattr(self, "_indicators", {})
+        decision_date = self.time.date()
+        snap: dict[Any, dict[str, Any]] = {}
+        for ticker in winners:
+            sym = active_by_lower.get(ticker.lower())
+            if sym is None:
+                continue  # decided but not yet subscribed — H1 covers it on the intraday side
+            ind = indicators.get(sym)
+            d_ichi = ind.get("d_ichi") if ind else None
+            if d_ichi is None or not getattr(d_ichi, "is_ready", False):
+                continue  # cold daily thesis → not enterable; never snapshot a half-formed thesis
+            snap[sym] = {
+                "signal_price": float(self.securities[sym].price),
+                "daily_kijun": float(d_ichi.kijun.current.value),
+                "decision_date": decision_date,
+            }
+        self._candidate_snapshot = snap
+        log = getattr(self, "log", None)
+        if callable(log):
+            log(f"SNAPSHOT|{decision_date}|candidates={len(snap)}")
+
+    def snapshot_for_entry(self, sym: Any) -> "dict[str, Any] | None":
+        snap = self._candidate_snapshot.get(sym)
+        if snap is None:
+            log = getattr(self, "log", None)
+            if callable(log):
+                log(f"SNAPSHOT_SKIP|{getattr(sym, 'value', sym)}|no decided thesis — not enterable (H1)")
+            return None
+        if self._last_daily_date is not None and snap["decision_date"] != self._last_daily_date:
+            raise DegradedDataError(
+                f"stale candidate snapshot for {getattr(sym, 'value', sym)}: decision_date="
+                f"{snap['decision_date']} but last daily decision={self._last_daily_date} — a "
+                f"missed daily→intraday handoff. Refusing to enter a stale thesis (#276b-0 H2, SG9)."
+            )
+        return snap
+
+    def _inject_intraday_candidates(self, ictx: PhaseContext) -> None:
+        snapshot = getattr(self, "_candidate_snapshot", {})
+        if not snapshot:
+            return
+        pending = getattr(self, "_pending_entry_today", set())
+        injected = 0
+        for sym in snapshot:  # insertion order == rank order (rank-preserving)
+            if self.portfolio[sym].invested or sym in pending:
+                continue
+            # ticker=sym.value (UPPERCASE) — the SAME convention BctScoreFull emits, so the shared
+            # downstream (sizing + FIRE_ENTRIES, which resolve by active_by_value = {s.value: s})
+            # finds it. The intraday gate phases (pre-flight/confirm/floor) lowercase it for their
+            # own active_by_lower lookups, so uppercase is safe there too. (A prior `.lower()` here
+            # was case-inconsistent with sizing/FIRE → a confirmed candidate would be skipped, never
+            # fired — the silent-0 the machinery proof isolates from data-coverage.)
+            ictx.bar_state.sized_orders.append(
+                OrderIntent(ticker=sym.value, qty=0, price=0.0, stop=0.0,
+                            module="signal", risk_dollars=0.0)
+            )
+            injected += 1
+        if injected:
+            log = getattr(self, "log", None)
+            if callable(log):
+                log(f"INTRADAY_INJECT|{self.time.date()}|candidates={injected}")
+
+    def _mark_entry_pending(self, sym: Any) -> None:
+        self._pending_entry_today.add(sym)
+
+    def on_order_event(self, order_event: Any) -> None:
+        sym = getattr(order_event, "symbol", None)
+        if sym is None or sym not in self._pending_entry_today:
+            return
+        status = getattr(order_event, "status", None)
+        terminal = {OrderStatus.Filled, OrderStatus.PartiallyFilled,
+                    OrderStatus.Canceled, OrderStatus.Invalid} if OrderStatus is not None else set()
+        if status in terminal:
+            self._pending_entry_today.discard(sym)
+
+    def _clear_intraday_session_state(self) -> None:
+        self._entry_confirm = {}
+        self._pending_entry_today = set()
+
+    def on_end_of_day(self, symbol: Any = None) -> None:
+        self._clear_intraday_session_state()

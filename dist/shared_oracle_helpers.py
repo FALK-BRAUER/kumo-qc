@@ -1,7 +1,3 @@
-"""
-Oracle helper functions extracted verbatim from baseline-oracle-v0 main.py.
-DO NOT modify — changes here break champion-asis-v1 parity (ARCH-C gate: ±0.01 Sharpe vs oracle).
-"""
 from __future__ import annotations
 
 from typing import Any
@@ -20,7 +16,6 @@ def _mid(high: pd.Series, low: pd.Series, period: int) -> pd.Series:
 def _adx_wilder(
     df: pd.DataFrame, period: int = 9
 ) -> tuple[pd.Series, pd.Series, pd.Series]:
-    """ADX / +DI / -DI using Wilder's EWM (alpha = 1/period). Matches TC2000 / George's charts."""
     h, lo, c = df["high"], df["low"], df["close"]
     pc, ph, pl = c.shift(1), h.shift(1), lo.shift(1)
     tr = pd.concat([(h - lo), (h - pc).abs(), (lo - pc).abs()], axis=1).max(axis=1)
@@ -61,7 +56,6 @@ def _fetch_ohlcv(algorithm: Any, symbol: Any, bars: int, resolution: Any) -> pd.
 
 
 def score_symbol(algorithm: Any, symbol: Any) -> dict[str, Any] | None:
-    """History-based BCT scorer. Fetches 700 daily bars, resamples to weekly."""
     try:
         from QuantConnect import Resolution  # noqa: PLC0415
     except ImportError:
@@ -128,20 +122,6 @@ def score_symbol(algorithm: Any, symbol: Any) -> dict[str, Any] | None:
 
 
 def score_symbol_native(algorithm: Any, symbol: Any, ind: dict[str, Any]) -> dict[str, Any] | None:
-    """MAINTAINED-indicator BCT scorer (#213f) — reads qc._indicators[sym], ZERO per-bar
-    history (kills the 10s isolator timeout at ~900 candidates). Same 8 conditions + rating
-    as the history-based score_symbol; values come from the maintained suite instead of a
-    per-bar qc.history() fetch.
-
-    INTENTIONAL ASYMMETRY (NOT a bug — fintrack-ruled canonical):
-      - price-vs-structure conditions (1,5,6,8) use the LIVE current price (d_price).
-      - chikou (3) is a CLOSE-based lagging line → completed-week close-vs-close:
-        w_close[0] (latest completed weekly close) > w_close[26] (26 completed weeks ago).
-        The <=1wk lag is inherent to a lagging line + avoids the partial-week look-ahead
-        the history-path resample had. Weekly cloud (1,4) uses the COMPLETED-week w_ichi.
-    Returns None until every maintained indicator is ready (mirrors score_symbol's
-    critical-NaN guard).
-    """
     d_ichi = ind["d_ichi"]; w_ichi = ind["w_ichi"]; w_close = ind["w_close"]
     sma200 = ind["sma200"]; adx = ind["adx"]; adx_window = ind["adx_window"]; roc13 = ind["roc13"]
 

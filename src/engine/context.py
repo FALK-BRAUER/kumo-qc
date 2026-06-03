@@ -49,8 +49,24 @@ class BarState:
     exit_intents: list[OrderIntent] = field(default_factory=list)
     trim_intents: list[OrderIntent] = field(default_factory=list)
     blocks: list[BlockEvent] = field(default_factory=list)
+    # #277: the engine sets this True when a regime/cash phase blocked the bar (entry-side
+    # suppressed). lean_entry reads it so the daily REGIME GATE reaches the INTRADAY entry path —
+    # a regime-blocked daily bar captures an EMPTY candidate snapshot → no intraday entries that
+    # session (the regime gate was previously confined to the daily clock; the intraday gap+loud
+    # entries ignored it → over-traded the bad regimes, the W1/W2 robustness loss).
+    bar_blocked: bool = False
     # phase_outputs accumulates per kind (lists support multi-sub-phase kinds: regime, exit_*, diagnostics)
     phase_outputs: dict[str, list[Any]] = field(default_factory=dict)
+    # #276b-1 FUNNEL instrumentation (the candidate-collapse localizer). An ADDITIVE, observe-only
+    # channel: a gate phase records the SYMBOL SET that SURVIVED its stage THIS tick into
+    # funnel[<stage>] (canonical Symbols). The runtime (lean_entry) reads these after the intraday
+    # clock runs and folds them into per-day-deduped cumulative counters (set membership IS the
+    # per-day dedup). NEVER read by the trading loop — it changes ZERO trading behavior; it only
+    # localizes where the daily signal (~40 names/day) collapses to ~78 orders/FY (Falk's "78 is too
+    # sparse" verdict). Intraday stage keys: preflight_pass, gap_eligible, confirm_fire,
+    # injection_survives, sized, cash_ok. (The daily stages signal_winners/regime_pass + the fire
+    # stage `orders` accumulate directly in the runtime/engine, not here.)
+    funnel: dict[str, set[Any]] = field(default_factory=dict)
     _seen: set[tuple[str, str]] = field(default_factory=set, repr=False)
 
     def apply(self, kind: str, result: Any, module: str = "") -> None:
@@ -62,6 +78,12 @@ class BarState:
         self._seen.add(key)
         self.phase_outputs.setdefault(kind, []).append(result)
 
+    def record_funnel(self, stage: str, symbol: Any) -> None:
+        """#276b-1 FUNNEL: record that `symbol` SURVIVED funnel `stage` this tick (additive, observe-
+        only). The set is the per-tick survivor set the runtime folds into the cumulative per-day-
+        deduped counter. Idempotent within a tick (set add). Changes NO trading behavior."""
+        self.funnel.setdefault(stage, set()).add(symbol)
+
 
 @dataclass(slots=True)
 class PhaseContext:
@@ -71,3 +93,8 @@ class PhaseContext:
     data: Any          # LEAN Slice
     bar_state: BarState = field(default_factory=BarState)
     clock: str = "daily"  # #274/#275b: which clock this tick runs on — "daily" | "intraday"
+
+    def record_funnel(self, stage: str, symbol: Any) -> None:
+        """#276b-1 FUNNEL (delegates to bar_state) — record that `symbol` survived `stage` this tick.
+        The phase-facing entry point (a phase holds ctx, not bar_state directly). Observe-only."""
+        self.bar_state.record_funnel(stage, symbol)

@@ -20,37 +20,63 @@ from collections.abc import Sequence
 
 from sweeps.types import ConfigRun, RunConfig, SweepConfig, Window, WindowResult
 
-# The mandatory 6 validation windows (ADR D5.1). Non-overlapping OOS slices across the
-# available daily history. These are the canonical panel; a sweep that runs fewer is a
-# charter violation. Dates are ISO; the real run-a-config adapter maps them to LEAN
-# start/end. (Exact spans are a config knob, not logic — six windows is the invariant.)
+# THE canonical 6 validation windows (Falk-locked 2026-06-03). RECENT-regime quarterly panel,
+# equal-size so all 6 finish ~same wall-clock in parallel. Supersedes the old 2020-2024 default
+# (which never matched what we actually validate on — a real config bug). w5/w6 OVERLAP BY DESIGN
+# (2026 Q1 and Feb-Apr 2026) — Falk wants denser coverage of the recent 2026 regime, so the panel is
+# NOT required to be non-overlapping (the old "non-overlapping" assumption is RETIRED; the validator
+# enforces only count==6 + unique names). Warmup coverage confirmed: w1 (Jan-2025) warms 560d back to
+# ~mid-2023 (the FY2025 panel ran that), w5/w6 (2026) warm to ~2024 — all locally runnable (only
+# pre-2023 was the gap that killed FY2024-OOS). Daily data extends to 2026-05-08.
 SIX_WINDOWS: tuple[Window, ...] = (
-    Window(name="w1_2020h1", start="2020-01-01", end="2020-06-30"),
-    Window(name="w2_2020h2", start="2020-07-01", end="2020-12-31"),
-    Window(name="w3_2021", start="2021-01-01", end="2021-12-31"),
-    Window(name="w4_2022", start="2022-01-01", end="2022-12-31"),
-    Window(name="w5_2023", start="2023-01-01", end="2023-12-31"),
-    Window(name="w6_2024", start="2024-01-01", end="2024-12-31"),
+    Window(name="w1_2025q1", start="2025-01-01", end="2025-03-31"),
+    Window(name="w2_2025q2", start="2025-04-01", end="2025-06-30"),
+    Window(name="w3_2025q3", start="2025-07-01", end="2025-09-30"),
+    Window(name="w4_2025q4", start="2025-10-01", end="2025-12-31"),
+    # 2026 windows: NOT locally runnable — the local substrate has no 2026 coarse-universe or minute
+    # feed (verified #338-ws3: w5 fails loud with #261-5 'empty coarse feed 2026-01-03'). They stay
+    # in the canonical panel (Falk-locked) for CLOUD / a future 2026 backfill; LOCAL sweeps skip them.
+    Window(name="w5_2026q1", start="2026-01-01", end="2026-03-31", runnable_locally=False),
+    Window(name="w6_2026_feb_apr", start="2026-02-01", end="2026-04-30", runnable_locally=False),
 )
 
 MANDATORY_WINDOW_COUNT = 6
+
+
+def local_runnable_windows(windows: Sequence[Window] = SIX_WINDOWS) -> tuple[Window, ...]:
+    """The subset of `windows` whose data is available LOCALLY (runnable_locally). Local sweeps run
+    these + log the skipped ones — graceful, never a crash on a true data outage (#338-ws3). Cloud /
+    a future 2026 backfill runs the full canonical panel. Returns windows in their original order."""
+    runnable = tuple(w for w in windows if w.runnable_locally)
+    skipped = [w.name for w in windows if not w.runnable_locally]
+    if skipped:
+        print(f"[windows] LOCAL: running {len(runnable)}/{len(windows)} windows; "
+              f"skipped (no local data, cloud/backfill-pending): {skipped}")
+    return runnable
 
 
 class WindowPanelError(ValueError):
     """Raised when a sweep is run with fewer than the mandatory 6 windows (D5.1 guard)."""
 
 
-def validate_window_panel(windows: Sequence[Window]) -> None:
-    """Refuse a panel that violates the 6-window mandate (no single-number results).
+def validate_window_panel(windows: Sequence[Window], *, min_windows: int = MANDATORY_WINDOW_COUNT) -> None:
+    """Refuse a panel that violates the no-single-number mandate.
 
     The runner enforces the distribution-not-point-estimate invariant at the seam: a panel
-    with fewer than 6 windows, or duplicate window names, is rejected loud rather than
-    silently producing a thin/peaky result.
+    with fewer than `min_windows` windows, or duplicate window names, is rejected loud rather
+    than silently producing a thin/peaky result. `min_windows` defaults to the canonical 6 (cloud /
+    full panel); a LOCAL sweep on the data-runnable subset passes the runnable count explicitly
+    (#338-ws3: the 2026 windows have no local data — the 4 quarters are still a distribution, NOT a
+    point estimate). It must never be set below 2 (that would permit a single-window point estimate).
     """
-    if len(windows) < MANDATORY_WINDOW_COUNT:
+    if min_windows < 2:
         raise WindowPanelError(
-            f"window panel has {len(windows)} windows; the mandatory minimum is "
-            f"{MANDATORY_WINDOW_COUNT} (ADR D5.1: no single-number results). "
+            f"min_windows={min_windows} would permit a point estimate; the floor is 2 (D5.1)."
+        )
+    if len(windows) < min_windows:
+        raise WindowPanelError(
+            f"window panel has {len(windows)} windows; the required minimum is "
+            f"{min_windows} (ADR D5.1: no single-number results). "
             "Running fewer windows produces a point estimate, not a robustness distribution."
         )
     names = [w.name for w in windows]

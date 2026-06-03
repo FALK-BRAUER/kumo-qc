@@ -52,7 +52,49 @@ def test_zero_orders_fails_liveness() -> None:
     assert ok is False and "liveness" in reason
 
 
-def test_unparseable_order_count_does_not_falsely_fail() -> None:
-    # error+progress already gate; a format quirk in the order count must not hard-fail a clean run.
-    ok, _ = q.assert_cloud_clean({"error": None, "progress": 1, "statistics": {"Total Orders": "n/a"}})
-    assert ok is True
+def test_unparseable_order_count_fails_loud() -> None:
+    # #277 hardening: an unverifiable liveness field (unparseable) must FAIL, not pass — null/quirk
+    # != clean (the silent-zero-champion hole).
+    ok, reason = q.assert_cloud_clean({"error": None, "progress": 1, "statistics": {"Total Orders": "n/a"}})
+    assert ok is False and "UNVERIFIABLE" in reason
+
+
+def test_null_orders_without_reread_fails_loud() -> None:
+    # #277: Total Orders missing + no reread → can't verify liveness → FAIL (the hold-confirm
+    # smoke hole: poll returned null → the old code skipped the check → a 0-order run passed clean).
+    ok, reason = q.assert_cloud_clean({"error": None, "progress": 1, "statistics": {}})
+    assert ok is False and "UNVERIFIABLE" in reason
+
+
+def test_null_orders_reread_recovers() -> None:
+    # null at poll → re-read returns populated stats → verify on the fresh read (delay=0 for the test).
+    fresh = {"error": None, "progress": 1, "statistics": {"Total Orders": "14"}}
+    ok, reason = q.assert_cloud_clean({"error": None, "progress": 1, "statistics": {}},
+                                      reread=lambda: fresh, reread_delay=0)
+    assert ok is True and reason == "clean"
+
+
+def test_null_orders_reread_recovers_on_a_LATER_try() -> None:
+    # #326: the stats lag can exceed ONE re-read — the FALSE-NEGATIVE that flagged a clean 94-order
+    # FY. The retry must recover when a LATER re-read populates (null, null, then 14).
+    seq = iter([{"error": None, "progress": 1, "statistics": {}},               # try 1: still null
+                {"error": None, "progress": 1, "statistics": {}},               # try 2: still null
+                {"error": None, "progress": 1, "statistics": {"Total Orders": "94"}}])  # try 3: populated
+    ok, reason = q.assert_cloud_clean({"error": None, "progress": 1, "statistics": {}},
+                                      reread=lambda: next(seq), reread_tries=3, reread_delay=0)
+    assert ok is True and reason == "clean"
+
+
+def test_null_orders_reread_still_null_fails_loud() -> None:
+    # null at poll AND null after ALL re-read retries → unverifiable → FAIL loud (never pass null).
+    stale = {"error": None, "progress": 1, "statistics": {}}
+    ok, reason = q.assert_cloud_clean(stale, reread=lambda: stale, reread_tries=3, reread_delay=0)
+    assert ok is False and "UNVERIFIABLE" in reason
+
+
+def test_reread_recovers_zero_orders_still_fails_liveness() -> None:
+    # re-read recovers a real 0 → liveness:0 fail (the hold-confirm case: real orders=0).
+    fresh = {"error": None, "progress": 1, "statistics": {"Total Orders": "0"}}
+    ok, reason = q.assert_cloud_clean({"error": None, "progress": 1, "statistics": {}},
+                                      reread=lambda: fresh, reread_delay=0)
+    assert ok is False and "liveness" in reason

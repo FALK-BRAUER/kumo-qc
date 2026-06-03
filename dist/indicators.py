@@ -1,15 +1,3 @@
-"""Indicator lifecycle helpers (#213c) — the pure, golden-masterable pieces.
-
-The per-symbol indicator PLUMBING (QC native ichimoku/sma + a weekly consolidator) lives
-in runtime.lean_entry (QC runtime). The one piece that is pure Python — and parity-critical
-— is the manual daily->weekly aggregation. It is carved EXACTLY from the legacy champion's
-_seed_weekly (algorithm/performance_bct/main.py): the proven workaround for the QC-cloud
-DataFrame.resample() 5-minute timeout (commit 8048c29). Reproduce faithfully; do NOT
-re-optimize (honest baseline first).
-
-INDICATOR_KEYS is the documented contract of qc._indicators[symbol] — the lifecycle
-populates exactly these; the phases (bct_score_full pre-filter, kijun_g3_exits) read them.
-"""
 from __future__ import annotations
 
 from typing import Any
@@ -46,21 +34,6 @@ INDICATOR_KEYS: tuple[str, ...] = (
 
 
 class TBounceTracker:
-    """Maintained §2-Component-2 (T-Bounce) state — pure, history-free, DAILY-OHLC-fed.
-
-    HQ ruling (#253-P1): C2 must read the latest DAILY OHLC BAR (open/high/low/close), NOT the
-    live close-snapshot — the pullback (C2b) is a daily-LOW touch and the bounce (C2c) is a
-    daily-candle bullish-close / lower-wick rejection. This tracker stores the LATEST completed
-    daily bar so the entry phase reads it O(1) (no per-bar history). It also maintains the two
-    recent-context degrade inputs:
-      - `sessions_below_tenkan` (consecutive daily closes below daily Tenkan; degrade C2 when >3).
-      - `gap_up_frac` = today's open vs the PRIOR daily close (degrade C2 when > gap_up_threshold,
-        the Rule #10 first-test-after-gap-up guard; HQ default 1%).
-
-    update(open_, high, low, close, tenkan) is called once per completed daily bar (the daily
-    consolidator in lean_entry feeds it). Pure float state — golden-masterable, no QC types.
-    `last_*` are None until the first bar (the phase declines a candidate with no daily bar yet).
-    """
 
     __slots__ = (
         "sessions_below_tenkan", "gap_up_frac", "prev_close",
@@ -77,13 +50,6 @@ class TBounceTracker:
         self.last_close: float | None = None
 
     def update(self, open_: float, high: float, low: float, close: float, tenkan: float) -> None:
-        """Fold one completed daily bar into the maintained T-Bounce state.
-
-        Stores the bar as `last_open/high/low/close` (C2 reads these), then updates:
-        sessions_below_tenkan: increment while close < Tenkan, reset to 0 the day close >= Tenkan.
-        gap_up_frac: (open - prev_close)/prev_close, clamped at >= 0 (only UP gaps matter; a
-          gap-down is 0.0). First bar (no prior close) -> 0.0. Uses the PRIOR close (set last bar).
-        """
         # gap uses the PRIOR bar's close — compute BEFORE overwriting prev_close.
         if self.prev_close is not None and self.prev_close > 0.0:
             frac = (open_ - self.prev_close) / self.prev_close
@@ -104,24 +70,10 @@ class TBounceTracker:
 
 
 def weekly_friday(ts: pd.Timestamp) -> pd.Timestamp:
-    """The Friday of ts's week, normalized — the weekly bucket key. Exact legacy rule:
-    ts + (4 - weekday) % 7 days, normalized to midnight (Mon..Sun -> that week's Friday)."""
     return (ts + pd.Timedelta(days=(4 - ts.weekday()) % 7)).normalize()
 
 
 def weekly_aggregate(daily: pd.DataFrame) -> list[dict[str, Any]]:
-    """Aggregate a daily OHLCV frame into weekly (W-FRI) bars — the manual aggregation the
-    legacy champion uses INSTEAD of df.resample (the QC-cloud timeout fix). Returns weekly
-    bars in chronological order, each {friday, open, high, low, close, volume}.
-
-    Rules (exact carve): first daily bar of a Friday-week sets OHLCV; subsequent bars in the
-    same week extend high/low, overwrite close (last), accumulate volume. open is the FIRST
-    day's open. Same result as resample('W-FRI').agg(first/max/min/last/sum), without the
-    pandas-resample overhead that trips the cloud 5-min limit.
-
-    Expects lowercased columns {open, high, low, close, volume} and a datetime index. Returns
-    [] if columns are missing or the frame is empty.
-    """
     if daily is None or daily.empty:
         return []
     cols = {"open", "high", "low", "close", "volume"}

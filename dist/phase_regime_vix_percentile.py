@@ -1,13 +1,3 @@
-"""Regime phase: E28 VIX percentile gate.
-
-Kind: regime
-Marker: vix_percentile_v1
-Tested params: vix_percentile_enabled=False (champion-asis-v1 — gate OFF)
-Charter: single code path, exits unaffected. Blocks entries when VIX is in top X%
-of the 2-year distribution. Default OFF. Faithful carve of oracle L482-499
-(baseline-oracle-v0).
-DO NOT modify evaluate() logic — breaks champion-asis-v1 parity (ARCH-C ±0.01 gate).
-"""
 from __future__ import annotations
 
 from dataclasses import dataclass

@@ -1,0 +1,68 @@
+{
+  "backtest_id": "5baf0483f5ea65b82bb6918ff63fd772",
+  "commit": "434c1e2ac9986c2143c20849fd668958b0e7eb1c",
+  "config": {
+    "config_hash": "bf4b334bfe0a",
+    "name": "bf4b334bfe0a",
+    "phases": {
+      "signal": {
+        "free_params": 2,
+        "impl": "oracle_signal",
+        "params": {
+          "min_score": 7,
+          "parabolic_threshold": 0.25,
+          "predictor": {
+            "__type__": "DvRankPredictor",
+            "min_score": 7,
+            "rank_cap": 250
+          }
+        }
+      }
+    },
+    "version": "276b.v2"
+  },
+  "config_hash": "bf4b334bfe0a",
+  "data_fingerprint": "90f2d7e3fb80d0a4d2eb286f6a43199e1519495a3ce9d787a4d7d0dfc70c535c",
+  "env": "cloud",
+  "n_censored": 0,
+  "n_censored_trades": 0,
+  "n_closed_trades": 1,
+  "n_trade_rows": 1,
+  "objective_version": "323.v1",
+  "result_schema_version": 2,
+  "run_class": null,
+  "runtime_statistics": null,
+  "statistics": {
+    "Alpha": "-0.136",
+    "Annual Standard Deviation": "0.174",
+    "Annual Variance": "0.03",
+    "Average Loss": "-0.60%",
+    "Average Win": "0%",
+    "Beta": "1.459",
+    "Compounding Annual Return": "18.271%",
+    "Drawdown": "8.700%",
+    "Drawdown Recovery": "13",
+    "End Equity": "102796.95",
+    "Estimated Strategy Capacity": "$10000000.00",
+    "Expectancy": "-1",
+    "Information Ratio": "-0.491",
+    "Loss Rate": "100%",
+    "Lowest Capacity Asset": "STX SKFG7HFQYDT1",
+    "Net Profit": "2.797%",
+    "Portfolio Turnover": "1.96%",
+    "Probabilistic Sharpe Ratio": "45.439%",
+    "Profit-Loss Ratio": "0",
+    "Sharpe Ratio": "0.499",
+    "Sortino Ratio": "0.667",
+    "Start Equity": "100000",
+    "Total Fees": "$12.69",
+    "Total Orders": "22",
+    "Tracking Error": "0.134",
+    "Treynor Ratio": "0.06",
+    "Win Rate": "0%"
+  },
+  "status": "COMPLETED_CLEAN",
+  "timestamp": "2026-06-02T09:11:46.349814+00:00",
+  "total_orders": 22,
+  "trade_schema_version": 2
+}
