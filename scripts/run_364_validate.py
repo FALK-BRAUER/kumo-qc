@@ -39,16 +39,25 @@ _R3B_ENTRY = PhaseChoice("entry_selection", "bct_intraday_gap_vol_confirm",
 
 R1C = SweepConfig(choices=_R1C_BASE, continuous_weekly=True)
 R1C_R3B = SweepConfig(choices=_R1C_BASE + (_R3B_ENTRY,), continuous_weekly=True)
+# S1-ref = no rotation (the R1 baseline, hash 65c0cf447168) — for the PAIRED R1-C-vs-S1 edge table.
+# Drop the exit_rotation choice from the base.
+_S1REF_BASE = tuple(c for c in _R1C_BASE if c.kind != "exit_rotation")
+S1REF = SweepConfig(choices=_S1REF_BASE, continuous_weekly=True)
 
-_CHAMPIONS = {"R1C": R1C, "R1C_R3B": R1C_R3B}
+_CHAMPIONS = {"R1C": R1C, "R1C_R3B": R1C_R3B, "S1REF": S1REF}
 CHAMPION = os.environ.get("CHAMPION", "R1C")  # set via env on launch per the R3 result
 FY = Window(name="fy2025_full", start="2025-01-01", end="2025-12-31")
+# Optional comma-separated window filter (e.g. WINDOWS=w2_2025q2,w4_2025q4,fy2025_full for the
+# S1-ref panel — Q1/Q3 S1-ref already exist from R1). Empty = the full local panel + FY.
+_WIN_FILTER = {w for w in os.environ.get("WINDOWS", "").split(",") if w}
 
 
 def main() -> None:
     workers = int(os.environ.get("SWEEP_WORKERS", "4"))
     cfg = _CHAMPIONS[CHAMPION]
     windows = list(local_runnable_windows()) + [FY]
+    if _WIN_FILTER:
+        windows = [w for w in windows if w.name in _WIN_FILTER]
     print(f"=== #364 VALIDATE champion={CHAMPION} {cfg.config_hash} over {len(windows)} windows ===", flush=True)
     for w in windows:
         print(f"  {w.name} {w.start}..{w.end}", flush=True)
