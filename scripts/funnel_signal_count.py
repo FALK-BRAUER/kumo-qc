@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import io
 import json
+from typing import Any, cast
 import zipfile
 from pathlib import Path
 from statistics import mean, median
@@ -37,7 +38,7 @@ _PRICE_SCALE = 10000.0  # LEAN daily zips store OHLC * 10000
 def load_universe(path: Path = _UNIVERSE_JSON) -> dict[str, list[str]]:
     """date (YYYY-MM-DD) -> [tickers active that date]."""
     with path.open() as fh:
-        return json.load(fh)
+        return cast("dict[str, list[str]]", json.load(fh))
 
 
 def load_daily_frame(ticker: str, daily_dir: Path = _DAILY_DIR) -> pd.DataFrame | None:
@@ -83,7 +84,7 @@ def score_universe_on_date(
     date_str: str,
     tickers: list[str],
     daily_dir: Path = _DAILY_DIR,
-) -> dict[str, int]:
+) -> dict[int, int]:
     """Score every ticker active on `date_str` as-of that date. Returns the score histogram
     {score: count} over tickers that scored (None results — missing data / warmup — excluded)."""
     as_of = pd.Timestamp(date_str)

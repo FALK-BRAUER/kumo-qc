@@ -142,18 +142,18 @@ class BctScoreFull(BasePhase):
                 price = scalars["d_price"]
                 if price <= 0 or price < scalars["ma200"] or price < scalars["d_cloud_top"]:
                     continue  # pre-filter: cond8/cond5 can't reach min_score → skip (mirrors live)
-                result = score_symbol_cached(scalars)
-                if result["score"] < min_score:
-                    _trace(ticker, "sub_min_score", result["score"])
+                cached = score_symbol_cached(scalars)
+                if cached["score"] < min_score:
+                    _trace(ticker, "sub_min_score", cached["score"])
                     continue
                 if scalars["roc13"] > parabolic_threshold:  # E51 parabolic block (cached roc13)
                     blocked_log.append(ticker)
-                    _trace(ticker, "parabolic", result["score"])
+                    _trace(ticker, "parabolic", cached["score"])
                     continue
-                _trace(ticker, "passed", result["score"])
-                signal_feats[symbol] = {"score": int(result["score"]),
-                                        "conditions": [bool(c) for c in result.get("conditions", [])]}
-                candidates.append((symbol, result["score"], float(trailing_dv.get(ticker.lower(), 0.0))))
+                _trace(ticker, "passed", cached["score"])
+                signal_feats[symbol] = {"score": int(cached["score"]),
+                                        "conditions": [bool(c) for c in cached.get("conditions", [])]}
+                candidates.append((symbol, cached["score"], float(trailing_dv.get(ticker.lower(), 0.0))))
                 continue
 
             ind = getattr(qc, "_indicators", {}).get(symbol)

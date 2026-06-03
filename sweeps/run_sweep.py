@@ -38,7 +38,7 @@ from sweeps.objective.gates import (
 from sweeps.pool import DEFAULT_MAX_WORKERS, run_pool
 from sweeps.provenance import LedgerRow, Provenance, ledger_rows
 from sweeps.score import ScoredConfig, score
-from sweeps.types import ConfigRun, ResultMetrics, SweepConfig, Window
+from sweeps.types import ConfigRun, ResultMetrics, SweepConfig, Window, RunConfig
 from sweeps.windows import MANDATORY_WINDOW_COUNT, SIX_WINDOWS
 
 # Sentinel: a config whose primitive raised. orders=-1 is impossible for a real run → the runner
@@ -98,7 +98,7 @@ def _window_returns(
 
 
 def _isolating(run_primitive: Callable[[SweepConfig, Window], ResultMetrics],
-               failures: dict[str, str], retries: int = 1):
+               failures: dict[str, str], retries: int = 1) -> RunConfig:
     """Wrap the injected primitive so a raised BT is recorded (by config_hash) + returns the
     _FAILED sentinel, instead of propagating through executor.map and killing the whole sweep.
 
