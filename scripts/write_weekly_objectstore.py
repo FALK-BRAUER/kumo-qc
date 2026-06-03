@@ -25,6 +25,7 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(_ROOT), str(_ROOT / "src")]
 
+from sweeps.warmup_cache.keys import weekly_cache_key  # noqa: E402
 from sweeps.warmup_cache.loader import WEEKLY_FIELDS, dump_weekly_blob  # noqa: E402
 
 
@@ -52,20 +53,20 @@ def main() -> None:
     ap.add_argument("--fp", required=True, help="data fingerprint (cache dir name + embedded guard)")
     ap.add_argument("--cache-root", default=str(_ROOT / "results" / "warmup_cache"))
     ap.add_argument("--storage", default=str(_ROOT / "storage"), help="LEAN LocalObjectStore dir")
-    ap.add_argument("--key", default="warmup_weekly_cache", help="ObjectStore key (LOCAL-ONLY)")
     args = ap.parse_args()
 
     cache_dir = Path(args.cache_root) / args.fp
     syms = _load_jsonl_weekly(cache_dir)
     blob = dump_weekly_blob(syms, args.fp)
 
+    key = weekly_cache_key(args.fp)  # DERIVED — same formula the runtime reads with (no write/read drift)
     storage = Path(args.storage)
     storage.mkdir(parents=True, exist_ok=True)
-    keyfile = storage / args.key
+    keyfile = storage / key
     keyfile.write_text(blob)
     total_rows = sum(len(r) for r in syms.values())
     print(json.dumps({
-        "key": args.key, "keyfile": str(keyfile), "fp": args.fp,
+        "key": key, "keyfile": str(keyfile), "fp": args.fp,
         "syms": len(syms), "rows": total_rows, "bytes": len(blob),
     }, indent=1))
 
