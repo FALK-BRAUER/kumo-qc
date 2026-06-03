@@ -56,6 +56,9 @@ ENTRY_GUARDS = frozenset({"preflight_staleness"})
 # the phases.<kind>.<impl> convention would look in nonexistent phases.exit_hard/ etc.
 _KIND_PKG: dict[str, str] = {
     "exit_hard": "exit", "exit_target": "exit", "exit_regime": "exit", "exit_rotation": "exit",
+    # #342: regime_ichimoku is a synthetic CHOICE kind that ADDS a regime-kind phase (SpyIchimokuRegime,
+    # which lives under phases.regime/) to the regime list — so the resolver looks under phases.regime/.
+    "regime_ichimoku": "regime",
 }
 
 
@@ -242,6 +245,16 @@ def sweep_to_strategy_config(sweep_config: Any, *, base_module: str = BASE_MODUL
     roch = choices.get("exit_rotation")
     if roch is not None:
         phases["exit_rotation"] = [_override_slot("exit_rotation", roch, None)]
+
+    # --- regime_ichimoku (#342, NEW gate ADDED to the regime list): when a choice provides it, APPEND
+    # a SpyIchimokuRegime slot to the existing regime stack (SpySma200 stays — entries must pass every
+    # enabled regime slot, AND-semantics). No choice → regime list unchanged (parity: the base hashes
+    # e3b0c44298fc/4c2fc8e40607 hold). The engine already runs all regime-kind slots. ---
+    gich = choices.get("regime_ichimoku")
+    if gich is not None:
+        regime_list = phases.get("regime", [])
+        regime_list = list(regime_list) if isinstance(regime_list, list) else [regime_list]
+        phases["regime"] = regime_list + [_override_slot("regime_ichimoku", gich, None)]
 
     return StrategyConfig(
         name=f"sweep-{sweep_config.config_hash}",

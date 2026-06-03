@@ -32,14 +32,22 @@ class FakeSym:
 
 
 class FakeKijun:
+    """A `.current.value` holder — mimics a LEAN indicator line (kijun/senkou_a/senkou_b)."""
+
     def __init__(self, v: float) -> None:
         self.current = type("C", (), {"value": v})()
 
 
 class FakeDIchi:
-    def __init__(self, kijun: float, ready: bool = True) -> None:
+    # Mirror LEAN's Ichimoku: it exposes kijun AND senkou_a/senkou_b (the cloud spans the #339
+    # snapshot reads for daily_cloud_bottom). The mock must carry them or the snapshot AttributeErrors
+    # against real LEAN-shaped data (the mock-vs-LEAN trap). Default cloud sits below kijun.
+    def __init__(self, kijun: float, ready: bool = True,
+                 senkou_a: float | None = None, senkou_b: float | None = None) -> None:
         self.is_ready = ready
         self.kijun = FakeKijun(kijun)
+        self.senkou_a = FakeKijun(senkou_a if senkou_a is not None else kijun - 10.0)
+        self.senkou_b = FakeKijun(senkou_b if senkou_b is not None else kijun - 12.0)
 
 
 class FakeSec:
@@ -85,7 +93,9 @@ def test_capture_keys_by_canonical_symbol_identity() -> None:
     # incomplete fake ind (no w_ichi/adx/…) → score_symbol_native fails → guarded context gap:
     # score=None, conditions=[] (the trade still snapshots on the validated signal_price/kijun).
     assert a._candidate_snapshot[aapl] == {
-        "signal_price": 150.0, "daily_kijun": 140.0, "decision_date": date(2025, 6, 2),
+        "signal_price": 150.0, "daily_kijun": 140.0,
+        "daily_cloud_bottom": 128.0,  # #339: min(senkou_a=130, senkou_b=128) from FakeDIchi(140)
+        "decision_date": date(2025, 6, 2),
         "score": None, "conditions": [],
     }
     assert any("CONTEXT_GAP" in m for m in a.logged)  # the re-score gap is logged LOUD, not silent
