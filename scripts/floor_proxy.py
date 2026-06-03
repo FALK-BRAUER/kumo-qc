@@ -72,7 +72,8 @@ def floor_proxy(h: str) -> dict:
 
 
 def main() -> None:
-    for h, name in [("65c0cf447168", "S1 sizing-5%"), ("de53399c8125", "combined-cloud")]:
+    for h, name in [("65c0cf447168", "S1 sizing-5%"), ("de53399c8125", "combined-cloud"),
+                    ("66801c5c1fcd", "rotation-v2 (S1+RotationV2)")]:
         r = floor_proxy(h)
         pct = lambda v: f"{v / 100000 * 100:+.2f}%"  # noqa: E731
         print(f"\n=== {name} ({h}) ===")
