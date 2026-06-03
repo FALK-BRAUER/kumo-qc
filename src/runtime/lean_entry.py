@@ -928,6 +928,13 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             "roc13": roc13.current.value,
         }
 
+    def _log_cache_engagement(self) -> None:
+        """#358 engagement signal (the assert-engaged): log per-symbol cache hits/misses at end-of-run
+        when the cache was ARMED. A speedup with zero hits = a silent fail-closed → this log proves the
+        cache actually SERVED lookups. Keyed on _weekly_cache_fp (armed), NOT a stale attr."""
+        if getattr(self, "_weekly_cache_fp", None):
+            self.log(f"#358 weekly-cache ENGAGED: hits={self._weekly_cache_hits} misses={self._weekly_cache_misses}")
+
     def _weekly_scalars_for(self, sym: Any, asof_date: Any) -> dict[str, float] | None:
         """The 6 weekly Ichimoku scalars for (sym, asof_date). #358: from the precomputed local cache
         (fail-closed fingerprint match, flag-ON) if present, else RE-DERIVED live from history(560d)
@@ -1178,8 +1185,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self._process_eod_funnel()
         # #358 engagement signal: log cache hits/misses so we KNOW the cache served lookups (a
         # speedup with zero hits = the in-container path silently failed-closed to live re-derivation).
-        if getattr(self, "_weekly_cache", None) is not None:
-            self.log(f"#358 weekly-cache ENGAGED: hits={self._weekly_cache_hits} misses={self._weekly_cache_misses}")
+        self._log_cache_engagement()
         if not getattr(self, "_schedule_armed", False):
             return  # scheduler never armed (selection-harness context) — nothing to reconcile
         gap = getattr(self, "_sched_trading_days", 0) - getattr(self, "_sched_decisions", 0)

@@ -99,3 +99,23 @@ def test_not_armed_fp_none_fail_closed_to_live():
     s = _Stub(None, _store_with("AAPL"))         # cloud / not-armed → no fp
     BctEngineAlgorithm._weekly_scalars_for(s, _Sym("AAPL"), _D)
     assert s.history_calls == 1                  # FAIL-CLOSED: live re-derive, no divergence
+
+
+def test_engagement_logged_when_armed():
+    """REGRESSION (the refactor bug): the ENGAGED hit/miss signal must fire when the cache is ARMED.
+    Was silently dead after _weekly_cache→_weekly_cache_fp rename (condition checked the stale attr)."""
+    logs: list[str] = []
+    class _S:
+        _weekly_cache_fp = "fp1"; _weekly_cache_hits = 42; _weekly_cache_misses = 8
+        def log(self, m): logs.append(m)
+    BctEngineAlgorithm._log_cache_engagement(_S())
+    assert any("ENGAGED: hits=42 misses=8" in m for m in logs)
+
+
+def test_engagement_not_logged_when_not_armed():
+    logs: list[str] = []
+    class _S:
+        _weekly_cache_fp = None; _weekly_cache_hits = 0; _weekly_cache_misses = 0
+        def log(self, m): logs.append(m)
+    BctEngineAlgorithm._log_cache_engagement(_S())
+    assert logs == []
