@@ -96,6 +96,13 @@ class BctScoreFull(BasePhase):
 
         candidates: list[tuple[Any, int, float]] = []  # (symbol, score, dollar_volume)
         blocked_log: list[str] = []
+        # #348 feature-capture fix: stamp each winner's score + 8 conditions HERE, at signal-PASS,
+        # keyed by symbol. The daily→intraday snapshot reads these instead of RE-scoring (which threw
+        # for ~5/36 entries incl the biggest winners HOOD/GLW → context_status=CORE_MISSING, blind
+        # winners). These ARE the values the signal selected on (native or cached path) → authoritative
+        # by construction, no drift. Learn-substrate metadata only — NOT a trade gate (the snapshot
+        # score gates nothing; H1 checks existence+date, preflight uses price/kijun) → trade-identical.
+        signal_feats: dict[Any, dict[str, Any]] = {}
 
         # #332 warmup-cache CONSUMPTION (flag-ON): when lean_entry has loaded qc._warmup_cache (and
         # skipped SetWarmUp), score from the cached scalars for (symbol, today) instead of the live
@@ -105,6 +112,19 @@ class BctScoreFull(BasePhase):
         # attr) leaves the live path below BYTE-UNTOUCHED.
         cache = getattr(qc, "_warmup_cache", None)
         cur_date = ctx.time.date() if cache is not None else None
+
+        # #348 DECISION TRACE (flag-gated; default OFF → live path byte-untouched). When the
+        # BCTAlgorithm.DECISION_TRACE class-attr is set (SWEEP_CLASS_ATTRS for an instrumentation run),
+        # emit one DECISIONTRACE log line per SCORED candidate (post pre-filter) recording its signal
+        # fate (passed / sub_min_score / parabolic) + score → the NON-TRADES substrate (which scored
+        # names did/didn't survive the signal gate, parsed post-hoc from the local bt log.txt).
+        _trace_on = bool(getattr(qc, "DECISION_TRACE", False))
+        _trace_date = ctx.time.date()
+        _trace_log = getattr(qc, "log", None)
+
+        def _trace(tk: str, fate: str, score: Any = None) -> None:
+            if _trace_on and callable(_trace_log):
+                _trace_log(f"DECISIONTRACE|{_trace_date}|{tk}|{fate}|{'' if score is None else int(score)}")
 
         for ticker in candidates_raw:
             symbol = active_by_key.get(canonical_symbol_key(ticker))
@@ -124,10 +144,15 @@ class BctScoreFull(BasePhase):
                     continue  # pre-filter: cond8/cond5 can't reach min_score → skip (mirrors live)
                 result = score_symbol_cached(scalars)
                 if result["score"] < min_score:
+                    _trace(ticker, "sub_min_score", result["score"])
                     continue
                 if scalars["roc13"] > parabolic_threshold:  # E51 parabolic block (cached roc13)
                     blocked_log.append(ticker)
+                    _trace(ticker, "parabolic", result["score"])
                     continue
+                _trace(ticker, "passed", result["score"])
+                signal_feats[symbol] = {"score": int(result["score"]),
+                                        "conditions": [bool(c) for c in result.get("conditions", [])]}
                 candidates.append((symbol, result["score"], float(trailing_dv.get(ticker.lower(), 0.0))))
                 continue
 
@@ -152,6 +177,7 @@ class BctScoreFull(BasePhase):
             # BCT score
             result = score_symbol_native(qc, symbol, ind)
             if result is None or result["score"] < min_score:
+                _trace(ticker, "sub_min_score", result["score"] if result else None)
                 continue
 
             # E51: Parabolic entry block — skip if the maintained 13-day ROC exceeds the
@@ -161,12 +187,19 @@ class BctScoreFull(BasePhase):
             roc13 = ind.get("roc13")
             if roc13 is not None and roc13.is_ready and roc13.current.value > parabolic_threshold:
                 blocked_log.append(ticker)
+                _trace(ticker, "parabolic", result["score"])
                 continue
 
+            _trace(ticker, "passed", result["score"])
             # Dollar-volume tiebreak from the live trailing DV (no per-bar history). 0.0 if absent.
             dollar_volume = float(trailing_dv.get(ticker.lower(), 0.0))
 
+            signal_feats[symbol] = {"score": int(result["score"]),
+                                    "conditions": [bool(c) for c in result.get("conditions", [])]}
             candidates.append((symbol, result["score"], dollar_volume))
+
+        # #348: publish the pass-time features for the snapshot to read (fresh each daily decision).
+        qc._signal_features = signal_feats
 
         # Sort: score DESC, dollar_vol DESC — matches oracle L589-590
         candidates.sort(key=lambda x: (x[1], x[2]), reverse=True)

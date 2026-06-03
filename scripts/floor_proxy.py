@@ -44,8 +44,41 @@ def cloud_bottom_at(sym: str, asof: _dt.date) -> float | None:
     return last
 
 
+def _fy_full_cell(h: str) -> tuple[str, str]:
+    """The archive cell that ran the fy2025_full window — NOT glob[0] (alphabetical → grabs a quarter
+    cell once the sweep adds w1-w4, the bug that mis-read S1 as a -17% quarter). Match the archive
+    cell whose result.json backtest_id is the one under sweeps/runs/{h}/fy2025_full/. Returns
+    (trades_path, backtest_id) for transparency. Fail loud if it can't be identified unambiguously."""
+    fy_ids = set()
+    for bt in glob.glob(f"sweeps/runs/{h}/fy2025_full/backtests/*/"):
+        for j in glob.glob(bt + "*.json"):
+            if Path(j).stem.isdigit():
+                fy_ids.add(Path(j).stem)
+    cells = glob.glob(f"results/archive/{h}/*/")
+    matches = []
+    for c in cells:
+        rj = Path(c) / "result.json"
+        if not rj.exists():
+            continue
+        bid = str(json.loads(rj.read_text()).get("backtest_id"))
+        if bid in fy_ids:
+            matches.append((c, bid))
+    # HARD-ASSERT the FY-full cell by backtest_id. NO len(cells)==1 silent fallback: a lone QUARTER
+    # cell (FY-full not yet archived) would otherwise masquerade as the FY-full floor — the exact
+    # silent-wrong-cell bug this function exists to kill. If it can't be identified, refuse to guess.
+    if len(matches) != 1:
+        raise RuntimeError(f"{h}: cannot pick FY-full cell unambiguously (fy_ids={sorted(fy_ids)}, "
+                           f"matches={[m[1] for m in matches]}, cells={len(cells)}) — refuse to guess. "
+                           f"Ensure sweeps/runs/{h}/fy2025_full/backtests/ has the FY-full run.")
+    c, bt = matches[0]
+    tjs = glob.glob(c + "trades.jsonl.gz")
+    if not tjs:
+        raise RuntimeError(f"{h}: FY-full cell {c} has no trades.jsonl.gz")
+    return tjs[0], bt
+
+
 def floor_proxy(h: str) -> dict:
-    tj = glob.glob(f"results/archive/{h}/*/trades.jsonl.gz")[0]
+    tj, bt = _fy_full_cell(h)
     trades = [json.loads(x) for x in gzip.decompress(Path(tj).read_bytes()).decode().splitlines()]
     realized = sum(t["pnl"] for t in trades if not t.get("censored"))
     m2m = sum(t["pnl"] for t in trades)
@@ -68,14 +101,17 @@ def floor_proxy(h: str) -> dict:
     return {
         "realized": realized, "m2m": m2m, "floor_total": realized + floor_unreal,
         "remarked": remarked, "missing": missing, "detail": sorted(detail, key=lambda x: x[4]),
+        "bt": bt,
     }
 
 
 def main() -> None:
-    for h, name in [("65c0cf447168", "S1 sizing-5%"), ("de53399c8125", "combined-cloud")]:
+    for h, name in [("65c0cf447168", "S1 sizing-5%"), ("de53399c8125", "combined-cloud"),
+                    ("66801c5c1fcd", "rotation-v2 (S1+RotationV2)"),
+                    ("6ee62f5d019a", "#342 regime-gate (S1+SpyIchimoku)")]:
         r = floor_proxy(h)
         pct = lambda v: f"{v / 100000 * 100:+.2f}%"  # noqa: E731
-        print(f"\n=== {name} ({h}) ===")
+        print(f"\n=== {name} ({h}) === [FY-full cell bt={r['bt']}]")
         print(f"  REALIZED (closed):   ${r['realized']:>10,.0f}  {pct(r['realized'])}")
         print(f"  M2M (last-price):    ${r['m2m']:>10,.0f}  {pct(r['m2m'])}")
         print(f"  FLOOR-PROXY (stop):  ${r['floor_total']:>10,.0f}  {pct(r['floor_total'])}   "

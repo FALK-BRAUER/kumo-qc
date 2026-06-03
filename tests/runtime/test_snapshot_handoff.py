@@ -32,14 +32,22 @@ class FakeSym:
 
 
 class FakeKijun:
+    """A `.current.value` holder — mimics a LEAN indicator line (kijun/senkou_a/senkou_b)."""
+
     def __init__(self, v: float) -> None:
         self.current = type("C", (), {"value": v})()
 
 
 class FakeDIchi:
-    def __init__(self, kijun: float, ready: bool = True) -> None:
+    # Mirror LEAN's Ichimoku: it exposes kijun AND senkou_a/senkou_b (the cloud spans the #339
+    # snapshot reads for daily_cloud_bottom). The mock must carry them or the snapshot AttributeErrors
+    # against real LEAN-shaped data (the mock-vs-LEAN trap). Default cloud sits below kijun.
+    def __init__(self, kijun: float, ready: bool = True,
+                 senkou_a: float | None = None, senkou_b: float | None = None) -> None:
         self.is_ready = ready
         self.kijun = FakeKijun(kijun)
+        self.senkou_a = FakeKijun(senkou_a if senkou_a is not None else kijun - 10.0)
+        self.senkou_b = FakeKijun(senkou_b if senkou_b is not None else kijun - 12.0)
 
 
 class FakeSec:
@@ -85,7 +93,9 @@ def test_capture_keys_by_canonical_symbol_identity() -> None:
     # incomplete fake ind (no w_ichi/adx/…) → score_symbol_native fails → guarded context gap:
     # score=None, conditions=[] (the trade still snapshots on the validated signal_price/kijun).
     assert a._candidate_snapshot[aapl] == {
-        "signal_price": 150.0, "daily_kijun": 140.0, "decision_date": date(2025, 6, 2),
+        "signal_price": 150.0, "daily_kijun": 140.0,
+        "daily_cloud_bottom": 128.0,  # #339: min(senkou_a=130, senkou_b=128) from FakeDIchi(140)
+        "decision_date": date(2025, 6, 2),
         "score": None, "conditions": [],
     }
     assert any("CONTEXT_GAP" in m for m in a.logged)  # the re-score gap is logged LOUD, not silent
@@ -105,6 +115,28 @@ def test_snapshot_captures_score_and_8_conditions(monkeypatch) -> None:
     assert snap["score"] == 7
     assert snap["conditions"] == bits  # all 8, in the stable documented bit order
     assert len(snap["conditions"]) == 8
+
+
+def test_snapshot_reads_signal_features_no_rescore(monkeypatch) -> None:
+    # #348 FEATURE-CAPTURE FIX: when the signal phase stamped qc._signal_features, the snapshot reads
+    # THOSE — NO re-score. Proves the CORE_MISSING fix: a winner whose live re-score would THROW
+    # (HOOD/GLW: score_symbol_native on a cold ind) still gets full features. Make re-score blow up to
+    # prove it is NOT on this path.
+    import runtime.lean_entry as le
+
+    def _boom(algo, sym, ind):
+        raise RuntimeError("re-score must not run when _signal_features has the name")
+
+    monkeypatch.setattr(le, "score_symbol_native", _boom)
+    aapl = FakeSym("AAPL")
+    bits = [True, True, True, False, True, True, False, True]
+    a = _algo([aapl], ["aapl"], {aapl: {"d_ichi": FakeDIchi(140.0)}}, {aapl: 150.0})
+    a._signal_features = {aapl: {"score": 7, "conditions": bits}}
+    a._capture_candidate_snapshot(a._ranked_today)
+    snap = a._candidate_snapshot[aapl]
+    assert snap["score"] == 7, "score must come from the pass-time signal features"
+    assert snap["conditions"] == bits and len(snap["conditions"]) == 8
+    assert not any("CONTEXT_GAP" in m for m in a.logged)  # no re-score → no context gap
 
 
 def test_snapshot_drops_drifted_rescore_below_min_score(monkeypatch) -> None:
