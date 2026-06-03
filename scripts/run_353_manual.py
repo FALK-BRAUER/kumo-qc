@@ -123,7 +123,6 @@ def main() -> None:
         sps = {q: _sp(perq[q], f) for q in _QUARTERS}
         bear = [sps["Q1"], sps["Q4"]]
         bull = [sps["Q2"], sps["Q3"]]
-        ok = all(v is not None for v in sps.values())
         bear_mean = sum(bear) / 2 if all(v is not None for v in bear) else None
         bull_mean = sum(bull) / 2 if all(v is not None for v in bull) else None
         robust = (bear_mean is not None and bull_mean is not None
