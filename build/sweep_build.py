@@ -128,7 +128,20 @@ def _override_slot(kind: str, ch: Any, base_slot: Slot | None) -> Slot:
         params = _apply_params(kind, ch.impl_name, swept, base_slot.params)
         return Slot(impl=base_slot.impl, params=params, enabled=True)
     impl = _resolve_impl(kind, ch.impl_name)
-    params = _apply_params(kind, ch.impl_name, swept, impl.Params())
+    fresh = impl.Params()
+    # On an impl SWAP, carry the base slot's STRUCTURAL (_HASH_EXCLUDE) fields onto the fresh params —
+    # e.g. `resolution` (the entry-execution-chain clock) is BASE-determined, not swept; a fresh impl's
+    # default ("daily") would mismatch an intraday FIRE_ENTRIES → the chain-clock guard fails loud
+    # (#276b-1). Structural fields don't affect config_hash, so this is parity-safe. (#339: RiskBasedSize
+    # swap on the intraday champion.)
+    if base_slot is not None:
+        excl = getattr(type(fresh), "_HASH_EXCLUDE", frozenset())
+        base_fields = {f.name for f in dataclasses.fields(base_slot.params)}
+        fresh_fields = {f.name for f in dataclasses.fields(fresh)}
+        carry = {k: getattr(base_slot.params, k) for k in excl if k in base_fields and k in fresh_fields}
+        if carry:
+            fresh = dataclasses.replace(fresh, **carry)
+    params = _apply_params(kind, ch.impl_name, swept, fresh)
     return Slot(impl=impl, params=params, enabled=True)
 
 
