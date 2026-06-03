@@ -179,3 +179,32 @@ def test_can_skip_warmup_all_or_nothing():
     assert BctEngineAlgorithm._can_skip_warmup(_S(True, None, store, "fpD")) is False    # no daily-cache fp
     assert BctEngineAlgorithm._can_skip_warmup(_S(True, "fpD", None, "fpD")) is False    # no object_store (cloud)
     assert BctEngineAlgorithm._can_skip_warmup(_S(True, "fpD", store, None)) is False    # init arming failed
+
+
+# ── #358b inc8: symbol-absent (desync) vs date-not-ready distinction (the 7th test group) ──
+def test_require_daily_row_symbol_absent_raises_vs_date_not_ready_silent():
+    from engine.base import DegradedDataError
+    class _S:
+        def __init__(self, loaded):
+            self._daily_cache_fp = "fpD"; self._daily_loaded = loaded; self.object_store = object()
+        def _daily_scalars_for(self, sym, d):       # delegate to the REAL method (_require_daily_row calls it)
+            return BctEngineAlgorithm._daily_scalars_for(self, sym, d)
+    # symbol PRESENT, date-not-ready → None (silent skip, byte-identical to OFF cold)
+    assert BctEngineAlgorithm._require_daily_row(_S({"AAPL": {}}), _Sym("AAPL"), _D) is None
+    # symbol ENTIRELY absent → raise (build/universe desync — BT-blind)
+    with pytest.raises(DegradedDataError):
+        BctEngineAlgorithm._require_daily_row(_S({"AAPL": None}), _Sym("AAPL"), _D)
+    # hit
+    got = BctEngineAlgorithm._require_daily_row(_S({"AAPL": {_D: {"d_kijun": 1.0, "d_cloud_bottom": 2.0}}}),
+                                                _Sym("AAPL"), _D)
+    assert got["d_kijun"] == 1.0
+
+
+def test_spy_ma200_cached_absent_raises_vs_present():
+    from engine.base import DegradedDataError
+    class _S:
+        def __init__(self, loaded):
+            self._daily_cache_fp = "fpD"; self._daily_loaded = loaded; self.object_store = object()
+    with pytest.raises(DegradedDataError):                       # SPY entirely absent → desync raise
+        BctEngineAlgorithm._spy_ma200_cached(_S({"SPY": None}), _D)
+    assert BctEngineAlgorithm._spy_ma200_cached(_S({"SPY": {_D: {"ma200": 450.0}}}), _D) == 450.0

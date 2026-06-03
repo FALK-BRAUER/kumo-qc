@@ -996,11 +996,32 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         rows = self._daily_loaded[key]
         return rows.get(asof_date) if rows is not None else None
 
+    def _require_daily_row(self, sym: Any, asof_date: Any) -> dict[str, float] | None:
+        """#358b row-REQUIRING consumers (snapshot WINNER / exit HELD / — names cached BY CONSTRUCTION:
+        a winner passed signal → its indicators were ready → built; a held position was a winner). A
+        symbol ENTIRELY absent (_daily_loaded[key] is None after the lazy load) = a build/universe
+        DESYNC → raise (the byte-identical FY is BLIND to universe drift; a stale/mismatched cache
+        silently corrupts). A PRESENT symbol missing THIS date (date-not-ready) → return None (silent
+        skip, byte-identical to OFF cold). NOT for the signal-legs path (a candidate may legitimately
+        be never-ready → that stays on _daily_scalars_for, silent)."""
+        row = self._daily_scalars_for(sym, asof_date)  # populates _daily_loaded[sym.value]
+        if row is not None:
+            return row
+        if self._daily_loaded.get(sym.value) is None:  # symbol ENTIRELY absent — not just this date
+            raise DegradedDataError(
+                f"warmup-skip desync: {getattr(sym, 'value', sym)} entirely absent from the "
+                f"daily_scalar cache (date={asof_date}) — a cached-by-construction name (winner/held) "
+                f"missing = a stale/mismatched offline cache; fail loud (the byte-identical FY cannot "
+                f"see universe drift)"
+            )
+        return None  # symbol present, date-not-ready → silent skip (== OFF cold not-ready)
+
     def _spy_ma200_cached(self, asof_date: Any) -> float | None:
         """#358b WARMUP-SKIP: SPY's cached 200-day MA for the SpySma200 regime gate (the live
-        spy_sma200 indicator is cold when set_warmup is skipped). SPY is a member of the daily_scalar
-        cache (the benchmark, explicitly built). None if not armed / SPY not cached / date not-ready
-        (== the OFF cold-spy_sma200 → the regime blocks fail-closed). Memoized under the 'SPY' key."""
+        spy_sma200 indicator is cold when set_warmup is skipped). SPY is the explicit benchmark member
+        of the daily_scalar cache. SPY ENTIRELY absent = a build/universe DESYNC → raise (cached by
+        construction; the byte-identical FY can't see drift). A date-not-ready (SPY present, only the
+        first ~200d) → None → the regime BLOCKS (== OFF cold-spy_sma200, byte-identical). Memoized."""
         fp = getattr(self, "_daily_cache_fp", None)
         if not fp:
             return None
@@ -1008,7 +1029,12 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             from runtime.warmup_weekly_cache import load_scalars_for_symbol
             self._daily_loaded["SPY"] = load_scalars_for_symbol(getattr(self, "object_store", None), fp, "SPY")
         rows = self._daily_loaded["SPY"]
-        row = rows.get(asof_date) if rows is not None else None
+        if rows is None:  # SPY entirely absent from the cache → desync (SPY is always built)
+            raise DegradedDataError(
+                f"warmup-skip desync: SPY entirely absent from the daily_scalar cache (date={asof_date}) "
+                f"— the regime benchmark is cached by construction; a stale/mismatched offline cache, fail loud"
+            )
+        row = rows.get(asof_date)
         return float(row["ma200"]) if row is not None else None
 
     def _can_skip_warmup(self) -> bool:
@@ -1410,9 +1436,9 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                 # cold-d_ichi skip); a MISS (not-cached / date-not-ready) → continue == the OFF
                 # cold-d_ichi skip (byte-identity — a name with no ready daily thesis isn't enterable).
                 ind = None
-                row = self._daily_scalars_for(sym, decision_date)
+                row = self._require_daily_row(sym, decision_date)  # raises on symbol-absent desync
                 if row is None:
-                    continue
+                    continue  # symbol present, date-not-ready → skip (== OFF cold-d_ichi skip)
                 daily_kijun = float(row["d_kijun"])
                 daily_cloud_bottom = float(row["d_cloud_bottom"])
             else:

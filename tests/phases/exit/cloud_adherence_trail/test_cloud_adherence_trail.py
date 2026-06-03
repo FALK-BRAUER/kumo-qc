@@ -126,8 +126,9 @@ def _setup_warmup_skip(close, cached_cloud_bottom):
     qc.portfolio[sym] = FakeHolding(invested=True, quantity=100)
     qc.securities[sym] = FakeSecurity(close=close)
     qc._daily_cache_fp = "fpD"                       # armed → cache path
-    # NO live d_ichi (cold/absent — set_warmup skipped); the cached row supplies cloud_bottom
-    qc._daily_scalars_for = lambda s, d: ({"d_cloud_bottom": cached_cloud_bottom}
+    # NO live d_ichi (cold/absent — set_warmup skipped); _require_daily_row supplies cloud_bottom
+    # (None = date-not-ready → silent skip; symbol-absent raises = tested separately below).
+    qc._require_daily_row = lambda s, d: ({"d_cloud_bottom": cached_cloud_bottom}
                                           if cached_cloud_bottom is not None else None)
     return sym, qc
 
@@ -161,3 +162,18 @@ def test_warmup_skip_weekly_kijun_unsupported_raises():
     ctx = make_ctx(qc)
     with pytest.raises(DegradedDataError):
         CloudAdherenceTrail(CloudAdherenceTrail.Params(weekly_kijun_exit_enabled=True), logger=None).evaluate(ctx)
+
+
+def test_warmup_skip_symbol_absent_propagates_desync_raise():
+    # held position entirely absent from the daily_scalar cache → _require_daily_row raises → the
+    # exit must PROPAGATE it (a held-name desync, never silently hold-what-OFF-would-sell).
+    sym = make_symbol()
+    qc = FakeQC()
+    qc.portfolio[sym] = FakeHolding(invested=True, quantity=100)
+    qc.securities[sym] = FakeSecurity(close=90.0)
+    qc._daily_cache_fp = "fpD"
+    def _raise(s, d):
+        raise DegradedDataError("warmup-skip desync: held position absent from cache")
+    qc._require_daily_row = _raise
+    with pytest.raises(DegradedDataError):
+        CloudAdherenceTrail(CloudAdherenceTrail.Params(), logger=None).evaluate(make_ctx(qc))

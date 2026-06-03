@@ -276,8 +276,9 @@ def test_regime_unblocked_daily_captures_the_winner() -> None:
 
 
 # ── #358b WARMUP-SKIP: snapshot capture reads daily_kijun/cloud_bottom from the daily_scalar cache ──
-def _row(kijun, cloud_bottom):
-    return {"d_kijun": kijun, "d_cloud_bottom": cloud_bottom}
+# Pre-populate a._daily_loaded (the per-sym memo) to drive the REAL _require_daily_row: a row present
+# = hit; {} = symbol present/date-not-ready (silent skip); None = symbol ENTIRELY absent (desync raise).
+_DEC = date(2025, 6, 2)  # _algo's default decision date
 
 
 def test_warmup_skip_snapshot_uses_cache_kijun_cloud():
@@ -285,7 +286,7 @@ def test_warmup_skip_snapshot_uses_cache_kijun_cloud():
     # indicators EMPTY (d_ichi cold/absent — set_warmup skipped) → proves the CACHE path supplies it
     a = _algo([aapl], ["AAPL"], indicators={}, prices={aapl: 100.0})
     a._daily_cache_fp = "fpD"
-    a._daily_scalars_for = lambda s, d: _row(kijun=98.0, cloud_bottom=88.0)
+    a._daily_loaded = {"AAPL": {_DEC: {"d_kijun": 98.0, "d_cloud_bottom": 88.0}}}  # present, date ready
     a._signal_features = {aapl: {"score": 7, "conditions": [True] * 8}}
     a._capture_candidate_snapshot(a._ranked_today)
     snap = a._candidate_snapshot[aapl]
@@ -293,23 +294,35 @@ def test_warmup_skip_snapshot_uses_cache_kijun_cloud():
     assert snap["signal_price"] == 100.0 and snap["score"] == 7
 
 
-def test_warmup_skip_snapshot_cache_miss_skips():
+def test_warmup_skip_snapshot_date_not_ready_skips():
     aapl = FakeSym("AAPL")
     a = _algo([aapl], ["AAPL"], indicators={}, prices={aapl: 100.0})
     a._daily_cache_fp = "fpD"
-    a._daily_scalars_for = lambda s, d: None      # not cached/not-ready → skip (== OFF cold-d_ichi skip)
+    a._daily_loaded = {"AAPL": {}}                 # symbol PRESENT, date-not-ready → silent skip (== OFF cold)
     a._signal_features = {aapl: {"score": 7, "conditions": [True] * 8}}
     a._capture_candidate_snapshot(a._ranked_today)
-    assert aapl not in a._candidate_snapshot      # no snapshot entry → not enterable (byte-identity)
+    assert aapl not in a._candidate_snapshot       # no snapshot entry → not enterable (byte-identity)
 
 
-def test_warmup_skip_snapshot_no_signal_features_raises():
+def test_warmup_skip_snapshot_symbol_absent_raises():
+    import pytest
     from engine.base import DegradedDataError
     aapl = FakeSym("AAPL")
     a = _algo([aapl], ["AAPL"], indicators={}, prices={aapl: 100.0})
     a._daily_cache_fp = "fpD"
-    a._daily_scalars_for = lambda s, d: _row(98.0, 88.0)
-    a._signal_features = {}                        # winner absent → desync → fail loud (never cold-rescore)
+    a._daily_loaded = {"AAPL": None}               # symbol ENTIRELY absent → build/universe desync → raise
+    a._signal_features = {aapl: {"score": 7, "conditions": [True] * 8}}
+    with pytest.raises(DegradedDataError):
+        a._capture_candidate_snapshot(a._ranked_today)
+
+
+def test_warmup_skip_snapshot_no_signal_features_raises():
     import pytest
+    from engine.base import DegradedDataError
+    aapl = FakeSym("AAPL")
+    a = _algo([aapl], ["AAPL"], indicators={}, prices={aapl: 100.0})
+    a._daily_cache_fp = "fpD"
+    a._daily_loaded = {"AAPL": {_DEC: {"d_kijun": 98.0, "d_cloud_bottom": 88.0}}}  # row present
+    a._signal_features = {}                        # winner absent → desync → fail loud (never cold-rescore)
     with pytest.raises(DegradedDataError):
         a._capture_candidate_snapshot(a._ranked_today)

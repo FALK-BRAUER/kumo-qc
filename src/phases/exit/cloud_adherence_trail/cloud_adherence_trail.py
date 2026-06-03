@@ -66,9 +66,9 @@ class CloudAdherenceTrail(BasePhase):
                         "warmup-skip + weekly_kijun_exit_enabled unsupported: w_kijun is not in the "
                         "daily_scalar cache (the champion runs weekly_kijun_exit OFF)"
                     )
-                row = qc._daily_scalars_for(symbol, ctx.time.date())
+                row = qc._require_daily_row(symbol, ctx.time.date())  # raises on held-position desync
                 if row is None:
-                    continue  # not-cached/not-ready == OFF ind-None benign-skip
+                    continue  # symbol present, date-not-ready == OFF ind-None benign-skip
                 cloud_bottom = row["d_cloud_bottom"]
                 w_kijun = None
             else:
