@@ -12,8 +12,9 @@ features — no label, no other test points). fail-loud on degenerate fit (const
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Sequence
+from types import MappingProxyType
 
 from feature_panel import quartile_auc, spearman
 
@@ -23,8 +24,9 @@ MIN_FIT_ROWS = 20
 @dataclass(frozen=True)
 class CompositeFit:
     """Frozen per-feature stats from the FIT window: feature → (mean, std, sign). Immutable so a fit
-    can't be mutated by later test scoring (leakage guard)."""
-    stats: dict[str, tuple[float, float, float]]
+    can't be mutated by later test scoring (leakage guard). `stats` is a read-only MappingProxyType
+    (set by fit_composite) — structural immutability, not just frozen-rebind: in-place mutation raises."""
+    stats: Mapping[str, tuple[float, float, float]]
     n_fit: int
 
     @property
@@ -55,7 +57,9 @@ def fit_composite(rows: Sequence[dict], features: Sequence[str], min_rows: int =
         stats[f] = (mean, std, sign)
     if not stats:
         raise ValueError("fit_composite: no features fit")
-    return CompositeFit(stats=stats, n_fit=len(rows))
+    # MappingProxyType → the frozen fit is structurally read-only (in-place mutation raises),
+    # not merely protected from field-rebind. The whole OOS-trust rests on this never changing.
+    return CompositeFit(stats=MappingProxyType(stats), n_fit=len(rows))
 
 
 def score(fit: CompositeFit, feats: dict[str, float | None]) -> float | None:

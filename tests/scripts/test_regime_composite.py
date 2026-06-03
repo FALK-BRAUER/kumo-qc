@@ -63,6 +63,16 @@ def test_fail_loud_too_few_rows():
         rc.fit_composite(_rows(list(range(5)), list(range(5))), ["x"], min_rows=20)
 
 
+def test_fit_stats_is_structurally_immutable():
+    # The leakage guard, structurally enforced: the frozen fit's stats is a read-only MappingProxyType
+    # — in-place mutation RAISES (not merely protected from field-rebind). OOS-trust rests on this.
+    fit = rc.fit_composite(_rows(list(range(20)), list(range(20))), ["x"], min_rows=20)
+    with pytest.raises(TypeError):
+        fit.stats["x"] = (0.0, 1.0, 1.0)  # type: ignore[index]
+    with pytest.raises(TypeError):
+        del fit.stats["x"]  # type: ignore[attr-defined]
+
+
 def test_multi_feature_composite():
     # two features both + correlated → composite at the joint mean = 0, above-mean point > 0.
     rows = [{"feats": {"a": i, "b": 2 * i}, "label": i} for i in range(20)]
