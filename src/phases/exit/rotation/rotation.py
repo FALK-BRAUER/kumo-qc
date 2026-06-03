@@ -44,7 +44,7 @@ class Rotation(BasePhase):
         super().__init__(params, logger)
         self.p = params
 
-    def _is_weakening(self, qc: Any, sym: Any, snap: dict) -> bool:
+    def _is_weakening(self, qc: Any, sym: Any, snap: dict[str, Any]) -> bool:
         """Laggard is weakening if it dropped OUT of today's signal winners (score decayed below the
         signal bar) OR daily close < daily Tenkan (momentum rolling over). Cold/missing d_ichi →
         rely on the snapshot-dropout signal only (no force-rotate on incomplete data)."""

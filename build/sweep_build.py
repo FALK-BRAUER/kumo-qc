@@ -29,7 +29,7 @@ from __future__ import annotations
 import dataclasses
 import importlib
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from engine.config import Slot, StrategyConfig
 
@@ -78,10 +78,10 @@ def _resolve_impl(kind: str, impl_name: str) -> type:
             f"phase class {_pascal(impl_name)!r} not found in phases.{kind}.{impl_name} "
             f"(registry-by-convention miss)"
         )
-    return cls
+    return cast(type, cls)
 
 
-def _base_slot(base: StrategyConfig, kind: str) -> Slot:
+def _base_slot(base: StrategyConfig, kind: str) -> Slot[object]:
     slot = base.phases.get(kind)
     if isinstance(slot, list):  # list-kinds (regime) handled by the caller, not here
         raise ValueError(f"_base_slot called on list-kind {kind!r}")
@@ -119,7 +119,7 @@ def _apply_params(kind: str, impl_name: str, swept: dict[str, Any], base_params:
     return dataclasses.replace(base_params, **resolved)
 
 
-def _override_slot(kind: str, ch: Any, base_slot: Slot | None) -> Slot:
+def _override_slot(kind: str, ch: Any, base_slot: Slot[object] | None) -> Slot[object]:
     """The swept Slot: same impl as the base → dataclasses.replace its params; an impl SWAP →
     a fresh impl with its default Params, then override the swept fields."""
     swept = ch.param_dict()
@@ -128,15 +128,15 @@ def _override_slot(kind: str, ch: Any, base_slot: Slot | None) -> Slot:
         params = _apply_params(kind, ch.impl_name, swept, base_slot.params)
         return Slot(impl=base_slot.impl, params=params, enabled=True)
     impl = _resolve_impl(kind, ch.impl_name)
-    fresh = impl.Params()
+    fresh = impl.Params()  # type: ignore[attr-defined]  # phases declare Params by convention
     # On an impl SWAP, carry the base slot's STRUCTURAL (_HASH_EXCLUDE) fields onto the fresh params —
     # e.g. `resolution` (the entry-execution-chain clock) is BASE-determined, not swept; a fresh impl's
     # default ("daily") would mismatch an intraday FIRE_ENTRIES → the chain-clock guard fails loud
     # (#276b-1). Structural fields don't affect config_hash, so this is parity-safe. (#339: RiskBasedSize
     # swap on the intraday champion.)
     if base_slot is not None:
-        excl = getattr(type(fresh), "_HASH_EXCLUDE", frozenset())
-        base_fields = {f.name for f in dataclasses.fields(base_slot.params)}
+        excl: frozenset[str] = getattr(type(fresh), "_HASH_EXCLUDE", frozenset())
+        base_fields = {f.name for f in dataclasses.fields(cast(Any, base_slot.params))}
         fresh_fields = {f.name for f in dataclasses.fields(fresh)}
         carry = {k: getattr(base_slot.params, k) for k in excl if k in base_fields and k in fresh_fields}
         if carry:
@@ -192,7 +192,7 @@ def sweep_to_strategy_config(sweep_config: Any, *, base_module: str = BASE_MODUL
         spy_landed = "spy_200ma" not in swept  # nothing to land if the axis isn't swept
         vix_axes = {k for k in swept if k != "spy_200ma"}
         vix_landed = not vix_axes
-        new_regime: list[Slot] = []
+        new_regime: list[Slot[object]] = []
         for slot in base_regime:
             impl_snake = slot.impl.__module__.rsplit(".", 1)[-1]
             if impl_snake == "spy_200ma":
@@ -205,13 +205,13 @@ def sweep_to_strategy_config(sweep_config: Any, *, base_module: str = BASE_MODUL
                 # keep the base default; enabled=False makes it irrelevant either way.
                 if vix.get("vix_percentile_threshold") is None:
                     vix.pop("vix_percentile_threshold", None)
-                valid = {f.name for f in dataclasses.fields(slot.params)}
+                valid = {f.name for f in dataclasses.fields(cast(Any, slot.params))}
                 bad = set(vix) - valid
                 if bad:
                     raise UnsupportedSweepAxisError(
                         f"regime.vix_percentile: {sorted(bad)} not fields of {type(slot.params).__name__}"
                     )
-                new_regime.append(Slot(impl=slot.impl, params=dataclasses.replace(slot.params, **vix), enabled=True))
+                new_regime.append(Slot(impl=slot.impl, params=dataclasses.replace(cast(Any, slot.params), **vix), enabled=True))
                 vix_landed = True
             else:
                 new_regime.append(slot)

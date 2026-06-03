@@ -100,7 +100,7 @@ def _strip_docstrings(source: str) -> str:
             continue  # never empty a body
         first = body[0]
         if not (isinstance(first, ast.Expr)
-                and isinstance(getattr(first, "value", None), ast.Constant)
+                and isinstance(first.value, ast.Constant)
                 and isinstance(first.value.value, str)):
             continue
         if not isinstance(node, ast.Module) and first.lineno == node.lineno:
@@ -236,7 +236,7 @@ def _params_canonical(params: Any) -> str:
     chain-clock guard enforces it) → redundant for behavioral identity, excluded so champion-asis
     stays at e573e84b1ce1 when the shared sizer gains the structural knob. (DRY DEBT: this duplicates
     engine._config_hash — see #297; they MUST match. Unify in a shared module in a follow-up.)"""
-    exclude = getattr(type(params), "_HASH_EXCLUDE", frozenset())
+    exclude: frozenset[str] = getattr(type(params), "_HASH_EXCLUDE", frozenset())
     if not exclude or not dataclasses.is_dataclass(params):
         return repr(params)
     inner = ", ".join(

@@ -33,7 +33,7 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from sweeps.adapters.result_parse import parse_run_result
 from sweeps.archive.config_serializer import serialize_config
@@ -137,7 +137,7 @@ class WarmupGate:
         ))
         self._sem.acquire()
         proc = _popen()
-        return self._stream(proc.stdout, proc.wait, proc)
+        return self._stream(cast(Iterable[str], proc.stdout), proc.wait, proc)
 
     def _stream(self, lines: Iterable[str], wait: Callable[[], int], proc: Any) -> int:
         """Consume the line stream; release the gate the instant the warmup-done marker is seen, then

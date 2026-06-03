@@ -23,7 +23,7 @@ import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 from sweeps.adapters.cloud_lean import CloudLeanRun, CloudResult
 from sweeps.archive import RunStatus, persist_run
@@ -71,7 +71,7 @@ def make_cloud_run(
         q.DIST = dist_dir                                     # point the driver at THIS config's dist
         q.MARKER = f"sweep-{config.config_hash}"              # readback check = the config name
         q.STEP_A_WINDOW = _window_str(window)                 # bake the window into the deployed main.py
-        return q.deploy()                                     # /files/update + compile → compileId
+        return cast(str, q.deploy())                          # /files/update + compile → compileId
 
     def run_backtest(name: str, compile_id: str) -> CloudResult:
         q._require_pid()
@@ -130,7 +130,7 @@ def make_cloud_run(
     return CloudLeanRun(deploy=deploy, run_backtest=run_backtest, persist=persist)
 
 
-def _settle_stats(q: Any, bid: str, b: dict, tries: int, delay: float) -> dict:
+def _settle_stats(q: Any, bid: str, b: dict[str, Any], tries: int, delay: float) -> dict[str, Any]:
     """#326: QC populates statistics a beat AFTER `completed` flips → Total Orders comes back
     null at first read. Re-read until it populates (the adapter's strict assert has no re-read,
     so settle it here) — return the freshest doc either way (the adapter fails loud if still null)."""
@@ -141,6 +141,6 @@ def _settle_stats(q: Any, bid: str, b: dict, tries: int, delay: float) -> dict:
             time.sleep(delay)
         fresh = q.post("/backtests/read", {"projectId": q.PID, "backtestId": bid}).get("backtest", {})
         if (fresh.get("statistics", {}) or {}).get("Total Orders") is not None:
-            return fresh
+            return cast("dict[str, Any]", fresh)
         b = fresh or b
     return b

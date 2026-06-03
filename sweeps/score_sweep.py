@@ -30,6 +30,7 @@ import json
 import logging
 import math
 from collections.abc import Mapping, Sequence
+from typing import Any
 from pathlib import Path
 
 import numpy as np
@@ -57,7 +58,7 @@ NEAR_CARDINALITY_WARN_FRAC = 0.90
 # --------------------------------------------------------------------------- #
 # Checkpoint loading.
 # --------------------------------------------------------------------------- #
-def load_checkpoint(path: str | Path) -> dict[str, list[dict]]:
+def load_checkpoint(path: str | Path) -> dict[str, list[dict[str, Any]]]:
     """Load the FIRE-loop JSONL checkpoint → {config_hash: [window-result row, ...]}.
 
     One line per (config, window). Schema per row:
@@ -72,7 +73,7 @@ def load_checkpoint(path: str | Path) -> dict[str, list[dict]]:
     """
     path = Path(path)
     required = {"config_hash", "window_name", "is_oos", "sharpe", "net_pct", "dd_pct", "orders"}
-    by_config: dict[str, list[dict]] = {}
+    by_config: dict[str, list[dict[str, Any]]] = {}
     n_total = 0
     n_dropped = 0
     with path.open() as fh:
@@ -258,7 +259,7 @@ def cumulative_effective_n(
 # --------------------------------------------------------------------------- #
 # Evidence assembly (per-config ConfigEvidence for the selector).
 # --------------------------------------------------------------------------- #
-def _stitch_daily_returns(rows: Sequence[dict]) -> list[float]:
+def _stitch_daily_returns(rows: Sequence[dict[str, Any]]) -> list[float]:
     """Concatenate a config's per-window daily_returns into one stitched series (window order).
 
     Rows are ordered by window_name for determinism. A row may omit daily_returns (the FIRE
@@ -272,7 +273,7 @@ def _stitch_daily_returns(rows: Sequence[dict]) -> list[float]:
     return stitched
 
 
-def _combined_curve_metrics(rows: Sequence[dict]) -> tuple[float, float, int]:
+def _combined_curve_metrics(rows: Sequence[dict[str, Any]]) -> tuple[float, float, int]:
     """(ann_return, max_dd, n_trades) from a config's stitched daily-return curve + orders.
 
     ann_return: compounded total return of the stitched daily series (geometric), reported as a
@@ -300,7 +301,7 @@ def _combined_curve_metrics(rows: Sequence[dict]) -> tuple[float, float, int]:
     return total_ret, max_dd, n_trades
 
 
-def _config_windows(rows: Sequence[dict]) -> tuple[WindowReturns, ...]:
+def _config_windows(rows: Sequence[dict[str, Any]]) -> tuple[WindowReturns, ...]:
     """Per-window WindowReturns for the gates: ret = window net_pct (fraction), is_oos flag.
 
     `n_trades` per window = that window's order count. `ret` is net_pct / 100 (the gates and
@@ -323,7 +324,7 @@ def _config_windows(rows: Sequence[dict]) -> tuple[WindowReturns, ...]:
 
 
 def assemble_evidence(
-    results: Mapping[str, Sequence[dict]],
+    results: Mapping[str, Sequence[dict[str, Any]]],
     *,
     n_trials: float,
 ) -> tuple[list[ConfigEvidence], dict[str, list[float]]]:
@@ -446,13 +447,13 @@ def _sweep_pbo(stitched_by_config: Mapping[str, Sequence[float]]) -> float | Non
 # Top-level scoring.
 # --------------------------------------------------------------------------- #
 def score_sweep(
-    results: Mapping[str, Sequence[dict]],
+    results: Mapping[str, Sequence[dict[str, Any]]],
     *,
     champion_score: float | None,
     primary_levels: int,
     prior_round_returns: Sequence[Mapping[str, Sequence[float]]] = (),
     degraded: Mapping[str, RunResult] | None = None,
-) -> tuple[list[ObjectiveScore], dict]:
+) -> tuple[list[ObjectiveScore], dict[str, Any]]:
     """Score a whole sweep → (ranked leaderboard, diagnostics).
 
     Pipeline:

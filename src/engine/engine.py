@@ -128,7 +128,7 @@ def _params_canonical(params: Any) -> str:
     create a collision. Excluding it keeps the config_hash a stable BEHAVIORAL fingerprint (and keeps
     champion-asis at its e573e84b1ce1 baseline when the shared sizer gains the structural knob).
     A NON-structural param change still moves the hash (only the named structural fields are dropped)."""
-    exclude = getattr(type(params), "_HASH_EXCLUDE", frozenset())
+    exclude: frozenset[str] = getattr(type(params), "_HASH_EXCLUDE", frozenset())
     if not exclude or not is_dataclass(params):
         return repr(params)
     inner = ", ".join(

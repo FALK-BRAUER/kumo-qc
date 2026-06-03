@@ -374,7 +374,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         # qc._warmup_cache so the BctScoreFull cache branch consumes the per-decision
         # continuous-weekly scalars populated in _on_after_close_decision.
         if self.CONTINUOUS_WEEKLY:
-            self._warmup_cache: dict[str, dict] = {}
+            self._warmup_cache: dict[str, dict[str, Any]] = {}
 
         # RAW normalization everywhere — adjusted prices corrupt Ichimoku (2649e2e).
         self.universe_settings.resolution = Resolution.DAILY
@@ -865,7 +865,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             w_ichi.update(bar)
             w_close.add(float(wb["close"]))
 
-    def _continuous_weekly_scalars(self, sym: Any) -> dict | None:
+    def _continuous_weekly_scalars(self, sym: Any) -> dict[str, Any] | None:
         """#336/#338 — the candidate's 15-scalar dict with a CONTINUOUS weekly. Daily/ADX/ROC come
         from the live (warm) maintained indicators (they already match the cache — gate daily legs);
         ONLY the WEEKLY is re-derived from full CONTINUOUS daily history (WeeklyIchimokuAsOf over
@@ -1137,7 +1137,8 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             slot = self.engine.config.phases.get("signal")
             if isinstance(slot, list):
                 slot = slot[0]
-            return int(getattr(slot.params, "min_score", 7))
+            params = getattr(slot, "params", None)  # slot may be None → getattr returns None safely
+            return int(getattr(params, "min_score", 7))
         except Exception:
             return 7
 
@@ -1251,9 +1252,11 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             # here) → context_status=CORE_MISSING, blind winners with null features — the #348 blind
             # spot. No drift check needed on this path: it is the signal's own decision, not a re-derive.
             feat = getattr(self, "_signal_features", {}).get(sym)
+            scored: dict[str, Any] | None
             if feat is not None:
                 scored = {"score": int(feat["score"]), "conditions": list(feat["conditions"])}
             else:
+                assert ind is not None  # non-None by the d_ichi guard above (continue'd if ind None)
                 # Defensive fallback (a winner somehow absent from _signal_features — should not occur):
                 # re-score + the DRIFT TRIPWIRE (a sub-min_score re-score = desynced ind → booleans
                 # untrustworthy → drop to None rather than record drifted truth).
@@ -1347,8 +1350,8 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         snapshot = getattr(self, "_candidate_snapshot", {})
         if not snapshot:
             return
-        pending = getattr(self, "_pending_entry_today", set())
-        entered = getattr(self, "_entered_today", set())  # same-session re-entry guard (SHOP churn)
+        pending: set[Any] = getattr(self, "_pending_entry_today", set())
+        entered: set[Any] = getattr(self, "_entered_today", set())  # same-session re-entry guard (SHOP churn)
         injected = 0
         for sym in snapshot:  # insertion order == rank order (rank-preserving)
             # skip invested ∪ pending ∪ already-entered-this-session. The last kills the instant

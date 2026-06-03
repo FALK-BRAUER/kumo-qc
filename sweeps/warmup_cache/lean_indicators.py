@@ -15,3 +15,10 @@ from runtime.lean_indicators import (  # noqa: F401
     WeeklyIchimokuAsOf,
     monday_of_week,
 )
+
+# Explicit re-export (mypy --strict no-implicit-reexport): this shim's whole purpose is to re-expose
+# runtime.lean_indicators under the sweeps.warmup_cache namespace for the cache builder + tests.
+__all__ = [
+    "ADX", "SMA", "Delay", "Ichimoku", "Maximum", "Minimum",
+    "RateOfChange", "WeeklyIchimokuAsOf", "monday_of_week",
+]
