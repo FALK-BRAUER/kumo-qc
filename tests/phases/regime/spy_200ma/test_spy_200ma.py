@@ -66,3 +66,30 @@ def test_spy_none_blocks():
     phase = SpySma200(SpySma200.Params(), logger=None)
     result = phase.evaluate(PhaseContext(qc=NoSpyQC(), time=datetime(2025, 1, 2), data=None))
     assert result.blocked is True
+
+
+# ── #358b WARMUP-SKIP: regime reads SPY MA200 from the daily_scalar cache (live spy_sma200 cold) ──
+class FakeQCWarmupSkip:
+    def __init__(self, spy_price, cached_ma200):
+        self.spy = "SPY_SYM"
+        self.securities = {"SPY_SYM": FakeSecurity(spy_price)}
+        self._daily_cache_fp = "fpD"            # armed → cache path
+        self._cached_ma200 = cached_ma200       # NO live spy_sma200 attr (cold) — must NOT be read
+    def _spy_ma200_cached(self, asof_date):
+        return self._cached_ma200
+
+
+def test_warmup_skip_cached_spy_ma200_pass():
+    # 500 >= cached 450 → PASS. Proves the CACHE path (no live spy_sma200 attr → live path would block).
+    res = SpySma200(SpySma200.Params(), logger=None).evaluate(make_ctx(FakeQCWarmupSkip(500.0, 450.0)))
+    assert res.blocked is False and "450" in res.reason
+
+
+def test_warmup_skip_cached_spy_ma200_block():
+    res = SpySma200(SpySma200.Params(), logger=None).evaluate(make_ctx(FakeQCWarmupSkip(400.0, 450.0)))
+    assert res.blocked is True                  # 400 < cached 450 → block (from cache)
+
+
+def test_warmup_skip_spy_not_cached_blocks_fail_closed():
+    res = SpySma200(SpySma200.Params(), logger=None).evaluate(make_ctx(FakeQCWarmupSkip(500.0, None)))
+    assert res.blocked is True and "cache" in res.reason   # SPY not cached/not-ready → fail-closed block

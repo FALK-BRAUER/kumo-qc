@@ -981,6 +981,21 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         rows = self._daily_loaded[key]
         return rows.get(asof_date) if rows is not None else None
 
+    def _spy_ma200_cached(self, asof_date: Any) -> float | None:
+        """#358b WARMUP-SKIP: SPY's cached 200-day MA for the SpySma200 regime gate (the live
+        spy_sma200 indicator is cold when set_warmup is skipped). SPY is a member of the daily_scalar
+        cache (the benchmark, explicitly built). None if not armed / SPY not cached / date not-ready
+        (== the OFF cold-spy_sma200 → the regime blocks fail-closed). Memoized under the 'SPY' key."""
+        fp = self._daily_cache_fp
+        if not fp:
+            return None
+        if "SPY" not in self._daily_loaded:
+            from runtime.warmup_weekly_cache import load_scalars_for_symbol
+            self._daily_loaded["SPY"] = load_scalars_for_symbol(getattr(self, "object_store", None), fp, "SPY")
+        rows = self._daily_loaded["SPY"]
+        row = rows.get(asof_date) if rows is not None else None
+        return float(row["ma200"]) if row is not None else None
+
     def _log_cache_engagement(self) -> None:
         """#358 engagement signal (the assert-engaged): log per-symbol cache hits/misses at end-of-run
         when the cache was ARMED. A speedup with zero hits = a silent fail-closed → this log proves the
