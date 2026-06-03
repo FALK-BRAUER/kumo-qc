@@ -27,7 +27,7 @@ from sweeps.warmup_cache.table_builder import read_daily_zip  # noqa: E402
 _DAILY = Path("/Users/falk/projects/kumo-qc/data/equity/usa/daily")
 _OUT = Path("/tmp/ledgers")
 _CONFIGS = {"S1_sizing5": "65c0cf447168", "combined_cloud": "de53399c8125", "RUN_R_rotation": "6432fc649c54",
-            "rotation_v2": "66801c5c1fcd"}
+            "rotation_v2": "66801c5c1fcd", "regime_gate": "6ee62f5d019a"}
 
 
 def _fy_full_bt_ids(h: str) -> set[str]:
