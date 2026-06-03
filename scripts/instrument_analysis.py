@@ -69,6 +69,60 @@ def forward_return(sym: str, entry_date: _dt.date, horizon_end: _dt.date) -> flo
     return (peak / entry_close - 1.0) * 100.0
 
 
+def parse_decision_trace(log_path: Path) -> list[dict]:
+    """Parse DECISIONTRACE|date|ticker|fate|score lines from a bt log.txt → records. The #348
+    NON-TRADES substrate: every SCORED candidate's signal fate (passed/sub_min_score/parabolic)."""
+    out = []
+    for line in Path(log_path).read_text(errors="ignore").splitlines():
+        i = line.find("DECISIONTRACE|")
+        if i < 0:
+            continue
+        parts = line[i:].split("|")
+        if len(parts) < 5:
+            continue
+        _tag, date, ticker, fate, score = parts[0], parts[1], parts[2], parts[3], parts[4]
+        out.append({"date": date, "ticker": ticker, "fate": fate,
+                    "score": int(score) if score.strip().lstrip("-").isdigit() else None})
+    return out
+
+
+def non_trade_outcomes(trace: list[dict], entered: set[str], window_end: _dt.date,
+                       missed_threshold: float = 30.0) -> list[dict]:
+    """For each SCORED-but-NOT-ENTERED candidate (the first day it scored), the forward peak return to
+    window_end → MISSED_WINNER (peak >= missed_threshold) vs CORRECTLY_AVOIDED. Directly attacks entry
+    discrimination: did the pipeline screen out names that would have won?"""
+    # CASE NORMALISATION (mandatory): DECISIONTRACE tickers are LOWERCASE (ranked_candidates), the
+    # trade-ledger `entered` symbols are UPPERCASE — compare via canonical_symbol_key on BOTH sides or
+    # every entered name leaks back as a false MISSED_WINNER (the FIX3 .lower-vs-.value trap). Fail loud
+    # if the join never collides (a case/key regression) rather than silently inflating the count.
+    from engine.symbol_key import canonical_symbol_key  # noqa: PLC0415
+    entered_keys = {canonical_symbol_key(s) for s in entered}
+    trace_keys = {canonical_symbol_key(r["ticker"]) for r in trace}
+    if entered_keys and not (entered_keys & trace_keys):
+        raise RuntimeError(
+            f"non_trade_outcomes: ZERO overlap between entered ({len(entered_keys)}) and traced "
+            f"({len(trace_keys)}) keys — case/key mismatch would inflate missed-winners. Refuse.")
+    first_seen: dict[str, dict] = {}
+    for r in trace:
+        if canonical_symbol_key(r["ticker"]) in entered_keys:
+            continue  # it entered — a trade, not a non-trade
+        tk = r["ticker"]
+        if tk not in first_seen or r["date"] < first_seen[tk]["date"]:
+            first_seen[tk] = r
+    rows = []
+    for tk, r in first_seen.items():
+        ed = _dt.date.fromisoformat(r["date"])
+        fwd = forward_return(tk, ed, window_end)
+        rows.append({
+            "ticker": tk, "first_scored": r["date"], "fate": r["fate"], "score": r["score"],
+            "forward_peak_pct": None if fwd is None else round(fwd, 1),
+            "verdict": ("NO_DATA" if fwd is None
+                        else "MISSED_WINNER" if fwd >= missed_threshold else "correctly_avoided"),
+        })
+    rows.sort(key=lambda x: (x["forward_peak_pct"] is None, -(x["forward_peak_pct"] or 0)))
+    return rows
+
+
 def _trades(h: str) -> list[dict]:
     tj, _bt = _fy_full_cell(h)
     return [json.loads(x) for x in gzip.decompress(Path(tj).read_bytes()).decode().splitlines()]
@@ -112,9 +166,15 @@ def main() -> None:
         w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
         w.writeheader()
         w.writerows(rows)
-    tot_left = sum(r["left_on_table_pct"] for r in rows)
-    print(f"{h}: {len(rows)} trades → {out}")
-    print(f"  total left-on-table {tot_left:.0f}% of entry-stake (sum across trades); worst 8:")
+    # Split: CLOSED trades = a real exit-quality leak (exit_px is a decision); CENSORED = open at
+    # year-end (exit_px is the Dec-31 mark, NOT an exit) → report separately, never as one headline.
+    closed = [r for r in rows if not r["censored"]]
+    cens = [r for r in rows if r["censored"]]
+    left_closed = sum(r["left_on_table_pct"] for r in closed)
+    left_cens = sum(r["left_on_table_pct"] for r in cens)
+    print(f"{h}: {len(rows)} trades ({len(closed)} closed, {len(cens)} censored) → {out}")
+    print(f"  CLOSED left-on-table {left_closed:.0f}% (real exit-quality leak); "
+          f"CENSORED {left_cens:.0f}% (open@year-end mark, not an exit). worst 8:")
     for r in rows[:8]:
         print(f"    {r['symbol']:6} entry {r['entry_dt']} realized {r['realized_pct']:+.1f}% "
               f"peak {r['peak_pct']:+.1f}% LEFT {r['left_on_table_pct']:+.1f}% (high {r['hold_high_date']})")
