@@ -326,6 +326,16 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
     # source, the #336 root) + populates qc._warmup_cache so the BctScoreFull cache branch scores the
     # CONTINUOUS weekly. LIVE-behavior change → flag-gated; the offline cache + gate validate it.
     CONTINUOUS_WEEKLY: bool = False
+    # #358 warmup-cache CONSUMPTION HOOK (default OFF/None = byte-untouched ship path). When the
+    # CONTINUOUS_WEEKLY decision re-derives each candidate's weekly from history(560d) per day (the
+    # ~38-120s/cell cost), these let it LOAD the precomputed weekly from the #332 offline table
+    # instead. FAIL-CLOSED cloud guard (the 8b50c1a lesson): the LOCAL harness injects the cache DIR
+    # + the EXPECTED data fingerprint; the cache loads ONLY when the dir's _FIELDS.json fingerprint
+    # matches WARMUP_WEEKLY_CACHE_FP. Cloud never sets these (cloud_package emits neither) → no load
+    # → live re-derivation (the canonical path). A cache HIT is byte-identical to the live re-derive
+    # (same WeeklyIchimokuAsOf, same daily data) → trade-neutral. A MISS falls back live (per-symbol).
+    WARMUP_WEEKLY_CACHE_DIR: str | None = None
+    WARMUP_WEEKLY_CACHE_FP: str | None = None
     # #348 instrumentation flag (default OFF → live path byte-untouched): when set (via
     # SWEEP_CLASS_ATTRS for a trace run) the signal phase emits DECISIONTRACE log lines per scored
     # candidate (the NON-TRADES substrate). Pure logging — no decision effect.
@@ -375,6 +385,15 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         # continuous-weekly scalars populated in _on_after_close_decision.
         if self.CONTINUOUS_WEEKLY:
             self._warmup_cache: dict[str, dict[str, Any]] = {}
+
+        # #358 consumption hook: load the precomputed weekly cache IF the local harness injected the
+        # dir + the expected data fingerprint AND it matches (FAIL-CLOSED — load_weekly_cache returns
+        # None on cloud / mismatch / missing → _weekly_scalars_for re-derives live, no divergence).
+        self._weekly_cache: dict[str, dict[Any, dict[str, float]]] | None = None
+        if self.CONTINUOUS_WEEKLY and self.WARMUP_WEEKLY_CACHE_DIR:
+            from sweeps.warmup_cache.loader import load_weekly_cache  # lazy — flag-on path only
+            self._weekly_cache = load_weekly_cache(self.WARMUP_WEEKLY_CACHE_DIR, self.WARMUP_WEEKLY_CACHE_FP)
+            self.log(f"#358 weekly-cache: {'LOADED ' + str(len(self._weekly_cache)) + ' syms' if self._weekly_cache else 'NOT loaded (fail-closed → live re-derivation)'}")
 
         # RAW normalization everywhere — adjusted prices corrupt Ichimoku (2649e2e).
         self.universe_settings.resolution = Resolution.DAILY
@@ -867,12 +886,11 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
 
     def _continuous_weekly_scalars(self, sym: Any) -> dict[str, Any] | None:
         """#336/#338 — the candidate's 15-scalar dict with a CONTINUOUS weekly. Daily/ADX/ROC come
-        from the live (warm) maintained indicators (they already match the cache — gate daily legs);
-        ONLY the WEEKLY is re-derived from full CONTINUOUS daily history (WeeklyIchimokuAsOf over
-        self.history) — bypassing the subscription-gated consolidator (the #336 root) at the source.
-        as-of (history at T = data <=T, no look-ahead). Returns None if the live indicators / weekly
-        aren't ready (candidate skipped — mirrors score_symbol_native returning None)."""
-        from runtime.lean_indicators import WeeklyIchimokuAsOf  # lazy — flag-ON path only (#336/#338)
+        from the live (warm) maintained indicators (gate daily legs); the WEEKLY comes from
+        _weekly_scalars_for (#358 cache-or-replay: the precomputed table when loaded+fingerprint-
+        matched, else re-derived live from CONTINUOUS history — byte-identical either way). as-of
+        (data <=T, no look-ahead). Returns None if the live indicators / weekly aren't ready
+        (candidate skipped — mirrors score_symbol_native returning None)."""
         ind = self._indicators.get(sym)
         if ind is None:
             return None
@@ -882,6 +900,39 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             return None
         if adx_window.count < 4:
             return None
+        wk = self._weekly_scalars_for(sym, self.time.date())  # #358 cache-or-replay (fail-closed)
+        if wk is None:
+            return None  # weekly not ready (mirrors the live readiness gate)
+        d_price = float(self.securities[sym].price)
+        if d_price <= 0:
+            return None
+        return {
+            "d_price": d_price,
+            "d_tenkan": d_ichi.tenkan.current.value,
+            "d_cloud_top": max(d_ichi.senkou_a.current.value, d_ichi.senkou_b.current.value),
+            "ma200": sma200.current.value,
+            **wk,  # the 6 weekly scalars — cached or re-derived, byte-identical
+            "adx_now": adx.current.value,
+            "plus_di": adx.positive_directional_index.current.value,
+            "minus_di": adx.negative_directional_index.current.value,
+            "adx_3back": adx_window[3],
+            "roc13": roc13.current.value,
+        }
+
+    def _weekly_scalars_for(self, sym: Any, asof_date: Any) -> dict[str, float] | None:
+        """The 6 weekly Ichimoku scalars for (sym, asof_date). #358: from the precomputed local cache
+        (fail-closed fingerprint match, flag-ON) if present, else RE-DERIVED live from history(560d)
+        — the canonical #336 path. None if the weekly isn't ready (mirrors the live gate). A cache HIT
+        is byte-identical to the re-derive (same WeeklyIchimokuAsOf, same daily data, same as-of date)
+        → trade-neutral. A MISS (all cloud, fingerprint-mismatch, not-ready dates) falls through to the
+        live re-derive → no divergence (single canonical path; the cache is only an accelerator)."""
+        cache = self._weekly_cache
+        if cache is not None:
+            wk = cache.get(sym.value, {}).get(asof_date)
+            if wk is not None:
+                return wk  # cache HIT — table_builder stores ONLY ready-weekly rows
+            # cache MISS for (sym, asof_date) → fall through to the live re-derivation (fail-closed)
+        from runtime.lean_indicators import WeeklyIchimokuAsOf  # lazy — flag-ON path only (#336/#338)
         hist = self.history(sym, self.WARMUP_DAYS, Resolution.DAILY)
         if hist is None or hist.empty:
             return None
@@ -894,22 +945,10 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             w.update(d, float(row["open"]), float(row["high"]), float(row["low"]), float(row["close"]))
         if not w.is_ready:
             return None
-        d_price = float(self.securities[sym].price)
-        if d_price <= 0:
-            return None
         return {
-            "d_price": d_price,
-            "d_tenkan": d_ichi.tenkan.current.value,
-            "d_cloud_top": max(d_ichi.senkou_a.current.value, d_ichi.senkou_b.current.value),
-            "ma200": sma200.current.value,
             "w_tenkan": w.tenkan, "w_kijun": w.kijun,
             "w_senkou_a": w.senkou_a, "w_senkou_b": w.senkou_b,
             "w_close_0": w.w_close(0), "w_close_26": w.w_close(26),
-            "adx_now": adx.current.value,
-            "plus_di": adx.positive_directional_index.current.value,
-            "minus_di": adx.negative_directional_index.current.value,
-            "adx_3back": adx_window[3],
-            "roc13": roc13.current.value,
         }
 
     def _seed_daily(
