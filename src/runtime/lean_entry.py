@@ -337,6 +337,13 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
     # (2) the blob's embedded fingerprint must also match. Cloud sets no fp → live re-derivation
     # (canonical). A HIT is byte-identical to the re-derive (same WeeklyIchimokuAsOf, same data).
     WARMUP_WEEKLY_CACHE_FP: str | None = None
+    # #358b WARMUP-SKIP (default None = byte-untouched). When set (local harness, daily_scalar cache
+    # present + fp-match), the daily decision reads ALL indicator scalars (daily legs + weekly + the
+    # exit cloud_bottom + SPY ma200) from the FULL daily_scalar per-symbol cache → NO live daily
+    # indicators needed on the daily clock → set_warmup can be SKIPPED (the WarmupGate cap lifts →
+    # cache-on parallel fan-out). FAIL-CLOSED: cloud sets no fp → live + canonical set_warmup. The
+    # ALL-OR-NOTHING skip gate (initialize) only skips when every daily-clock consumer is cache-fed.
+    WARMUP_DAILY_CACHE_FP: str | None = None
     # #348 instrumentation flag (default OFF → live path byte-untouched): when set (via
     # SWEEP_CLASS_ATTRS for a trace run) the signal phase emits DECISIONTRACE log lines per scored
     # candidate (the NON-TRADES substrate). Pure logging — no decision effect.
@@ -403,6 +410,15 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             self.log(f"#358 weekly-cache: per-symbol lazy-load ARMED (fp {self._weekly_cache_fp[:12]}…)")
         else:
             self.log("#358 weekly-cache: NOT armed (fail-closed → live re-derivation)")
+
+        # #358b WARMUP-SKIP: arm the FULL daily_scalar per-symbol cache (daily legs + weekly + exit
+        # cloud_bottom + SPY ma200). When set, the daily decision reads everything from cache → no live
+        # daily indicators → set_warmup skips (the ALL-OR-NOTHING gate below). Fail-closed like weekly.
+        self._daily_cache_fp: str | None = None
+        self._daily_loaded: dict[str, dict[Any, dict[str, float]] | None] = {}  # per-sym memo
+        if self.CONTINUOUS_WEEKLY and self.WARMUP_DAILY_CACHE_FP and getattr(self, "object_store", None) is not None:
+            self._daily_cache_fp = self.WARMUP_DAILY_CACHE_FP
+            self.log(f"#358b daily-scalar cache: per-symbol lazy-load ARMED (fp {self._daily_cache_fp[:12]}…)")
 
         # RAW normalization everywhere — adjusted prices corrupt Ichimoku (2649e2e).
         self.universe_settings.resolution = Resolution.DAILY
@@ -900,6 +916,29 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         matched, else re-derived live from CONTINUOUS history — byte-identical either way). as-of
         (data <=T, no look-ahead). Returns None if the live indicators / weekly aren't ready
         (candidate skipped — mirrors score_symbol_native returning None)."""
+        # #358b WARMUP-SKIP: when the full daily_scalar cache is armed, read ALL indicator scalars from
+        # cache (no live daily indicators → set_warmup can skip). d_price stays LIVE (== the OFF/shipped
+        # path, byte-identical). A cache MISS = a not-ready (sym,date) (the cache holds ONLY ready rows,
+        # same readiness gate as the live path) → return None == the OFF live not-ready. No fall-through
+        # to the (cold, warmup-skipped) live indicators — that would diverge.
+        if self._daily_cache_fp:
+            sc = self._daily_scalars_for(sym, self.time.date())
+            if sc is None:
+                self._weekly_cache_misses += 1
+                return None  # not-ready (cache = ready-rows-only) → mirrors live None
+            d_price = float(self.securities[sym].price)
+            if d_price <= 0:
+                return None
+            self._weekly_cache_hits += 1
+            return {
+                "d_price": d_price,  # LIVE (== OFF) — only the indicator-derived scalars come from cache
+                "d_tenkan": sc["d_tenkan"], "d_cloud_top": sc["d_cloud_top"], "ma200": sc["ma200"],
+                "w_tenkan": sc["w_tenkan"], "w_kijun": sc["w_kijun"],
+                "w_senkou_a": sc["w_senkou_a"], "w_senkou_b": sc["w_senkou_b"],
+                "w_close_0": sc["w_close_0"], "w_close_26": sc["w_close_26"],
+                "adx_now": sc["adx_now"], "plus_di": sc["plus_di"], "minus_di": sc["minus_di"],
+                "adx_3back": sc["adx_3back"], "roc13": sc["roc13"],
+            }
         ind = self._indicators.get(sym)
         if ind is None:
             return None
@@ -927,6 +966,20 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             "adx_3back": adx_window[3],
             "roc13": roc13.current.value,
         }
+
+    def _daily_scalars_for(self, sym: Any, asof_date: Any) -> dict[str, float] | None:
+        """#358b WARMUP-SKIP: the FULL 16-scalar row for (sym, asof_date) from the daily_scalar cache —
+        lazy per-symbol load (memoized; None=attempted-missing, no re-fetch). Returns the row dict or
+        None (not-cached / not-ready → caller returns None == the OFF live not-ready). FAIL-CLOSED."""
+        fp = self._daily_cache_fp
+        if not fp:
+            return None
+        key = sym.value
+        if key not in self._daily_loaded:  # lazy: fetch this symbol's daily_scalar key ONCE, memoize
+            from runtime.warmup_weekly_cache import load_scalars_for_symbol
+            self._daily_loaded[key] = load_scalars_for_symbol(getattr(self, "object_store", None), fp, key)
+        rows = self._daily_loaded[key]
+        return rows.get(asof_date) if rows is not None else None
 
     def _log_cache_engagement(self) -> None:
         """#358 engagement signal (the assert-engaged): log per-symbol cache hits/misses at end-of-run

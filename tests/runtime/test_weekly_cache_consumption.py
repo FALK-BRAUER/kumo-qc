@@ -119,3 +119,30 @@ def test_engagement_not_logged_when_not_armed():
         def log(self, m): logs.append(m)
     BctEngineAlgorithm._log_cache_engagement(_S())
     assert logs == []
+
+
+# ── #358b WARMUP-SKIP: _daily_scalars_for (full daily_scalar cache lazy per-sym) ──
+def test_daily_scalars_for_hit_and_memoized():
+    from runtime.warmup_weekly_cache import (
+        ALL_SCALAR_FIELDS, daily_scalar_cache_key, dump_weekly_blob,
+    )
+    full = {k: float(i) for i, k in enumerate(ALL_SCALAR_FIELDS)}
+    store = _Store({daily_scalar_cache_key("fpD", "AAPL"): dump_weekly_blob({"AAPL": {_D: full}}, "fpD", ALL_SCALAR_FIELDS)})
+
+    class _DS:
+        _daily_cache_fp = "fpD"
+        def __init__(self): self._daily_loaded = {}; self.object_store = store
+    s = _DS()
+    got = BctEngineAlgorithm._daily_scalars_for(s, _Sym("AAPL"), _D)
+    assert got == full and store.reads == 1                       # full 16-scalar row, fetched once
+    BctEngineAlgorithm._daily_scalars_for(s, _Sym("AAPL"), _D)
+    assert store.reads == 1                                       # memoized — no re-fetch
+
+
+def test_daily_scalars_for_miss_and_not_armed():
+    class _DS:
+        def __init__(self, fp, store): self._daily_cache_fp = fp; self._daily_loaded = {}; self.object_store = store
+    # not armed (fp None) → None
+    assert BctEngineAlgorithm._daily_scalars_for(_DS(None, _Store({})), _Sym("AAPL"), _D) is None
+    # armed but symbol not cached → None (fail-closed)
+    assert BctEngineAlgorithm._daily_scalars_for(_DS("fpD", _Store({})), _Sym("AAPL"), _D) is None
