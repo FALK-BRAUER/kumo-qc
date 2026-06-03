@@ -148,3 +148,17 @@ def test_unknown_swept_field_fails_loud() -> None:
     ))
     with pytest.raises(UnsupportedSweepAxisError, match="naming drift|not fields"):
         sweep_to_strategy_config(bad)
+
+
+def test_exit_target_profit_take_lands_not_dropped() -> None:
+    # #364 R2 regression: a swept exit_target/profit_take choice MUST land. The codegen had no
+    # exit_target handler → the choice was SILENTLY DROPPED and R2 cells ran R1-C-only (false result).
+    cfg = sweep_to_strategy_config(SweepConfig(choices=(
+        PhaseChoice("exit_target", "profit_take",
+                    (("mode", "tenkan_ratchet"), ("enabled", True)), 0),
+    ), continuous_weekly=True))
+    et = cfg.phases.get("exit_target")
+    assert et is not None, "exit_target choice silently dropped (the R2 codegen bug)"
+    slot = et[0] if isinstance(et, list) else et
+    assert slot.impl.__name__ == "ProfitTake"
+    assert slot.params.mode == "tenkan_ratchet" and slot.enabled is True

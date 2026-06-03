@@ -243,6 +243,14 @@ def sweep_to_strategy_config(sweep_config: Any, *, base_module: str = BASE_MODUL
     if roch is not None:
         phases["exit_rotation"] = [_override_slot("exit_rotation", roch, None)]
 
+    # --- exit_target (NEW kind the base lacks, #364 R2 profit-take): ADD when a choice provides it
+    # (the engine already schedules exit_target in PHASE_ORDER). No choice → no profit-take (base
+    # behavior). Mirrors exit_rotation — without this the swept exit_target choice is SILENTLY
+    # DROPPED (the R2 codegen bug: profit_take never landed → cells ran R1-C-only). ---
+    tch = choices.get("exit_target")
+    if tch is not None:
+        phases["exit_target"] = [_override_slot("exit_target", tch, None)]
+
     return StrategyConfig(
         name=f"sweep-{sweep_config.config_hash}",
         version=base.version,
