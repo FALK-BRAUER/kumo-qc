@@ -6,3 +6,4 @@
 typer>=0.12   # the `kumo` operator CLI (cli/)
 pytest>=8     # test suite (tests/)
 mypy>=1.10    # mypy --strict gate (src/ + cli/)
+jsonschema>=4 # archive tag-schema validation (sweeps/archive/snapshot.py) — imported at module load
