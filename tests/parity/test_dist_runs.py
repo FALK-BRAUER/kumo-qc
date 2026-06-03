@@ -35,9 +35,9 @@ _DIST = _ROOT / "dist"
 _LEDGER = _ROOT / "results" / "bt-results.csv"
 
 # The pinned champion provenance (dist/_metadata.py) + the recorded champion local trio.
-_PINNED_CONFIG_HASH = "e573e84b1ce1"
-_CHAMPION_MARKER = "champion-asis-post259"
-_CHAMPION_LOCAL = {"sharpe": -0.139, "ret_pct": 3.62, "orders": 244, "symbols": 93}
+_PINNED_CONFIG_HASH = "8950a90f9aa4"
+_CHAMPION_MARKER = "champion-intraday-gapvol"
+_CHAMPION_LOCAL = {"sharpe": 1.025, "ret_pct": 27.695, "orders": 72, "symbols": 36}  # S1 dist 8950, verified full-FY
 
 
 # ── STRUCTURAL: the committed dist IS the champion closure ─────────────────────
@@ -58,7 +58,7 @@ def test_committed_dist_metadata_pins_champion() -> None:
 
 def test_committed_dist_main_is_deployable_champion() -> None:
     main_txt = (_DIST / "main.py").read_text()
-    assert "name='champion-asis'" in main_txt, "dist/main.py is not the champion strategy"
+    assert "name='champion-intraday-gapvol'" in main_txt, "dist/main.py is not the champion strategy"
     # deployable: a BCTAlgorithm subclass + the LEAN entry import (the cloud-deployed shape)
     assert "class BCTAlgorithm(BctEngineAlgorithm)" in main_txt
     assert "from lean_entry import BctEngineAlgorithm" in main_txt
@@ -76,7 +76,7 @@ def test_committed_dist_imports_flat_in_isolation() -> None:
         cwd=str(_DIST), capture_output=True, text=True,
     )
     assert out.returncode == 0, f"FAIL-LOUD: dist closure not importable in isolation:\n{out.stderr}"
-    assert "champion-asis" in out.stdout
+    assert "champion-intraday-gapvol" in out.stdout
     # the enabled champion phases must all be wired
     for kind in ("universe", "signal", "regime", "sizing", "exit_hard", "diagnostics"):
         assert kind in out.stdout, f"phase {kind!r} missing from dist closure"
@@ -91,9 +91,9 @@ def test_committed_dist_rebuilds_to_the_pin() -> None:
     import tempfile
 
     with tempfile.TemporaryDirectory() as td:
-        r = build("strategies.champion_asis", dist_dir=Path(td))
+        r = build("strategies.champion_intraday_gapvol", dist_dir=Path(td))
         assert r.config_hash == _PINNED_CONFIG_HASH, (
-            f"FAIL-LOUD: champion_asis rebuilds to {r.config_hash}, not the pin "
+            f"FAIL-LOUD: champion_intraday_gapvol rebuilds to {r.config_hash}, not the pin "
             f"{_PINNED_CONFIG_HASH} — dist drifted from source"
         )
 
@@ -130,7 +130,7 @@ def test_recorded_champion_local_result_present() -> None:
 
 def _latest_local_bt_events() -> Path | None:
     cands = sorted(
-        glob.glob(str(_ROOT / "algorithm" / "v2_champion_asis" / "backtests" / "*" / "*-order-events.json"))
+        glob.glob(str(_ROOT / "algorithm" / "v2_champion_intraday" / "backtests" / "*" / "*-order-events.json"))
     )
     return Path(cands[-1]) if cands else None
 
@@ -154,6 +154,6 @@ def test_real_local_bt_matches_recorded_champion_when_present() -> None:
         f"{_CHAMPION_LOCAL['symbols']} — dist did not reproduce the champion"
     )
     # order-events ≈ 2× orders (submit+fill); assert filled count is in the champion range.
-    assert 200 <= len(filled) <= 280, (
-        f"FAIL-LOUD: {len(filled)} filled events, champion ~243 — dist result drifted"
+    assert 40 <= len(filled) <= 100, (  # S1 ~55 filled
+        f"FAIL-LOUD: {len(filled)} filled events, S1 champion ~55 — dist result drifted"
     )
