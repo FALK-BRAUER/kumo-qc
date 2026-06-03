@@ -326,6 +326,17 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
     # source, the #336 root) + populates qc._warmup_cache so the BctScoreFull cache branch scores the
     # CONTINUOUS weekly. LIVE-behavior change → flag-gated; the offline cache + gate validate it.
     CONTINUOUS_WEEKLY: bool = False
+    # #358 warmup-cache CONSUMPTION HOOK (default OFF/None = byte-untouched ship path). When the
+    # CONTINUOUS_WEEKLY decision re-derives each candidate's weekly from history(560d) per day (the
+    # ~38-120s/cell cost), these let it LOAD the precomputed weekly from the #332 cache via the LEAN
+    # ObjectStore instead (QC-native in-container delivery). The LOCAL harness injects ONLY the data
+    # fingerprint here; the ObjectStore KEY is DERIVED from it via the shared keys.weekly_cache_key()
+    # formula — the SAME formula the offline writer uses → write_key == read_key by construction (no
+    # drift). FAIL-CLOSED cloud guard (the 8b50c1a lesson), TWO layers: (1) the key is validity-scoped
+    # (type+fp+params) + LOCAL-ONLY (never uploaded) → cloud object_store.contains_key False → no load;
+    # (2) the blob's embedded fingerprint must also match. Cloud sets no fp → live re-derivation
+    # (canonical). A HIT is byte-identical to the re-derive (same WeeklyIchimokuAsOf, same data).
+    WARMUP_WEEKLY_CACHE_FP: str | None = None
     # #348 instrumentation flag (default OFF → live path byte-untouched): when set (via
     # SWEEP_CLASS_ATTRS for a trace run) the signal phase emits DECISIONTRACE log lines per scored
     # candidate (the NON-TRADES substrate). Pure logging — no decision effect.
@@ -375,6 +386,23 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         # continuous-weekly scalars populated in _on_after_close_decision.
         if self.CONTINUOUS_WEEKLY:
             self._warmup_cache: dict[str, dict[str, Any]] = {}
+
+        # #358 consumption hook: load the precomputed weekly cache IF the local harness injected the
+        # dir + the expected data fingerprint AND it matches (FAIL-CLOSED — load_weekly_cache returns
+        # None on cloud / mismatch / missing → _weekly_scalars_for re-derives live, no divergence).
+        # #358 per-SYMBOL LAZY consumption: arm with the data fingerprint + an empty per-symbol memo;
+        # each symbol's weekly loads from its own ObjectStore key on FIRST query (covers ALL active
+        # names without a giant blob — the 1.8GB-OOM avoidance). _weekly_cache_fp is set ONLY flag-on
+        # AND when an object_store exists; cloud sets no fp → None → live re-derivation (fail-closed).
+        self._weekly_cache_hits: int = 0    # #358 engagement signal — proves the cache actually served
+        self._weekly_cache_misses: int = 0  # lookups, not just that it armed (HQ: speedup w/o hits = silent fail-closed)
+        self._weekly_cache_fp: str | None = None
+        self._weekly_loaded: dict[str, dict[Any, dict[str, float]] | None] = {}  # per-sym memo (None = attempted-missing)
+        if self.CONTINUOUS_WEEKLY and self.WARMUP_WEEKLY_CACHE_FP and getattr(self, "object_store", None) is not None:
+            self._weekly_cache_fp = self.WARMUP_WEEKLY_CACHE_FP
+            self.log(f"#358 weekly-cache: per-symbol lazy-load ARMED (fp {self._weekly_cache_fp[:12]}…)")
+        else:
+            self.log("#358 weekly-cache: NOT armed (fail-closed → live re-derivation)")
 
         # RAW normalization everywhere — adjusted prices corrupt Ichimoku (2649e2e).
         self.universe_settings.resolution = Resolution.DAILY
@@ -867,12 +895,11 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
 
     def _continuous_weekly_scalars(self, sym: Any) -> dict[str, Any] | None:
         """#336/#338 — the candidate's 15-scalar dict with a CONTINUOUS weekly. Daily/ADX/ROC come
-        from the live (warm) maintained indicators (they already match the cache — gate daily legs);
-        ONLY the WEEKLY is re-derived from full CONTINUOUS daily history (WeeklyIchimokuAsOf over
-        self.history) — bypassing the subscription-gated consolidator (the #336 root) at the source.
-        as-of (history at T = data <=T, no look-ahead). Returns None if the live indicators / weekly
-        aren't ready (candidate skipped — mirrors score_symbol_native returning None)."""
-        from runtime.lean_indicators import WeeklyIchimokuAsOf  # lazy — flag-ON path only (#336/#338)
+        from the live (warm) maintained indicators (gate daily legs); the WEEKLY comes from
+        _weekly_scalars_for (#358 cache-or-replay: the precomputed table when loaded+fingerprint-
+        matched, else re-derived live from CONTINUOUS history — byte-identical either way). as-of
+        (data <=T, no look-ahead). Returns None if the live indicators / weekly aren't ready
+        (candidate skipped — mirrors score_symbol_native returning None)."""
         ind = self._indicators.get(sym)
         if ind is None:
             return None
@@ -882,6 +909,55 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             return None
         if adx_window.count < 4:
             return None
+        wk = self._weekly_scalars_for(sym, self.time.date())  # #358 cache-or-replay (fail-closed)
+        if wk is None:
+            return None  # weekly not ready (mirrors the live readiness gate)
+        d_price = float(self.securities[sym].price)
+        if d_price <= 0:
+            return None
+        return {
+            "d_price": d_price,
+            "d_tenkan": d_ichi.tenkan.current.value,
+            "d_cloud_top": max(d_ichi.senkou_a.current.value, d_ichi.senkou_b.current.value),
+            "ma200": sma200.current.value,
+            **wk,  # the 6 weekly scalars — cached or re-derived, byte-identical
+            "adx_now": adx.current.value,
+            "plus_di": adx.positive_directional_index.current.value,
+            "minus_di": adx.negative_directional_index.current.value,
+            "adx_3back": adx_window[3],
+            "roc13": roc13.current.value,
+        }
+
+    def _log_cache_engagement(self) -> None:
+        """#358 engagement signal (the assert-engaged): log per-symbol cache hits/misses at end-of-run
+        when the cache was ARMED. A speedup with zero hits = a silent fail-closed → this log proves the
+        cache actually SERVED lookups. Keyed on _weekly_cache_fp (armed), NOT a stale attr."""
+        if getattr(self, "_weekly_cache_fp", None):
+            self.log(f"#358 weekly-cache ENGAGED: hits={self._weekly_cache_hits} misses={self._weekly_cache_misses}")
+
+    def _weekly_scalars_for(self, sym: Any, asof_date: Any) -> dict[str, float] | None:
+        """The 6 weekly Ichimoku scalars for (sym, asof_date). #358: from the precomputed local cache
+        (fail-closed fingerprint match, flag-ON) if present, else RE-DERIVED live from history(560d)
+        — the canonical #336 path. None if the weekly isn't ready (mirrors the live gate). A cache HIT
+        is byte-identical to the re-derive (same WeeklyIchimokuAsOf, same daily data, same as-of date)
+        → trade-neutral. A MISS (all cloud, fingerprint-mismatch, not-ready dates) falls through to the
+        live re-derive → no divergence (single canonical path; the cache is only an accelerator)."""
+        fp = self._weekly_cache_fp
+        if fp:
+            key = sym.value
+            if key not in self._weekly_loaded:  # lazy: fetch this symbol's per-symbol key ONCE, memoize
+                from runtime.warmup_weekly_cache import load_weekly_cache_for_symbol
+                self._weekly_loaded[key] = load_weekly_cache_for_symbol(
+                    getattr(self, "object_store", None), fp, key)
+            sym_rows = self._weekly_loaded[key]
+            if sym_rows is not None:
+                wk = sym_rows.get(asof_date)
+                if wk is not None:
+                    self._weekly_cache_hits += 1
+                    return wk  # cache HIT — byte-identical to the live re-derive
+            self._weekly_cache_misses += 1
+            # MISS (sym not cached / date not ready) → fall through to live re-derivation (fail-closed)
+        from runtime.lean_indicators import WeeklyIchimokuAsOf  # lazy — flag-ON path only (#336/#338)
         hist = self.history(sym, self.WARMUP_DAYS, Resolution.DAILY)
         if hist is None or hist.empty:
             return None
@@ -894,22 +970,10 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             w.update(d, float(row["open"]), float(row["high"]), float(row["low"]), float(row["close"]))
         if not w.is_ready:
             return None
-        d_price = float(self.securities[sym].price)
-        if d_price <= 0:
-            return None
         return {
-            "d_price": d_price,
-            "d_tenkan": d_ichi.tenkan.current.value,
-            "d_cloud_top": max(d_ichi.senkou_a.current.value, d_ichi.senkou_b.current.value),
-            "ma200": sma200.current.value,
             "w_tenkan": w.tenkan, "w_kijun": w.kijun,
             "w_senkou_a": w.senkou_a, "w_senkou_b": w.senkou_b,
             "w_close_0": w.w_close(0), "w_close_26": w.w_close(26),
-            "adx_now": adx.current.value,
-            "plus_di": adx.positive_directional_index.current.value,
-            "minus_di": adx.negative_directional_index.current.value,
-            "adx_3back": adx_window[3],
-            "roc13": roc13.current.value,
         }
 
     def _seed_daily(
@@ -1119,6 +1183,9 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         # were already flushed + reset by the last on_end_of_day, so this folds at most the final
         # session's residual then re-publishes the cumulative counters. Observe-only.
         self._process_eod_funnel()
+        # #358 engagement signal: log cache hits/misses so we KNOW the cache served lookups (a
+        # speedup with zero hits = the in-container path silently failed-closed to live re-derivation).
+        self._log_cache_engagement()
         if not getattr(self, "_schedule_armed", False):
             return  # scheduler never armed (selection-harness context) — nothing to reconcile
         gap = getattr(self, "_sched_trading_days", 0) - getattr(self, "_sched_decisions", 0)
