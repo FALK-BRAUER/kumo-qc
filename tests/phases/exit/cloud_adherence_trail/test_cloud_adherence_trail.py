@@ -117,3 +117,47 @@ def test_absent_indicator_is_benign_skip():
     result = CloudAdherenceTrail(CloudAdherenceTrail.Params(), logger=None).evaluate(ctx)
     assert result.blocked is False
     assert len(ctx.bar_state.exit_intents) == 0
+
+
+# ── #358b WARMUP-SKIP: exit reads cloud_bottom from the daily_scalar cache (live d_ichi is cold) ──
+def _setup_warmup_skip(close, cached_cloud_bottom):
+    sym = make_symbol()
+    qc = FakeQC()
+    qc.portfolio[sym] = FakeHolding(invested=True, quantity=100)
+    qc.securities[sym] = FakeSecurity(close=close)
+    qc._daily_cache_fp = "fpD"                       # armed → cache path
+    # NO live d_ichi (cold/absent — set_warmup skipped); the cached row supplies cloud_bottom
+    qc._daily_scalars_for = lambda s, d: ({"d_cloud_bottom": cached_cloud_bottom}
+                                          if cached_cloud_bottom is not None else None)
+    return sym, qc
+
+
+def test_warmup_skip_exits_on_cached_cloud_bottom_breach():
+    _sym, qc = _setup_warmup_skip(close=90.0, cached_cloud_bottom=95.0)  # 90 < 95 → EXIT from cache
+    ctx = make_ctx(qc)
+    res = CloudAdherenceTrail(CloudAdherenceTrail.Params(), logger=None).evaluate(ctx)
+    assert res.blocked is False
+    assert len(ctx.bar_state.exit_intents) == 1
+    assert ctx.bar_state.exit_intents[0].stop == 95.0   # the CACHED cloud-bottom, not a live read
+
+
+def test_warmup_skip_holds_above_cached_cloud_bottom():
+    _sym, qc = _setup_warmup_skip(close=97.0, cached_cloud_bottom=95.0)  # 97 > 95 → HOLD
+    ctx = make_ctx(qc)
+    CloudAdherenceTrail(CloudAdherenceTrail.Params(), logger=None).evaluate(ctx)
+    assert len(ctx.bar_state.exit_intents) == 0
+
+
+def test_warmup_skip_cache_miss_continues_no_raise():
+    # held name absent from the daily_scalar cache → continue (== OFF ind-None benign skip), NO raise
+    _sym, qc = _setup_warmup_skip(close=50.0, cached_cloud_bottom=None)
+    ctx = make_ctx(qc)
+    res = CloudAdherenceTrail(CloudAdherenceTrail.Params(), logger=None).evaluate(ctx)
+    assert len(ctx.bar_state.exit_intents) == 0         # no exit, no DegradedDataError
+
+
+def test_warmup_skip_weekly_kijun_unsupported_raises():
+    _sym, qc = _setup_warmup_skip(close=90.0, cached_cloud_bottom=95.0)
+    ctx = make_ctx(qc)
+    with pytest.raises(DegradedDataError):
+        CloudAdherenceTrail(CloudAdherenceTrail.Params(weekly_kijun_exit_enabled=True), logger=None).evaluate(ctx)
