@@ -763,7 +763,13 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         # WEEKLY ichimoku AND the full DAILY suite from history so the name can qualify the day
         # it is first subscribed. NO if-cloud branch — single code path, RAW (history default
         # follows universe_settings.data_normalization_mode = RAW set in initialize()).
-        if not self.is_warming_up:
+        # #358b WARMUP-SKIP: when the daily_scalar cache is armed, set_warmup is skipped → is_warming_up
+        # is False from day 1, which would fire the heavy DAILY history(560d) re-seed for EVERY entrant
+        # (the #173 cost + the WarmupGate contention) — DEFEATING the skip. The daily decision is
+        # cache-fed (the daily indicators are unused on the armed path), so SKIP the daily seeds when
+        # armed. _seed_intraday (below) is light (8d 5-min) + the intraday tenkan ISN'T in the daily
+        # cache → it stays. flag-OFF → seeds run as before (byte-untouched).
+        if self._should_seed_daily():
             self._seed_weekly(sym, w_ichi, w_close)
             self._seed_daily(
                 sym, d_ichi, sma200, adx, adx_window, roc13, macd, vol_sma20, tbounce
@@ -921,7 +927,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         # path, byte-identical). A cache MISS = a not-ready (sym,date) (the cache holds ONLY ready rows,
         # same readiness gate as the live path) → return None == the OFF live not-ready. No fall-through
         # to the (cold, warmup-skipped) live indicators — that would diverge.
-        if self._daily_cache_fp:
+        if getattr(self, "_daily_cache_fp", None):
             sc = self._daily_scalars_for(sym, self.time.date())
             if sc is None:
                 self._weekly_cache_misses += 1
@@ -971,7 +977,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         """#358b WARMUP-SKIP: the FULL 16-scalar row for (sym, asof_date) from the daily_scalar cache —
         lazy per-symbol load (memoized; None=attempted-missing, no re-fetch). Returns the row dict or
         None (not-cached / not-ready → caller returns None == the OFF live not-ready). FAIL-CLOSED."""
-        fp = self._daily_cache_fp
+        fp = getattr(self, "_daily_cache_fp", None)
         if not fp:
             return None
         key = sym.value
@@ -986,7 +992,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         spy_sma200 indicator is cold when set_warmup is skipped). SPY is a member of the daily_scalar
         cache (the benchmark, explicitly built). None if not armed / SPY not cached / date not-ready
         (== the OFF cold-spy_sma200 → the regime blocks fail-closed). Memoized under the 'SPY' key."""
-        fp = self._daily_cache_fp
+        fp = getattr(self, "_daily_cache_fp", None)
         if not fp:
             return None
         if "SPY" not in self._daily_loaded:
@@ -995,6 +1001,15 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         rows = self._daily_loaded["SPY"]
         row = rows.get(asof_date) if rows is not None else None
         return float(row["ma200"]) if row is not None else None
+
+    def _should_seed_daily(self) -> bool:
+        """#358b: history(560d)-seed the heavy DAILY indicators ONLY when NOT warming AND NOT armed.
+        Under warmup-skip (armed) the daily indicators are UNUSED (the decision is cache-fed), so
+        skipping the daily seeds is what actually removes the WarmupGate memory contention (the
+        parallel-N unlock) — set_warmup-skip alone is cosmetic if these still fetch per entrant. The
+        byte-identical BT is BLIND to this (seeds change memory/timing, NOT decisions) → unit-tested
+        here; parallel-N is its functional proof. _seed_intraday (light, separate) is unaffected."""
+        return not self.is_warming_up and not getattr(self, "_daily_cache_fp", None)
 
     def _log_cache_engagement(self) -> None:
         """#358 engagement signal (the assert-engaged): log per-symbol cache hits/misses at end-of-run
@@ -1362,10 +1377,26 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             sym = active_by_key.get(canonical_symbol_key(ticker))
             if sym is None:
                 continue  # decided but not yet subscribed — H1 covers it on the intraday side
-            ind = indicators.get(sym)
-            d_ichi = ind.get("d_ichi") if ind else None
-            if d_ichi is None or not getattr(d_ichi, "is_ready", False):
-                continue  # cold daily thesis → not enterable; never snapshot a half-formed thesis
+            daily_fp = getattr(self, "_daily_cache_fp", None)
+            if daily_fp:
+                # #358b WARMUP-SKIP: d_ichi is COLD (set_warmup skipped) → daily_kijun + cloud_bottom
+                # from the daily_scalar cache. The cache-presence IS the enterable gate (replaces the
+                # cold-d_ichi skip); a MISS (not-cached / date-not-ready) → continue == the OFF
+                # cold-d_ichi skip (byte-identity — a name with no ready daily thesis isn't enterable).
+                ind = None
+                row = self._daily_scalars_for(sym, decision_date)
+                if row is None:
+                    continue
+                daily_kijun = float(row["d_kijun"])
+                daily_cloud_bottom = float(row["d_cloud_bottom"])
+            else:
+                ind = indicators.get(sym)
+                d_ichi = ind.get("d_ichi") if ind else None
+                if d_ichi is None or not getattr(d_ichi, "is_ready", False):
+                    continue  # cold daily thesis → not enterable; never snapshot a half-formed thesis
+                daily_kijun = float(d_ichi.kijun.current.value)
+                daily_cloud_bottom = float(min(d_ichi.senkou_a.current.value,
+                                               d_ichi.senkou_b.current.value))
             # #archive B1: capture the LEARN-SUBSTRATE at decision time — the BCT score + the 8
             # conditions INDIVIDUALLY (the mine learns WHICH of George's conditions predict R, not
             # just "score>=7"). score_symbol_native re-reads the SAME maintained indicators (O(1),
@@ -1390,6 +1421,15 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             scored: dict[str, Any] | None
             if feat is not None:
                 scored = {"score": int(feat["score"]), "conditions": list(feat["conditions"])}
+            elif daily_fp:
+                # #358b WARMUP-SKIP: a winner MUST carry _signal_features (the signal phase stamped them
+                # this same decision). Absent here = a real desync — NEVER re-score the cold live ind
+                # (set_warmup skipped → ind is None/cold). Fail loud (the assert-not-silent-live guard).
+                raise DegradedDataError(
+                    f"warmup-skip: winner {getattr(sym, 'value', sym)} absent from _signal_features at "
+                    f"snapshot (date={decision_date}) — cannot re-score (live indicators are cold under "
+                    f"set_warmup-skip); a desync, fail loud (#348/#358b, never silent cold-live read)"
+                )
             else:
                 assert ind is not None  # non-None by the d_ichi guard above (continue'd if ind None)
                 # Defensive fallback (a winner somehow absent from _signal_features — should not occur):
@@ -1411,12 +1451,11 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                     scored = None
             conditions = [bool(c) for c in scored["conditions"]] if scored else []
             snap[sym] = {
-                "signal_price": float(self.securities[sym].price),
-                "daily_kijun": float(d_ichi.kijun.current.value),
-                # #339: cloud bottom (min Senkou A/B) — the structural floor for CloudProtectiveStop
-                # (the G3-winning cloud-bottom stop). Additive; KijunProtectiveStop ignores it.
-                "daily_cloud_bottom": float(min(d_ichi.senkou_a.current.value,
-                                                d_ichi.senkou_b.current.value)),
+                "signal_price": float(self.securities[sym].price),  # LIVE (== OFF) — gap reference
+                # #358b: daily_kijun + cloud-bottom resolved above (cache when warmup-skip armed, else
+                # live d_ichi). cloud_bottom = the structural floor for CloudProtectiveStop (#339).
+                "daily_kijun": daily_kijun,
+                "daily_cloud_bottom": daily_cloud_bottom,
                 "decision_date": decision_date,
                 "score": int(scored["score"]) if scored else None,   # the aggregate (back-compat)
                 "conditions": conditions,                            # the 8 booleans (learn-substrate core)

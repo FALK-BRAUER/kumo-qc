@@ -146,3 +146,19 @@ def test_daily_scalars_for_miss_and_not_armed():
     assert BctEngineAlgorithm._daily_scalars_for(_DS(None, _Store({})), _Sym("AAPL"), _D) is None
     # armed but symbol not cached → None (fail-closed)
     assert BctEngineAlgorithm._daily_scalars_for(_DS("fpD", _Store({})), _Sym("AAPL"), _D) is None
+
+
+# ── #358b WARMUP-SKIP: seed-skip guard (the parallel-N unlock; the byte-identical BT is BLIND to it) ──
+def test_should_seed_daily_predicate():
+    class _S:
+        def __init__(self, warming, fp):
+            self.is_warming_up = warming
+            self._daily_cache_fp = fp
+    assert BctEngineAlgorithm._should_seed_daily(_S(False, None)) is True    # not-warming, not-armed → seed
+    assert BctEngineAlgorithm._should_seed_daily(_S(False, "fpD")) is False  # ARMED → skip daily seeds (unlock)
+    assert BctEngineAlgorithm._should_seed_daily(_S(True, None)) is False    # warming → auto-warm, no seed
+    assert BctEngineAlgorithm._should_seed_daily(_S(True, "fpD")) is False   # warming + armed → no seed
+
+    class _S2:                                       # defensive: pre-init stub lacks _daily_cache_fp
+        is_warming_up = False
+    assert BctEngineAlgorithm._should_seed_daily(_S2()) is True

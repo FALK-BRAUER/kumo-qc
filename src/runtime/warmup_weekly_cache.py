@@ -67,7 +67,7 @@ ALL_SCALAR_FIELDS = (
     "d_price", "d_tenkan", "d_cloud_top", "ma200",
     "w_tenkan", "w_kijun", "w_senkou_a", "w_senkou_b", "w_close_0", "w_close_26",
     "adx_now", "plus_di", "minus_di", "adx_3back",
-    "roc13", "d_cloud_bottom",
+    "roc13", "d_cloud_bottom", "d_kijun",
 )
 DAILY_SCALAR_CACHE_TYPE = "daily_scalar"
 DAILY_SCALAR_PARAMS = (9, 26, 52, 26, 200, 9, 13)  # ichimoku + sma200 + adx9 + roc13
