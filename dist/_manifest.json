@@ -32,9 +32,10 @@
     "shared_param_space.py",
     "symbol_key.py",
     "tag_schema.py",
-    "universe_select.py"
+    "universe_select.py",
+    "warmup_weekly_cache.py"
   ],
-  "git_commit": "1139a74936815d9e2f697785c08e081e94691691",
+  "git_commit": "8fd685534004cc2274c708cb7f257f67f35afdc3",
   "is_fixture": false,
   "phase_markers": {
     "diagnostics": "version_marker_v1,chart_emit_v1",

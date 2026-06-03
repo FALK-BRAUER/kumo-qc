@@ -90,7 +90,7 @@ def validate_invariants(config: StrategyConfig) -> None:
 
 
 def _params_canonical(params: Any) -> str:
-    exclude = getattr(type(params), "_HASH_EXCLUDE", frozenset())
+    exclude: frozenset[str] = getattr(type(params), "_HASH_EXCLUDE", frozenset())
     if not exclude or not is_dataclass(params):
         return repr(params)
     inner = ", ".join(
