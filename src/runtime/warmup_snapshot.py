@@ -130,3 +130,49 @@ def make_daily_bar(d: _dt.date | str, o: float, h: float, l: float, c: float, v:
     """Construct a capture bar with an ISO-date key (chronological-sortable, round-trip-stable)."""
     iso = d.isoformat() if isinstance(d, _dt.date) else str(d)
     return (iso, float(o), float(h), float(l), float(c), float(v))
+
+
+# ── ObjectStore delivery (RUN1 write / RUNn restore-read) — mirrors the #358 weekly-cache pattern ──
+# LOCAL-ONLY key (never uploaded → cloud contains_key False → restore falls back to live warmup) +
+# the embedded fp guard. Separator '-' (the cache_key APFS lesson — ':' maps to '/' on macOS).
+SNAPSHOT_CACHE_TYPE = "warmup_snapshot"
+
+
+def snapshot_key(data_fingerprint: str, symbol: str) -> str:
+    """Per-symbol ObjectStore key. Same formula RUN1 writes and a restore reads (no drift)."""
+    return "-".join((SNAPSHOT_CACHE_TYPE, data_fingerprint, symbol))
+
+
+def serialize_to_store(snap: "WarmupSnapshot", object_store: Any, fp: str,
+                       log: Callable[[str], None] | None = None) -> int:
+    """RUN1 warmup-end: write each registered symbol's stream to its per-symbol ObjectStore key.
+    Returns the count written (== the warmed-set size). No-op (0) if object_store/fp falsy
+    (fail-closed — never half-write). The registered SET is implicit in which keys exist."""
+    if object_store is None or not fp:
+        return 0
+    syms = snap.registered_symbols()
+    for sym in syms:
+        object_store.save(snapshot_key(fp, sym), snap.to_blob(sym))
+    if log is not None:
+        log(f"WARMUP_SNAPSHOT_WRITE|fp={fp[:12]}|symbols={len(syms)}")
+    return len(syms)
+
+
+def load_snapshot_for_symbol(object_store: Any, fp: str, symbol: str) -> "WarmupSnapshot | None":
+    """Restore-read: a single symbol's snapshot → a replay-ready WarmupSnapshot, or None when
+    object_store/fp/symbol falsy, the key is ABSENT (cloud never uploaded → contains_key False →
+    live warmup), or read/parse fails (FAIL-CLOSED). Lazy per-symbol (no giant-blob OOM)."""
+    if object_store is None or not fp or not symbol:
+        return None
+    key = snapshot_key(fp, symbol)
+    try:
+        if not object_store.contains_key(key):
+            return None
+        text = object_store.read(key)
+    except Exception:  # noqa: BLE001 — any store error → fail-closed to live warmup
+        return None
+    parsed = WarmupSnapshot.parse_blob(text, fp)
+    if parsed is None:
+        return None
+    sym, bars = parsed
+    return WarmupSnapshot.from_symbol_bars(fp, sym, bars)

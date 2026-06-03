@@ -12,8 +12,26 @@ import datetime as _dt
 import pytest
 
 from runtime.warmup_snapshot import (
-    SNAPSHOT_SCHEMA, WarmupSnapshot, make_daily_bar,
+    SNAPSHOT_SCHEMA, WarmupSnapshot, load_snapshot_for_symbol, make_daily_bar,
+    serialize_to_store, snapshot_key,
 )
+
+
+class _MockStore:
+    """Dict-backed ObjectStore stub (contains_key/read/save) for the store-helper tests."""
+
+    def __init__(self) -> None:
+        self.d: dict[str, str] = {}
+
+    def save(self, key: str, text: str) -> bool:
+        self.d[key] = text
+        return True
+
+    def contains_key(self, key: str) -> bool:
+        return key in self.d
+
+    def read(self, key: str) -> str:
+        return self.d[key]
 
 FP = "90f2d7e3fb80d0a4d2eb286f6a43199e1519495a3ce9d787a4d7d0dfc70c535c"
 
@@ -124,3 +142,50 @@ def test_parse_blob_fail_closed_on_schema_and_garbage() -> None:
     # right schema+fp but malformed bars → None (no half-restore)
     bad = '{"schema":"' + SNAPSHOT_SCHEMA + '","fp":"' + FP + '","symbol":"AAPL","bars":"x"}'
     assert WarmupSnapshot.parse_blob(bad, FP) is None
+
+
+def test_snapshot_key_apfs_safe_and_per_symbol() -> None:
+    k = snapshot_key(FP, "AAPL")
+    assert ":" not in k  # APFS maps ':'→'/' — must use '-'
+    assert k.endswith("-AAPL") and FP in k
+    assert snapshot_key(FP, "AAPL") != snapshot_key(FP, "MSFT")
+
+
+def test_serialize_to_store_writes_warmed_set_and_round_trips() -> None:
+    snap = WarmupSnapshot(FP)
+    a, m = _bars(5), _bars(3)
+    for b in a:
+        snap.record("AAPL", b)
+    for b in m:
+        snap.record("MSFT", b)
+    store = _MockStore()
+    n = serialize_to_store(snap, store, FP)
+    assert n == 2  # warmed-set size
+    assert set(store.d) == {snapshot_key(FP, "AAPL"), snapshot_key(FP, "MSFT")}
+    # restore each → replay-identical to capture
+    ra = load_snapshot_for_symbol(store, FP, "AAPL")
+    assert ra is not None
+    fed: list = []
+    assert ra.replay("AAPL", fed.append) == 5
+    assert fed == a
+
+
+def test_serialize_to_store_noop_without_store_or_fp() -> None:
+    snap = WarmupSnapshot(FP)
+    snap.record("AAPL", _bars(1)[0])
+    assert serialize_to_store(snap, None, FP) == 0       # no store → fail-closed no-op
+    assert serialize_to_store(snap, _MockStore(), "") == 0  # no fp → fail-closed no-op
+
+
+def test_load_snapshot_fail_closed_absent_and_fp_mismatch() -> None:
+    snap = WarmupSnapshot(FP)
+    snap.record("AAPL", _bars(2)[0])
+    store = _MockStore()
+    serialize_to_store(snap, store, FP)
+    # absent symbol → None (cloud never-uploaded analogue → live warmup)
+    assert load_snapshot_for_symbol(store, FP, "NVDA") is None
+    # fp mismatch → None even though a key exists under the real fp (cross-dataset guard)
+    assert load_snapshot_for_symbol(store, "other_fp", "AAPL") is None
+    # falsy args → None
+    assert load_snapshot_for_symbol(None, FP, "AAPL") is None
+    assert load_snapshot_for_symbol(store, FP, "") is None

@@ -56,7 +56,7 @@ from collections.abc import Iterable
 from datetime import timedelta
 from decimal import Decimal
 from hashlib import sha256
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
@@ -68,6 +68,9 @@ from phases.shared.oracle_helpers import score_symbol_native
 from runtime.cost_model import wire_cost_models
 from runtime.tag_schema import encode_entry_tag
 from runtime.indicators import INDICATOR_KEYS, TBounceTracker, weekly_aggregate
+
+if TYPE_CHECKING:
+    from runtime.warmup_snapshot import WarmupSnapshot
 # #336/#338 continuous-weekly fix: WeeklyIchimokuAsOf is imported LAZILY inside
 # _continuous_weekly_scalars (the flag-ON path only) so the default flag-OFF load path adds NO new
 # import dependency — keeps the cloud bundle byte-untouched until the cloud leg is taken (deferred).
@@ -337,6 +340,11 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
     # (2) the blob's embedded fingerprint must also match. Cloud sets no fp → live re-derivation
     # (canonical). A HIT is byte-identical to the re-derive (same WeeklyIchimokuAsOf, same data).
     WARMUP_WEEKLY_CACHE_FP: str | None = None
+    # #362 SPIKE (default OFF → byte-untouched): when set to the data fingerprint, CAPTURE the
+    # per-symbol warmup daily input STREAM during set_warmup (the engine's universe-gated feed) and
+    # serialize it per-symbol to the ObjectStore at warmup-end (RUN1). The restore side replays it to
+    # skip set_warmup (inc3). LOCAL-ONLY (the key is never uploaded). Capture-only; no decision effect.
+    CAPTURE_WARMUP_SNAPSHOT: str | None = None
     # #348 instrumentation flag (default OFF → live path byte-untouched): when set (via
     # SWEEP_CLASS_ATTRS for a trace run) the signal phase emits DECISIONTRACE log lines per scored
     # candidate (the NON-TRADES substrate). Pure logging — no decision effect.
@@ -403,6 +411,15 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             self.log(f"#358 weekly-cache: per-symbol lazy-load ARMED (fp {self._weekly_cache_fp[:12]}…)")
         else:
             self.log("#358 weekly-cache: NOT armed (fail-closed → live re-derivation)")
+
+        # #362 SPIKE capture: arm the warmup-snapshot recorder ONLY when the fp is set AND an
+        # object_store exists (cloud sets no fp → never captures). Default None → _warmup_snapshot
+        # stays None → _on_daily capture is a no-op → byte-untouched.
+        self._warmup_snapshot: "WarmupSnapshot | None" = None
+        if self.CAPTURE_WARMUP_SNAPSHOT and getattr(self, "object_store", None) is not None:
+            from runtime.warmup_snapshot import WarmupSnapshot
+            self._warmup_snapshot = WarmupSnapshot(self.CAPTURE_WARMUP_SNAPSHOT)
+            self.log(f"#362 warmup-snapshot CAPTURE ARMED (fp {self.CAPTURE_WARMUP_SNAPSHOT[:12]}…)")
 
         # RAW normalization everywhere — adjusted prices corrupt Ichimoku (2649e2e).
         self.universe_settings.resolution = Resolution.DAILY
@@ -729,6 +746,15 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             tbounce.update(
                 float(bar.open), float(bar.high), float(bar.low), float(bar.close), float(t)
             )
+            # #362 SPIKE capture: record the WARMUP daily input stream (the engine's universe-gated
+            # feed, session-close-timed — same bars the auto-fed d_ichi/adx consume). Only while
+            # warming up + armed → restore replays this exact stream to skip set_warmup (inc3).
+            snap = self._warmup_snapshot
+            if snap is not None and self.is_warming_up:
+                from runtime.warmup_snapshot import make_daily_bar
+                snap.record(sym.value, make_daily_bar(
+                    bar.end_time.date(), float(bar.open), float(bar.high),
+                    float(bar.low), float(bar.close), float(bar.volume)))
 
         daily_consolidator.data_consolidated += _on_daily
         self.subscription_manager.add_consolidator(sym, daily_consolidator)
@@ -1044,6 +1070,20 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             # T-Bounce tracker: replay the live _on_daily feed (OHLC + live daily Tenkan).
             tk = d_ichi.tenkan.current.value if d_ichi.is_ready else 0.0
             tbounce.update(o, h, lo, c, float(tk))
+
+    def on_warmup_finished(self) -> None:
+        """#362 SPIKE: at warmup-end, serialize the captured per-symbol warmup input streams to the
+        ObjectStore (RUN1 build). The registered set = the names actually warmed (universe-gated) →
+        a restore replays exactly those → byte-identical readiness (the #358 fix by construction).
+        No-op when capture is not armed (default → byte-untouched)."""
+        snap = getattr(self, "_warmup_snapshot", None)
+        if snap is not None:
+            from runtime.warmup_snapshot import serialize_to_store
+            n = serialize_to_store(
+                snap, getattr(self, "object_store", None), self.CAPTURE_WARMUP_SNAPSHOT or "",
+                log=self.log,
+            )
+            self.log(f"#362 warmup-snapshot CAPTURE wrote {n} per-symbol streams at warmup-end")
 
     def on_data(self, data: Any) -> None:
         """The INTRADAY execution clock ONLY (#313). on_data feeds the 5-min ("minute") bars to the
