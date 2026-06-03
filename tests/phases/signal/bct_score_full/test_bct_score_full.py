@@ -333,3 +333,46 @@ def test_indicators_none_skips_symbol():
 
     assert len(ctx.bar_state.sized_orders) == 0
     assert result.facts["candidate_count"] == 0
+
+
+# --- #348 decision-trace emit (flag-gated; NON-TRADES substrate) ---
+
+def test_decision_trace_emits_passed_when_enabled():
+    qc, sym = _setup_qc_with_symbol("META", price=200.0, sma200=100.0)
+    logs: list = []
+    qc.log = lambda m: logs.append(m)
+    qc.DECISION_TRACE = True
+    phase = BctScoreFull(BctScoreFull.Params(min_score=7), logger=None)
+    ctx = make_ctx(qc, ["META"])
+    with patch("phases.signal.bct_score_full.bct_score_full.score_symbol_native") as mock_score:
+        mock_score.return_value = {"score": 8, "rating": "+++", "conditions": [True] * 8}
+        phase.evaluate(ctx)
+    tr = [m for m in logs if m.startswith("DECISIONTRACE|")]
+    assert len(tr) == 1 and "|META|passed|8" in tr[0]
+
+
+def test_decision_trace_emits_sub_min_score():
+    qc, sym = _setup_qc_with_symbol("GOOG", price=200.0, sma200=100.0)
+    logs: list = []
+    qc.log = lambda m: logs.append(m)
+    qc.DECISION_TRACE = True
+    phase = BctScoreFull(BctScoreFull.Params(min_score=7), logger=None)
+    ctx = make_ctx(qc, ["GOOG"])
+    with patch("phases.signal.bct_score_full.bct_score_full.score_symbol_native") as mock_score:
+        mock_score.return_value = {"score": 5, "rating": "+", "conditions": [True] * 5 + [False] * 3}
+        phase.evaluate(ctx)
+    tr = [m for m in logs if m.startswith("DECISIONTRACE|")]
+    assert len(tr) == 1 and "|GOOG|sub_min_score|5" in tr[0]
+    assert len(ctx.bar_state.sized_orders) == 0  # still excluded — trace is pure logging
+
+
+def test_decision_trace_silent_when_off():
+    qc, sym = _setup_qc_with_symbol("META", price=200.0, sma200=100.0)
+    logs: list = []
+    qc.log = lambda m: logs.append(m)  # DECISION_TRACE attr absent → getattr default False
+    phase = BctScoreFull(BctScoreFull.Params(min_score=7), logger=None)
+    ctx = make_ctx(qc, ["META"])
+    with patch("phases.signal.bct_score_full.bct_score_full.score_symbol_native") as mock_score:
+        mock_score.return_value = {"score": 8, "rating": "+++", "conditions": [True] * 8}
+        phase.evaluate(ctx)
+    assert not any(m.startswith("DECISIONTRACE|") for m in logs)
