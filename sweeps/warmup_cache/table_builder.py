@@ -32,6 +32,10 @@ SCALAR_FIELDS = (
     "w_tenkan", "w_kijun", "w_senkou_a", "w_senkou_b", "w_close_0", "w_close_26",
     "adx_now", "plus_di", "minus_di", "adx_3back",
     "roc13",
+    # #358b warmup-skip: the EXIT (CloudAdherenceTrail) reads the daily cloud-BOTTOM = MIN(senkou_a,b).
+    # Appended (not in the first-14 scoring set → score_symbol_cached unaffected) so the daily-clock
+    # exit consumer can be cache-fed too, enabling the full set_warmup skip.
+    "d_cloud_bottom",
 )
 
 
@@ -95,4 +99,5 @@ def build_ticker_scalars(
             "minus_di": adx.minus_di,
             "adx_3back": adx_hist[0],  # 3 back from current (window of 4: [t-3,t-2,t-1,t])
             "roc13": roc13.value,      # parabolic block (BctScoreFull): roc13 > parabolic_threshold → block
+            "d_cloud_bottom": min(d_ichi.senkou_a, d_ichi.senkou_b),  # #358b: exit cloud-bottom (MIN)
         }
