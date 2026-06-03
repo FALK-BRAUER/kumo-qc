@@ -31,6 +31,9 @@ from phases.entry_selection.bct_intraday_hold_confirm.bct_intraday_hold_confirm 
 from phases.entry_selection.bct_intraday_gap_vol_confirm.bct_intraday_gap_vol_confirm import (
     BctIntradayGapVolConfirm,
 )
+from phases.entry_selection.buy_stop_breakout_confirm.buy_stop_breakout_confirm import (
+    BuyStopBreakoutConfirm,
+)
 from phases.entry_selection.preflight_staleness.preflight_staleness import PreFlightStaleness
 
 # BctEntryConfirm = DAILY (#253) confirm. The two INTRADAY (#270) confirms are MECHANIC VARIANTS:
@@ -40,5 +43,5 @@ from phases.entry_selection.preflight_staleness.preflight_staleness import PreFl
 # The catalog lists all (discovery/sweep only — wiring picks the clock-consistent subset).
 ENTRY_SELECTION_PHASES: tuple[type[BasePhase], ...] = (
     PreFlightStaleness, BctEntryConfirm, BctIntradayConfirm, BctIntradayHoldConfirm,
-    BctIntradayGapVolConfirm,
+    BctIntradayGapVolConfirm, BuyStopBreakoutConfirm,  # #348 V1 forward-confirmation
 )
