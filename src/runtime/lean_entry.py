@@ -724,6 +724,9 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         macd.updated += lambda _s, _pt: macd_hist_window.add(macd.histogram.current.value)
         vol_sma20 = self.sma(sym, 20, Resolution.DAILY, Field.VOLUME)
         tbounce = TBounceTracker()
+        # #364 rotation tournament: rolling window of recent daily HIGHs (the no-new-high evict gate,
+        # R1-B/C). Fed in _on_daily; 20 deep (buffers the default no_new_high_days=10 + tuning room).
+        high_window = RollingWindow[float](20)
         w_ichi = IchimokuKinkoHyo(9, 26, 26, 52, 26, 26)
         w_close = RollingWindow[float](28)
         consolidator = TradeBarConsolidator(Calendar.WEEKLY)
@@ -746,6 +749,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             tbounce.update(
                 float(bar.open), float(bar.high), float(bar.low), float(bar.close), float(t)
             )
+            high_window.add(float(bar.high))  # #364 no-new-high evict gate
             # #362 SPIKE capture: record the WARMUP daily input stream (the engine's universe-gated
             # feed, session-close-timed — same bars the auto-fed d_ichi/adx consume). Only while
             # warming up + armed → restore replays this exact stream to skip set_warmup (inc3).
@@ -776,7 +780,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         if not self.is_warming_up:
             self._seed_weekly(sym, w_ichi, w_close)
             self._seed_daily(
-                sym, d_ichi, sma200, adx, adx_window, roc13, macd, vol_sma20, tbounce
+                sym, d_ichi, sma200, adx, adx_window, roc13, macd, vol_sma20, tbounce, high_window
             )
 
         self._indicators[sym] = {
@@ -794,6 +798,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             "vol_sma20": vol_sma20,
             "tbounce": tbounce,
             "daily_consolidator": daily_consolidator,
+            "high_window": high_window,  # #364 no-new-high evict gate
         }
         assert set(self._indicators[sym]) == set(INDICATOR_KEYS)  # contract guard
 
@@ -1013,6 +1018,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         macd: Any,
         vol_sma20: Any,
         tbounce: Any,
+        high_window: Any = None,
     ) -> None:
         """History-seed the DAILY indicator suite for a name subscribed AFTER warmup (#259).
 
@@ -1067,6 +1073,8 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             macd.update(et, c)
             # Volume-field consumer.
             vol_sma20.update(et, v)
+            if high_window is not None:
+                high_window.add(h)  # #364 no-new-high evict gate (seed for post-warmup entrants)
             # T-Bounce tracker: replay the live _on_daily feed (OHLC + live daily Tenkan).
             tk = d_ichi.tenkan.current.value if d_ichi.is_ready else 0.0
             tbounce.update(o, h, lo, c, float(tk))

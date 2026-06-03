@@ -42,6 +42,9 @@ INDICATOR_KEYS: tuple[str, ...] = (
     #   tbounce         TBounceTracker — daily sessions-below-Tenkan + gap-up state (C2 degrade)
     #   daily_consolidator  daily TradeBarConsolidator feeding the tbounce tracker (disposed on unsub)
     "macd", "macd_hist_window", "vol_sma20", "tbounce", "daily_consolidator",
+    # #364 rotation tournament — high_window: RollingWindow[float] of recent daily HIGHs (the
+    # no-new-high evict gate, R1-B/C). ADDITIVE — only the exit_rotation phase reads it.
+    "high_window",
 )
 
 

@@ -77,9 +77,10 @@ def test_indicator_keys_contract():
     # #213f added adx/adx_window/roc13 so the signal reads maintained indicators (no per-bar history).
     # #253 added macd/macd_hist_window/vol_sma20/tbounce/daily_consolidator for the entry_selection
     # phase (§4 Gate 2) — ADDITIVE (signal/exit phases don't read them, champion-asis parity intact).
+    # #364 added high_window (rolling daily highs) for the no-new-high rotation evict gate — ADDITIVE.
     assert INDICATOR_KEYS == (
         "d_ichi", "w_ichi", "w_close", "sma200", "adx", "adx_window", "roc13", "consolidator",
-        "macd", "macd_hist_window", "vol_sma20", "tbounce", "daily_consolidator",
+        "macd", "macd_hist_window", "vol_sma20", "tbounce", "daily_consolidator", "high_window",
     )
 
 
