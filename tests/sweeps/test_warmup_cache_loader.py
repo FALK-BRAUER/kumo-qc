@@ -130,3 +130,36 @@ def test_load_for_symbol_fingerprint_mismatch():
     # blob built under fp1 but key derived for fp2 → key won't match (and fp guard) → None
     store = _Store({weekly_cache_key("fp1", "AAPL"): dump_weekly_blob({"AAPL": {_D: _WK}}, "fp1")})
     assert load_weekly_cache_for_symbol(store, "fp2", "AAPL") is None
+
+
+# ── #358b warmup-skip: FULL daily+weekly scalar cache (the daily-fold) ──
+def test_all_scalar_fields_matches_table_builder_no_drift():
+    """The bundled runtime can't import sweeps/ at runtime → ALL_SCALAR_FIELDS is duplicated in the
+    runtime module; THIS test is the drift guard (must equal table_builder.SCALAR_FIELDS exactly)."""
+    from runtime.warmup_weekly_cache import ALL_SCALAR_FIELDS
+    from sweeps.warmup_cache.table_builder import SCALAR_FIELDS
+    assert tuple(ALL_SCALAR_FIELDS) == tuple(SCALAR_FIELDS)
+
+
+def test_daily_scalar_key_distinct_from_weekly():
+    from runtime.warmup_weekly_cache import daily_scalar_cache_key, weekly_cache_key
+    assert daily_scalar_cache_key("fp1", "AAPL") != weekly_cache_key("fp1", "AAPL")  # distinct cache_type
+    assert daily_scalar_cache_key("fp1", "AAPL").startswith("daily_scalar-")
+
+
+def test_load_scalars_for_symbol_full_round_trip():
+    from runtime.warmup_weekly_cache import (
+        ALL_SCALAR_FIELDS, daily_scalar_cache_key, dump_weekly_blob, load_scalars_for_symbol,
+    )
+    full = {k: float(i) for i, k in enumerate(ALL_SCALAR_FIELDS)}  # 16 distinct values
+    blob = dump_weekly_blob({"AAPL": {_D: full}}, "fp1", ALL_SCALAR_FIELDS)
+    store = _Store({daily_scalar_cache_key("fp1", "AAPL"): blob})
+    got = load_scalars_for_symbol(store, "fp1", "AAPL")
+    assert got == {_D: full}                         # all 16 scalars round-trip exact (incl d_cloud_bottom)
+
+
+def test_load_scalars_for_symbol_fail_closed():
+    from runtime.warmup_weekly_cache import load_scalars_for_symbol
+    assert load_scalars_for_symbol(_Store({}), "fp1", "AAPL") is None       # absent key → cloud/uncached
+    assert load_scalars_for_symbol(None, "fp1", "AAPL") is None
+    assert load_scalars_for_symbol(_Store({"x": "y"}), None, "AAPL") is None
