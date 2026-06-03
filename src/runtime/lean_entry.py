@@ -390,16 +390,19 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         # #358 consumption hook: load the precomputed weekly cache IF the local harness injected the
         # dir + the expected data fingerprint AND it matches (FAIL-CLOSED — load_weekly_cache returns
         # None on cloud / mismatch / missing → _weekly_scalars_for re-derives live, no divergence).
-        self._weekly_cache: dict[str, dict[Any, dict[str, float]]] | None = None
+        # #358 per-SYMBOL LAZY consumption: arm with the data fingerprint + an empty per-symbol memo;
+        # each symbol's weekly loads from its own ObjectStore key on FIRST query (covers ALL active
+        # names without a giant blob — the 1.8GB-OOM avoidance). _weekly_cache_fp is set ONLY flag-on
+        # AND when an object_store exists; cloud sets no fp → None → live re-derivation (fail-closed).
         self._weekly_cache_hits: int = 0    # #358 engagement signal — proves the cache actually served
-        self._weekly_cache_misses: int = 0  # lookups, not just that it loaded (HQ: speedup w/o hits = silent fail-closed)
-        if self.CONTINUOUS_WEEKLY and self.WARMUP_WEEKLY_CACHE_FP:
-            # src/runtime/ → BUNDLED into the dist (cloud_package AST-walks src imports). lazy = flag-on only.
-            from runtime.warmup_weekly_cache import load_weekly_cache_from_store, weekly_cache_key
-            _key = weekly_cache_key(self.WARMUP_WEEKLY_CACHE_FP)  # DERIVED — same formula as the writer
-            self._weekly_cache = load_weekly_cache_from_store(
-                getattr(self, "object_store", None), _key, self.WARMUP_WEEKLY_CACHE_FP)
-            self.log(f"#358 weekly-cache: {'LOADED ' + str(len(self._weekly_cache)) + ' syms from ObjectStore key ' + _key if self._weekly_cache else 'NOT loaded (fail-closed → live re-derivation; key ' + _key + ')'}")
+        self._weekly_cache_misses: int = 0  # lookups, not just that it armed (HQ: speedup w/o hits = silent fail-closed)
+        self._weekly_cache_fp: str | None = None
+        self._weekly_loaded: dict[str, dict[Any, dict[str, float]] | None] = {}  # per-sym memo (None = attempted-missing)
+        if self.CONTINUOUS_WEEKLY and self.WARMUP_WEEKLY_CACHE_FP and getattr(self, "object_store", None) is not None:
+            self._weekly_cache_fp = self.WARMUP_WEEKLY_CACHE_FP
+            self.log(f"#358 weekly-cache: per-symbol lazy-load ARMED (fp {self._weekly_cache_fp[:12]}…)")
+        else:
+            self.log("#358 weekly-cache: NOT armed (fail-closed → live re-derivation)")
 
         # RAW normalization everywhere — adjusted prices corrupt Ichimoku (2649e2e).
         self.universe_settings.resolution = Resolution.DAILY
@@ -932,14 +935,21 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         is byte-identical to the re-derive (same WeeklyIchimokuAsOf, same daily data, same as-of date)
         → trade-neutral. A MISS (all cloud, fingerprint-mismatch, not-ready dates) falls through to the
         live re-derive → no divergence (single canonical path; the cache is only an accelerator)."""
-        cache = self._weekly_cache
-        if cache is not None:
-            wk = cache.get(sym.value, {}).get(asof_date)
-            if wk is not None:
-                self._weekly_cache_hits += 1
-                return wk  # cache HIT — table_builder stores ONLY ready-weekly rows
+        fp = self._weekly_cache_fp
+        if fp:
+            key = sym.value
+            if key not in self._weekly_loaded:  # lazy: fetch this symbol's per-symbol key ONCE, memoize
+                from runtime.warmup_weekly_cache import load_weekly_cache_for_symbol
+                self._weekly_loaded[key] = load_weekly_cache_for_symbol(
+                    getattr(self, "object_store", None), fp, key)
+            sym_rows = self._weekly_loaded[key]
+            if sym_rows is not None:
+                wk = sym_rows.get(asof_date)
+                if wk is not None:
+                    self._weekly_cache_hits += 1
+                    return wk  # cache HIT — byte-identical to the live re-derive
             self._weekly_cache_misses += 1
-            # cache MISS for (sym, asof_date) → fall through to the live re-derivation (fail-closed)
+            # MISS (sym not cached / date not ready) → fall through to live re-derivation (fail-closed)
         from runtime.lean_indicators import WeeklyIchimokuAsOf  # lazy — flag-ON path only (#336/#338)
         hist = self.history(sym, self.WARMUP_DAYS, Resolution.DAILY)
         if hist is None or hist.empty:

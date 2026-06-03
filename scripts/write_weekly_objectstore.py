@@ -57,17 +57,22 @@ def main() -> None:
 
     cache_dir = Path(args.cache_root) / args.fp
     syms = _load_jsonl_weekly(cache_dir)
-    blob = dump_weekly_blob(syms, args.fp)
 
-    key = weekly_cache_key(args.fp)  # DERIVED — same formula the runtime reads with (no write/read drift)
+    # PER-SYMBOL keys: one ObjectStore key per symbol (weekly_cache_key(fp, SYM)) so the runtime
+    # lazy-loads only the active names it queries — full coverage, no 1.8GB single-blob OOM.
     storage = Path(args.storage)
     storage.mkdir(parents=True, exist_ok=True)
-    keyfile = storage / key
-    keyfile.write_text(blob)
-    total_rows = sum(len(r) for r in syms.values())
+    total_rows = total_bytes = 0
+    for sym, rows in syms.items():
+        blob = dump_weekly_blob({sym: rows}, args.fp)  # single-symbol blob (round-trips via parse)
+        keyfile = storage / weekly_cache_key(args.fp, sym)  # DERIVED — same formula the runtime reads
+        keyfile.write_text(blob)
+        total_rows += len(rows)
+        total_bytes += len(blob)
     print(json.dumps({
-        "key": key, "keyfile": str(keyfile), "fp": args.fp,
-        "syms": len(syms), "rows": total_rows, "bytes": len(blob),
+        "scheme": "per-symbol", "fp": args.fp, "keys": len(syms),
+        "rows": total_rows, "bytes": total_bytes, "storage": str(storage),
+        "sample_key": weekly_cache_key(args.fp, next(iter(syms))) if syms else None,
     }, indent=1))
 
 

@@ -50,10 +50,12 @@ WEEKLY_CACHE_TYPE = "weekly_ichimoku"
 WEEKLY_PARAMS_HASH = indicator_params_hash(WEEKLY_ICHIMOKU_PARAMS)
 
 
-def weekly_cache_key(data_fingerprint: str) -> str:
-    """The weekly-Ichimoku cache key. Used by BOTH the offline write and the runtime read →
-    write_key == read_key by construction (single formula)."""
-    return cache_key(WEEKLY_CACHE_TYPE, data_fingerprint, WEEKLY_PARAMS_HASH)
+def weekly_cache_key(data_fingerprint: str, symbol: str | None = None) -> str:
+    """The weekly-Ichimoku cache key for a data fingerprint (+ optional per-SYMBOL key). Used by BOTH
+    the offline write and the runtime read → write_key == read_key by construction (single formula).
+    Per-symbol keys (symbol set) let the runtime LAZY-load only the active names it queries — full
+    universe coverage without a single giant blob (the 1.8GB-OOM avoidance)."""
+    return cache_key(WEEKLY_CACHE_TYPE, data_fingerprint, WEEKLY_PARAMS_HASH, symbol)
 
 
 # ── serialize (offline write) / parse (runtime read) — exact inverses (round-trip-identical) ──
@@ -120,3 +122,19 @@ def load_weekly_cache_from_store(
     except Exception:  # noqa: BLE001 — fail-closed-to-live is intended; init logs LOADED/NOT-loaded
         return None
     return parse_weekly_cache(text, expected_fingerprint)
+
+
+def load_weekly_cache_for_symbol(
+    object_store: Any,
+    data_fingerprint: str | None,
+    symbol: str,
+) -> dict[_dt.date, dict[str, float]] | None:
+    """LAZY per-SYMBOL load: fetch+parse ONLY this symbol's per-symbol key (weekly_cache_key(fp, sym)).
+    Returns ``{date: {6 weekly scalars}}`` for the symbol, or ``None`` (FAIL-CLOSED → live re-derive)
+    when fp/symbol falsy, the per-sym key is absent (cloud / sym not cached), or read/parse fails. The
+    runtime memoizes the result per symbol so each is fetched at most once."""
+    if object_store is None or not data_fingerprint or not symbol:
+        return None
+    key = weekly_cache_key(data_fingerprint, symbol)
+    parsed = load_weekly_cache_from_store(object_store, key, data_fingerprint)
+    return parsed.get(str(symbol).upper()) if parsed else None

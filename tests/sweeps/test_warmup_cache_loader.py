@@ -101,3 +101,32 @@ def test_store_fetch_read_error_fail_closed():
 def test_store_fetch_none_store_or_key():
     assert load_weekly_cache_from_store(None, "k", "fp1") is None
     assert load_weekly_cache_from_store(_Store({"k": "x"}), None, "fp1") is None
+
+
+# ── 5. PER-SYMBOL lazy load (the miss-fix: per-sym keys, full active coverage) ──
+def test_per_symbol_key_distinct_from_blob_key():
+    from runtime.warmup_weekly_cache import weekly_cache_key
+    assert weekly_cache_key("fp1", "AAPL") == weekly_cache_key("fp1") + "-AAPL"
+    assert weekly_cache_key("fp1", "AAPL") != weekly_cache_key("fp1", "MSFT")
+
+
+def test_load_for_symbol_hit():
+    from runtime.warmup_weekly_cache import load_weekly_cache_for_symbol, weekly_cache_key
+    store = _Store({weekly_cache_key("fp1", "AAPL"): dump_weekly_blob({"AAPL": {_D: _WK}}, "fp1")})
+    got = load_weekly_cache_for_symbol(store, "fp1", "AAPL")
+    assert got == {_D: _WK}                       # this symbol's date→scalars map
+
+
+def test_load_for_symbol_absent_fail_closed():
+    store = _Store({})                            # sym not cached / cloud → None
+    from runtime.warmup_weekly_cache import load_weekly_cache_for_symbol
+    assert load_weekly_cache_for_symbol(store, "fp1", "AAPL") is None
+    assert load_weekly_cache_for_symbol(None, "fp1", "AAPL") is None
+    assert load_weekly_cache_for_symbol(store, None, "AAPL") is None
+
+
+def test_load_for_symbol_fingerprint_mismatch():
+    from runtime.warmup_weekly_cache import load_weekly_cache_for_symbol, weekly_cache_key
+    # blob built under fp1 but key derived for fp2 → key won't match (and fp guard) → None
+    store = _Store({weekly_cache_key("fp1", "AAPL"): dump_weekly_blob({"AAPL": {_D: _WK}}, "fp1")})
+    assert load_weekly_cache_for_symbol(store, "fp2", "AAPL") is None
