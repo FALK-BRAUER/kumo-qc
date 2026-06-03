@@ -1068,10 +1068,11 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
 
     def _log_cache_engagement(self) -> None:
         """#358 engagement signal (the assert-engaged): log per-symbol cache hits/misses at end-of-run
-        when the cache was ARMED. A speedup with zero hits = a silent fail-closed → this log proves the
-        cache actually SERVED lookups. Keyed on _weekly_cache_fp (armed), NOT a stale attr."""
-        if getattr(self, "_weekly_cache_fp", None):
-            self.log(f"#358 weekly-cache ENGAGED: hits={self._weekly_cache_hits} misses={self._weekly_cache_misses}")
+        when EITHER cache was armed (weekly #358 OR the #358b daily_scalar warmup-skip — the same
+        hits/misses counters serve both). A speedup with zero hits = a silent fail-closed → this log
+        proves the cache actually SERVED lookups. Keyed on the armed fp(s), NOT a stale attr."""
+        if getattr(self, "_weekly_cache_fp", None) or getattr(self, "_daily_cache_fp", None):
+            self.log(f"#358 cache ENGAGED: hits={self._weekly_cache_hits} misses={self._weekly_cache_misses}")
 
     def _weekly_scalars_for(self, sym: Any, asof_date: Any) -> dict[str, float] | None:
         """The 6 weekly Ichimoku scalars for (sym, asof_date). #358: from the precomputed local cache

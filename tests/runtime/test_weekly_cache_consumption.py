@@ -101,21 +101,34 @@ def test_not_armed_fp_none_fail_closed_to_live():
     assert s.history_calls == 1                  # FAIL-CLOSED: live re-derive, no divergence
 
 
-def test_engagement_logged_when_armed():
-    """REGRESSION (the refactor bug): the ENGAGED hit/miss signal must fire when the cache is ARMED.
-    Was silently dead after _weekly_cache→_weekly_cache_fp rename (condition checked the stale attr)."""
+def test_engagement_logged_when_weekly_armed():
+    """REGRESSION (the refactor bug): the ENGAGED hit/miss signal must fire when the weekly cache is
+    ARMED. Was silently dead after _weekly_cache→_weekly_cache_fp rename (stale attr)."""
     logs: list[str] = []
     class _S:
-        _weekly_cache_fp = "fp1"; _weekly_cache_hits = 42; _weekly_cache_misses = 8
+        _weekly_cache_fp = "fp1"; _daily_cache_fp = None
+        _weekly_cache_hits = 42; _weekly_cache_misses = 8
         def log(self, m): logs.append(m)
     BctEngineAlgorithm._log_cache_engagement(_S())
     assert any("ENGAGED: hits=42 misses=8" in m for m in logs)
 
 
+def test_engagement_logged_when_daily_armed():
+    """REGRESSION (#358b smoke caught): under warmup-skip only _daily_cache_fp is armed (weekly NOT)
+    — the ENGAGED log must STILL fire (else the 3-point smoke can't confirm hits>0)."""
+    logs: list[str] = []
+    class _S:
+        _weekly_cache_fp = None; _daily_cache_fp = "fpD"
+        _weekly_cache_hits = 31; _weekly_cache_misses = 2
+        def log(self, m): logs.append(m)
+    BctEngineAlgorithm._log_cache_engagement(_S())
+    assert any("ENGAGED: hits=31 misses=2" in m for m in logs)
+
+
 def test_engagement_not_logged_when_not_armed():
     logs: list[str] = []
     class _S:
-        _weekly_cache_fp = None; _weekly_cache_hits = 0; _weekly_cache_misses = 0
+        _weekly_cache_fp = None; _daily_cache_fp = None; _weekly_cache_hits = 0; _weekly_cache_misses = 0
         def log(self, m): logs.append(m)
     BctEngineAlgorithm._log_cache_engagement(_S())
     assert logs == []
