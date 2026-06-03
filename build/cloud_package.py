@@ -248,6 +248,9 @@ def _params_canonical(params: Any) -> str:
 
 def _config_hash(config: Any) -> str:
     parts = [config.name, config.version]
+    # #339: fold continuous_weekly ONLY when True → flag-OFF dists hash exactly as before.
+    if getattr(config, "continuous_weekly", False):
+        parts.append("continuous_weekly:1")
     for kind in sorted(config.phases):
         value = config.phases[kind]
         slots = value if isinstance(value, list) else [value]
@@ -420,7 +423,7 @@ def _emit_main(
     # field silently changes the deployed config (the exact bug class that lost is_fixture and
     # would have crashed the fail-loud gate at cloud init). Keep _EMITTED in lockstep with the
     # dataclass; an unhandled new field fails the BUILD, not silently at deploy.
-    _EMITTED = {"name", "version", "phases", "is_fixture"}
+    _EMITTED = {"name", "version", "phases", "is_fixture", "continuous_weekly"}
     _actual = {f.name for f in dataclasses.fields(config)}
     if _actual != _EMITTED:
         raise ValueError(
@@ -434,6 +437,10 @@ def _emit_main(
     # lose the flag and CRASH the fail-loud entry+exit gate at cloud init (DegradedConfigError).
     if getattr(config, "is_fixture", False):
         body += "    is_fixture=True,\n"
+    # #339: carry continuous_weekly into the deployed config (provenance + config_hash parity);
+    # the runtime switch is the BCTAlgorithm.CONTINUOUS_WEEKLY class-attr emitted below.
+    if getattr(config, "continuous_weekly", False):
+        body += "    continuous_weekly=True,\n"
     body += "    phases={\n"
     body += "\n".join(slot_lines) + "\n    },\n)\n\n"
     if deployable:
@@ -445,6 +452,11 @@ def _emit_main(
             "\nclass BCTAlgorithm(BctEngineAlgorithm):\n"
             "    STRATEGY_CONFIG = STRATEGY_CONFIG\n"
         )
+        # #336/#339: the CONTINUOUS_WEEKLY runtime switch. The engine reads this class-attr
+        # (default False on BctEngineAlgorithm) to re-derive the weekly Ichimoku from continuous
+        # self.history. Emitted ONLY when the champion opts in → flag-OFF dist byte-unchanged.
+        if getattr(config, "continuous_weekly", False):
+            body += "    CONTINUOUS_WEEKLY = True\n"
     else:
         body += "# Not LEAN-deployable — config-only build (sample/example); no LEAN entry emitted.\n"
     (dist / "main.py").write_text(body)

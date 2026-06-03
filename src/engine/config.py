@@ -38,3 +38,8 @@ class StrategyConfig:
     # (regression/parity scaffolding) or the engine raises DegradedConfigError at init.
     # is_fixture=True is the ONLY way to run an incomplete (blind-entry) stack — never silent.
     is_fixture: bool = False
+    # #336/#339: CONTINUOUS_WEEKLY corrected-weekly foundation. When True the dist emits the
+    # BCTAlgorithm CONTINUOUS_WEEKLY=True class-attr (the #336 fix: re-derive the weekly Ichimoku
+    # from continuous self.history, bypassing the subscription-gated weekly consolidator). Folded
+    # into config_hash ONLY when True → flag-OFF configs hash exactly as before (backward-compatible).
+    continuous_weekly: bool = False

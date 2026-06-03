@@ -5,20 +5,24 @@ BCT selection + regime + sizing + EXIT as champion-asis, but the entry is no lon
 market-on-open: the daily 8-condition signal picks candidates (after close T, for T+1), and on T+1's
 INTRADAY (5-min) clock the engine confirms before firing.
 
+S1 promotion (#339): the EXIT stack is the cloud-adherence winner — CloudAdherenceTrail (daily EOD
+exit when close < the daily cloud bottom) + CloudProtectiveStop (GTC catastrophic floor at the same
+cloud bottom), sizing flat 5%, CONTINUOUS_WEEKLY corrected-weekly (#336). Rotation + profit-take OFF.
+
 Two clocks (engine _partition_clocks routes per-KIND; #270/#274/#313):
   DAILY decision clock (scheduled after-close, #313): universe → signal → regime → sizing →
-    exit_hard (KijunG3Exits — REUSED UNCHANGED from champion-asis; George's rule = DAILY close <
-    Kijun, EOD-only; intraday stop-monitoring destroys the W1-W4 edge, fintrack Run-8 lesson) →
-    diagnostics. Produces the candidate snapshot (276b-0) for T+1.
+    exit_hard (CloudAdherenceTrail — EOD close < daily cloud bottom; EOD-only, intraday stop-
+    monitoring destroys the W1-W4 edge, fintrack Run-8 lesson) → diagnostics. Produces the
+    candidate snapshot (276b-0) for T+1.
   INTRADAY execution clock (5-min, on_data): the candidate stubs are injected, then
     entry_selection (PreFlightStaleness → BctIntradayConfirm: asymmetric gap-gate, then tenkan-
     reclaim CROSS + rising-vol) → entry_timing (ConfirmedMarketEntry: market fire on confirm) →
-    protective_stop (KijunProtectiveStop: the #290 daily-Kijun GTC catastrophic floor) → FIRE_ENTRIES.
+    protective_stop (CloudProtectiveStop: GTC catastrophic floor at the daily cloud bottom) →
+    FIRE_ENTRIES.
 
-The EXIT is held CONSTANT vs champion-asis (the daily KijunG3Exits) on purpose — so the proof-of-life
-Sharpe-delta is attributable to the ENTRY model alone (HQ: clean experiment). The #290 GTC floor is
-the touch-fire catastrophic backstop (gap/halt); the daily exit is the normal close-breach; the
-engine cancels one when the other fires (no double-exit, FIRE_EXITS → _cancel_protective_stop).
+The CloudProtectiveStop GTC floor is the touch-fire catastrophic backstop (gap/halt); the daily
+CloudAdherenceTrail exit is the normal close-breach; the engine cancels one when the other fires
+(no double-exit, FIRE_EXITS → _cancel_protective_stop).
 
 is_fixture=False — a real champion: it wires an entry-confirm (entry_selection + entry_timing) AND an
 exit (exit_hard), so the #272 fail-loud gate passes. NO implicit market-on-open. Same live-selection
@@ -32,8 +36,8 @@ from phases.diagnostics.version_marker.version_marker import VersionMarker
 from phases.entry_selection.bct_intraday_gap_vol_confirm.bct_intraday_gap_vol_confirm import BctIntradayGapVolConfirm
 from phases.entry_selection.preflight_staleness.preflight_staleness import PreFlightStaleness
 from phases.entry_timing.confirmed_market_entry.confirmed_market_entry import ConfirmedMarketEntry
-from phases.exit.kijun_g3_exits.kijun_g3_exits import KijunG3Exits
-from phases.protective_stop.kijun_protective_stop.kijun_protective_stop import KijunProtectiveStop
+from phases.exit.cloud_adherence_trail.cloud_adherence_trail import CloudAdherenceTrail
+from phases.protective_stop.cloud_protective_stop.cloud_protective_stop import CloudProtectiveStop
 from phases.regime.spy_200ma.spy_200ma import SpySma200
 from phases.regime.vix_percentile.vix_percentile import VixPercentile
 from phases.signal.bct_score_full.bct_score_full import BctScoreFull
@@ -44,8 +48,9 @@ CONFIG = StrategyConfig(
     name="champion-intraday-gapvol",
     version="1.0.0",
     is_fixture=False,  # a real champion: entry-confirm + exit wired → passes the #272 gate
+    continuous_weekly=True,  # #336/#339 S1: corrected-weekly Ichimoku (continuous self.history)
     phases={
-        # --- DAILY decision clock (same selection/regime/sizing/exit as champion-asis) ---
+        # --- DAILY decision clock (selection/regime as champion-asis; sizing+exit = S1 #339) ---
         "universe": Slot(impl=DvRankCap, params=DvRankCap.Params()),
         "signal": Slot(
             impl=BctScoreFull,
@@ -58,13 +63,12 @@ CONFIG = StrategyConfig(
         # sizing on the INTRADAY clock (#276b-1): the confirmed entry is sized at confirm time on
         # the 5-min clock — the whole entry-execution chain (selection→timing→sizing→floor→FIRE)
         # shares the intraday clock (the engine's entry-chain-clock guard enforces this).
-        "sizing": Slot(impl=FlatPctHeatcap, params=FlatPctHeatcap.Params(position_pct=0.10, resolution="intraday")),
-        # EXIT held CONSTANT vs champion-asis (daily KijunG3Exits, EOD close<Kijun + G3 trail).
+        "sizing": Slot(impl=FlatPctHeatcap, params=FlatPctHeatcap.Params(position_pct=0.05, resolution="intraday")),
+        # EXIT = S1 winner (#339): CloudAdherenceTrail — daily EOD exit when close < the daily cloud
+        # bottom (Ichimoku Kumo floor). Replaces KijunG3Exits; pairs with the CloudProtectiveStop
+        # GTC floor below (both keyed to the daily cloud, coherent let-the-cloud-decide exit stack).
         "exit_hard": [
-            Slot(impl=KijunG3Exits, params=KijunG3Exits.Params(
-                cloud_exit_enabled=False, weekly_kijun_exit_enabled=False,
-                phase3_days=56, phase3_pnl=0.15,
-            )),
+            Slot(impl=CloudAdherenceTrail, params=CloudAdherenceTrail.Params()),
         ],
         # --- INTRADAY execution clock (the #270 entry model) ---
         # entry_selection: pre-flight staleness gate → intraday tenkan-reclaim CROSS + rising-vol.
@@ -74,8 +78,9 @@ CONFIG = StrategyConfig(
         ],
         # entry_timing: fire a MARKET order intraday on confirm (not next-open MOO).
         "entry_timing": Slot(impl=ConfirmedMarketEntry, params=ConfirmedMarketEntry.Params()),
-        # protective_stop: the #290 daily-Kijun GTC catastrophic floor (pre-FIRE, ticket-tracked).
-        "protective_stop": Slot(impl=KijunProtectiveStop, params=KijunProtectiveStop.Params()),
+        # protective_stop: S1 (#339) GTC catastrophic floor at the daily cloud bottom (pre-FIRE,
+        # ticket-tracked). Replaces the Kijun floor; coherent with the CloudAdherenceTrail exit.
+        "protective_stop": Slot(impl=CloudProtectiveStop, params=CloudProtectiveStop.Params()),
         "diagnostics": [
             Slot(impl=VersionMarker, params=VersionMarker.Params()),
             Slot(impl=ChartEmit, params=ChartEmit.Params()),

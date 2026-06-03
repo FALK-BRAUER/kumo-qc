@@ -55,13 +55,7 @@ def _fetch_ohlcv(algorithm: Any, symbol: Any, bars: int, resolution: Any) -> pd.
     return df[["open", "high", "low", "close", "volume"]].astype(float)
 
 
-def score_symbol(algorithm: Any, symbol: Any) -> dict[str, Any] | None:
-    try:
-        from QuantConnect import Resolution  # noqa: PLC0415
-    except ImportError:
-        return None  # outside LEAN environment
-
-    daily = _fetch_ohlcv(algorithm, symbol, _DAILY_BARS, Resolution.DAILY)
+def score_from_daily_frame(daily: pd.DataFrame) -> dict[str, Any] | None:
     if len(daily) < 230:
         return None
     weekly = _resample_weekly(daily)
@@ -121,44 +115,75 @@ def score_symbol(algorithm: Any, symbol: Any) -> dict[str, Any] | None:
     return {"score": score, "rating": rating, "conditions": conditions}
 
 
+def score_symbol(algorithm: Any, symbol: Any) -> dict[str, Any] | None:
+    try:
+        from QuantConnect import Resolution
+    except ImportError:
+        return None
+
+    daily = _fetch_ohlcv(algorithm, symbol, _DAILY_BARS, Resolution.DAILY)
+    return score_from_daily_frame(daily)
+
+
 def score_symbol_native(algorithm: Any, symbol: Any, ind: dict[str, Any]) -> dict[str, Any] | None:
     d_ichi = ind["d_ichi"]; w_ichi = ind["w_ichi"]; w_close = ind["w_close"]
     sma200 = ind["sma200"]; adx = ind["adx"]; adx_window = ind["adx_window"]; roc13 = ind["roc13"]
 
     if not (d_ichi.is_ready and w_ichi.is_ready and sma200.is_ready and adx.is_ready and roc13.is_ready):
         return None
-    if w_close.count < 27 or adx_window.count < 4:  # need w_close[26] + adx 3-back
+    if w_close.count < 27 or adx_window.count < 4:
         return None
 
     d_price = float(algorithm.securities[symbol].price)
     if d_price <= 0:
         return None
 
-    # daily structure
     d_tenkan = d_ichi.tenkan.current.value
     d_cloud_top = max(d_ichi.senkou_a.current.value, d_ichi.senkou_b.current.value)
     ma200 = sma200.current.value
-    # weekly structure (completed weeks)
     w_tenkan = w_ichi.tenkan.current.value
     w_kijun = w_ichi.kijun.current.value
     w_sa = w_ichi.senkou_a.current.value
     w_sb = w_ichi.senkou_b.current.value
     w_cloud_top = max(w_sa, w_sb)
-    # adx
     adx_now = adx.current.value
     plus_di = adx.positive_directional_index.current.value
     minus_di = adx.negative_directional_index.current.value
-    adx_rising = adx_window[0] > adx_window[3]  # now vs 3-back == legacy adx[-1]>adx[-4]
+    adx_rising = adx_window[0] > adx_window[3]
 
     conditions: list[bool] = [
-        bool(d_price > w_cloud_top),                       # 1 weekly: live price above completed cloud
-        bool(w_tenkan > w_kijun),                          # 2 weekly tenkan > kijun
-        bool(w_close[0] > w_close[26]),                    # 3 weekly chikou (completed close-vs-close)
-        bool(w_sa > w_sb),                                 # 4 weekly cloud green
-        bool(d_price > d_cloud_top),                       # 5 daily: live price above cloud
-        bool(d_price > d_tenkan),                          # 6 daily above tenkan
-        bool(adx_rising and plus_di > minus_di and adx_now >= 20),  # 7 ADX
-        bool(d_price > ma200),                             # 8 above 200MA
+        bool(d_price > w_cloud_top),
+        bool(w_tenkan > w_kijun),
+        bool(w_close[0] > w_close[26]),
+        bool(w_sa > w_sb),
+        bool(d_price > d_cloud_top),
+        bool(d_price > d_tenkan),
+        bool(adx_rising and plus_di > minus_di and adx_now >= 20),
+        bool(d_price > ma200),
+    ]
+    score = sum(conditions)
+    if score == 8:   rating = "+++"
+    elif score >= 6: rating = "++"
+    elif score >= 4: rating = "+"
+    elif score >= 2: rating = "="
+    else:            rating = "--"
+    return {"score": score, "rating": rating, "conditions": conditions}
+
+
+def score_symbol_cached(scalars: dict[str, float]) -> dict[str, Any]:
+    d_price = scalars["d_price"]
+    w_cloud_top = max(scalars["w_senkou_a"], scalars["w_senkou_b"])
+    adx_rising = scalars["adx_now"] > scalars["adx_3back"]
+    conditions: list[bool] = [
+        bool(d_price > w_cloud_top),
+        bool(scalars["w_tenkan"] > scalars["w_kijun"]),
+        bool(scalars["w_close_0"] > scalars["w_close_26"]),
+        bool(scalars["w_senkou_a"] > scalars["w_senkou_b"]),
+        bool(d_price > scalars["d_cloud_top"]),
+        bool(d_price > scalars["d_tenkan"]),
+        bool(adx_rising and scalars["plus_di"] > scalars["minus_di"]
+             and scalars["adx_now"] >= 20),
+        bool(d_price > scalars["ma200"]),
     ]
     score = sum(conditions)
     if score == 8:   rating = "+++"

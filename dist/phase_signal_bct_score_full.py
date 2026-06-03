@@ -4,8 +4,9 @@ from dataclasses import dataclass
 from typing import Any
 
 from base import BasePhase, PhaseResult
+from symbol_key import canonical_symbol_key
 from context import OrderIntent, PhaseContext
-from shared_oracle_helpers import score_symbol_native
+from shared_oracle_helpers import score_symbol_cached, score_symbol_native
 from shared_param_space import ComplexityDecl, ParamSpace
 
 
@@ -14,8 +15,6 @@ class BctScoreFull(BasePhase):
     REQUIRES_UPSTREAM = ["universe"]
     PROVIDES_DOWNSTREAM = ["sized_orders"]
 
-    # ADR D5 overfitting-defense: this phase exposes 2 free params to a sweep (== space() axes).
-    # The runner sums COMPLEXITY.free_params across the active stack into a complexity penalty.
     COMPLEXITY = ComplexityDecl(
         free_params=2,
         note="min_score (qualify threshold) + parabolic_threshold (overextension block).",
@@ -45,24 +44,20 @@ class BctScoreFull(BasePhase):
         min_score = self.p.min_score
         parabolic_threshold = self.p.parabolic_threshold
 
-        # Resolve candidates from universe phase (list of ticker strings)
-        candidates_raw = ctx.bar_state.ranked_candidates  # list of str symbol values
+        candidates_raw = ctx.bar_state.ranked_candidates
 
-        # Build symbol lookup from qc._active
-        active_by_value = {s.value: s for s in getattr(qc, "_active", set())}
+        active_by_key = {canonical_symbol_key(s): s for s in getattr(qc, "_active", set())}
 
-        # #238: dollar-volume tiebreak from the LIVE per-ticker trailing-mean DV
-        # (qc._trailing_dv, computed once-daily by lean_entry._coarse_selection), NOT the
-        # retired qc._eligible artifact and NOT a per-bar qc.history(20) — keeps on_data
-        # history-free. Keys are lowercase (zip stems / coarse value lowered); candidate
-        # tickers are canonical (upper).
         trailing_dv = getattr(qc, "_trailing_dv", {})
 
-        candidates: list[tuple[Any, int, float]] = []  # (symbol, score, dollar_volume)
+        candidates: list[tuple[Any, int, float]] = []
         blocked_log: list[str] = []
 
+        cache = getattr(qc, "_warmup_cache", None)
+        cur_date = ctx.time.date() if cache is not None else None
+
         for ticker in candidates_raw:
-            symbol = active_by_value.get(ticker)
+            symbol = active_by_key.get(canonical_symbol_key(ticker))
             if symbol is None:
                 continue
             if qc.portfolio[symbol].invested:
@@ -70,12 +65,26 @@ class BctScoreFull(BasePhase):
             if qc.transactions.get_open_orders(symbol):
                 continue
 
+            if cache is not None:
+                scalars = cache.get(symbol.value, {}).get(cur_date)
+                if scalars is None:
+                    continue
+                price = scalars["d_price"]
+                if price <= 0 or price < scalars["ma200"] or price < scalars["d_cloud_top"]:
+                    continue
+                result = score_symbol_cached(scalars)
+                if result["score"] < min_score:
+                    continue
+                if scalars["roc13"] > parabolic_threshold:
+                    blocked_log.append(ticker)
+                    continue
+                candidates.append((symbol, result["score"], float(trailing_dv.get(ticker.lower(), 0.0))))
+                continue
+
             ind = getattr(qc, "_indicators", {}).get(symbol)
             if ind is None:
                 continue
 
-            # PRE-FILTER: skip symbols that cannot reach MIN_SCORE=7
-            # Mirrors oracle L538-551 exactly
             sma200_ind = ind.get("sma200")
             d_ichi_ind = ind.get("d_ichi")
             if sma200_ind and sma200_ind.is_ready and d_ichi_ind and d_ichi_ind.is_ready:
@@ -83,34 +92,26 @@ class BctScoreFull(BasePhase):
                 if price <= 0:
                     continue
                 if price < sma200_ind.current.value:
-                    continue  # condition 8 fails → max score 6 → skip
+                    continue
                 cloud_top = max(d_ichi_ind.senkou_a.current.value, d_ichi_ind.senkou_b.current.value)
                 if price < cloud_top:
-                    continue  # condition 5 fails → max score 6 → skip
+                    continue
 
-            # BCT score
             result = score_symbol_native(qc, symbol, ind)
             if result is None or result["score"] < min_score:
                 continue
 
-            # E51: Parabolic entry block — skip if the maintained 13-day ROC exceeds the
-            # threshold. #213f: roc13 (maintained) replaces the per-bar qc.history(14).
-            # roc(13) = (price - price[13-back])/price[13-back] == legacy parabolic, by
-            # construction (a decimal fraction, comparable to parabolic_threshold).
             roc13 = ind.get("roc13")
             if roc13 is not None and roc13.is_ready and roc13.current.value > parabolic_threshold:
                 blocked_log.append(ticker)
                 continue
 
-            # Dollar-volume tiebreak from the live trailing DV (no per-bar history). 0.0 if absent.
             dollar_volume = float(trailing_dv.get(ticker.lower(), 0.0))
 
             candidates.append((symbol, result["score"], dollar_volume))
 
-        # Sort: score DESC, dollar_vol DESC — matches oracle L589-590
         candidates.sort(key=lambda x: (x[1], x[2]), reverse=True)
 
-        # Write as OrderIntent stubs (qty=0, sizing phase sets qty)
         ctx.bar_state.sized_orders = [
             OrderIntent(
                 ticker=sym.value,

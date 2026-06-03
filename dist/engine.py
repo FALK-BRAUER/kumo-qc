@@ -15,6 +15,7 @@ from base import (
 from config import Slot, StrategyConfig
 from context import PhaseContext
 from logger import ComponentLogger
+from symbol_key import canonical_symbol_key
 
 
 class FireSentinel:
@@ -50,7 +51,6 @@ PHASE_ORDER: list[str | FireSentinel] = [
     "diagnostics", "circuit_breaker",
 ]
 
-# Suppressed when bar_blocked (entry-side). Exit-side + tail run regardless.
 ENTRY_ONLY_PHASES: frozenset[str] = frozenset({
     "entry_selection", "entry_timing", "sizing", "reentry",
     "eligibility", "portfolio_risk", "cash", "protective_stop", "adds",
@@ -58,23 +58,13 @@ ENTRY_ONLY_PHASES: frozenset[str] = frozenset({
 ENTRY_ONLY_SENTINELS: frozenset[FireSentinel] = frozenset({FIRE_ENTRIES, FIRE_ADDS})
 ALWAYS_RUN: frozenset[str] = frozenset({"diagnostics", "circuit_breaker"})
 
-# "filter" is INTENTIONALLY not required (Y, Falk): the champion applies its floors at the
-# selection gate (lean_entry._coarse_selection), so there is no per-bar filter phase. "filter"
-# stays a KNOWN_KIND (in PHASE_ORDER) — a future strategy MAY add a real per-bar filter phase.
 REQUIRED_PHASES: tuple[str, ...] = ("universe", "signal", "sizing")
 
-# #270/#272 fail-loud phase-stack gate. A CHAMPION (a config that actually trades) MUST wire an
-# entry-confirm phase AND an exit phase — there is no implicit market-on-open default. The
-# families (any one member satisfies the requirement):
 ENTRY_PHASE_KINDS: frozenset[str] = frozenset({"entry_selection", "entry_timing"})
 EXIT_PHASE_KINDS: frozenset[str] = frozenset(
     {"exit_hard", "exit_target", "exit_regime", "exit_rotation"}
 )
 
-# Every schedulable phase kind = the string items of PHASE_ORDER. A config keyed by any
-# kind NOT in here would instantiate but never be scheduled in the per-bar loop (it reads
-# self.phases.get(item) only for items IN PHASE_ORDER) → a SILENT no-op. The engine refuses
-# such a config at init instead (fail-loud charter). Sentinels (FireSentinel) are not kinds.
 KNOWN_KINDS: frozenset[str] = frozenset(
     item for item in PHASE_ORDER if isinstance(item, str)
 )
@@ -127,7 +117,7 @@ class StrategyEngine:
         self._fired_entries = 0
         self._fired_exits = 0
         self._fired_adds = 0
-        self._tick_entry_value = 0.0  # #181 BUG-2 Stage 0: this tick's entry $ (commit-aware adds cap)
+        self._tick_entry_value = 0.0
 
         validate_invariants(config)
         self._validate_known_kinds(config)
@@ -136,12 +126,6 @@ class StrategyEngine:
         self._validate_execution_stack(config)
         self._validate_single_adds()
         self._validate_dependencies()
-        # #270/#274 two-clock: PRECOMPUTE the daily/intraday PHASE_ORDER subsets at init (not a
-        # per-tick filter). on_data_with_ctx replays the daily subset, on_intraday_bar the intraday
-        # subset. A FireSentinel is assigned to the clock of the phases it fires for (entries/
-        # exits/adds/trims are execution → intraday once an intraday phase exists; with NO intraday
-        # phase wired the intraday subset is EMPTY and on_data_with_ctx replays the FULL order →
-        # behaviour IDENTICAL to the pre-#274 single-clock engine).
         self._daily_order, self._intraday_order = self._partition_clocks()
         self._validate_entry_chain_clock()
         self._log_phase_markers()
@@ -149,7 +133,7 @@ class StrategyEngine:
 
     def _validate_entry_chain_clock(self) -> None:
         if not (self.phases.get("entry_timing") or self.phases.get("entry_selection")):
-            return  # no entry-confirm phase (fixture) → no entry-execution chain to enforce
+            return
         fire_clock = (self._phase_clock("entry_timing") if self.phases.get("entry_timing")
                       else self._phase_clock("entry_selection"))
         start = PHASE_ORDER.index("entry_selection")
@@ -213,7 +197,6 @@ class StrategyEngine:
                 out[kind] = instances
         return out
 
-    # ---- init validations (fail loud) ----
     def _validate_known_kinds(self, config: StrategyConfig) -> None:
         unknown = sorted(k for k in config.phases if k not in KNOWN_KINDS)
         if unknown:
@@ -278,7 +261,6 @@ class StrategyEngine:
             for phase in instances:
                 self.logger.log_phase_loaded(kind, phase.version_marker)
 
-    # ---- per-bar (two-clock, #270/#274) ----
     def on_data_with_ctx(self, ctx: PhaseContext) -> None:
         self._run_clock(self._daily_order, ctx)
 
@@ -291,17 +273,12 @@ class StrategyEngine:
         bar_blocked = False
         phases_run: list[str] = []
         self._fired_entries = self._fired_exits = self._fired_adds = 0
-        # #181 BUG-2 Stage 0: $-value of entry orders submitted THIS tick, for the commit-aware
-        # gross cap on adds (LEAN fill-lag → total_holdings_value may not yet reflect these fills).
         self._tick_entry_value = 0.0
 
         for item in order:
             if isinstance(item, FireSentinel):
                 if bar_blocked and item in ENTRY_ONLY_SENTINELS:
                     continue
-                # #181 BUG-2 Stage 0: commit-aware second seam — bound add_intents by the gross cap
-                # BEFORE firing them, counting this tick's in-flight entries (closes the leverage
-                # hole where adds fired uncapped after FIRE_ENTRIES).
                 if item is FIRE_ADDS:
                     self._bound_adds_to_gross_cap(ctx)
                 self._fire(item, ctx)
@@ -318,6 +295,7 @@ class StrategyEngine:
                 phases_run.append(item)
                 if result.blocked and item in ("regime", "cash"):
                     bar_blocked = True
+                    ctx.bar_state.bar_blocked = True
 
         self.logger.log_tick(
             chain=phases_run,
@@ -326,16 +304,16 @@ class StrategyEngine:
             adds=self._fired_adds,
         )
 
-    def _submit(self, qc: Any, sym: Any, intent: Any) -> Any:
+    def _submit(self, qc: Any, sym: Any, intent: Any, tag: str = "") -> Any:
         ot = getattr(intent, "order_type", "market_on_open")
         if ot == "market_on_open":
-            return qc.market_on_open_order(sym, intent.qty)
+            return qc.market_on_open_order(sym, intent.qty, tag=tag)
         if ot == "market":
-            return qc.market_order(sym, intent.qty)
+            return qc.market_order(sym, intent.qty, tag=tag)
         if ot == "stop_market":
-            return qc.stop_market_order(sym, intent.qty, intent.stop)
+            return qc.stop_market_order(sym, intent.qty, intent.stop, tag=tag)
         if ot == "limit":
-            return qc.limit_order(sym, intent.qty, intent.price)
+            return qc.limit_order(sym, intent.qty, intent.price, tag=tag)
         raise ConfigError(
             f"unknown OrderIntent.order_type {ot!r} for {intent.ticker} — the fire seam dispatches "
             f"market_on_open|market|stop_market|limit only (#276a)"
@@ -344,18 +322,13 @@ class StrategyEngine:
     def _fire(self, sentinel: FireSentinel, ctx: PhaseContext) -> None:
         qc = self.qc
         date_str = ctx.time.strftime("%Y-%m-%d")
-        active_by_value: dict[str, Any] = {s.value: s for s in getattr(qc, "_active", set())}
+        active_by_key: dict[str, Any] = {canonical_symbol_key(s): s for s in getattr(qc, "_active", set())}
 
         if sentinel is FIRE_ENTRIES:
             for intent in ctx.bar_state.sized_orders:
-                sym = active_by_value.get(intent.ticker)
+                sym = active_by_key.get(canonical_symbol_key(intent.ticker))
                 if sym is None or intent.qty <= 0:
                     continue
-                # #276a GUARD-3 (re-entry): a 2nd entry on a symbol that ALREADY has a live
-                # protective stop this run would overwrite _position_meta + ORPHAN the first stop
-                # ticket (FIRE_EXITS could never cancel it → it fires later against a position the
-                # runtime already managed → over-sell). Fail loud until the cancel-replace
-                # lifecycle (#276b) handles re-entry. Only fires when a protective stop is LIVE.
                 _prior = getattr(qc, "_position_meta", {}).get(sym)
                 if _prior and _prior.get("protective_stop_ticket") is not None \
                         and getattr(intent, "protective_stop", 0.0) > 0.0:
@@ -364,10 +337,9 @@ class StrategyEngine:
                         f"— would orphan the prior GTC stop (over-sell risk). The cancel-replace "
                         f"lifecycle (#276b) must handle re-entry before this combo is allowed (#276a)"
                     )
-                self._submit(qc, sym, intent)  # the entry, per intent.order_type
-                # #276b-1 (Gemini fix #1): mark the entry IN-FLIGHT so the runtime's intraday
-                # candidate-injection won't re-inject this sym before the order resolves (double-
-                # entry). Optional hook — no-op if the runtime doesn't track pending entries.
+                _build_tag = getattr(qc, "_build_entry_tag", None)
+                tag = _build_tag(sym) if callable(_build_tag) else ""
+                self._submit(qc, sym, intent, tag=tag)
                 _mark_pending = getattr(qc, "_mark_entry_pending", None)
                 if callable(_mark_pending):
                     _mark_pending(sym)
@@ -375,11 +347,9 @@ class StrategyEngine:
                 if not hasattr(qc, "_position_meta"):
                     qc._position_meta = {}
                 meta: dict[str, Any] = {"entry_date": ctx.time, "entry_price": price}
-                # #290 GTC PROTECTIVE STOP — the catastrophic floor UNDER the runtime exit. A
-                # resting broker-side stop_market (GTC by default) placed alongside the entry, so
-                # it fires intrabar on a gap/outage/halt even when the runtime exit doesn't. We
-                # track its TICKET so FIRE_EXITS cancels it on the runtime exit fill (no orphan
-                # resting stop → no double-sell). qty is the NEGATIVE of the entry (sell-stop).
+                _score_hook = getattr(qc, "_decision_score_for", None)
+                if callable(_score_hook):
+                    meta["decision_score"] = _score_hook(sym)
                 if getattr(intent, "protective_stop", 0.0) > 0.0:
                     stop_ticket = qc.stop_market_order(sym, -intent.qty, intent.protective_stop)
                     meta["protective_stop_ticket"] = stop_ticket
@@ -390,40 +360,30 @@ class StrategyEngine:
                     )
                 qc._position_meta[sym] = meta
                 self._fired_entries += 1
-                # #181 BUG-2 Stage 0: accumulate this tick's entry exposure so the FIRE_ADDS gross
-                # cap is commit-aware (fill-lag safe — see _bound_adds_to_gross_cap).
                 self._tick_entry_value += abs(intent.qty) * price
                 qc.log(f"ENTRY|{date_str}|{intent.ticker}|qty={intent.qty}|price~{price:.2f}")
         elif sentinel is FIRE_EXITS:
             for intent in ctx.bar_state.exit_intents:
-                sym = active_by_value.get(intent.ticker)
+                sym = active_by_key.get(canonical_symbol_key(intent.ticker))
                 if sym is None:
                     continue
-                self._cancel_protective_stop(qc, sym, date_str)  # BEFORE the exit — no orphan
-                self._submit(qc, sym, intent)  # the exit (qty negative), per intent.order_type
+                self._cancel_protective_stop(qc, sym, date_str)
+                self._submit(qc, sym, intent)
                 getattr(qc, "_position_meta", {}).pop(sym, None)
                 self._fired_exits += 1
         elif sentinel is FIRE_ADDS:
             for intent in ctx.bar_state.add_intents:
-                sym = active_by_value.get(intent.ticker)
+                sym = active_by_key.get(canonical_symbol_key(intent.ticker))
                 if sym is None or intent.qty <= 0:
                     continue
-                # #276a GUARD-2 (add + live stop): an add grows the position (+10→+15) but the
-                # resting protective stop still covers only the original -10 → 5 shares UNPROTECTED
-                # (under-protection of the catastrophic floor). Fail loud until #276b's cancel-
-                # replace re-sizes the stop on add. Only fires when a protective stop is LIVE.
                 self._guard_position_change_vs_protective_stop(qc, sym, "add")
                 self._submit(qc, sym, intent)
                 self._fired_adds += 1
         elif sentinel is FIRE_TRIMS:
             for intent in ctx.bar_state.trim_intents:
-                sym = active_by_value.get(intent.ticker)
+                sym = active_by_key.get(canonical_symbol_key(intent.ticker))
                 if sym is None:
                     continue
-                # #276a GUARD-1 (trim + live stop): a partial trim (+10→+6) leaves the resting
-                # stop at the full -10 → if it fires it over-sells, flipping long→short. The
-                # catastrophic over-sell class. Fail loud until #276b's cancel-replace re-sizes the
-                # stop on trim. Only fires when a protective stop is LIVE.
                 self._guard_position_change_vs_protective_stop(qc, sym, "trim")
                 self._submit(qc, sym, intent)
 
@@ -450,7 +410,6 @@ class StrategyEngine:
         ticket = meta.get("protective_stop_ticket")
         if ticket is None:
             return
-        # cancel via the ticket (LEAN OrderTicket.cancel()); guard for a fake/None in tests.
         cancel = getattr(ticket, "cancel", None)
         if callable(cancel):
             cancel()

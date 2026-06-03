@@ -24,12 +24,10 @@ class VersionMarker(BasePhase):
         qc = ctx.qc
         date_str = ctx.time.strftime("%Y-%m-%d")
 
-        # Count results from prior phases for REBALANCE summary log
         sized = ctx.bar_state.sized_orders
         exits = ctx.bar_state.exit_intents
         adds = ctx.bar_state.add_intents
 
-        # Open count from sizing phase facts (if available)
         sizing_outputs = ctx.bar_state.phase_outputs.get("sizing", [])
         open_count = sizing_outputs[-1].facts.get("open", 0) if sizing_outputs else 0
         new_entries = len(sized)

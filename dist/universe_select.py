@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 from base import DegradedDataError
 
-ADV_WINDOW: int = 20  # trailing trading-day window for the maintained mean-DV decision
+ADV_WINDOW: int = 20
 
 
 @dataclass(slots=True)
@@ -37,8 +37,6 @@ def update_dv_windows(
             windows[ticker] = w
         w.dv.append(float(sdv))
         w.last_seen = day_index
-    # Evict names not seen for >= maxlen days (memory bound). A still-present name has
-    # last_seen == day_index, so it never trips this.
     stale = [t for t, w in windows.items() if day_index - w.last_seen >= maxlen]
     for t in stale:
         del windows[t]

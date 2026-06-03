@@ -4,15 +4,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from base import BasePhase, PhaseResult
+from symbol_key import canonical_symbol_key
 from context import PhaseContext
 from shared_oracle_helpers import score_symbol_native
 
-# #243: FIXED probe set of the #265 cloud-vs-local divergent names. A MODULE CONSTANT (NOT a
-# Param) on purpose — config_hash derives from StrategyConfig slots/impl/params, so adding a
-# Param would bump the champion pin e573e84b1ce1. These names are recomputed read-only in
-# diagnostics (the signal phase already scored + discarded them) purely to make cloud's
-# maintained-indicator score VALUES observable; zero trading effect. -1.0 = "not selectable"
-# (not subscribed / indicators not ready) — distinguishes that from a real score of 0.
 _SCORE_PROBES = ("DRI", "CME", "AMZN", "COST", "CRWD", "KGC")
 
 
@@ -33,35 +28,18 @@ class ChartEmit(BasePhase):
     def evaluate(self, ctx: PhaseContext) -> PhaseResult:
         qc = ctx.qc
 
-        # active-set count = the daily selected-universe size (THE parity signal; the
-        # Step-A 1.10x vendor residual was measured on this count). Read defensively:
-        # missing attr or None -> 0.
         active_set = len(getattr(qc, "_ranked_today", None) or [])
-        # ranked-candidates = the per-bar tracked-candidate count from the universe phase.
         ranked = len(ctx.bar_state.ranked_candidates)
 
-        # Emit numeric chart series. getattr-guard so a FakeQC without plot no-ops (tests);
-        # LEAN always provides plot, so live/cloud always charts. Single code path — no
-        # `if cloud`. plot(chart, series, value); chart+series auto-create at QC.Time.
         plot = getattr(qc, "plot", None)
         if callable(plot):
             plot(self.p.chart_name, "active_set", active_set)
             plot(self.p.chart_name, "ranked", ranked)
 
-        # #243: extended observability (charting-ONLY, inert). #268 diffs cloud-vs-local on:
-        #   Regime/spy_close + spy_ma200 — the #265 regime-timing mechanism (SPY-MA200 cross).
-        #   Signal/n_qualifying — the daily scoring-breadth count (sized_orders is populated;
-        #     diagnostics runs AFTER signal).
-        #   Score/<ticker> — per-name maintained-indicator scores for the divergent probe set.
-        # Each block is guarded so a FakeQC / not-ready state degrades gracefully (single code
-        # path, no `if cloud`). Recomputing scores here is pure read-only observability — the
-        # signal phase already computed + discarded them; this NEVER touches sized_orders.
         n_qualifying = -1
         regime_charted = False
         probe_scores: dict[str, float] = {}
         if callable(plot):
-            # 1. Regime — exactly as spy_200ma.py reads it. Skip (don't plot a misleading 0)
-            #    when the SMA is cold/None or SPY is unsubscribed.
             spy = getattr(qc, "spy", None)
             spy_sma200 = getattr(qc, "spy_sma200", None)
             if spy is not None and spy_sma200 is not None and getattr(spy_sma200, "is_ready", False):
@@ -75,18 +53,14 @@ class ChartEmit(BasePhase):
                     plot("Regime", "spy_ma200", spy_ma200)
                     regime_charted = True
 
-            # 2. Signal breadth — the daily count that scored >= min_score (sized_orders).
             n_qualifying = len(ctx.bar_state.sized_orders)
             plot("Signal", "n_qualifying", n_qualifying)
 
-            # 3. Per-name probe scores — resolve each probe ticker to a subscribed symbol and
-            #    recompute its maintained-indicator score (read-only). -1.0 sentinel when the
-            #    name is not active / its indicators are not ready / scorer returns None.
-            active_by_value = {s.value: s for s in getattr(qc, "_active", set())}
+            active_by_key = {canonical_symbol_key(s): s for s in getattr(qc, "_active", set())}
             indicators = getattr(qc, "_indicators", {})
             for ticker in _SCORE_PROBES:
                 score = -1.0
-                symbol = active_by_value.get(ticker)
+                symbol = active_by_key.get(canonical_symbol_key(ticker))
                 if symbol is not None:
                     ind = indicators.get(symbol)
                     if ind is not None:

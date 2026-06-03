@@ -85,9 +85,8 @@ class PhaseResult:
 @runtime_checkable
 class PhaseInterface(Protocol):
 
-    # Class-level metadata (declared on each phase class).
     PHASE_KIND: str
-    PHASE_RESOLUTION: str  # #270/#274: "daily" (decision clock) | "intraday" (execution clock)
+    PHASE_RESOLUTION: str
     REQUIRES_UPSTREAM: list[str]
     PROVIDES_DOWNSTREAM: list[str]
 
@@ -103,10 +102,6 @@ class PhaseInterface(Protocol):
 class BasePhase:
 
     PHASE_KIND: str = ""
-    # #270/#274 two-clock: default "daily" (the decision clock). A phase that must run on the
-    # intraday execution clock (entry-confirm / exit / stops) overrides this to "intraday".
-    # Default-daily keeps every existing phase on the daily clock → behaviour unchanged until a
-    # phase opts into intraday.
     PHASE_RESOLUTION: str = "daily"
     REQUIRES_UPSTREAM: list[str] = []
     PROVIDES_DOWNSTREAM: list[str] = []

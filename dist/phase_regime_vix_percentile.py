@@ -38,7 +38,7 @@ class VixPercentile(BasePhase):
             return PhaseResult(decision="skip", blocked=False, reason="VIX not in securities", facts={}, metrics={})
 
         try:
-            from QuantConnect import Resolution  # noqa
+            from QuantConnect import Resolution
             vix_hist = qc.history(vix, lookback, Resolution.DAILY)
             if vix_hist is None or len(vix_hist) < int(lookback * 0.8):
                 return PhaseResult(decision="skip", blocked=False, reason="insufficient VIX history", facts={}, metrics={})
