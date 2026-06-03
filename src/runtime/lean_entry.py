@@ -326,6 +326,10 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
     # source, the #336 root) + populates qc._warmup_cache so the BctScoreFull cache branch scores the
     # CONTINUOUS weekly. LIVE-behavior change → flag-gated; the offline cache + gate validate it.
     CONTINUOUS_WEEKLY: bool = False
+    # #348 instrumentation flag (default OFF → live path byte-untouched): when set (via
+    # SWEEP_CLASS_ATTRS for a trace run) the signal phase emits DECISIONTRACE log lines per scored
+    # candidate (the NON-TRADES substrate). Pure logging — no decision effect.
+    DECISION_TRACE: bool = False
     # #313: the daily DECISION fires on a scheduled AFTER-CLOSE event (decoupled from on_data
     # bar-presence). Minutes after SPY's close → T's daily data is complete (no T+1 look-ahead),
     # the daily indicators are warm with T's bar, the universe selection for T is current.

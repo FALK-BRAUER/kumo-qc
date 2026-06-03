@@ -113,6 +113,19 @@ class BctScoreFull(BasePhase):
         cache = getattr(qc, "_warmup_cache", None)
         cur_date = ctx.time.date() if cache is not None else None
 
+        # #348 DECISION TRACE (flag-gated; default OFF → live path byte-untouched). When the
+        # BCTAlgorithm.DECISION_TRACE class-attr is set (SWEEP_CLASS_ATTRS for an instrumentation run),
+        # emit one DECISIONTRACE log line per SCORED candidate (post pre-filter) recording its signal
+        # fate (passed / sub_min_score / parabolic) + score → the NON-TRADES substrate (which scored
+        # names did/didn't survive the signal gate, parsed post-hoc from the local bt log.txt).
+        _trace_on = bool(getattr(qc, "DECISION_TRACE", False))
+        _trace_date = ctx.time.date()
+        _trace_log = getattr(qc, "log", None)
+
+        def _trace(tk: str, fate: str, score: Any = None) -> None:
+            if _trace_on and callable(_trace_log):
+                _trace_log(f"DECISIONTRACE|{_trace_date}|{tk}|{fate}|{'' if score is None else int(score)}")
+
         for ticker in candidates_raw:
             symbol = active_by_key.get(canonical_symbol_key(ticker))
             if symbol is None:
@@ -131,10 +144,13 @@ class BctScoreFull(BasePhase):
                     continue  # pre-filter: cond8/cond5 can't reach min_score → skip (mirrors live)
                 result = score_symbol_cached(scalars)
                 if result["score"] < min_score:
+                    _trace(ticker, "sub_min_score", result["score"])
                     continue
                 if scalars["roc13"] > parabolic_threshold:  # E51 parabolic block (cached roc13)
                     blocked_log.append(ticker)
+                    _trace(ticker, "parabolic", result["score"])
                     continue
+                _trace(ticker, "passed", result["score"])
                 signal_feats[symbol] = {"score": int(result["score"]),
                                         "conditions": [bool(c) for c in result.get("conditions", [])]}
                 candidates.append((symbol, result["score"], float(trailing_dv.get(ticker.lower(), 0.0))))
@@ -161,6 +177,7 @@ class BctScoreFull(BasePhase):
             # BCT score
             result = score_symbol_native(qc, symbol, ind)
             if result is None or result["score"] < min_score:
+                _trace(ticker, "sub_min_score", result["score"] if result else None)
                 continue
 
             # E51: Parabolic entry block — skip if the maintained 13-day ROC exceeds the
@@ -170,8 +187,10 @@ class BctScoreFull(BasePhase):
             roc13 = ind.get("roc13")
             if roc13 is not None and roc13.is_ready and roc13.current.value > parabolic_threshold:
                 blocked_log.append(ticker)
+                _trace(ticker, "parabolic", result["score"])
                 continue
 
+            _trace(ticker, "passed", result["score"])
             # Dollar-volume tiebreak from the live trailing DV (no per-bar history). 0.0 if absent.
             dollar_volume = float(trailing_dv.get(ticker.lower(), 0.0))
 
