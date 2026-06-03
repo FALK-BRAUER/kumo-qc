@@ -162,3 +162,13 @@ def test_exit_target_profit_take_lands_not_dropped() -> None:
     slot = et[0] if isinstance(et, list) else et
     assert slot.impl.__name__ == "ProfitTake"
     assert slot.params.mode == "tenkan_ratchet" and slot.enabled is True
+
+
+def test_swept_kind_without_handler_fails_loud() -> None:
+    # Structural guard (generalizes the R2 exit_target silent-drop): a swept PhaseChoice whose kind
+    # has NO handler in sweep_to_strategy_config MUST raise, not silently drop → no phantom-correct dist.
+    bogus = SweepConfig(choices=(
+        PhaseChoice("portfolio_risk", "gross_exposure_cap", (("enabled", True),), 0),
+    ), continuous_weekly=True)
+    with pytest.raises(UnsupportedSweepAxisError, match="NO handler"):
+        sweep_to_strategy_config(bogus)

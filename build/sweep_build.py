@@ -58,6 +58,14 @@ _KIND_PKG: dict[str, str] = {
     "exit_hard": "exit", "exit_target": "exit", "exit_regime": "exit", "exit_rotation": "exit",
 }
 
+# The swept kinds sweep_to_strategy_config has an explicit override/add handler for. A swept kind
+# NOT in this set is fail-loud (would otherwise be silently dropped → phantom-correct dist). Keep in
+# sync with the handlers below; adding a new swept kind REQUIRES both a handler AND an entry here.
+_HANDLED_SWEEP_KINDS: frozenset[str] = frozenset({
+    "signal", "sizing", "protective_stop", "entry_selection", "regime",
+    "exit_hard", "exit_rotation", "exit_target",
+})
+
 
 class UnsupportedSweepAxisError(RuntimeError):
     """A swept axis has no backing phase param yet — fail loud rather than build a silent no-op."""
@@ -250,6 +258,17 @@ def sweep_to_strategy_config(sweep_config: Any, *, base_module: str = BASE_MODUL
     tch = choices.get("exit_target")
     if tch is not None:
         phases["exit_target"] = [_override_slot("exit_target", tch, None)]
+
+    # FAIL-LOUD on a swept kind with NO build handler (the R2 silent-drop class generalized): a
+    # PhaseChoice whose kind isn't handled above would be SILENTLY DROPPED → a phantom-correct dist
+    # (the variant's swept phase never lands → reads as "that lever does nothing"). RAISE instead, so
+    # a future swept kind (R3 entry/regime phases) without a handler crashes the build, not the result.
+    unhandled = set(choices) - _HANDLED_SWEEP_KINDS
+    if unhandled:
+        raise UnsupportedSweepAxisError(
+            f"swept kind(s) {sorted(unhandled)} have NO handler in sweep_to_strategy_config → would "
+            f"be SILENTLY DROPPED (phantom-correct dist). Add an override/add handler for each."
+        )
 
     return StrategyConfig(
         name=f"sweep-{sweep_config.config_hash}",
