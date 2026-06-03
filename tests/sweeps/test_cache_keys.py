@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import pytest
 
-from sweeps.warmup_cache.keys import (
+from runtime.warmup_weekly_cache import (
     WEEKLY_PARAMS_HASH, cache_key, indicator_params_hash, weekly_cache_key,
 )
 

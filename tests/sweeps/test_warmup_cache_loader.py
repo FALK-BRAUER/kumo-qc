@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import datetime as _dt
 
-from sweeps.warmup_cache.loader import (
+from runtime.warmup_weekly_cache import (
     WEEKLY_FIELDS, dump_weekly_blob, load_weekly_cache_from_store, parse_weekly_cache,
 )
 

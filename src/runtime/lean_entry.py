@@ -394,8 +394,8 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self._weekly_cache_hits: int = 0    # #358 engagement signal — proves the cache actually served
         self._weekly_cache_misses: int = 0  # lookups, not just that it loaded (HQ: speedup w/o hits = silent fail-closed)
         if self.CONTINUOUS_WEEKLY and self.WARMUP_WEEKLY_CACHE_FP:
-            from sweeps.warmup_cache.keys import weekly_cache_key  # lazy — flag-on path only
-            from sweeps.warmup_cache.loader import load_weekly_cache_from_store
+            # src/runtime/ → BUNDLED into the dist (cloud_package AST-walks src imports). lazy = flag-on only.
+            from runtime.warmup_weekly_cache import load_weekly_cache_from_store, weekly_cache_key
             _key = weekly_cache_key(self.WARMUP_WEEKLY_CACHE_FP)  # DERIVED — same formula as the writer
             self._weekly_cache = load_weekly_cache_from_store(
                 getattr(self, "object_store", None), _key, self.WARMUP_WEEKLY_CACHE_FP)

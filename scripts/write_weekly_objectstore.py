@@ -25,8 +25,8 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(_ROOT), str(_ROOT / "src")]
 
-from sweeps.warmup_cache.keys import weekly_cache_key  # noqa: E402
-from sweeps.warmup_cache.loader import WEEKLY_FIELDS, dump_weekly_blob  # noqa: E402
+# SHARED key formula + serializer from src/ (bundled) → write_key == read_key, one source.
+from runtime.warmup_weekly_cache import WEEKLY_FIELDS, dump_weekly_blob, weekly_cache_key  # noqa: E402
 
 
 def _load_jsonl_weekly(cache_dir: Path) -> dict[str, dict[_dt.date, dict[str, float]]]:
