@@ -386,7 +386,16 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self.set_cash(self.CASH)
         self.set_benchmark("SPY")
         self.set_time_zone("America/New_York")  # match legacy champion (scheduling/timestamps)
-        self.set_warmup(timedelta(days=self.WARMUP_DAYS))
+        # #358b WARMUP-SKIP (ALL-OR-NOTHING): skip the 560d set_warmup ONLY when every daily-clock
+        # consumer is cache-fed (see _can_skip_warmup) — then the heavy warmup + the daily seeds
+        # (_should_seed_daily) are both off → the WarmupGate cap lifts → cache-on parallel-N. ANY leg
+        # not armed → run the canonical set_warmup (fail-closed). Default (no WARMUP_DAILY_CACHE_FP) =
+        # set_warmup runs, byte-untouched.
+        if self._can_skip_warmup():
+            self.log("#358b WARMUP-SKIP: set_warmup SKIPPED — daily_scalar cache armed, all daily-clock "
+                     "consumers cache-fed (signal/exit/regime/snapshot) + daily seeds skipped")
+        else:
+            self.set_warmup(timedelta(days=self.WARMUP_DAYS))
         # #336/#338 continuous-weekly: CONTINUOUS_WEEKLY is the class-attr master switch (default OFF =
         # byte-untouched ship path; set True via class-attr injection for a flag-on run). flag-on → arm
         # qc._warmup_cache so the BctScoreFull cache branch consumes the per-decision
@@ -1001,6 +1010,23 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         rows = self._daily_loaded["SPY"]
         row = rows.get(asof_date) if rows is not None else None
         return float(row["ma200"]) if row is not None else None
+
+    def _can_skip_warmup(self) -> bool:
+        """#358b ALL-OR-NOTHING skip predicate: set_warmup is skipped ONLY when EVERY daily-clock
+        consumer is cache-fed. Enumerate every leg explicitly (defensive — any single False → DON'T
+        skip → canonical set_warmup, never a partial skip):
+          • CONTINUOUS_WEEKLY  — the signal cache-branch (#332 _warmup_cache) path is active.
+          • WARMUP_DAILY_CACHE_FP — the daily_scalar cache fp is injected (exit cloud_bottom + regime
+            SPY-ma200 + snapshot kijun/cloud all read it; the daily seeds skip on it).
+          • object_store present — the ObjectStore delivery exists (cloud headless may lack it).
+          • _daily_cache_fp armed — the init arming succeeded (== the three above held at init).
+        Cloud sets no WARMUP_DAILY_CACHE_FP → False → set_warmup runs (fail-closed, byte-untouched)."""
+        return bool(
+            self.CONTINUOUS_WEEKLY
+            and self.WARMUP_DAILY_CACHE_FP
+            and getattr(self, "object_store", None) is not None
+            and getattr(self, "_daily_cache_fp", None)
+        )
 
     def _should_seed_daily(self) -> bool:
         """#358b: history(560d)-seed the heavy DAILY indicators ONLY when NOT warming AND NOT armed.

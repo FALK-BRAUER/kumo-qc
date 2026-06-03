@@ -162,3 +162,20 @@ def test_should_seed_daily_predicate():
     class _S2:                                       # defensive: pre-init stub lacks _daily_cache_fp
         is_warming_up = False
     assert BctEngineAlgorithm._should_seed_daily(_S2()) is True
+
+
+# ── #358b WARMUP-SKIP: the ALL-OR-NOTHING skip-gate predicate (per-leg-flipped) ──
+def test_can_skip_warmup_all_or_nothing():
+    class _S:
+        def __init__(self, cw, fp, store, daily_fp):
+            self.CONTINUOUS_WEEKLY = cw
+            self.WARMUP_DAILY_CACHE_FP = fp
+            self.object_store = store
+            self._daily_cache_fp = daily_fp
+    store = object()
+    assert BctEngineAlgorithm._can_skip_warmup(_S(True, "fpD", store, "fpD")) is True   # ALL legs → skip
+    # flip EACH leg false → must NOT skip (canonical set_warmup, fail-closed)
+    assert BctEngineAlgorithm._can_skip_warmup(_S(False, "fpD", store, "fpD")) is False  # signal not armed
+    assert BctEngineAlgorithm._can_skip_warmup(_S(True, None, store, "fpD")) is False    # no daily-cache fp
+    assert BctEngineAlgorithm._can_skip_warmup(_S(True, "fpD", None, "fpD")) is False    # no object_store (cloud)
+    assert BctEngineAlgorithm._can_skip_warmup(_S(True, "fpD", store, None)) is False    # init arming failed
