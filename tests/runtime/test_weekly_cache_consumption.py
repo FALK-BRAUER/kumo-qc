@@ -36,6 +36,8 @@ class _Stub:
 
     def __init__(self, cache):
         self._weekly_cache = cache
+        self._weekly_cache_hits = 0
+        self._weekly_cache_misses = 0
         self.history_calls = 0
 
     def history(self, *a, **k):
@@ -47,12 +49,14 @@ def test_cache_hit_short_circuits_no_history():
     s = _Stub({"AAPL": {_D: _WK}})
     out = BctEngineAlgorithm._weekly_scalars_for(s, _Sym("AAPL"), _D)
     assert out == _WK and s.history_calls == 0          # HIT → cached weekly, NO history() re-derive
+    assert s._weekly_cache_hits == 1 and s._weekly_cache_misses == 0  # engagement signal increments
 
 
 def test_cache_miss_symbol_falls_to_live_rederive():
     s = _Stub({"AAPL": {_D: _WK}})
     out = BctEngineAlgorithm._weekly_scalars_for(s, _Sym("MSFT"), _D)  # symbol not cached
     assert s.history_calls == 1 and out is None         # MISS → live re-derive (canonical fallback)
+    assert s._weekly_cache_hits == 0 and s._weekly_cache_misses == 1   # miss counted, not a hit
 
 
 def test_cache_miss_date_falls_to_live_rederive():

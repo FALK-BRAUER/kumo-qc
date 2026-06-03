@@ -390,6 +390,8 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         # dir + the expected data fingerprint AND it matches (FAIL-CLOSED — load_weekly_cache returns
         # None on cloud / mismatch / missing → _weekly_scalars_for re-derives live, no divergence).
         self._weekly_cache: dict[str, dict[Any, dict[str, float]]] | None = None
+        self._weekly_cache_hits: int = 0    # #358 engagement signal — proves the cache actually served
+        self._weekly_cache_misses: int = 0  # lookups, not just that it loaded (HQ: speedup w/o hits = silent fail-closed)
         if self.CONTINUOUS_WEEKLY and self.WARMUP_WEEKLY_CACHE_DIR:
             from sweeps.warmup_cache.loader import load_weekly_cache  # lazy — flag-on path only
             self._weekly_cache = load_weekly_cache(self.WARMUP_WEEKLY_CACHE_DIR, self.WARMUP_WEEKLY_CACHE_FP)
@@ -930,7 +932,9 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         if cache is not None:
             wk = cache.get(sym.value, {}).get(asof_date)
             if wk is not None:
+                self._weekly_cache_hits += 1
                 return wk  # cache HIT — table_builder stores ONLY ready-weekly rows
+            self._weekly_cache_misses += 1
             # cache MISS for (sym, asof_date) → fall through to the live re-derivation (fail-closed)
         from runtime.lean_indicators import WeeklyIchimokuAsOf  # lazy — flag-ON path only (#336/#338)
         hist = self.history(sym, self.WARMUP_DAYS, Resolution.DAILY)
@@ -1158,6 +1162,10 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         # were already flushed + reset by the last on_end_of_day, so this folds at most the final
         # session's residual then re-publishes the cumulative counters. Observe-only.
         self._process_eod_funnel()
+        # #358 engagement signal: log cache hits/misses so we KNOW the cache served lookups (a
+        # speedup with zero hits = the in-container path silently failed-closed to live re-derivation).
+        if getattr(self, "_weekly_cache", None) is not None:
+            self.log(f"#358 weekly-cache ENGAGED: hits={self._weekly_cache_hits} misses={self._weekly_cache_misses}")
         if not getattr(self, "_schedule_armed", False):
             return  # scheduler never armed (selection-harness context) — nothing to reconcile
         gap = getattr(self, "_sched_trading_days", 0) - getattr(self, "_sched_decisions", 0)
