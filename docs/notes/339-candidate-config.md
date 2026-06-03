@@ -44,6 +44,14 @@ Higher bankable but HOOD-concentrated (floor +$19.8k single-name) → fragile. D
   MultiMetricConfirmExit, Rotation, RiskBasedSize + the exit_hard/exit_rotation/protective_stop sweep-axis
   unlock + `Window.runnable_locally`.
 
+## Merge dry-run (staged, read-only — verified 2026-06-03)
+- `feat/276b-1-intraday` is 131 ahead of mainV2; mainV2 is 1 ahead (commit 3cdb272, a bt-results row)
+  → NOT a clean ff → use a **merge-commit** (HQ + dist-pin require this anyway). Merge-base cbd11200c7f3.
+- `git merge-tree` conflict check: **ONE conflict, `results/bt-results.csv` only** (CSV-append: mainV2's
+  gate-3 row vs feat's rows). **NO CODE CONFLICTS.** Resolve by unioning both sides' rows. Trivial.
+- Execute (Falk-morning GO + panel-pass): on mainV2 worktree, `git merge --no-ff feat/276b-1-intraday`,
+  resolve bt-results.csv (keep both), confirm dist/_manifest.json git_commit pin, commit.
+
 ## Open / pending (Falk-morning)
 - S1 4-quarter robustness panel (the crowning gate) — running.
 - RUN S2 (RiskBasedSize, `847e70eb93ea`) — built, queued.
