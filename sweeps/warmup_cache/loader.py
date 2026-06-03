@@ -1,70 +1,89 @@
-"""#358 — runtime LOADER for the #332 offline warmup cache (the consumption-hook half).
+"""#358 — ObjectStore-native delivery for the warmup cache (the framework's standard read path).
 
-Loads the precomputed weekly Ichimoku scalars from the offline cache (build_warmup_cache.py output:
-``<root>/<fingerprint>/<sym>.jsonl`` + ``_FIELDS.json``) into an in-memory
-``{sym_upper: {date: {6 weekly scalars}}}`` map, so the live daily decision reads a CACHED weekly
-instead of re-deriving it from ``history(560d)`` per candidate per day (the #358 ~5-10x lever; the
-offline table already holds the weekly via the same WeeklyIchimokuAsOf, so the cached value is
-byte-identical to the live re-derivation → trade-neutral).
+The live strategy reads NO files in-container (universe is live; the retired stored-universe artifact
+proved the disk/ObjectStore dual-path divergence trap). So the cache is delivered the QC-NATIVE way:
+the offline builder writes a blob to the LEAN LocalObjectStore key; the runtime reads it via
+``self.object_store`` (portable in-container, no raw-mount-path gamble). The blob is
+``{"fingerprint": fp, "syms": {SYM: {date_iso: {6 weekly scalars}}}}``.
 
-FAIL-CLOSED — the charter cloud guard (the 8b50c1a dual-path lesson): the cache loads ONLY when the
-expected data fingerprint matches the cache dir's ``_FIELDS.json`` fingerprint. Cloud /
-fingerprint-mismatch / missing table / unreadable / garbage → returns ``None`` → the caller falls
-back to the LIVE re-derivation (the canonical path). The cache is a LOCAL-harness accelerator that
-yields results IDENTICAL to the live warmup, NEVER a second/divergent path. The runtime never
-computes the fingerprint itself — the LOCAL harness injects the expected fingerprint; cloud never
-sets it → no match → no load. A single corrupt per-symbol file skips ONLY that symbol (it falls back
-live), never poisoning the rest.
+FAIL-CLOSED — the charter cloud guard, now TWO independent layers:
+  1. the key is LOCAL-ONLY (never uploaded to cloud) → cloud ``object_store.contains_key`` False → None.
+  2. fingerprint mismatch (even if a key were present) → None.
+Either → the caller re-derives live (the canonical path). The cache is a LOCAL accelerator yielding
+results IDENTICAL to the live warmup, NEVER a divergent path.
 """
 from __future__ import annotations
 
 import datetime as _dt
 import json
-from pathlib import Path
+from typing import Any
 
-# the 6 weekly Ichimoku scalars the CONTINUOUS_WEEKLY decision re-derives (== table_builder SCALAR_FIELDS subset).
+# the 6 weekly Ichimoku scalars the CONTINUOUS_WEEKLY decision re-derives (== table_builder subset).
 WEEKLY_FIELDS = ("w_tenkan", "w_kijun", "w_senkou_a", "w_senkou_b", "w_close_0", "w_close_26")
 
 
-def load_weekly_cache(
-    cache_dir: str | Path | None,
+def dump_weekly_blob(syms: dict[str, dict[_dt.date, dict[str, float]]], fingerprint: str) -> str:
+    """Serialize a ``{SYM: {date: {6 weekly scalars}}}`` map → the ObjectStore JSON blob. The offline
+    builder calls this; ``parse_weekly_cache`` is its exact inverse (round-trip-identical)."""
+    return json.dumps({
+        "fingerprint": str(fingerprint),
+        "syms": {
+            sym: {d.isoformat(): {k: float(wk[k]) for k in WEEKLY_FIELDS} for d, wk in rows.items()}
+            for sym, rows in syms.items()
+        },
+    }, separators=(",", ":"))
+
+
+def parse_weekly_cache(
+    text: str | None,
     expected_fingerprint: str | None,
 ) -> dict[str, dict[_dt.date, dict[str, float]]] | None:
-    """Load the offline weekly cache at ``cache_dir`` → ``{SYM: {date: {weekly scalars}}}``.
-
-    FAIL-CLOSED → ``None`` (caller re-derives live) on ANY of: ``cache_dir``/``expected_fingerprint``
-    falsy; dir or ``_FIELDS.json`` missing; ``_FIELDS.json`` unreadable; fingerprint mismatch (incl
-    cloud's different vendor data); the cache's fields don't cover the weekly keys; or no usable rows.
-    Never raises on a missing/garbage cache.
-    """
-    if not cache_dir or not expected_fingerprint:
-        return None  # cloud / no injected fingerprint → never load
-    root = Path(cache_dir)
-    fields_path = root / "_FIELDS.json"
-    if not root.is_dir() or not fields_path.is_file():
+    """Parse the ObjectStore blob → ``{SYM: {date: {6 weekly scalars}}}``. FAIL-CLOSED → ``None`` on:
+    falsy text/fp; bad JSON; fingerprint mismatch (incl cloud's different vendor data); malformed/
+    missing weekly fields. Pure — unit-testable without a runtime."""
+    if not text or not expected_fingerprint:
         return None
     try:
-        meta = json.loads(fields_path.read_text())
-    except (OSError, ValueError):
+        blob = json.loads(text)
+    except (ValueError, TypeError):
         return None
-    if str(meta.get("fingerprint")) != str(expected_fingerprint):
-        return None  # FAIL-CLOSED: data fingerprint mismatch — the cloud-divergence guard
-    if not set(WEEKLY_FIELDS).issubset(set(meta.get("fields", []))):
-        return None  # cache predates the weekly scalars — don't half-load
-
+    if not isinstance(blob, dict) or str(blob.get("fingerprint")) != str(expected_fingerprint):
+        return None  # FAIL-CLOSED: fingerprint mismatch — the cloud-divergence guard
+    syms = blob.get("syms")
+    if not isinstance(syms, dict):
+        return None
     out: dict[str, dict[_dt.date, dict[str, float]]] = {}
-    for jf in sorted(root.glob("*.jsonl")):
-        sym = jf.stem.upper()
-        rows: dict[_dt.date, dict[str, float]] = {}
-        try:
-            for line in jf.read_text().splitlines():
-                if not line:
-                    continue
-                r = json.loads(line)
-                d = _dt.date.fromisoformat(r["date"])
-                rows[d] = {k: float(r[k]) for k in WEEKLY_FIELDS}
-        except (OSError, ValueError, KeyError):
-            continue  # skip ONLY this corrupt symbol → it falls back to live re-derivation (per-symbol fail-closed)
-        if rows:
-            out[sym] = rows
+    for sym, rows in syms.items():
+        if not isinstance(rows, dict):
+            return None
+        m: dict[_dt.date, dict[str, float]] = {}
+        for date_iso, wk in rows.items():
+            if not isinstance(wk, dict) or not set(WEEKLY_FIELDS).issubset(wk):
+                return None  # malformed row — don't half-load
+            try:
+                m[_dt.date.fromisoformat(date_iso)] = {k: float(wk[k]) for k in WEEKLY_FIELDS}
+            except (ValueError, TypeError):
+                return None
+        if m:
+            out[str(sym).upper()] = m
     return out or None
+
+
+def load_weekly_cache_from_store(
+    object_store: Any,
+    key: str | None,
+    expected_fingerprint: str | None,
+) -> dict[str, dict[_dt.date, dict[str, float]]] | None:
+    """Fetch the cache blob from the LEAN ObjectStore + parse. FAIL-CLOSED → ``None`` when the
+    ``object_store``/``key``/``fingerprint`` is falsy, the key is ABSENT (cloud: never uploaded →
+    contains_key False → live re-derive), or read/parse fails. Never raises — a read error falls back
+    to the live canonical path (the failure is surfaced by the caller's init LOADED/NOT-loaded log)."""
+    if object_store is None or not key or not expected_fingerprint:
+        return None
+    try:
+        if not object_store.contains_key(key):
+            return None  # key absent → cloud / not-populated → fail-closed
+        text = object_store.read(key)
+    except Exception:  # noqa: BLE001 — fail-closed-to-live is intended; init logs LOADED/NOT-loaded
+        return None
+    return parse_weekly_cache(text, expected_fingerprint)

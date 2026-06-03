@@ -328,13 +328,14 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
     CONTINUOUS_WEEKLY: bool = False
     # #358 warmup-cache CONSUMPTION HOOK (default OFF/None = byte-untouched ship path). When the
     # CONTINUOUS_WEEKLY decision re-derives each candidate's weekly from history(560d) per day (the
-    # ~38-120s/cell cost), these let it LOAD the precomputed weekly from the #332 offline table
-    # instead. FAIL-CLOSED cloud guard (the 8b50c1a lesson): the LOCAL harness injects the cache DIR
-    # + the EXPECTED data fingerprint; the cache loads ONLY when the dir's _FIELDS.json fingerprint
-    # matches WARMUP_WEEKLY_CACHE_FP. Cloud never sets these (cloud_package emits neither) → no load
-    # → live re-derivation (the canonical path). A cache HIT is byte-identical to the live re-derive
-    # (same WeeklyIchimokuAsOf, same daily data) → trade-neutral. A MISS falls back live (per-symbol).
-    WARMUP_WEEKLY_CACHE_DIR: str | None = None
+    # ~38-120s/cell cost), these let it LOAD the precomputed weekly from the #332 cache via the LEAN
+    # ObjectStore instead (QC-native in-container delivery). FAIL-CLOSED cloud guard (the 8b50c1a
+    # lesson), TWO layers: (1) the LOCAL harness writes the ObjectStore KEY + sets it here; the key is
+    # LOCAL-ONLY, never uploaded → cloud object_store.contains_key False → no load; (2) the cache loads
+    # ONLY when the blob's embedded fingerprint matches WARMUP_WEEKLY_CACHE_FP. Cloud sets neither →
+    # live re-derivation (canonical). A cache HIT is byte-identical to the re-derive (same
+    # WeeklyIchimokuAsOf, same daily data) → trade-neutral; a MISS falls back live (per-symbol).
+    WARMUP_WEEKLY_CACHE_KEY: str | None = None
     WARMUP_WEEKLY_CACHE_FP: str | None = None
     # #348 instrumentation flag (default OFF → live path byte-untouched): when set (via
     # SWEEP_CLASS_ATTRS for a trace run) the signal phase emits DECISIONTRACE log lines per scored
@@ -392,10 +393,11 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self._weekly_cache: dict[str, dict[Any, dict[str, float]]] | None = None
         self._weekly_cache_hits: int = 0    # #358 engagement signal — proves the cache actually served
         self._weekly_cache_misses: int = 0  # lookups, not just that it loaded (HQ: speedup w/o hits = silent fail-closed)
-        if self.CONTINUOUS_WEEKLY and self.WARMUP_WEEKLY_CACHE_DIR:
-            from sweeps.warmup_cache.loader import load_weekly_cache  # lazy — flag-on path only
-            self._weekly_cache = load_weekly_cache(self.WARMUP_WEEKLY_CACHE_DIR, self.WARMUP_WEEKLY_CACHE_FP)
-            self.log(f"#358 weekly-cache: {'LOADED ' + str(len(self._weekly_cache)) + ' syms' if self._weekly_cache else 'NOT loaded (fail-closed → live re-derivation)'}")
+        if self.CONTINUOUS_WEEKLY and self.WARMUP_WEEKLY_CACHE_KEY:
+            from sweeps.warmup_cache.loader import load_weekly_cache_from_store  # lazy — flag-on path only
+            self._weekly_cache = load_weekly_cache_from_store(
+                getattr(self, "object_store", None), self.WARMUP_WEEKLY_CACHE_KEY, self.WARMUP_WEEKLY_CACHE_FP)
+            self.log(f"#358 weekly-cache: {'LOADED ' + str(len(self._weekly_cache)) + ' syms from ObjectStore key ' + str(self.WARMUP_WEEKLY_CACHE_KEY) if self._weekly_cache else 'NOT loaded (fail-closed → live re-derivation)'}")
 
         # RAW normalization everywhere — adjusted prices corrupt Ichimoku (2649e2e).
         self.universe_settings.resolution = Resolution.DAILY
