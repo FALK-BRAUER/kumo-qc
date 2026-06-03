@@ -28,12 +28,10 @@ from AlgorithmImports import (  # type: ignore
 FP = "90f2d7e3fb80d0a4d2eb286f6a43199e1519495a3ce9d787a4d7d0dfc70c535c"
 KEY = "warmup_snapshot_spike-" + FP + "-"  # per-symbol: KEY + sym
 
-# ~25 liquid names (fixed universe). Mix of mega-caps + a few of the #358 cold-start names.
-SYMBOLS = [
-    "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AVGO", "JPM", "V",
-    "WMT", "MA", "COST", "NFLX", "AMD", "CRM", "ADBE", "PEP", "KO", "DIS",
-    "ARCC", "ENB", "STT", "WAT", "DFS",
-]
+# Full universe (326 names = EQUITY_200) for the SCALE measurement (gate-2 speed + gate-3 RSS/cap).
+# GATE-1 byte-identity already proven on the 25-symbol subset; this run measures speed+RSS+cap.
+from universe import EQUITY_200  # type: ignore
+SYMBOLS = EQUITY_200
 
 
 class Spike362(QCAlgorithm):
