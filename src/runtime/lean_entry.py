@@ -421,16 +421,21 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             self._daily_cache_fp = self.WARMUP_DAILY_CACHE_FP
             self.log(f"#358b daily-scalar cache: per-symbol lazy-load ARMED (fp {self._daily_cache_fp[:12]}…)")
 
-        # #358b WARMUP-SKIP (ALL-OR-NOTHING) — DECIDED HERE, after the cache arming (so _daily_cache_fp
-        # is set). Skip the 560d set_warmup ONLY when every daily-clock consumer is cache-fed
-        # (_can_skip_warmup); then the heavy warmup + the daily seeds (_should_seed_daily) are both off
-        # → the WarmupGate cap lifts → cache-on parallel-N. ANY leg not armed → canonical set_warmup
-        # (fail-closed). Default (no WARMUP_DAILY_CACHE_FP) → set_warmup runs, byte-untouched.
-        if self._can_skip_warmup():
-            self.log("#358b WARMUP-SKIP: set_warmup SKIPPED — daily_scalar cache armed, all daily-clock "
-                     "consumers cache-fed (signal/exit/regime/snapshot) + daily seeds skipped")
-        else:
-            self.set_warmup(timedelta(days=self.WARMUP_DAYS))
+        # #358b WARMUP-MINIMAL (ALL-OR-NOTHING) — DECIDED HERE, after the cache arming (so _daily_cache_fp
+        # is set). When every daily-clock consumer is cache-fed (_can_skip_warmup), replace the heavy
+        # 560d per-symbol warmup with a MINIMAL warmup that only warms the coarse trailing-DV — the ONE
+        # universe-level rolling stat NOT in the daily_scalar cache (ADV_WINDOW=20 trading days; the
+        # universe-level closing-grep confirmed it's the max non-cached window). NOT skip-entirely:
+        #  • byte-identity — the DV deque (maxlen=ADV_WINDOW) at START = the last ADV_WINDOW trading days
+        #    = IDENTICAL whether warmed via 560d or a short window (the deque keeps only the last N).
+        #    ADV_WINDOW*2 calendar days ≈ 28 trading ≥ the 20-deep deque (calendar-vs-trading margin).
+        #  • parallel mechanism — set_warmup IS called → LEAN emits "Algorithm finished warming up." →
+        #    the (time-boxed) WarmupGate RELEASES early → cache-on cells trade concurrently. Skip-entirely
+        #    would emit NO marker → the gate holds to process-exit → serialized (self-defeating).
+        # The heavy 560d per-symbol load is gone (decision reads the cache; daily seeds skip post-warmup
+        # via _should_seed_daily) → the memory contention win. ANY leg not armed → canonical 560d
+        # warmup (fail-closed). Default (no WARMUP_DAILY_CACHE_FP) → 560d warmup, byte-untouched.
+        self._apply_warmup()
 
         # RAW normalization everywhere — adjusted prices corrupt Ichimoku (2649e2e).
         self.universe_settings.resolution = Resolution.DAILY
@@ -1056,6 +1061,23 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             and getattr(self, "object_store", None) is not None
             and getattr(self, "_daily_cache_fp", None)
         )
+
+    def _apply_warmup(self) -> None:
+        """#358b: when every daily-clock consumer is cache-fed (_can_skip_warmup), warm MINIMALLY —
+        only the coarse trailing-DV (the one universe-level rolling stat NOT in the daily_scalar cache).
+        set_warmup(ADV_WINDOW, Resolution.DAILY) = EXACTLY ADV_WINDOW daily BARS = ADV_WINDOW trading
+        days (no calendar/holiday fudge) → the DV deque (maxlen=ADV_WINDOW) is FULL at START = the last
+        ADV_WINDOW trading days = byte-identical to the OFF 560d warmup (the deque keeps only the last N).
+        The heavy 560d per-symbol warmup is replaced by the cache (decision reads it; daily seeds skip).
+        set_warmup IS called → LEAN emits the warmup-done marker → the time-boxed WarmupGate releases
+        early → cache-on cells trade concurrently (skip-entirely would emit no marker → serialize). Any
+        leg not armed → canonical 560d warmup (fail-closed, byte-untouched)."""
+        if self._can_skip_warmup():
+            self.set_warmup(self.ADV_WINDOW, Resolution.DAILY)  # EXACT ADV_WINDOW trading-day bars
+            self.log(f"#358b WARMUP-MINIMAL: set_warmup={self.ADV_WINDOW} daily bars (coarse trailing-DV "
+                     "only; per-symbol indicators cache-fed, daily seeds skipped) — 560d replaced by cache")
+        else:
+            self.set_warmup(timedelta(days=self.WARMUP_DAYS))
 
     def _should_seed_daily(self) -> bool:
         """#358b: history(560d)-seed the heavy DAILY indicators ONLY when NOT warming AND NOT armed.

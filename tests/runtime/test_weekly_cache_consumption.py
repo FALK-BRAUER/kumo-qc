@@ -221,3 +221,19 @@ def test_spy_ma200_cached_absent_raises_vs_present():
     with pytest.raises(DegradedDataError):                       # SPY entirely absent → desync raise
         BctEngineAlgorithm._spy_ma200_cached(_S({"SPY": None}), _D)
     assert BctEngineAlgorithm._spy_ma200_cached(_S({"SPY": {_D: {"ma200": 450.0}}}), _D) == 450.0
+
+
+# ── #358b: skip→MINIMAL warmup change (every-change-a-test) ──
+def test_apply_warmup_minimal_when_armed_canonical_when_not():
+    from datetime import timedelta
+    class _S:
+        ADV_WINDOW = 20; WARMUP_DAYS = 560
+        def __init__(self, armed): self._armed = armed; self.calls = []
+        def _can_skip_warmup(self): return self._armed
+        def set_warmup(self, *a, **k): self.calls.append(a)
+        def log(self, m): pass
+    armed = _S(True); BctEngineAlgorithm._apply_warmup(armed)
+    # MINIMAL = bar-count form: first arg == ADV_WINDOW (20 daily bars), NOT skipped, NOT a 560d timedelta
+    assert armed.calls and armed.calls[0][0] == 20
+    notarmed = _S(False); BctEngineAlgorithm._apply_warmup(notarmed)
+    assert notarmed.calls and notarmed.calls[0][0] == timedelta(days=560)   # canonical 560d
