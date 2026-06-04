@@ -1,7 +1,7 @@
 window,start,end,sharpe,net_profit_pct,max_dd_pct,total_orders,bt_dir
-W1,2025-1-1,2025-2-28,-8.234,-0.104,0.200,4,algorithm/v2_champion_asis/backtests/2026-05-31_18-41-38
-W2,2025-3-1,2025-4-30,0,0,0,0,algorithm/v2_champion_asis/backtests/2026-05-31_18-42-17
-W3,2025-5-1,2025-6-30,-4.784,0.396,0.200,1,algorithm/v2_champion_asis/backtests/2026-05-31_18-42-43
-W4,2025-7-1,2025-8-31,-5.482,0.331,0.200,3,algorithm/v2_champion_asis/backtests/2026-05-31_18-43-10
-W5,2025-9-1,2025-10-31,-6.177,0.214,0.300,3,algorithm/v2_champion_asis/backtests/2026-05-31_18-43-42
-W6,2025-11-1,2025-12-31,-11.336,0.041,0.200,1,algorithm/v2_champion_asis/backtests/2026-05-31_18-44-20
+W1,2025-1-1,2025-2-28,1.012,3.123,6.200,49,algorithm/v2_champion_asis_win/backtests/2026-06-02_00-27-21
+W2,2025-3-1,2025-4-30,-2.449,-5.521,6.700,37,algorithm/v2_champion_asis_win/backtests/2026-06-02_00-29-01
+W3,2025-5-1,2025-6-30,-0.275,-0.410,2.800,37,algorithm/v2_champion_asis_win/backtests/2026-06-02_00-30-24
+W4,2025-7-1,2025-8-31,0.717,1.938,4.600,45,algorithm/v2_champion_asis_win/backtests/2026-06-02_00-31-38
+W5,2025-9-1,2025-10-31,1.041,2.746,4.400,44,algorithm/v2_champion_asis_win/backtests/2026-06-02_00-33-01
+W6,2025-11-1,2025-12-31,-1.551,-2.714,3.600,46,algorithm/v2_champion_asis_win/backtests/2026-06-02_00-34-28
