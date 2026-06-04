@@ -25,7 +25,7 @@ _ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(_ROOT), str(_ROOT / "src")]
 
 from sweeps.warmup_cache.table_builder import (  # noqa: E402
-    SCALAR_FIELDS, build_ticker_scalars, read_daily_zip,
+    WEEKLY_CACHE_FIELDS, build_weekly_scalars, read_daily_zip,
 )
 
 _DAILY = Path("/Users/falk/projects/kumo-qc/data/equity/usa/daily")
@@ -40,12 +40,14 @@ def _data_fingerprint() -> str:
 
 
 def build(symbols: list[str], out_root: Path, daily: Path = _DAILY) -> dict:
-    """Stream each symbol's daily zip → per-symbol <out>/<fingerprint>/<sym>.jsonl (date + 15
-    scalars). Returns a summary (counts, peak rows). RAM-safe — one symbol in flight."""
+    """Stream each symbol's daily zip → per-symbol <out>/<fingerprint>/<sym>.jsonl (date + the 6
+    WEEKLY scalars). RAM-safe — one symbol in flight. #370: emits on the weekly.is_ready gate
+    (build_weekly_scalars) so coverage == the runtime's weekly lookup set (no full-row gate dropping
+    the first weekly-ready days)."""
     fp = _data_fingerprint()
     out = out_root / fp
     out.mkdir(parents=True, exist_ok=True)
-    (out / "_FIELDS.json").write_text(json.dumps({"fields": list(SCALAR_FIELDS), "fingerprint": fp}))
+    (out / "_FIELDS.json").write_text(json.dumps({"fields": list(WEEKLY_CACHE_FIELDS), "fingerprint": fp}))
     t0 = time.time()
     built = missing = total_rows = 0
     for sym in symbols:
@@ -57,9 +59,9 @@ def build(symbols: list[str], out_root: Path, daily: Path = _DAILY) -> dict:
             missing += 1
             continue
         lines = []
-        for d, sc in build_ticker_scalars(read_daily_zip(zp)):  # streaming generator (RAM-safe)
+        for d, sc in build_weekly_scalars(read_daily_zip(zp)):  # weekly.is_ready gate (RAM-safe stream)
             row = {"date": d.isoformat()}
-            row.update({k: sc[k] for k in SCALAR_FIELDS})
+            row.update({k: sc[k] for k in WEEKLY_CACHE_FIELDS})
             lines.append(json.dumps(row, separators=(",", ":")))
         (out / f"{sym}.jsonl").write_text("\n".join(lines) + ("\n" if lines else ""))
         built += 1

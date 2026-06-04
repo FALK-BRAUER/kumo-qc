@@ -34,6 +34,11 @@ SCALAR_FIELDS = (
     "roc13",
 )
 
+# #370: the WEEKLY-cache fields — exactly the 6 the runtime's _weekly_scalars_for serves. The weekly
+# cache is built via build_weekly_scalars (weekly.is_ready gate ONLY) so its (sym,date) coverage ==
+# the runtime's weekly lookup set, by construction (no full-row gate → no missing boundary days).
+WEEKLY_CACHE_FIELDS = ("w_tenkan", "w_kijun", "w_senkou_a", "w_senkou_b", "w_close_0", "w_close_26")
+
 
 def read_daily_zip(path: Path) -> Iterator[tuple[_dt.date, float, float, float, float, int]]:
     """STREAM a LEAN daily zip → (date, open, high, low, close, volume), RAW prices (÷10000). One row
@@ -95,4 +100,30 @@ def build_ticker_scalars(
             "minus_di": adx.minus_di,
             "adx_3back": adx_hist[0],  # 3 back from current (window of 4: [t-3,t-2,t-1,t])
             "roc13": roc13.value,      # parabolic block (BctScoreFull): roc13 > parabolic_threshold → block
+        }
+
+
+def build_weekly_scalars(
+    bars: Iterator[tuple[_dt.date, float, float, float, float, int]],
+) -> Iterator[tuple[_dt.date, dict[str, float]]]:
+    """#370 — the WEEKLY-CACHE emission. Yields (date, {6 weekly scalars}) for EVERY date where the
+    weekly Ichimoku is_ready — matching EXACTLY the runtime's _weekly_scalars_for lookup gate
+    (weekly.is_ready alone). Deliberately NOT gated on the daily legs (adx/adx_3back/d_ichi/sma):
+    build_ticker_scalars's full-row gate requires len(adx_hist)==4, which only fills 3 days AFTER
+    weekly-ready, so it DROPS the first weekly-ready days the runtime still requests → the
+    WeeklyCacheGapError (NVD@2025-02-18). The runtime computes the daily legs live; the cache owes only
+    the weekly scalars, for precisely the dates the runtime deems weekly-computable. Same port, same
+    is_ready → identical coverage by construction."""
+    weekly = WeeklyIchimokuAsOf()
+    for d, o, h, l, c in ((b[0], b[1], b[2], b[3], b[4]) for b in bars):
+        weekly.update(d, o, h, l, c)
+        if not weekly.is_ready:
+            continue
+        yield d, {
+            "w_tenkan": weekly.tenkan,
+            "w_kijun": weekly.kijun,
+            "w_senkou_a": weekly.senkou_a,
+            "w_senkou_b": weekly.senkou_b,
+            "w_close_0": weekly.w_close(0),
+            "w_close_26": weekly.w_close(26),
         }
