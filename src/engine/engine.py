@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import fields, is_dataclass
+from time import perf_counter
 from typing import Any
 
 from engine.base import (
@@ -156,6 +157,11 @@ class StrategyEngine:
         self._fired_exits = 0
         self._fired_adds = 0
         self._tick_entry_value = 0.0  # #181 BUG-2 Stage 0: this tick's entry $ (commit-aware adds cap)
+        # PER-PHASE TIMING telemetry (#365 — measured, not guessed). perf_counter accumulators per
+        # phase-kind + FIRE_* sentinel, summed over the run, emitted ONCE at on_end_of_algorithm
+        # (async-friendly — NO per-tick I/O). Answers "where does the wall-clock go" as a direct read.
+        self._phase_timing: dict[str, float] = {}
+        self._phase_calls: dict[str, int] = {}
 
         validate_invariants(config)
         self._validate_known_kinds(config)
@@ -367,7 +373,9 @@ class StrategyEngine:
                 # hole where adds fired uncapped after FIRE_ENTRIES).
                 if item is FIRE_ADDS:
                     self._bound_adds_to_gross_cap(ctx)
+                _t0 = perf_counter()
                 self._fire(item, ctx)
+                self._accrue_timing(f"fire:{getattr(item, 'name', str(item))}", perf_counter() - _t0)
                 continue
 
             for phase in self.phases.get(item, []):
@@ -375,7 +383,9 @@ class StrategyEngine:
                     continue
                 if bar_blocked and item in ENTRY_ONLY_PHASES:
                     continue
+                _t0 = perf_counter()
                 result = phase.evaluate(ctx)
+                self._accrue_timing(item, perf_counter() - _t0)
                 self.logger.log_phase(item, phase, result)
                 ctx.bar_state.apply(item, result, module=phase.version_marker)
                 phases_run.append(item)
@@ -389,6 +399,24 @@ class StrategyEngine:
             exits=self._fired_exits,
             adds=self._fired_adds,
         )
+
+    def _accrue_timing(self, key: str, dt: float) -> None:
+        """Accumulate one phase/fire wall-clock sample (#365 timing telemetry). In-memory only —
+        NO per-call I/O; the summary emits once at end."""
+        self._phase_timing[key] = self._phase_timing.get(key, 0.0) + dt
+        self._phase_calls[key] = self._phase_calls.get(key, 0) + 1
+
+    def timing_summary(self) -> dict[str, Any]:
+        """The per-phase wall-clock breakdown for the run (#365 — measured, not guessed). Returns
+        {phase_kind/fire-sentinel: {"sec": cumulative, "calls": n}} + a "_total" roll-up. Emitted
+        once at on_end_of_algorithm (the caller adds warmup/replay/exec lines around it)."""
+        total = sum(self._phase_timing.values())
+        out: dict[str, Any] = {
+            k: {"sec": round(self._phase_timing[k], 3), "calls": self._phase_calls.get(k, 0)}
+            for k in sorted(self._phase_timing, key=lambda x: -self._phase_timing[x])
+        }
+        out["_total_phase_sec"] = round(total, 3)
+        return out
 
     def _submit(self, qc: Any, sym: Any, intent: Any, tag: str = "") -> Any:
         """#276a fire-seam: submit ONE order, dispatching on intent.order_type. ONLY the engine's

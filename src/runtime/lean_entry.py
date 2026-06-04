@@ -51,9 +51,11 @@ verified on a LEAN run — pragma:no cover, not unit-testable in the dev venv.
 """
 from __future__ import annotations
 
+import json
 import math
 from collections.abc import Iterable
 from datetime import datetime, timedelta
+from time import perf_counter
 from decimal import Decimal
 from hashlib import sha256
 from typing import TYPE_CHECKING, Any
@@ -396,6 +398,11 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
     ENTRY_TAG_MAX: int = 200
 
     def initialize(self) -> None:
+        # #365 timing telemetry: wall-clock from init → warmup-end (the warmup cost) + the replay
+        # step, emitted once at on_end_of_algorithm. Measured, not guessed.
+        self._t_init = perf_counter()
+        self._warmup_sec = 0.0
+        self._replay_sec = 0.0
         self.set_start_date(*self.START_DATE)
         self.set_end_date(*self.END_DATE)
         self.set_cash(self.CASH)
@@ -1185,6 +1192,8 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         count flags a universe desync vs the captured run (the subscription-timing gate-watch).
 
         Both default OFF → byte-untouched."""
+        # #365 timing: warmup wall-clock = init → here (the cost the restore replaces).
+        self._warmup_sec = perf_counter() - getattr(self, "_t_init", perf_counter())
         snap = getattr(self, "_warmup_snapshot", None)
         if snap is not None:
             from runtime.warmup_snapshot import serialize_to_store
@@ -1195,6 +1204,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             self.log(f"#362 warmup-snapshot CAPTURE wrote {n} per-symbol streams at warmup-end")
 
         if self._restore_snapshot_armed():
+            _t_replay = perf_counter()  # #365 timing: the reset+replay step in isolation
             from runtime.warmup_snapshot import load_snapshot_for_symbol
             fp = self.RESTORE_WARMUP_SNAPSHOT
             store = getattr(self, "object_store", None)
@@ -1221,8 +1231,10 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                         obj.reset()
                 self._restore_daily_from_snapshot(sym, ind, sym_snap)
                 restored += 1
+            self._replay_sec = perf_counter() - _t_replay
             self.log(f"#365 RESTORE: warmup-end reset+replayed {restored} from snapshot, {cold} cold "
-                     f"of {len(self._active)} active (cold>0 ⇒ universe desync vs capture)")
+                     f"of {len(self._active)} active in {self._replay_sec:.1f}s "
+                     f"(cold>0 ⇒ universe desync vs capture)")
 
     def on_data(self, data: Any) -> None:
         """The INTRADAY execution clock ONLY (#313). on_data feeds the 5-min ("minute") bars to the
@@ -1365,6 +1377,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         # #358 engagement signal: log cache hits/misses so we KNOW the cache served lookups (a
         # speedup with zero hits = the in-container path silently failed-closed to live re-derivation).
         self._log_cache_engagement()
+        self._emit_timing_summary()  # #365 per-phase timing (before the watchdog raise → survives a crash)
         if not getattr(self, "_schedule_armed", False):
             return  # scheduler never armed (selection-harness context) — nothing to reconcile
         gap = getattr(self, "_sched_trading_days", 0) - getattr(self, "_sched_decisions", 0)
@@ -1374,6 +1387,32 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                 f"{self._sched_trading_days} post-warmup trading days vs {self._sched_decisions} "
                 f"decisions (gap {gap} > 1) — the scheduled after-close trigger under-fired."
             )
+
+    def _emit_timing_summary(self) -> None:
+        """#365 per-phase TIMING telemetry — emitted ONCE at end (async-friendly, NO per-tick I/O).
+        The per-cell wall-clock breakdown: warmup (or the replay that replaced it) + per-phase engine
+        time + total. Makes 'where does the 33min go' / 'is the restore faster' a DIRECT read of one
+        run — no confounded warmup-vs-restore experiments. Telemetry must never crash the run."""
+        try:
+            total = perf_counter() - getattr(self, "_t_init", perf_counter())
+            eng = getattr(self, "engine", None)
+            summary = {
+                "warmup_sec": round(getattr(self, "_warmup_sec", 0.0), 2),
+                "replay_sec": round(getattr(self, "_replay_sec", 0.0), 2),
+                "total_sec": round(total, 2),
+                "phases": eng.timing_summary() if eng is not None else {},
+            }
+            self.log(f"TIMING_SUMMARY|{json.dumps(summary, separators=(',', ':'))}")
+            setter = (getattr(self, "set_runtime_statistic", None)
+                      or getattr(self, "SetRuntimeStatistic", None))
+            if callable(setter):
+                setter("warmup_sec", f"{summary['warmup_sec']}")
+                setter("replay_sec", f"{summary['replay_sec']}")
+                setter("total_sec", f"{summary['total_sec']}")
+        except Exception as e:  # noqa: BLE001 — telemetry must NEVER crash the run
+            log = getattr(self, "log", None)
+            if callable(log):
+                log(f"TIMING_SUMMARY_ERROR|{type(e).__name__}: {str(e)[:120]}")
 
     def _signal_min_score(self) -> int:
         """The configured BCT signal threshold (the score a winner was selected at) — for the
