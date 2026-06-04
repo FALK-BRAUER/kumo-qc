@@ -104,12 +104,22 @@ def main() -> None:
     fp = _data_fingerprint()
     print(f"#365 parity gate — S1 {S1.config_hash}, fp {fp[:12]}…, run_dir {_run_dir()}", flush=True)
 
-    r1, t1 = _run("capture", {"CAPTURE_WARMUP_SNAPSHOT": fp})
-    run1_orders = int(getattr(r1.metrics, "orders", -1))
-    n_before = len(_backtest_dirs())
-    run1_bt = _backtest_dirs()[-1] if n_before else None
-    cap_writes = _grep_log(run1_bt, "WARMUP_SNAPSHOT_WRITE") if run1_bt else []
-    print(f"\nRUN1 capture: orders={run1_orders} wall={t1:.1f}s snapshot_writes={cap_writes}", flush=True)
+    # RESTORE-ONLY (PARITY_RESTORE_ONLY=1): skip the ~33-min capture, reuse the snapshot already in
+    # ./storage + RUN1's order count from the oldest (capture) backtest dir. For fast fix-iteration.
+    restore_only = os.environ.get("PARITY_RESTORE_ONLY") == "1"
+    if restore_only:
+        existing = _backtest_dirs()
+        run1_orders = _order_count(existing[0]) if existing else -1  # oldest dir == the capture run
+        t1 = float("nan")
+        n_before = len(existing)
+        print(f"\nRESTORE-ONLY: reuse ./storage snapshot; RUN1 orders (prior capture)={run1_orders}", flush=True)
+    else:
+        r1, t1 = _run("capture", {"CAPTURE_WARMUP_SNAPSHOT": fp})
+        run1_orders = int(getattr(r1.metrics, "orders", -1))
+        n_before = len(_backtest_dirs())
+        run1_bt = _backtest_dirs()[-1] if n_before else None
+        cap_writes = _grep_log(run1_bt, "WARMUP_SNAPSHOT_WRITE") if run1_bt else []
+        print(f"\nRUN1 capture: orders={run1_orders} wall={t1:.1f}s snapshot_writes={cap_writes}", flush=True)
 
     try:
         r2, t2 = _run("restore", {"RESTORE_WARMUP_SNAPSHOT": fp, "DECISION_TRACE": True})
