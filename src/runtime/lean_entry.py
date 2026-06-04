@@ -403,6 +403,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         # AND when an object_store exists; cloud sets no fp → None → live re-derivation (fail-closed).
         self._weekly_cache_hits: int = 0    # #358 engagement signal — proves the cache actually served
         self._weekly_cache_misses: int = 0  # lookups, not just that it armed (HQ: speedup w/o hits = silent fail-closed)
+        self._symbol_sparse: dict[str, bool] = {}  # #370 (2')-(i): per-symbol sparsity, classified once
         self._weekly_cache_fp: str | None = None
         self._weekly_loaded: dict[str, dict[Any, dict[str, float]] | None] = {}  # per-sym memo (None = attempted-missing)
         if self.CONTINUOUS_WEEKLY and self.WARMUP_WEEKLY_CACHE_FP and getattr(self, "object_store", None) is not None:
@@ -950,26 +951,83 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         → trade-neutral. A MISS (all cloud, fingerprint-mismatch, not-ready dates) falls through to the
         live re-derive → no divergence (single canonical path; the cache is only an accelerator)."""
         fp = self._weekly_cache_fp
-        if fp:
-            key = sym.value
-            if key not in self._weekly_loaded:  # lazy: fetch this symbol's per-symbol key ONCE, memoize
-                from runtime.warmup_weekly_cache import load_weekly_cache_for_symbol
-                self._weekly_loaded[key] = load_weekly_cache_for_symbol(
-                    getattr(self, "object_store", None), fp, key)
-            sym_rows = self._weekly_loaded[key]
-            if sym_rows is not None:
-                wk = sym_rows.get(asof_date)
+        key = sym.value
+        is_sparse = self._symbol_sparse.get(key)  # None = unclassified; else the memoized bool
+
+        # DENSE fast-path (classified-dense + armed): cache lookup = the SPEEDUP, no history load.
+        if fp and is_sparse is False:
+            wk = self._weekly_cache_get(fp, key, asof_date)
+            if wk is not None:
+                return wk  # dense HIT — byte-identical to the re-derive
+            # dense MISS → fall through to re-derive (+ throw on a real gap)
+
+        # RE-DERIVE / CLASSIFY: first-touch (classify sparsity), sparse (always), dense-miss, or unarmed.
+        rd = self._weekly_from_history(sym, asof_date)  # ONE history(560) load → all the signals
+        if rd is None:
+            return None  # empty history
+        ready, scalars, traded_on_asof, this_sparse = rd
+        if is_sparse is None:  # FIRST TOUCH: memoize sparsity, then (if dense) re-check the cache so the
+            self._symbol_sparse[key] = this_sparse  # throw fires only on a genuine dense miss, not on a
+            is_sparse = this_sparse                  # coverable first query we hadn't yet looked up.
+            # #370 KNOWN NARROW LIMITATION (HQ-flagged, deferred to the #376 follow-up): sparsity is
+            # classified once, AS-OF first touch. A symbol DENSE at first-touch that DEVELOPS internal
+            # gaps LATER (dense→sparse, a name losing liquidity) stays memoized dense → keeps hitting the
+            # cache → a post-gap date could serve a sparse-zip cache value ≠ the ff-dense runtime value.
+            # NARROW (dense-then-sparse is rare; sparse-then-dense + dense-then-delisted are handled), and
+            # the byte-identical-vs-full-warmup + cloud-parity gate backstops the validated windows. The
+            # as-of-advancing re-classification (option (a)) is the full close — deferred, NOT silent.
+            if fp and not is_sparse:
+                wk = self._weekly_cache_get(fp, key, asof_date)
                 if wk is not None:
-                    self._weekly_cache_hits += 1
-                    return wk  # cache HIT — byte-identical to the live re-derive
-            self._weekly_cache_misses += 1
-            # MISS (sym not cached / date not ready) → fall through to live re-derivation (fail-closed)
+                    return wk
+
+        from runtime.warmup_weekly_cache import WeeklyCacheGapError, weekly_miss_action
+        action = weekly_miss_action(
+            rederive_ready=bool(ready), armed=bool(fp),
+            warmup_days=self.WARMUP_DAYS, weekly_floor=self.WEEKLY_FLOOR_DAYS,
+            traded_on_asof=bool(traded_on_asof), is_sparse=bool(is_sparse),
+        )
+        if action == "skip":
+            return None  # uncomputable (pre-78wk-from-listing / fully post-delisting) — legit
+        if action == "throw":
+            raise WeeklyCacheGapError(
+                f"#368 weekly-cache GAP: {getattr(sym, 'value', sym)} @ {asof_date} is a DENSE name "
+                f"computable (>=78wk) + traded on asof but MISSED the cache at trimmed warmup "
+                f"(WARMUP_DAYS={self.WARMUP_DAYS}<{self.WEEKLY_FLOOR_DAYS}) — a real build gap. Rebuild "
+                f"the weekly-cache to cover this (symbol,date); never ship a silent-divergence."
+            )
+        return scalars  # 'value' — canonical re-derive (== full-warmup), or sparse-always-re-derive
+
+    def _weekly_cache_get(self, fp: str, key: str, asof_date: Any) -> dict[str, float] | None:
+        """Per-symbol lazy cache lookup (memoized fetch-once). Returns the cached 6-scalar dict for
+        asof_date, or None on miss. Increments hits/misses. Only the DENSE path calls this — sparse
+        symbols bypass the cache entirely (#370 (2')-(i): their raw-zip cache can't match ff-dense)."""
+        if key not in self._weekly_loaded:
+            from runtime.warmup_weekly_cache import load_weekly_cache_for_symbol
+            self._weekly_loaded[key] = load_weekly_cache_for_symbol(
+                getattr(self, "object_store", None), fp, key)
+        sym_rows = self._weekly_loaded[key]
+        if sym_rows is not None:
+            wk = sym_rows.get(asof_date)
+            if wk is not None:
+                self._weekly_cache_hits += 1
+                return wk
+        self._weekly_cache_misses += 1
+        return None
+
+    def _weekly_from_history(self, sym: Any, asof_date: Any):
+        """#358/#370 — re-derive the weekly from history(max(WARMUP_DAYS, WEEKLY_FLOOR_DAYS)) as-of
+        asof_date — the canonical #336 path, IDENTICAL to the untrimmed full-warmup path (same
+        WeeklyIchimokuAsOf port, same self.history data) → byte-identical to a (dense) cache hit.
+        Returns (ready, scalars|None, traded_on_asof, is_sparse) or None on empty history.
+
+        is_sparse = any vol==0 bar WITHIN [first vol>0 .. last vol>0] — an INTERNAL gap in the runtime's
+        OWN ff-dense history (LEAN fill-forwards untraded days as vol==0) = a sparse-trading name. Its
+        raw-zip-built cache can't match the ff-dense weekly (different aggregation → different readiness
+        AND values) → routed around the cache (always re-derived). Classified from the runtime's own
+        view → self-consistent, NO build-runtime agreement surface (the (2')-(i) safety).
+        traded_on_asof = (last bar == asof AND vol>0) — a REAL bar (not a fill-forward vol==0 synthetic)."""
         from runtime.lean_indicators import WeeklyIchimokuAsOf  # lazy — flag-ON path only (#336/#338)
-        # #368 fail-loud: re-derive from the FULL weekly window (max(WARMUP_DAYS, WEEKLY_FLOOR_DAYS)),
-        # NOT the possibly-trimmed WARMUP_DAYS. At a trimmed warmup, history(WARMUP_DAYS) can't even
-        # compute the 78wk weekly → can't tell an in-window cache GAP from a legit pre-78wk name. The
-        # full floor window (>=78wk) computes it if the name is in-window → weekly_miss_action then
-        # decides throw (gap) vs skip (legit) vs value (untrimmed canonical).
         rederive_days = max(self.WARMUP_DAYS, self.WEEKLY_FLOOR_DAYS)
         hist = self.history(sym, rederive_days, Resolution.DAILY)
         if hist is None or hist.empty:
@@ -980,41 +1038,26 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         w = WeeklyIchimokuAsOf()
         last_bar_date = None
         last_bar_volume = 0.0
+        vols: list[float] = []
         for ts, row in hist.iterrows():
             d = ts.date() if hasattr(ts, "date") else ts
+            v = float(row["volume"])
             w.update(d, float(row["open"]), float(row["high"]), float(row["low"]), float(row["close"]))
             last_bar_date = d
-            last_bar_volume = float(row["volume"])
-        # #370: did the symbol REALLY TRADE on asof? = a real bar exists on asof. The cache (built from
-        # the raw daily zip) holds only REAL bars; LEAN's daily history FILL-FORWARDS a synthetic bar
-        # (close carried, VOLUME==0) for a delisted/halted name (e.g. HCP delisted 2025-02-26, history
-        # synthesizes 02-27 vol=0, verified). So traded_on_asof = (last bar == asof AND volume>0):
-        #   - real bar on asof (vol>0) → build SHOULD have cached it → a cache miss is a REAL gap → throw.
-        #   - no real bar (last<asof, OR a fill-forward synthetic vol==0 on asof) → build COULDN'T cache it
-        #     → the re-derive is the carry-forward weekly (== the untrimmed full-warmup value) → return it.
-        # asof_date may be a date or a QC DateTime.
+            last_bar_volume = v
+            vols.append(v)
+        reals = [i for i, v in enumerate(vols) if v > 0.0]
+        is_sparse = bool(len(reals) >= 2 and any(vols[j] == 0.0 for j in range(reals[0], reals[-1] + 1)))
         asof_d = asof_date.date() if hasattr(asof_date, "date") else asof_date
         traded_on_asof = last_bar_date == asof_d and last_bar_volume > 0.0
-        from runtime.warmup_weekly_cache import WeeklyCacheGapError, weekly_miss_action
-        action = weekly_miss_action(
-            rederive_ready=bool(w.is_ready), armed=bool(fp),
-            warmup_days=self.WARMUP_DAYS, weekly_floor=self.WEEKLY_FLOOR_DAYS,
-            traded_on_asof=bool(traded_on_asof),
-        )
-        if action == "skip":
-            return None  # uncomputable (pre-78wk-from-listing / post-delisting) — legit
-        if action == "throw":
-            raise WeeklyCacheGapError(
-                f"#368 weekly-cache GAP: {getattr(sym, 'value', sym)} @ {asof_date} is computable "
-                f"(>=78wk) but MISSED the cache at trimmed warmup (WARMUP_DAYS={self.WARMUP_DAYS}"
-                f"<{self.WEEKLY_FLOOR_DAYS}) — would silently drop a valid candidate. Rebuild the "
-                f"weekly-cache to cover this (symbol,date); never ship a silent-divergence."
-            )
-        return {  # 'value' — full-warmup (or unarmed) canonical re-derive, byte-identical to a hit
-            "w_tenkan": w.tenkan, "w_kijun": w.kijun,
-            "w_senkou_a": w.senkou_a, "w_senkou_b": w.senkou_b,
-            "w_close_0": w.w_close(0), "w_close_26": w.w_close(26),
-        }
+        scalars = None
+        if w.is_ready:
+            scalars = {
+                "w_tenkan": w.tenkan, "w_kijun": w.kijun,
+                "w_senkou_a": w.senkou_a, "w_senkou_b": w.senkou_b,
+                "w_close_0": w.w_close(0), "w_close_26": w.w_close(26),
+            }
+        return bool(w.is_ready), scalars, bool(traded_on_asof), is_sparse
 
     def _seed_daily(
         self,

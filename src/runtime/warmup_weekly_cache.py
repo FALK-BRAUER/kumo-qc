@@ -33,21 +33,28 @@ class WeeklyCacheGapError(Exception):
 
 
 def weekly_miss_action(*, rederive_ready: bool, armed: bool, warmup_days: int,
-                       weekly_floor: int, traded_on_asof: bool = True) -> str:
+                       weekly_floor: int, traded_on_asof: bool = True, is_sparse: bool = False) -> str:
     """#368/#370 — decide what an armed weekly-cache MISS does, AFTER re-deriving from the FULL
     weekly_floor window (NOT the possibly-trimmed warmup). Pure → unit-testable.
       - NOT ready  → 'skip'  : uncomputable (pre-78wk-from-listing OR fully post-delisting) → legit, None.
-      - ready but the symbol did NOT TRADE on asof (last available bar < asof — delisted/halted that day,
-        a delisting-LAG query) → 'value' : NOT a build gap. The cache legitimately has no asof key (no
-        bar); the re-derive is the CARRY-FORWARD weekly (no new bar since the last → weekly unchanged),
-        which is EXACTLY what the untrimmed full-warmup path returns → byte-identical, never throw. (#370
-        HCP@2025-02-27: HashiCorp delisted 02-26, scored 02-27 on universe lag.)
-      - ready + TRADED on asof + trimmed (armed AND warmup_days < weekly_floor) → 'throw' : the name IS
-        computable AND it traded on asof so the build SHOULD have cached it, but didn't → a real coverage
-        gap that at trimmed warmup would silently drop a valid candidate → fail loud.
-      - ready + NOT trimmed → 'value' : full warmup (or unarmed) → the re-derive is canonical → value."""
+      - SPARSE → 'value' : a sparse-trading name (internal vol==0 gaps in the runtime's ff-dense history).
+        Its raw-zip cache CANNOT match the runtime's ff-dense weekly (different aggregation → different
+        readiness AND values, confirmed: AACIU sparse 12.505 vs ff-dense 10.505) → per-symbol completeness
+        is UNATTAINABLE by construction. (2')-(i): sparse ALWAYS re-derives (the caller bypasses the cache)
+        → the re-derive == the untrimmed full-warmup path → byte-identical. Never a build gap → never throw.
+      - DENSE + TRADED on asof + trimmed (armed AND warmup_days < weekly_floor) → 'throw' : a dense name
+        traded on asof so a complete cache MUST hold it; a miss is a REAL build gap → fail loud (KEPT).
+      - everything else ready → 'value' : full-warmup / unarmed / delisted-halted carry-forward.
+
+    #370 (2')-(i): the cache build (offline daily zip) can't match the runtime's self.history (LEAN
+    fill-forward) for SPARSE symbols → route them around the cache (always re-derive), KEEP the fail-loud
+    throw for DENSE real gaps. Sparsity is classified from the runtime's OWN ff-dense view (self-consistent,
+    no build-runtime surface). Correctness gate for trim+cache = byte-identical-vs-full-warmup + cloud
+    parity (NOT this presence check); this throw catches DENSE build-gaps only."""
     if not rederive_ready:
         return "skip"
+    if is_sparse:
+        return "value"  # sparse: uncacheable-by-construction → always re-derive, never a build gap
     if armed and warmup_days < weekly_floor and traded_on_asof:
         return "throw"
     return "value"

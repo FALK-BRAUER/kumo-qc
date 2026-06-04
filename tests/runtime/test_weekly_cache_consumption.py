@@ -46,11 +46,15 @@ class _Store:
 class _Stub:
     WARMUP_DAYS = 560
     WEEKLY_FLOOR_DAYS = 560  # #368: mirrors BCTAlgorithm; the miss-fallback re-derives at this floor
+    # borrow the real helpers so BctEngineAlgorithm._weekly_scalars_for(stub, …) resolves its sibling calls
+    _weekly_cache_get = BctEngineAlgorithm._weekly_cache_get
+    _weekly_from_history = BctEngineAlgorithm._weekly_from_history
 
     def __init__(self, fp, store):
         self._weekly_cache_fp = fp
         self._weekly_loaded: dict = {}
-        self.object_store = store
+        self._symbol_sparse: dict = {}  # #370: pre-set False per the tested symbol to exercise the dense
+        self.object_store = store        # fast-path (steady state); empty → first-touch classifies via history
         self._weekly_cache_hits = 0
         self._weekly_cache_misses = 0
         self.history_calls = 0
@@ -87,14 +91,17 @@ def _hist_df(n_weekdays: int, asof: _dt.date, last_volume: float):
 
 
 class _TrimStub:
-    """Trimmed-warmup (320<560), cache-ARMED but EMPTY → every lookup misses → live re-derive over
-    the injected history. Exercises the #370 traded_on_asof COMPUTATION + the throw/value decision."""
+    """Trimmed-warmup (320<560), cache-ARMED but EMPTY → first-touch classifies via the injected history,
+    then routes (sparse→re-derive, dense-miss→throw). Exercises #370 (2')-(i) classification + throw."""
     WARMUP_DAYS = 320
     WEEKLY_FLOOR_DAYS = 560
+    _weekly_cache_get = BctEngineAlgorithm._weekly_cache_get
+    _weekly_from_history = BctEngineAlgorithm._weekly_from_history
 
     def __init__(self, hist_df) -> None:
         self._weekly_cache_fp = "fp1"
         self._weekly_loaded: dict = {}
+        self._symbol_sparse: dict = {}          # unclassified → first-touch classifies from the history
         self.object_store = _Store({})          # empty → cache miss → re-derive
         self._weekly_cache_hits = 0
         self._weekly_cache_misses = 0
@@ -123,16 +130,32 @@ def test_fillforward_bar_on_asof_returns_value_not_throw() -> None:
     assert out is not None and "w_tenkan" in out      # carry-forward weekly value, no WeeklyCacheGapError
 
 
+def test_sparse_internal_gap_rederives_never_throws() -> None:
+    """#370 (2')-(i): an INTERNAL vol==0 gap → classified SPARSE → re-derive 'value', NEVER throw —
+    even armed+trimmed with a real (vol>0) asof bar (the dense throw condition). A sparse name's
+    raw-zip cache can't match the runtime's ff-dense weekly → routed around the cache, never asserted
+    as a build gap. (AACIU-class.)"""
+    asof = _dt.date(2025, 2, 18)
+    df = _hist_df(440, asof, last_volume=1_000_000.0)    # a REAL asof bar (would be the dense throw case)
+    df.iloc[200, df.columns.get_loc("volume")] = 0.0     # an INTERNAL vol==0 (sparse-trading gap)
+    s = _TrimStub(df)
+    out = BctEngineAlgorithm._weekly_scalars_for(s, _Sym("AACIU"), asof)
+    assert out is not None and "w_tenkan" in out         # re-derived value, no WeeklyCacheGapError
+    assert s._symbol_sparse["AACIU"] is True              # classified sparse (internal vol==0)
+
+
 def test_per_symbol_hit_short_circuits_history():
     s = _Stub(_FP, _store_with("AAPL"))
+    s._symbol_sparse["AAPL"] = False             # #370: classified DENSE → the cache fast-path engages
     out = BctEngineAlgorithm._weekly_scalars_for(s, _Sym("AAPL"), _D)
-    assert out == _WK and s.history_calls == 0
+    assert out == _WK and s.history_calls == 0   # dense HIT short-circuits history (the speedup)
     assert s._weekly_cache_hits == 1 and s._weekly_cache_misses == 0
 
 
 def test_lazy_fetch_once_memoized():
     store = _store_with("AAPL")
     s = _Stub(_FP, store)
+    s._symbol_sparse["AAPL"] = False             # dense → fast-path
     BctEngineAlgorithm._weekly_scalars_for(s, _Sym("AAPL"), _D)
     BctEngineAlgorithm._weekly_scalars_for(s, _Sym("AAPL"), _D)
     assert store.reads == 1                      # fetched ONCE, second query served from the memo
@@ -141,15 +164,15 @@ def test_lazy_fetch_once_memoized():
 
 def test_symbol_not_cached_falls_to_live_and_memoizes_none():
     s = _Stub(_FP, _store_with("AAPL"))
+    s._symbol_sparse["MSFT"] = False             # dense → fast-path → miss (no MSFT key) → re-derive
     out = BctEngineAlgorithm._weekly_scalars_for(s, _Sym("MSFT"), _D)  # no per-sym key for MSFT
     assert out is None and s.history_calls == 1 and s._weekly_cache_misses == 1
     assert s._weekly_loaded["MSFT"] is None      # attempted-missing memoized → no re-fetch
-    BctEngineAlgorithm._weekly_scalars_for(s, _Sym("MSFT"), _D)
-    assert s.object_store.reads == 0 or "MSFT" in s._weekly_loaded  # not re-fetched
 
 
 def test_date_not_ready_falls_to_live():
     s = _Stub(_FP, _store_with("AAPL"))
+    s._symbol_sparse["AAPL"] = False             # dense → fast-path → date-miss → re-derive
     out = BctEngineAlgorithm._weekly_scalars_for(s, _Sym("AAPL"), _dt.date(2025, 6, 30))  # date not cached
     assert out is None and s.history_calls == 1 and s._weekly_cache_misses == 1
 
