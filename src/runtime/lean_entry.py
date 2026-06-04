@@ -978,13 +978,23 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             hist = hist.droplevel(0)
         hist.columns = [c.lower() for c in hist.columns]
         w = WeeklyIchimokuAsOf()
+        last_bar_date = None
         for ts, row in hist.iterrows():
             d = ts.date() if hasattr(ts, "date") else ts
             w.update(d, float(row["open"]), float(row["high"]), float(row["low"]), float(row["close"]))
+            last_bar_date = d
+        # #370: did the symbol TRADE on asof? (last available bar == asof). If NOT (last < asof —
+        # delisted/halted that day, a universe-lag query like HCP@2025-02-27 after the 02-26 delist),
+        # the cache legitimately has no asof key; the re-derive is the carry-forward weekly (== the
+        # untrimmed full-warmup value) → return it, NOT a throw. The throw is for a REAL build gap
+        # (traded on asof but cache missed it). asof_date may be a date or a QC DateTime.
+        asof_d = asof_date.date() if hasattr(asof_date, "date") else asof_date
+        traded_on_asof = last_bar_date == asof_d
         from runtime.warmup_weekly_cache import WeeklyCacheGapError, weekly_miss_action
         action = weekly_miss_action(
             rederive_ready=bool(w.is_ready), armed=bool(fp),
             warmup_days=self.WARMUP_DAYS, weekly_floor=self.WEEKLY_FLOOR_DAYS,
+            traded_on_asof=bool(traded_on_asof),
         )
         if action == "skip":
             return None  # uncomputable (pre-78wk-from-listing / post-delisting) — legit

@@ -33,18 +33,22 @@ class WeeklyCacheGapError(Exception):
 
 
 def weekly_miss_action(*, rederive_ready: bool, armed: bool, warmup_days: int,
-                       weekly_floor: int) -> str:
-    """#368 — decide what an armed weekly-cache MISS does, AFTER re-deriving from the FULL weekly_floor
-    window (NOT the possibly-trimmed warmup). Pure → unit-testable.
-      - NOT ready  → 'skip'  : uncomputable (pre-78wk-from-listing OR post-delisting) → legit, return None.
-      - ready + trimmed (armed AND warmup_days < weekly_floor) → 'throw' : the name IS computable in
-        its valid window but the cache lacked it AND the warmup is trimmed → at the trimmed warmup the
-        live fallback would silently drop it → a real coverage gap → fail loud.
-      - ready + NOT trimmed → 'value' : full warmup (or unarmed) → the re-derive is the canonical
-        path → return the value (byte-identical to a hit). NO throw (untrimmed fallback is valid)."""
+                       weekly_floor: int, traded_on_asof: bool = True) -> str:
+    """#368/#370 — decide what an armed weekly-cache MISS does, AFTER re-deriving from the FULL
+    weekly_floor window (NOT the possibly-trimmed warmup). Pure → unit-testable.
+      - NOT ready  → 'skip'  : uncomputable (pre-78wk-from-listing OR fully post-delisting) → legit, None.
+      - ready but the symbol did NOT TRADE on asof (last available bar < asof — delisted/halted that day,
+        a delisting-LAG query) → 'value' : NOT a build gap. The cache legitimately has no asof key (no
+        bar); the re-derive is the CARRY-FORWARD weekly (no new bar since the last → weekly unchanged),
+        which is EXACTLY what the untrimmed full-warmup path returns → byte-identical, never throw. (#370
+        HCP@2025-02-27: HashiCorp delisted 02-26, scored 02-27 on universe lag.)
+      - ready + TRADED on asof + trimmed (armed AND warmup_days < weekly_floor) → 'throw' : the name IS
+        computable AND it traded on asof so the build SHOULD have cached it, but didn't → a real coverage
+        gap that at trimmed warmup would silently drop a valid candidate → fail loud.
+      - ready + NOT trimmed → 'value' : full warmup (or unarmed) → the re-derive is canonical → value."""
     if not rederive_ready:
         return "skip"
-    if armed and warmup_days < weekly_floor:
+    if armed and warmup_days < weekly_floor and traded_on_asof:
         return "throw"
     return "value"
 
