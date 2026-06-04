@@ -69,9 +69,14 @@ def _threw(run_dir: Path) -> bool:
     bts = sorted((run_dir / "backtests").glob("*/"), key=lambda d: d.stat().st_mtime, reverse=True)
     if not bts:
         return False
-    for lf in bts[0].glob("*log*.txt"):
-        if "WeeklyCacheGapError" in lf.read_text(errors="ignore"):
-            return True
+    # scan ALL text artifacts (not just *log*.txt) so a differently-named crash log can't hide a throw
+    for p in bts[0].rglob("*"):
+        if p.is_file() and p.suffix in (".txt", ".log", ".json"):
+            try:
+                if "WeeklyCacheGapError" in p.read_text(errors="ignore"):
+                    return True
+            except OSError:
+                continue
     return False
 
 
@@ -91,9 +96,19 @@ def main() -> None:
         trim_dir = runs / TRIM.config_hash / w.name
         threw = _threw(trim_dir)
         bf, tf = _fills(base_dir), _fills(trim_dir)
-        identical = bf == tf
+        # FAIL-LOUD (the 0-trade-window lesson): byte-identical must NOT vacuously pass [] == [].
+        # PASS requires crash-free + NON-EMPTY baseline + count-match + every fill identical. An empty
+        # baseline → parity unprovable (N/A, never PASS); a crashed/truncated trim → count mismatch → FAIL.
+        identical = len(bf) > 0 and len(bf) == len(tf) and bf == tf
         results.append((alias, w.name, threw, identical, len(bf), len(tf)))
-        verdict = "PASS" if (not threw and identical) else "FAIL"
+        if threw:
+            verdict = "FAIL(threw)"
+        elif len(bf) == 0:
+            verdict = "N/A(empty baseline)"
+        elif identical:
+            verdict = "PASS"
+        else:
+            verdict = "FAIL"
         print(f"  {alias}: threw={threw} byte_identical={identical} "
               f"(baseline {len(bf)} fills, trim {len(tf)}) → {verdict}", flush=True)
         if alias in ("fy", "q1") and verdict == "PASS":
