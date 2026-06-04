@@ -105,3 +105,38 @@ def test_phase_keeps_good_drops_degenerate_in_mixed_batch() -> None:
     ctx = _ctx(qc, [("aapl", 100.0), ("tsla", 100.0)])
     _phase().evaluate(ctx)
     assert [i.ticker for i in ctx.bar_state.sized_orders] == ["aapl"]
+
+
+# ── #364 round-3: hard_stop_pct (asymmetric left-tail cut) ──
+
+def _phase_hs(pct: float) -> CloudProtectiveStop:
+    return CloudProtectiveStop(CloudProtectiveStop.Params(hard_stop_pct=pct), logger=None)
+
+
+def test_hard_stop_tightens_when_cloud_bottom_is_deep() -> None:
+    # cloud_bottom 60 (deep, -40%), entry 100, hard 8% → floor = max(60, 92) = 92 (hard stop cuts at -8%).
+    aapl = _Sym("AAPL")
+    qc = _FakeQC({aapl: {"daily_cloud_bottom": 60.0, "decision_date": "T"}})
+    ctx = _ctx(qc, [("aapl", 100.0)])
+    _phase_hs(0.08).evaluate(ctx)
+    kept = ctx.bar_state.sized_orders
+    assert len(kept) == 1 and abs(kept[0].protective_stop - 92.0) < 1e-9
+
+
+def test_hard_stop_inert_when_cloud_bottom_is_tighter() -> None:
+    # cloud_bottom 95 (shallow, -5%), entry 100, hard 8% (=92) → floor = max(95, 92) = 95 (cloud wins).
+    aapl = _Sym("AAPL")
+    qc = _FakeQC({aapl: {"daily_cloud_bottom": 95.0, "decision_date": "T"}})
+    ctx = _ctx(qc, [("aapl", 100.0)])
+    _phase_hs(0.08).evaluate(ctx)
+    kept = ctx.bar_state.sized_orders
+    assert len(kept) == 1 and abs(kept[0].protective_stop - 95.0) < 1e-9
+
+
+def test_hard_stop_zero_is_byte_unchanged_cloud_bottom() -> None:
+    # 0.0 MUST leave the floor at cloud_bottom (the >0 guard — else entry×(1-0)=entry = immediate stop).
+    aapl = _Sym("AAPL")
+    qc = _FakeQC({aapl: {"daily_cloud_bottom": 90.0, "decision_date": "T"}})
+    ctx = _ctx(qc, [("aapl", 100.0)])
+    _phase_hs(0.0).evaluate(ctx)
+    assert ctx.bar_state.sized_orders[0].protective_stop == 90.0

@@ -50,15 +50,22 @@ class CloudProtectiveStop(BasePhase):
     REQUIRES_UPSTREAM = ["sizing"]
     PROVIDES_DOWNSTREAM = ["sized_orders"]
 
-    COMPLEXITY = ComplexityDecl(free_params=0, note="daily cloud-bottom structural floor; no swept axes.")
+    COMPLEXITY = ComplexityDecl(free_params=1, note="cloud-bottom floor + optional hard_stop_pct (asymmetric left-tail cut).")
 
     @dataclass(slots=True)
     class Params:
         enabled: bool = True
+        # #364 round-3: an OPTIONAL hard percentage floor that TIGHTENS the catastrophic stop —
+        # places the floor at max(cloud_bottom, entry×(1−hard_stop_pct)) so a hard −X% loss is cut
+        # LONG before the deep cloud-bottom (which never cuts the bleeders → the FY left tail / DD).
+        # ASYMMETRIC: floors the DOWNSIDE only (a STATIC stop from entry, binds on down-from-entry
+        # trades); the cloud-bottom TRAIL (CloudAdherenceTrail) governs the UPSIDE untouched → winners
+        # still run. 0.0 = OFF → floor == cloud_bottom (byte-unchanged ship path).
+        hard_stop_pct: float = 0.0
 
         @classmethod
         def space(cls) -> ParamSpace:
-            return ParamSpace(axes={})
+            return ParamSpace(axes={"hard_stop_pct": [0.0, 0.08, 0.12, 0.16]})
 
     def __init__(self, params: "CloudProtectiveStop.Params", logger: Any) -> None:
         super().__init__(params, logger)
@@ -102,7 +109,14 @@ class CloudProtectiveStop(BasePhase):
                         f"cloud_bottom={cloud_bottom:.2f}|entry={entry_price:.2f} (no immediate-stop-out floor #339)"
                     )
                 continue
-            kept.append(replace(intent, protective_stop=cloud_bottom))
+            # #364 round-3: TIGHTEN the floor with the optional hard −X% stop. max() = the higher
+            # (tighter) level fires first → cuts losers at −X% before the deep cloud-bottom. The >0
+            # guard is REQUIRED: at 0.0, entry×(1−0)=entry → max(cloud_bottom, entry)=entry = an
+            # immediate stop-out; so 0.0 MUST leave the floor at cloud_bottom (byte-unchanged).
+            floor_level = cloud_bottom
+            if self.p.hard_stop_pct > 0.0:
+                floor_level = max(cloud_bottom, entry_price * (1.0 - self.p.hard_stop_pct))
+            kept.append(replace(intent, protective_stop=floor_level))
             stamped += 1
         ctx.bar_state.sized_orders = kept
         return PhaseResult(
