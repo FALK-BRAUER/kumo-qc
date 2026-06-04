@@ -70,6 +70,19 @@ def local_dist_builder(config: SweepConfig, window: Window, run_dir: Path) -> st
         # archive can never be confused with flag-OFF. (Env SWEEP_CLASS_ATTRS stays for ad-hoc attrs.)
         if getattr(config, "continuous_weekly", False):
             extra.setdefault("CONTINUOUS_WEEKLY", True)
+        # #368: warmup_days drives the WARMUP_DAYS class-attr (config IDENTITY → in config_hash). When
+        # TRIMMED (<560), the weekly-cache is REQUIRED (else the 78wk weekly starves → 0 trades) — arm
+        # WARMUP_WEEKLY_CACHE_FP to the data fingerprint so the weekly comes from cache, with the
+        # #368 fail-loud guard catching any coverage gap. Default 560 → no injection (byte-untouched).
+        _wd = getattr(config, "warmup_days", 560)
+        if _wd != 560:
+            extra.setdefault("WARMUP_DAYS", _wd)
+            if _wd < 560:  # trimmed → the weekly-cache is mandatory
+                manifest = _REPO / "data" / "MANIFEST.json"
+                if manifest.exists():
+                    fp = _json.loads(manifest.read_text()).get("fingerprint")
+                    if fp:
+                        extra.setdefault("WARMUP_WEEKLY_CACHE_FP", fp)
         attr_lines = "".join(f"    {k} = {v!r}\n" for k, v in extra.items())
         s = s.replace(
             "    STRATEGY_CONFIG = STRATEGY_CONFIG\n", _window_class_attrs(window) + attr_lines, 1

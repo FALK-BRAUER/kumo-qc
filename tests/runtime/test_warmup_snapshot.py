@@ -316,3 +316,27 @@ def test_restore_warmup_days_fail_closed_gate() -> None:
                                minimal_days=40, full_days=560) == (560, False)
     assert restore_warmup_days(restore_fp="", has_object_store=True,
                                minimal_days=40, full_days=560) == (560, False)
+
+
+# ── #368 fail-loud guard: weekly_miss_action (in-window throw vs legit skip vs canonical value) ──
+
+
+def test_weekly_miss_action_in_window_trimmed_throws() -> None:
+    from runtime.warmup_weekly_cache import weekly_miss_action
+    # computable (ready) + armed + trimmed (320<560) → THROW (real cache gap, would silently drop)
+    assert weekly_miss_action(rederive_ready=True, armed=True, warmup_days=320, weekly_floor=560) == "throw"
+
+
+def test_weekly_miss_action_legit_uncomputable_skips() -> None:
+    from runtime.warmup_weekly_cache import weekly_miss_action
+    # NOT ready (pre-78wk-from-listing / post-delisting) → SKIP, never throw — even armed+trimmed
+    assert weekly_miss_action(rederive_ready=False, armed=True, warmup_days=320, weekly_floor=560) == "skip"
+    assert weekly_miss_action(rederive_ready=False, armed=True, warmup_days=560, weekly_floor=560) == "skip"
+
+
+def test_weekly_miss_action_untrimmed_returns_value() -> None:
+    from runtime.warmup_weekly_cache import weekly_miss_action
+    # full warmup (not trimmed) → canonical re-derive value, NO throw
+    assert weekly_miss_action(rederive_ready=True, armed=True, warmup_days=560, weekly_floor=560) == "value"
+    # unarmed (no cache) → value (the no-cache 560-baseline path) — never throws
+    assert weekly_miss_action(rederive_ready=True, armed=False, warmup_days=320, weekly_floor=560) == "value"
