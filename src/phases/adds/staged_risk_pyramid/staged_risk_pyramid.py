@@ -31,6 +31,14 @@ from .pyramid_engine import add_dollars
 
 class StagedRiskPyramid(BasePhase):
     PHASE_KIND = "adds"
+    # DAILY clock (deliberate — code-review #340-B): an add fires market-on-open off a DAILY fresh
+    # Tenkan>Kijun cross. This is daily-decision→MOO, the shape the two-clock charter avoids for fresh
+    # ENTRIES — but an add is NOT a fresh entry: it amplifies a HELD position that ALREADY cleared the
+    # intraday entry-confirm gate, on a daily STRUCTURAL signal (the cross). The intraday-confirm
+    # discipline guards UNPROVEN entries; an add to a proven, in-profit held winner is a structural
+    # let-run amplification. Faithful to the daily-triggered Pe-rampup (the recorded 1.486). The
+    # survival-ledger BT is the gate; an intraday add-confirm is a deferred v2 if this proves out.
+    PHASE_RESOLUTION = "daily"
     REQUIRES_UPSTREAM: list[str] = []
     PROVIDES_DOWNSTREAM = ["add_intents"]
 
