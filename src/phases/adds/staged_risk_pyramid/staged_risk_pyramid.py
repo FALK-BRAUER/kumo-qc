@@ -26,7 +26,7 @@ from engine.base import BasePhase, PhaseResult
 from engine.context import OrderIntent, PhaseContext
 from phases.shared.param_space import ComplexityDecl, ParamSpace
 
-from .pyramid_engine import add_dollars
+from phases.adds.staged_risk_pyramid.pyramid_engine import add_dollars
 
 
 class StagedRiskPyramid(BasePhase):
