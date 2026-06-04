@@ -121,10 +121,18 @@ class WarmupGate:
 
     DONE_MARKER = "Algorithm finished warming up."
 
-    def __init__(self, capacity: int = 1) -> None:
-        # Semaphore(1): exactly one cell in the warmup phase at a time. capacity>1 would allow more
-        # concurrent warmups (raise only if a bigger host proves it safe — empirically 1 is right).
-        self._sem = threading.Semaphore(capacity)
+    def __init__(self, capacity: int | None = None) -> None:
+        # Semaphore(N): N cells in the warmup phase at once. DEFAULT 1 (byte-unchanged: the OOM-safe
+        # serial warmup). The #368 cap-flip: the cap-1 was forced by the DOCKER DESKTOP VM limit
+        # (7.75GiB → 2 full-warmups × ~4.3GiB = 8.6GiB > 7.75 → OOM), NOT the 64GiB host. Once Docker
+        # RAM is raised (Falk's call + restart), set WARMUP_GATE_CAPACITY=N to run N concurrent
+        # full-warmup cells (each correct by construction — same serial `lean backtest`, only the
+        # orchestration concurrency changes; no parity/strategy/data change). Safe N = floor(DockerGiB
+        # / per-cell-peak-RSS). Explicit arg overrides the env (tests pin it).
+        if capacity is None:
+            capacity = int(os.environ.get("WARMUP_GATE_CAPACITY", "1"))
+        self.capacity = max(1, capacity)
+        self._sem = threading.Semaphore(self.capacity)
 
     def run(self, argv: list[str], env: Mapping[str, str],
             popen: Callable[..., Any] | None = None) -> int:
