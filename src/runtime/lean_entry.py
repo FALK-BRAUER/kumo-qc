@@ -691,6 +691,13 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self._ranked_today = ranked  # (already set above; explicit for the on_data sync consumer)
         return [Symbol.create(t.upper(), SecurityType.EQUITY, Market.USA) for t in ranked]
 
+    def _restore_snapshot_armed(self) -> bool:
+        """#365 RESTORE is armed iff a fingerprint is set AND a local object_store exists (cloud
+        sets no fp → False → live warmup, fail-closed). Drives _apply_warmup (the minimal warmup),
+        on_securities_changed (DEFER heavy registration during the armed warmup), and
+        on_warmup_finished (build cold + replay the captured stream)."""
+        return bool(self.RESTORE_WARMUP_SNAPSHOT) and getattr(self, "object_store", None) is not None
+
     def on_securities_changed(self, changes: Any) -> None:
         """Register indicators for newly-subscribed symbols, dispose on removal — EXACT
         legacy carve. Owns qc._active (the truly-subscribed set the phases intersect against)."""
@@ -698,6 +705,15 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             sym = s.symbol
             self._active.add(sym)
             if sym not in self._indicators:
+                # #365 RESTORE: during the armed MINIMAL warmup, DEFER the heavy per-symbol daily
+                # indicator registration to warmup-end. Building them here would auto-warm them ~28
+                # bars over the minimal window; replaying the full captured stream into a partly-
+                # warmed (forward-only) indicator is rejected — the double-feed. At warmup-end they
+                # build COLD and the replay owns the feed (single source). The name stays in _active
+                # (tracked) and is registered+restored in on_warmup_finished. Post-warmup entrants
+                # (is_warming_up False) register normally (history-seed, #259).
+                if self._restore_snapshot_armed() and self.is_warming_up:
+                    continue
                 self._register_indicators(sym)
         for s in changes.removed_securities:
             sym = s.symbol
@@ -712,11 +728,20 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                 )
                 del self._indicators[sym]
 
-    def _register_indicators(self, sym: Any) -> None:
+    def _register_indicators(self, sym: Any, restore_snap: Any = None,
+                             restore_mode: bool = False) -> None:
         """Build the per-symbol indicators into the qc._indicators[sym] contract (INDICATOR_KEYS).
         Daily ichimoku 9/26/26/52/26/26 + sma200 (QC native), weekly ichimoku fed by a MANUAL
         TradeBarConsolidator (Calendar.WEEKLY) — the proven QC-cloud resample-timeout fix
-        (8048c29). EXACT legacy carve."""
+        (8048c29). EXACT legacy carve.
+
+        #365 RESTORE (restore_mode=True, from on_warmup_finished): build the suite COLD then warm
+        the DAILY indicators by REPLAYING the captured warmup stream (`restore_snap`) — NOT the
+        history-seed. The weekly is orthogonal (continuous-weekly reads _weekly_scalars_for, which
+        bypasses the consolidator w_ichi). A name absent from the snapshot (restore_snap None) builds
+        COLD with no replay — matching the champion's universe-gated readiness (the #358 (ii) fix);
+        a cold name scores None, so the decision-trace surfaces any universe desync vs the champion
+        rather than masking it with a history-seed."""
         d_ichi = self.ichimoku(sym, 9, 26, 26, 52, 26, 26)
         sma200 = self.sma(sym, 200)
         # #213f maintained indicators so the SIGNAL reads O(1)/candidate (no per-bar history).
@@ -791,12 +816,6 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         # WEEKLY ichimoku AND the full DAILY suite from history so the name can qualify the day
         # it is first subscribed. NO if-cloud branch — single code path, RAW (history default
         # follows universe_settings.data_normalization_mode = RAW set in initialize()).
-        if not self.is_warming_up:
-            self._seed_weekly(sym, w_ichi, w_close)
-            self._seed_daily(
-                sym, d_ichi, sma200, adx, adx_window, roc13, macd, vol_sma20, tbounce, high_window
-            )
-
         self._indicators[sym] = {
             "d_ichi": d_ichi,
             "w_ichi": w_ichi,
@@ -815,6 +834,18 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             "high_window": high_window,  # #364 no-new-high evict gate
         }
         assert set(self._indicators[sym]) == set(INDICATOR_KEYS)  # contract guard
+        # Seed/restore decision (AFTER the dict assembly — the restore replays into the assembled
+        # contract). #365 RESTORE: replay the captured DAILY stream (weekly orthogonal via the
+        # continuous-weekly path); an absent name stays COLD (universe-gated). Else the legacy #259
+        # history-seed for a post-warmup entrant (a warmup-time name auto-warms — no seed).
+        if restore_mode:
+            if restore_snap is not None:
+                self._restore_daily_from_snapshot(sym, self._indicators[sym], restore_snap)
+        elif not self.is_warming_up:
+            self._seed_weekly(sym, w_ichi, w_close)
+            self._seed_daily(
+                sym, d_ichi, sma200, adx, adx_window, roc13, macd, vol_sma20, tbounce, high_window
+            )
 
     # ------------------------------------------------------------------------------------
     # #275b — INTRADAY (5-min) subscription lifecycle (Option C: subscribe MINUTE, our Massive
@@ -1131,8 +1162,8 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         snapshot at warmup-end (inc3 wiring). set_warmup is STILL CALLED (never skip-entirely) so LEAN
         emits "Algorithm finished warming up." → the WarmupGate releases early → the cap>=2 parallel
         fan-out (skip-entirely → no marker → the gate holds to process-exit → serialized, self-
-        defeating). NOTE: arming RESTORE is not yet functional end-to-end — the warmup-end snapshot
-        replay (inc3) must land first; until then RESTORE_WARMUP_SNAPSHOT stays None (default)."""
+        defeating). The deferred per-symbol registration + warmup-end snapshot replay land in
+        on_securities_changed/on_warmup_finished; the full-FY byte-identical BT is the parity gate."""
         from runtime.warmup_snapshot import restore_warmup_days
         days, armed = restore_warmup_days(
             restore_fp=self.RESTORE_WARMUP_SNAPSHOT,
@@ -1145,10 +1176,17 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                      f"restore at warmup-end (fp {self.RESTORE_WARMUP_SNAPSHOT[:12]}…)")
 
     def on_warmup_finished(self) -> None:
-        """#362 SPIKE: at warmup-end, serialize the captured per-symbol warmup input streams to the
+        """#362 CAPTURE: at warmup-end, serialize the captured per-symbol warmup input streams to the
         ObjectStore (RUN1 build). The registered set = the names actually warmed (universe-gated) →
         a restore replays exactly those → byte-identical readiness (the #358 fix by construction).
-        No-op when capture is not armed (default → byte-untouched)."""
+
+        #365 RESTORE (inc3): the run did a MINIMAL warmup (coarse-DV only) and DEFERRED the heavy
+        per-symbol daily-indicator registration (on_securities_changed). Here, for each active name,
+        build the suite COLD and replay its captured stream (single feed source — no double-feed).
+        A name absent from the snapshot stays COLD (the universe-gated #358 (ii) fix); a nonzero cold
+        count flags a universe desync vs the captured run (the subscription-timing gate-watch).
+
+        Both default OFF → byte-untouched."""
         snap = getattr(self, "_warmup_snapshot", None)
         if snap is not None:
             from runtime.warmup_snapshot import serialize_to_store
@@ -1157,6 +1195,23 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                 log=self.log,
             )
             self.log(f"#362 warmup-snapshot CAPTURE wrote {n} per-symbol streams at warmup-end")
+
+        if self._restore_snapshot_armed():
+            from runtime.warmup_snapshot import load_snapshot_for_symbol
+            fp = self.RESTORE_WARMUP_SNAPSHOT
+            store = getattr(self, "object_store", None)
+            restored = cold = 0
+            for sym in list(self._active):
+                if sym in self._indicators:
+                    continue  # defensive — the deferral leaves active names unregistered until here
+                sym_snap = load_snapshot_for_symbol(store, fp, sym.value)
+                self._register_indicators(sym, restore_snap=sym_snap, restore_mode=True)
+                if sym_snap is None:
+                    cold += 1
+                else:
+                    restored += 1
+            self.log(f"#365 RESTORE: warmup-end rebuilt {restored} from snapshot, {cold} cold "
+                     f"of {len(self._active)} active (cold>0 ⇒ universe desync vs capture)")
 
     def on_data(self, data: Any) -> None:
         """The INTRADAY execution clock ONLY (#313). on_data feeds the 5-min ("minute") bars to the
