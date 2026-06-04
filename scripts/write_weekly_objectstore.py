@@ -78,8 +78,9 @@ def main() -> None:
     # the FULL daily universe the build ran against; absent symbols are the legit-uncomputable
     # (pre-78wk / delisted) ones the runtime's weekly_miss_action skips (never throws).
     from sweeps.warmup_cache.ensure import universe_signature, write_cache_manifest
-    daily_dir = args.daily_dir or None
-    usig, n_univ = universe_signature(daily_dir) if daily_dir else universe_signature()
+    # sign over the EXPLICIT --daily-dir when given (ensure_weekly_cache always forwards it), else the
+    # default universe. build_sig must == the universe weekly_cache_complete checks (#370 critical fix).
+    usig, n_univ = universe_signature(args.daily_dir) if args.daily_dir else universe_signature()
     manifest_path = write_cache_manifest(
         storage, args.fp, universe_sig=usig, n_universe=n_univ, n_built=len(syms), n_keys=total_rows)
     print(json.dumps({

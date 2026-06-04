@@ -118,3 +118,67 @@ def test_ensure_fail_loud_incomplete_after_build(tmp_path) -> None:
 def test_ensure_rejects_empty_fp() -> None:
     with pytest.raises(ValueError, match="fingerprint"):
         ensure_weekly_cache("", storage_dir="/x", cache_root="/y")
+
+
+# ── #370 code-review fixes ───────────────────────────────────────────────────────────────────
+def test_universe_signature_fail_loud_on_empty(tmp_path) -> None:
+    empty = tmp_path / "empty"; empty.mkdir()
+    with pytest.raises(RuntimeError, match="0 daily-zip tickers"):  # mis-pathed/empty must CRASH
+        universe_signature(empty)
+
+
+def test_universe_signature_excludes_dotfiles(tmp_path) -> None:
+    daily = tmp_path / "daily"; daily.mkdir(); _mk_universe(daily, ["aapl", "msft"])
+    (daily / ".partial.zip").write_text("x")          # editor temp / partial download
+    sig_with_dotfile, n = universe_signature(daily)
+    clean = tmp_path / "clean"; clean.mkdir(); _mk_universe(clean, ["aapl", "msft"])
+    assert universe_signature(clean) == (sig_with_dotfile, n) == universe_signature(clean)
+    assert n == 2                                     # the dotfile is NOT counted
+
+
+def test_read_manifest_non_dict_returns_none(tmp_path) -> None:
+    from sweeps.warmup_cache.ensure import _manifest_path
+    storage = tmp_path / "storage"; storage.mkdir()
+    _manifest_path(storage, FP).write_text("[1, 2, 3]")   # valid JSON, but a list not a dict
+    assert read_cache_manifest(storage, FP) is None       # malformed → incomplete, not a crash
+
+
+def test_ensure_build_check_signature_agreement_custom_universe(tmp_path) -> None:
+    """THE gap the stubbed-`complete` tests missed: with the REAL weekly_cache_complete + a faithful
+    build that signs over the FORWARDED --daily-dir, build_sig == check_sig → 'built'. Catches the
+    --daily-dir non-forwarding CRITICAL (build would sign the default, check the custom → never agree)."""
+    from sweeps.warmup_cache.ensure import write_cache_manifest
+    daily = tmp_path / "daily"; daily.mkdir(); _mk_universe(daily, ["aapl", "msft", "nvda"])
+    storage = tmp_path / "storage"; storage.mkdir()
+
+    def faithful_runner(argv, **k):
+        if "write_weekly_objectstore.py" in argv[1]:
+            dd = argv[argv.index("--daily-dir") + 1]          # ensure MUST have forwarded it
+            fp = argv[argv.index("--fp") + 1]
+            sig, n = universe_signature(dd)                   # sign over the forwarded dir (real behavior)
+            (storage / f"weekly_ichimoku-{fp}-AAPL").write_text("{}")
+            write_cache_manifest(storage, fp, universe_sig=sig, n_universe=n, n_built=1, n_keys=1)
+
+    out = ensure_weekly_cache(FP, storage_dir=storage, cache_root="/y", daily_dir=daily,
+                              runner=faithful_runner, log=lambda _m: None)  # REAL complete (not stubbed)
+    assert out == "built"
+
+
+def test_ensure_catches_daily_dir_divergence(tmp_path) -> None:
+    """Proves the integration test has TEETH: a build that signs the WRONG universe (the bug — ignoring
+    the forwarded --daily-dir) → check mismatch → fail-loud. (If the fix regresses, THIS fires.)"""
+    from sweeps.warmup_cache.ensure import write_cache_manifest
+    daily = tmp_path / "daily"; daily.mkdir(); _mk_universe(daily, ["aapl", "msft"])
+    other = tmp_path / "other"; other.mkdir(); _mk_universe(other, ["zzzz"])   # different universe
+    storage = tmp_path / "storage"; storage.mkdir()
+
+    def buggy_runner(argv, **k):
+        if "write_weekly_objectstore.py" in argv[1]:
+            fp = argv[argv.index("--fp") + 1]
+            sig, n = universe_signature(other)                # signs the WRONG universe (non-forward bug)
+            (storage / f"weekly_ichimoku-{fp}-AAPL").write_text("{}")
+            write_cache_manifest(storage, fp, universe_sig=sig, n_universe=n, n_built=1, n_keys=1)
+
+    with pytest.raises(RuntimeError, match="still INCOMPLETE"):
+        ensure_weekly_cache(FP, storage_dir=storage, cache_root="/y", daily_dir=daily,
+                            runner=buggy_runner, log=lambda _m: None)

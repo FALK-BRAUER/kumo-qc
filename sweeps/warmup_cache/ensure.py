@@ -50,8 +50,16 @@ def _manifest_path(storage_dir: Path | str, fp: str) -> Path:
 def universe_signature(daily_dir: Path | str = _DEFAULT_DAILY) -> tuple[str, int]:
     """Deterministic signature of the daily-zip universe: (sha256 of the sorted ticker list, count).
     The runtime can request a weekly scalar for ANY of these symbols, so this is the set the cache
-    must cover. Sorted → order-independent; sha256 → stable across machines."""
-    tickers = sorted(p.stem.lower() for p in Path(daily_dir).glob("*.zip"))
+    must cover. Sorted → order-independent; sha256 → stable across machines. Dotfiles (.partial.zip,
+    editor temp) are EXCLUDED → machine-independent sig. FAIL-LOUD on 0 tickers (a mis-pathed/empty
+    daily_dir must crash, not sign an empty universe that could false-pass — degraded-state-must-crash)."""
+    tickers = sorted(p.stem.lower() for p in Path(daily_dir).glob("*.zip")
+                     if not p.name.startswith("."))
+    if not tickers:
+        raise RuntimeError(
+            f"universe_signature: 0 daily-zip tickers under {daily_dir} — refuse to sign an empty "
+            f"universe (a mis-pathed dir would false-pass completeness). Check the daily data path."
+        )
     sig = hashlib.sha256("\n".join(tickers).encode()).hexdigest()
     return sig, len(tickers)
 
@@ -64,20 +72,25 @@ def write_cache_manifest(storage_dir: Path | str, fp: str, *, universe_sig: str,
     payload = {"schema": _MANIFEST_SCHEMA, "data_fp": fp, "universe_sig": universe_sig,
                "n_universe": n_universe, "n_built": n_built, "n_keys": n_keys}
     tmp = path.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(payload, sort_keys=True))
-    os.replace(tmp, path)
+    try:
+        tmp.write_text(json.dumps(payload, sort_keys=True))
+        os.replace(tmp, path)
+    except OSError:
+        tmp.unlink(missing_ok=True)  # never leave a half-written tmp on a write/replace crash
+        raise
     return path
 
 
 def read_cache_manifest(storage_dir: Path | str, fp: str) -> dict | None:
-    """The coverage manifest for fp, or None if absent/unreadable (→ treated as incomplete)."""
+    """The coverage manifest for fp, or None if absent/unreadable/malformed (→ treated as incomplete)."""
     path = _manifest_path(storage_dir, fp)
     if not path.exists():
         return None
     try:
-        return json.loads(path.read_text())
+        m = json.loads(path.read_text())
     except (json.JSONDecodeError, OSError):
         return None
+    return m if isinstance(m, dict) else None  # non-dict JSON (list/str/num) → incomplete, not a crash
 
 
 def weekly_cache_complete(storage_dir: Path | str, fp: str,
@@ -116,8 +129,13 @@ def ensure_weekly_cache(
     log(f"#370 weekly-cache incomplete for fp {fp[:12]}… — building (build_warmup_cache → write_weekly)")
     runner([sys.executable, str(_ROOT / "scripts" / "build_warmup_cache.py"),
             "--out", str(cache_root)], check=True)
+    # CRITICAL (#370 code-review): forward --daily-dir so the BUILD signs universe_sig over the SAME
+    # universe weekly_cache_complete CHECKS. Without it, build signs _DEFAULT_DAILY while the check
+    # signs `daily_dir` → permanent sig mismatch → always-incomplete → fail-loud raises every run on
+    # any custom universe. They must sign the identical set.
     runner([sys.executable, str(_ROOT / "scripts" / "write_weekly_objectstore.py"),
-            "--fp", fp, "--cache-root", str(cache_root), "--storage", str(storage_dir)], check=True)
+            "--fp", fp, "--cache-root", str(cache_root), "--storage", str(storage_dir),
+            "--daily-dir", str(daily_dir)], check=True)
     if not weekly_cache_present(storage_dir, fp):
         raise RuntimeError(
             f"#368 weekly-cache build for fp {fp[:12]}… produced 0 keys — fail-loud (a trimmed-warmup "
