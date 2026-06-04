@@ -24,7 +24,7 @@ enforcement. First cut = a fixed hard ceiling; the regime-driver comes later.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ClassVar
 
 from engine.base import BasePhase, DegradedDataError, PhaseResult
 from engine.symbol_key import canonical_symbol_key
@@ -47,6 +47,12 @@ class GrossExposureCap(BasePhase):
     class Params:
         max_gross_pct: float = 1.0  # 100% = fully invested, no leverage (the default safety ceiling)
         enabled: bool = True
+        # #340: the entry-seam cap runs in the entry-execution chain → its clock MUST match the chain
+        # (the engine's mixed-clocks ConfigError). S1's entry is intraday (sizing resolution="intraday"),
+        # so a config with an intraday entry wires resolution="intraday". STRUCTURAL (clock-routing),
+        # NOT a behavioral axis → excluded from the config hash. Default "daily" = backward-compatible.
+        resolution: str = "daily"
+        _HASH_EXCLUDE: ClassVar[frozenset[str]] = frozenset({"resolution"})
 
         @classmethod
         def space(cls) -> ParamSpace:
@@ -56,6 +62,7 @@ class GrossExposureCap(BasePhase):
     def __init__(self, params: "GrossExposureCap.Params", logger: Any) -> None:
         super().__init__(params, logger)
         self.p = params
+        self.PHASE_RESOLUTION = params.resolution  # clock-route the entry-seam cap (#340)
 
     def _held_gross(self, qc: Any) -> float:
         """Currently-held gross exposure (abs holdings value — long+short both consume the cap).
