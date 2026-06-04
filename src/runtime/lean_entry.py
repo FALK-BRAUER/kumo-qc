@@ -979,17 +979,22 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         hist.columns = [c.lower() for c in hist.columns]
         w = WeeklyIchimokuAsOf()
         last_bar_date = None
+        last_bar_volume = 0.0
         for ts, row in hist.iterrows():
             d = ts.date() if hasattr(ts, "date") else ts
             w.update(d, float(row["open"]), float(row["high"]), float(row["low"]), float(row["close"]))
             last_bar_date = d
-        # #370: did the symbol TRADE on asof? (last available bar == asof). If NOT (last < asof —
-        # delisted/halted that day, a universe-lag query like HCP@2025-02-27 after the 02-26 delist),
-        # the cache legitimately has no asof key; the re-derive is the carry-forward weekly (== the
-        # untrimmed full-warmup value) → return it, NOT a throw. The throw is for a REAL build gap
-        # (traded on asof but cache missed it). asof_date may be a date or a QC DateTime.
+            last_bar_volume = float(row["volume"])
+        # #370: did the symbol REALLY TRADE on asof? = a real bar exists on asof. The cache (built from
+        # the raw daily zip) holds only REAL bars; LEAN's daily history FILL-FORWARDS a synthetic bar
+        # (close carried, VOLUME==0) for a delisted/halted name (e.g. HCP delisted 2025-02-26, history
+        # synthesizes 02-27 vol=0, verified). So traded_on_asof = (last bar == asof AND volume>0):
+        #   - real bar on asof (vol>0) → build SHOULD have cached it → a cache miss is a REAL gap → throw.
+        #   - no real bar (last<asof, OR a fill-forward synthetic vol==0 on asof) → build COULDN'T cache it
+        #     → the re-derive is the carry-forward weekly (== the untrimmed full-warmup value) → return it.
+        # asof_date may be a date or a QC DateTime.
         asof_d = asof_date.date() if hasattr(asof_date, "date") else asof_date
-        traded_on_asof = last_bar_date == asof_d
+        traded_on_asof = last_bar_date == asof_d and last_bar_volume > 0.0
         from runtime.warmup_weekly_cache import WeeklyCacheGapError, weekly_miss_action
         action = weekly_miss_action(
             rederive_ready=bool(w.is_ready), armed=bool(fp),
