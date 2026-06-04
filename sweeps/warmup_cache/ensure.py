@@ -28,6 +28,12 @@ _DEFAULT_DAILY = Path("/Users/falk/projects/kumo-qc/data/equity/usa/daily")
 # check globs storage for ANY weekly key under the fingerprint.
 _WEEKLY_PREFIX = "weekly_ichimoku"
 _MANIFEST_SCHEMA = 1
+# #370: BUMP when the weekly EMISSION logic changes (the (sym,date) set or the scalar values the cache
+# holds). The manifest stamps it; weekly_cache_complete rejects a manifest built by a different version
+# → a build-logic change invalidates the cache (else a universe-sig-match would falsely pass a stale
+# cache built by old logic — the same class as the partial-cache bug). v2 = build_weekly_scalars
+# (weekly.is_ready gate; v1 was build_ticker_scalars's full-row gate, which dropped boundary days).
+_WEEKLY_BUILD_VERSION = 2
 
 
 def weekly_cache_present(storage_dir: Path | str, fp: str) -> bool:
@@ -69,8 +75,8 @@ def write_cache_manifest(storage_dir: Path | str, fp: str, *, universe_sig: str,
     """Write the coverage manifest ATOMICALLY (tmp + os.replace) — a crash mid-write never leaves a
     truthy-but-corrupt manifest. Called by write_weekly_objectstore at the end of a full build."""
     path = _manifest_path(storage_dir, fp)
-    payload = {"schema": _MANIFEST_SCHEMA, "data_fp": fp, "universe_sig": universe_sig,
-               "n_universe": n_universe, "n_built": n_built, "n_keys": n_keys}
+    payload = {"schema": _MANIFEST_SCHEMA, "build_version": _WEEKLY_BUILD_VERSION, "data_fp": fp,
+               "universe_sig": universe_sig, "n_universe": n_universe, "n_built": n_built, "n_keys": n_keys}
     tmp = path.with_suffix(".json.tmp")
     try:
         tmp.write_text(json.dumps(payload, sort_keys=True))
@@ -100,6 +106,8 @@ def weekly_cache_complete(storage_dir: Path | str, fp: str,
     wrong-fp manifest, or a different-universe manifest → NOT complete → (re)build."""
     m = read_cache_manifest(storage_dir, fp)
     if m is None or m.get("schema") != _MANIFEST_SCHEMA or m.get("data_fp") != fp:
+        return False
+    if m.get("build_version") != _WEEKLY_BUILD_VERSION:  # #370: stale build logic → rebuild
         return False
     sig, _n = universe_signature(daily_dir)
     return m.get("universe_sig") == sig
