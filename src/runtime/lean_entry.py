@@ -242,6 +242,16 @@ def _to_decimal(x: Any) -> Decimal:
     python ``float`` on a Decimal-typed property ("'float' value cannot be converted to
     System.Decimal") AND rejects NaN/inf. So convert to ``decimal.Decimal`` and finite-guard
     (a missing-volume bar → NaN → would otherwise crash deep in the run, as the FY did at ~69%)."""
+    # EXACT passthrough for Decimal / decimal-string (#365 v2: a float round-trip here would re-
+    # truncate the exact captured value → the 48≠72 bug). Only a real float input round-trips.
+    if isinstance(x, Decimal):
+        return x if x.is_finite() else Decimal("0")
+    if isinstance(x, str):
+        try:
+            d = Decimal(x)
+        except (ValueError, ArithmeticError):
+            return Decimal("0")
+        return d if d.is_finite() else Decimal("0")
     xf = float(x)
     if not math.isfinite(xf):
         return Decimal("0")
@@ -433,14 +443,12 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         else:
             self.log("#358 weekly-cache: NOT armed (fail-closed → live re-derivation)")
 
-        # #362 SPIKE capture: arm the warmup-snapshot recorder ONLY when the fp is set AND an
-        # object_store exists (cloud sets no fp → never captures). Default None → _warmup_snapshot
-        # stays None → _on_daily capture is a no-op → byte-untouched.
-        self._warmup_snapshot: "WarmupSnapshot | None" = None
+        # #365 CAPTURE: armed by CAPTURE_WARMUP_SNAPSHOT (+ object_store); the actual capture is done
+        # at warmup-end via history (canonical, exact-Decimal) — see on_warmup_finished. NO per-bar
+        # recorder (the consolidator stream was subscription-timing-dependent → the 48≠72 divergence).
         if self.CAPTURE_WARMUP_SNAPSHOT and getattr(self, "object_store", None) is not None:
-            from runtime.warmup_snapshot import WarmupSnapshot
-            self._warmup_snapshot = WarmupSnapshot(self.CAPTURE_WARMUP_SNAPSHOT)
-            self.log(f"#362 warmup-snapshot CAPTURE ARMED (fp {self.CAPTURE_WARMUP_SNAPSHOT[:12]}…)")
+            self.log(f"#365 warmup-snapshot CAPTURE ARMED (history-canonical @ warmup-end, "
+                     f"fp {self.CAPTURE_WARMUP_SNAPSHOT[:12]}…)")
 
         # RAW normalization everywhere — adjusted prices corrupt Ichimoku (2649e2e).
         self.universe_settings.resolution = Resolution.DAILY
@@ -794,15 +802,10 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                 float(bar.open), float(bar.high), float(bar.low), float(bar.close), float(t)
             )
             high_window.add(float(bar.high))  # #364 no-new-high evict gate
-            # #362 SPIKE capture: record the WARMUP daily input stream (the engine's universe-gated
-            # feed, session-close-timed — same bars the auto-fed d_ichi/adx consume). Only while
-            # warming up + armed → restore replays this exact stream to skip set_warmup (inc3).
-            snap = self._warmup_snapshot
-            if snap is not None and self.is_warming_up:
-                from runtime.warmup_snapshot import make_daily_bar
-                snap.record(sym.value, make_daily_bar(
-                    bar.end_time.date(), float(bar.open), float(bar.high),
-                    float(bar.low), float(bar.close), float(bar.volume)))
+            # #365: the warmup-snapshot CAPTURE is NOT done here. The per-bar consolidator stream is
+            # subscription-timing-dependent (a mid-warmup entrant records fewer bars → under-warmed
+            # replay → 48≠72) AND float-truncated. Capture is done at warmup-end via history (the
+            # canonical uniform 560d window, exact Decimal strings) — see on_warmup_finished.
 
         daily_consolidator.data_consolidated += _on_daily
         self.subscription_manager.add_consolidator(sym, daily_consolidator)
@@ -1147,11 +1150,13 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         day = timedelta(days=1)
 
         def _feed(bar: Any) -> None:
-            iso, o, h, lo, c, v = bar
-            end_time = datetime.fromisoformat(iso)  # bar-date midnight; chronological key
-            tradebar = _make_trade_bar(end_time - day, sym, o, h, lo, c, v, day)
+            iso, o, h, lo, c, v = bar  # OHLCV are EXACT decimal strings (#365 v2)
+            # bar TIME = midnight of the session date (the #362 spike convention, proven byte-
+            # identical); _make_trade_bar → _to_decimal(str) = the EXACT Decimal (no float truncation).
+            bar_time = datetime.fromisoformat(iso)
+            tradebar = _make_trade_bar(bar_time, sym, o, h, lo, c, v, day)
             feed_daily_indicators(
-                tradebar=tradebar, end_time=end_time, o=o, h=h, lo=lo, c=c, v=v,
+                tradebar=tradebar, end_time=bar_time, o=o, h=h, lo=lo, c=c, v=v,
                 indicators=indicators,
             )
 
@@ -1194,14 +1199,28 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         Both default OFF → byte-untouched."""
         # #365 timing: warmup wall-clock = init → here (the cost the restore replaces).
         self._warmup_sec = perf_counter() - getattr(self, "_t_init", perf_counter())
-        snap = getattr(self, "_warmup_snapshot", None)
-        if snap is not None:
-            from runtime.warmup_snapshot import serialize_to_store
-            n = serialize_to_store(
-                snap, getattr(self, "object_store", None), self.CAPTURE_WARMUP_SNAPSHOT or "",
-                log=self.log,
-            )
-            self.log(f"#362 warmup-snapshot CAPTURE wrote {n} per-symbol streams at warmup-end")
+        # #365 CAPTURE — at warmup-end, build the snapshot from HISTORY over the EXACT warmup window
+        # (timedelta(WARMUP_DAYS) — the canonical ~385 daily bars set_warmup actually fed, UNIFORM per
+        # symbol regardless of subscription timing; NOT history(N BARS) which over-warms) with EXACT
+        # Decimal STRINGS (str(bar.<field>)). This replaces the per-bar consolidator capture (which was
+        # subscription-timing-dependent + float-truncated → the 48≠72 divergence). Skip bars dated >=
+        # start (the live feed owns today). Ported from the #362 spike (proven byte-identical).
+        if self.CAPTURE_WARMUP_SNAPSHOT and getattr(self, "object_store", None) is not None:
+            from runtime.warmup_snapshot import (WarmupSnapshot, make_daily_bar,
+                                                 serialize_to_store)
+            snap = WarmupSnapshot(self.CAPTURE_WARMUP_SNAPSHOT)
+            start = datetime(*self.START_DATE).date()
+            for sym in list(self._active):
+                for bar in self.history[TradeBar](sym, timedelta(days=self.WARMUP_DAYS),
+                                                  Resolution.DAILY):
+                    if bar.end_time.date() >= start:
+                        continue  # live feed owns today; forward-only with the post-warmup stream
+                    snap.record(sym.value, make_daily_bar(
+                        bar.end_time.date(), str(bar.open), str(bar.high),
+                        str(bar.low), str(bar.close), str(bar.volume)))
+            n = serialize_to_store(snap, self.object_store, self.CAPTURE_WARMUP_SNAPSHOT, log=self.log)
+            self.log(f"#365 warmup-snapshot CAPTURE wrote {n} per-symbol streams "
+                     f"(history-canonical, exact-Decimal) at warmup-end")
 
         if self._restore_snapshot_armed():
             _t_replay = perf_counter()  # #365 timing: the reset+replay step in isolation

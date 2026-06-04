@@ -8,6 +8,7 @@ universe-gated registered-set, cold-restore for an unwarmed symbol.
 from __future__ import annotations
 
 import datetime as _dt
+from decimal import Decimal
 
 import pytest
 
@@ -234,20 +235,21 @@ def test_feed_daily_indicators_routes_each_consumer_correctly() -> None:
     suite = _suite(d_ichi)
     et = _dt.datetime(2024, 1, 5)
     bar = object()  # the full-bar token routed to the forward-only consumers
-    feed_daily_indicators(tradebar=bar, end_time=et, o=10.0, h=11.0, lo=9.0, c=10.5, v=1000.0,
-                          indicators=suite)
-    # full-bar consumers get the TradeBar token
+    # #365 v2: OHLCV are EXACT decimal STRINGS. Core indicators get Decimal; high_window/tbounce float.
+    feed_daily_indicators(tradebar=bar, end_time=et, o="10.0", h="11.0", lo="9.0", c="10.5",
+                          v="1000.0", indicators=suite)
+    # full-bar consumers get the TradeBar token (caller builds it with exact Decimal OHLCV)
     assert d_ichi.calls == [(bar,)]
     assert suite["adx"].calls == [(bar,)]
-    # price-series consumers get (end_time, close)
-    assert suite["sma200"].calls == [(et, 10.5)]
-    assert suite["roc13"].calls == [(et, 10.5)]
-    assert suite["macd"].calls == [(et, 10.5)]
-    # volume-series consumer gets (end_time, volume)
-    assert suite["vol_sma20"].calls == [(et, 1000.0)]
-    # high_window gets the high via add()
+    # price-series consumers get (end_time, Decimal(close)) — exact, NOT float
+    assert suite["sma200"].calls == [(et, Decimal("10.5"))]
+    assert suite["roc13"].calls == [(et, Decimal("10.5"))]
+    assert suite["macd"].calls == [(et, Decimal("10.5"))]
+    # volume-series consumer gets (end_time, Decimal(volume))
+    assert suite["vol_sma20"].calls == [(et, Decimal("1000.0"))]
+    # high_window gets float(high) (matches the live _on_daily float(bar.high))
     assert suite["high_window"].calls == [("add", 11.0)]
-    # tbounce gets OHLC + the LIVE tenkan (read AFTER d_ichi.update → ready → 42.0)
+    # tbounce gets float OHLC + the LIVE tenkan (read AFTER d_ichi.update → ready → 42.0)
     assert suite["tbounce"].calls == [(10.0, 11.0, 9.0, 10.5, 42.0)]
 
 
@@ -256,7 +258,7 @@ def test_feed_daily_indicators_tbounce_tenkan_zero_until_ready() -> None:
     d_ichi = _DIchi(ready=False, tenkan_value=999.0)
     suite = _suite(d_ichi)
     feed_daily_indicators(tradebar=object(), end_time=_dt.datetime(2024, 1, 5),
-                          o=1.0, h=2.0, lo=0.5, c=1.5, v=10.0, indicators=suite)
+                          o="1.0", h="2.0", lo="0.5", c="1.5", v="10.0", indicators=suite)
     assert suite["tbounce"].calls == [(1.0, 2.0, 0.5, 1.5, 0.0)]
 
 
@@ -282,7 +284,8 @@ def test_restore_replays_full_stream_in_chronological_order() -> None:
     assert n == 5
     assert seen == [b[0] for b in bars]                 # chronological, every bar
     assert len(suite["sma200"].calls) == 5              # each consumer fed once per bar
-    assert suite["high_window"].calls == [("add", b[2]) for b in bars]  # highs, in order
+    # high_window gets float(high); the captured bar's high (b[2]) is an exact decimal string
+    assert suite["high_window"].calls == [("add", float(b[2])) for b in bars]  # highs, in order
 
 
 def test_restore_cold_for_unwarmed_symbol() -> None:

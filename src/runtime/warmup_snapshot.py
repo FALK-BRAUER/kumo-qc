@@ -25,12 +25,16 @@ import datetime as _dt
 import json
 from typing import Any, Callable, Iterable
 
-# One captured daily bar: (iso_date, open, high, low, close, volume). RAW prices (the champion's
-# universe_settings normalization). Stored as a tuple → compact, JSON-round-trippable, ordered.
-DailyBar = tuple[str, float, float, float, float, float]
+# One captured daily bar: (iso_date, open, high, low, close, volume). The OHLCV are EXACT DECIMAL
+# STRINGS (str(bar.<field>) of the native QC Decimal) — NOT floats. Float truncation shifts indicator
+# values at the margin → threshold scores flip → order-count divergence (the 48≠72 bug); the #362
+# spike proved byte-identical ONLY with exact Decimal-string preservation. Tuple → compact, JSON-
+# round-trippable (strings survive json verbatim), ordered.
+DailyBar = tuple[str, str, str, str, str, str]
 
-# blob schema marker — bump if the on-disk format changes (a restore checks it, fail-closed).
-SNAPSHOT_SCHEMA = "warmup_snapshot_v1"
+# blob schema marker — bump if the on-disk format changes (a restore checks it, fail-closed). v2 =
+# the float→exact-Decimal-string fix (v1 floats gave 48≠72; v2 strings restore byte-identical).
+SNAPSHOT_SCHEMA = "warmup_snapshot_v2"
 
 
 class WarmupSnapshot:
@@ -111,7 +115,7 @@ class WarmupSnapshot:
         if not isinstance(sym, str) or not isinstance(raw, list):
             return None
         bars: list[DailyBar] = [
-            (str(r[0]), float(r[1]), float(r[2]), float(r[3]), float(r[4]), float(r[5]))
+            (str(r[0]), str(r[1]), str(r[2]), str(r[3]), str(r[4]), str(r[5]))
             for r in raw
         ]
         return sym, bars
@@ -126,10 +130,12 @@ class WarmupSnapshot:
         return snap
 
 
-def make_daily_bar(d: _dt.date | str, o: float, h: float, l: float, c: float, v: float) -> DailyBar:
-    """Construct a capture bar with an ISO-date key (chronological-sortable, round-trip-stable)."""
+def make_daily_bar(d: _dt.date | str, o: Any, h: Any, l: Any, c: Any, v: Any) -> DailyBar:
+    """Construct a capture bar with an ISO-date key (chronological-sortable). OHLCV stored as EXACT
+    strings — pass str(bar.<field>) of the native QC Decimal (NOT float — that truncates → 48≠72).
+    str() here is idempotent on already-string values and exact on a Decimal."""
     iso = d.isoformat() if isinstance(d, _dt.date) else str(d)
-    return (iso, float(o), float(h), float(l), float(c), float(v))
+    return (iso, str(o), str(h), str(l), str(c), str(v))
 
 
 def restore_warmup_days(*, restore_fp: "str | None", has_object_store: bool,
@@ -152,24 +158,27 @@ def feed_daily_indicators(*, tradebar: Any, end_time: Any, o: float, h: float, l
     forward-only full-bar consumers (d_ichi/adx) and passes the scalars for the price/volume-series
     consumers.
 
-    Wiring (identical to lean_entry._seed_daily, lines ~1068-1080):
-      - d_ichi.update(bar) / adx.update(bar) : full TradeBar (adx.updated cascades adx_window).
-      - sma200/roc13/macd.update(end_time, c): price-series (macd.updated cascades macd_hist_window).
-      - vol_sma20.update(end_time, v)        : VOLUME-field SMA.
-      - high_window.add(h)                   : the #364 no-new-high window.
-      - tbounce.update(o,h,lo,c, tenkan)     : OHLC + the LIVE daily Tenkan (read AFTER d_ichi.update,
-                                               so 0.0 until d_ichi.is_ready — the exact seed idiom).
+    o/h/lo/c/v are EXACT decimal STRINGS (the v2 snapshot). TYPE DISCIPLINE = match each indicator's
+    LIVE feed so the restored state is byte-identical to the warmup:
+      - d_ichi/adx : the `tradebar` (built by the caller with Decimal OHLCV — QC's native warmup feed
+                     is Decimal). adx.updated cascades adx_window.
+      - sma200/roc13/macd/vol_sma20.update(end_time, Decimal): the #362 spike proved byte-identical
+        with DECIMAL scalars (NOT float). macd.updated cascades macd_hist_window.
+      - high_window.add(float) / tbounce.update(float...): the LIVE _on_daily feeds these float(bar.x)
+        → restore matches with float (str→float == the live float(Decimal), since str(Decimal) is exact).
     Order is load-bearing (tbounce reads d_ichi's freshly-updated Tenkan)."""
+    from decimal import Decimal
     d_ichi = indicators["d_ichi"]
     d_ichi.update(tradebar)
-    indicators["adx"].update(tradebar)        # cascades adx_window via adx.updated
-    indicators["sma200"].update(end_time, c)
-    indicators["roc13"].update(end_time, c)
-    indicators["macd"].update(end_time, c)    # cascades macd_hist_window via macd.updated
-    indicators["vol_sma20"].update(end_time, v)
-    indicators["high_window"].add(h)
+    indicators["adx"].update(tradebar)            # cascades adx_window via adx.updated
+    dc, dv = Decimal(c), Decimal(v)
+    indicators["sma200"].update(end_time, dc)
+    indicators["roc13"].update(end_time, dc)
+    indicators["macd"].update(end_time, dc)       # cascades macd_hist_window via macd.updated
+    indicators["vol_sma20"].update(end_time, dv)
+    indicators["high_window"].add(float(h))
     tk = d_ichi.tenkan.current.value if getattr(d_ichi, "is_ready", False) else 0.0
-    indicators["tbounce"].update(o, h, lo, c, float(tk))
+    indicators["tbounce"].update(float(o), float(h), float(lo), float(c), float(tk))
 
 
 # ── ObjectStore delivery (RUN1 write / RUNn restore-read) — mirrors the #358 weekly-cache pattern ──
