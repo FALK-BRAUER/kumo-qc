@@ -109,10 +109,14 @@ def main() -> None:
     restore_only = os.environ.get("PARITY_RESTORE_ONLY") == "1"
     if restore_only:
         existing = _backtest_dirs()
-        run1_orders = _order_count(existing[0]) if existing else -1  # oldest dir == the capture run
+        # RUN1 reference order count: env override (the capture's run_dir backtests/ gets WIPED by
+        # build_sweep_dist's rebuild each run, so read it from PARITY_RUN1_ORDERS — the known S1 FY
+        # capture = 72). Fall back to the oldest surviving backtest dir if no env.
+        env_ref = os.environ.get("PARITY_RUN1_ORDERS")
+        run1_orders = int(env_ref) if env_ref else (_order_count(existing[0]) if existing else -1)
         t1 = float("nan")
         n_before = len(existing)
-        print(f"\nRESTORE-ONLY: reuse ./storage snapshot; RUN1 orders (prior capture)={run1_orders}", flush=True)
+        print(f"\nRESTORE-ONLY: reuse ./storage snapshot; RUN1 orders (ref)={run1_orders}", flush=True)
     else:
         r1, t1 = _run("capture", {"CAPTURE_WARMUP_SNAPSHOT": fp})
         run1_orders = int(getattr(r1.metrics, "orders", -1))
