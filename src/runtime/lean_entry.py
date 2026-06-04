@@ -705,15 +705,13 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             sym = s.symbol
             self._active.add(sym)
             if sym not in self._indicators:
-                # #365 RESTORE: during the armed MINIMAL warmup, DEFER the heavy per-symbol daily
-                # indicator registration to warmup-end. Building them here would auto-warm them ~28
-                # bars over the minimal window; replaying the full captured stream into a partly-
-                # warmed (forward-only) indicator is rejected — the double-feed. At warmup-end they
-                # build COLD and the replay owns the feed (single source). The name stays in _active
-                # (tracked) and is registered+restored in on_warmup_finished. Post-warmup entrants
-                # (is_warming_up False) register normally (history-seed, #259).
-                if self._restore_snapshot_armed() and self.is_warming_up:
-                    continue
+                # #365 RESTORE uses register-normally + RESET+REPLAY at warmup-end (NOT deferral):
+                # self.ichimoku() requires a LIVE data subscription, which is guaranteed HERE (the
+                # added-securities hook) but NOT in on_warmup_finished (a warmup name's subscription
+                # is in flux at the live boundary → "register via AddSecurity" for legit names). So
+                # register normally (auto-warms ~28 bars over the minimal warmup); on_warmup_finished
+                # then RESETS the daily suite + replays the captured 560d stream into the cold suite
+                # (single feed source, byte-identical). Post-warmup entrants history-seed (#259).
                 self._register_indicators(sym)
         for s in changes.removed_securities:
             sym = s.symbol
@@ -1200,31 +1198,31 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             from runtime.warmup_snapshot import load_snapshot_for_symbol
             fp = self.RESTORE_WARMUP_SNAPSHOT
             store = getattr(self, "object_store", None)
-            restored = cold = skipped = 0
+            # RESET-keys = the DAILY suite the snapshot restores (weekly/consolidators orthogonal —
+            # continuous-weekly bypasses w_ichi; the consolidators are live feeds, untouched).
+            reset_keys = ("d_ichi", "sma200", "adx", "roc13", "macd", "vol_sma20",
+                          "adx_window", "macd_hist_window", "high_window", "tbounce")
+            restored = cold = 0
             for sym in list(self._active):
-                if sym in self._indicators:
-                    continue  # defensive — the deferral leaves active names unregistered until here
-                # #365: register only LIVE subscriptions. A transient warmup-universe name LEAN has
-                # released by the warmup→live boundary (the deferral kept no consolidator anchoring its
-                # subscription) → self.ichimoku(sym) raises "register to receive data via AddSecurity".
-                # Skip it: not in the live start-of-FY universe → cold is correct (universe-gated).
-                if not self.securities.contains_key(sym):
-                    skipped += 1
-                    continue
+                ind = self._indicators.get(sym)
+                if ind is None:
+                    continue  # not registered (shouldn't happen — registration is normal now)
                 sym_snap = load_snapshot_for_symbol(store, fp, sym.value)
-                try:
-                    self._register_indicators(sym, restore_snap=sym_snap, restore_mode=True)
-                except Exception as e:  # noqa: BLE001 — one transient name must not kill a 33-min run;
-                    # log LOUD + skip (the next cycle surfaces ALL problem names, not one-at-a-time).
-                    skipped += 1
-                    self.log(f"#365 RESTORE_SKIP|{getattr(sym, 'value', sym)}|{type(e).__name__}: {str(e)[:120]}")
-                    continue
                 if sym_snap is None:
-                    cold += 1
-                else:
-                    restored += 1
-            self.log(f"#365 RESTORE: warmup-end rebuilt {restored} from snapshot, {cold} cold, "
-                     f"{skipped} skipped of {len(self._active)} active (cold>0 ⇒ universe desync vs capture)")
+                    cold += 1  # absent from the snapshot → leave as auto-warmed (universe-gated edge)
+                    continue
+                # RESET the daily suite to cold (it auto-warmed ~28 bars over the minimal warmup),
+                # then REPLAY the captured 560d stream — single feed source → byte-identical (#318
+                # synthetic bars). The indicators ALREADY EXIST (registered in on_securities_changed
+                # where the subscription is live) → NO self.ichimoku here → no AddSecurity error.
+                for k in reset_keys:
+                    obj = ind.get(k)
+                    if obj is not None and hasattr(obj, "reset"):
+                        obj.reset()
+                self._restore_daily_from_snapshot(sym, ind, sym_snap)
+                restored += 1
+            self.log(f"#365 RESTORE: warmup-end reset+replayed {restored} from snapshot, {cold} cold "
+                     f"of {len(self._active)} active (cold>0 ⇒ universe desync vs capture)")
 
     def on_data(self, data: Any) -> None:
         """The INTRADAY execution clock ONLY (#313). on_data feeds the 5-min ("minute") bars to the

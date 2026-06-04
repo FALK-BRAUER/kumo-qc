@@ -79,6 +79,19 @@ class TBounceTracker:
         self.last_low: float | None = None
         self.last_close: float | None = None
 
+    def reset(self) -> None:
+        """#365 RESTORE — clear to the __init__ cold state so the captured warmup stream can be
+        replayed into it from scratch (the reset+replay restore: register normally so the security
+        subscription is live, then reset+replay at warmup-end into a cold tracker). Mirrors a QC
+        IndicatorBase.reset()."""
+        self.sessions_below_tenkan = 0
+        self.gap_up_frac = 0.0
+        self.prev_close = None
+        self.last_open = None
+        self.last_high = None
+        self.last_low = None
+        self.last_close = None
+
     def update(self, open_: float, high: float, low: float, close: float, tenkan: float) -> None:
         """Fold one completed daily bar into the maintained T-Bounce state.
 
