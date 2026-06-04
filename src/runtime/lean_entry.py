@@ -53,7 +53,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Iterable
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 from hashlib import sha256
 from typing import TYPE_CHECKING, Any
@@ -345,6 +345,14 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
     # serialize it per-symbol to the ObjectStore at warmup-end (RUN1). The restore side replays it to
     # skip set_warmup (inc3). LOCAL-ONLY (the key is never uploaded). Capture-only; no decision effect.
     CAPTURE_WARMUP_SNAPSHOT: str | None = None
+    # #365 RESTORE (default OFF → byte-untouched; LOCAL-ONLY): when set to the data fingerprint AND
+    # a per-symbol snapshot exists for the captured (RUN1) warmup, the restore replays each
+    # registered symbol's captured stream through the daily suite — reproducing the warmed state
+    # WITHOUT the ~200s set_warmup, unlocking the cap>=2 parallel fan-out. Cloud sets no fp / the
+    # key is never uploaded → load returns None → live warmup (fail-closed). The full skip-warmup
+    # orchestration (universe/DV-state restore, the #358b dependency) lands in a follow-up increment;
+    # this increment provides the per-symbol restore SEAM (_restore_daily_from_snapshot) + its test.
+    RESTORE_WARMUP_SNAPSHOT: str | None = None
     # #348 instrumentation flag (default OFF → live path byte-untouched): when set (via
     # SWEEP_CLASS_ATTRS for a trace run) the signal phase emits DECISIONTRACE log lines per scored
     # candidate (the NON-TRADES substrate). Pure logging — no decision effect.
@@ -1078,6 +1086,34 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             # T-Bounce tracker: replay the live _on_daily feed (OHLC + live daily Tenkan).
             tk = d_ichi.tenkan.current.value if d_ichi.is_ready else 0.0
             tbounce.update(o, h, lo, c, float(tk))
+
+    def _restore_daily_from_snapshot(self, sym: Any, indicators: dict, snap: Any) -> int:
+        """#365 RESTORE seam — replay a symbol's CAPTURED warmup stream through the daily indicator
+        suite, reproducing the warmed state WITHOUT set_warmup. The single-code-path analogue of
+        ``_seed_daily``: same public update() sequence (via ``feed_daily_indicators``), but sourced
+        from the captured DailyBar buffer instead of ``history()`` — no I/O, no universe re-selection.
+
+        Builds the cloud-safe synthetic TradeBar (``_make_trade_bar``, the #318 no-overload/Decimal
+        path) per captured bar for the forward-only d_ichi/adx consumers; the ISO date is the bar's
+        data-available DAY (period 1d, time = day-midnight, end_time = time + period). The captured
+        stream is strictly chronological (WarmupSnapshot.record enforces it) → every update is
+        forward-accepted, exactly as the live warmup fed them. Returns the bar count replayed
+        (0 = symbol absent from the snapshot → leaves it COLD, matching the champion's universe-gated
+        readiness — the #358 (ii) fix by construction)."""
+        from runtime.warmup_snapshot import feed_daily_indicators
+
+        day = timedelta(days=1)
+
+        def _feed(bar: Any) -> None:
+            iso, o, h, lo, c, v = bar
+            end_time = datetime.fromisoformat(iso)  # bar-date midnight; chronological key
+            tradebar = _make_trade_bar(end_time - day, sym, o, h, lo, c, v, day)
+            feed_daily_indicators(
+                tradebar=tradebar, end_time=end_time, o=o, h=h, lo=lo, c=c, v=v,
+                indicators=indicators,
+            )
+
+        return snap.replay(sym.value, _feed)
 
     def on_warmup_finished(self) -> None:
         """#362 SPIKE: at warmup-end, serialize the captured per-symbol warmup input streams to the

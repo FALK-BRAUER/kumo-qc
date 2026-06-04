@@ -132,6 +132,35 @@ def make_daily_bar(d: _dt.date | str, o: float, h: float, l: float, c: float, v:
     return (iso, float(o), float(h), float(l), float(c), float(v))
 
 
+def feed_daily_indicators(*, tradebar: Any, end_time: Any, o: float, h: float, lo: float,
+                          c: float, v: float, indicators: dict) -> None:
+    """#365 RESTORE — feed ONE daily bar into the daily indicator suite, mirroring `_seed_daily`'s
+    EXACT per-indicator wiring (the single-code-path seam: restore drives the SAME public update()
+    sequence warmup/seed do → byte-identical state by construction). Pure + QC-free → unit-testable
+    with stub indicators; the caller (lean_entry) builds the cloud-safe `tradebar` for the
+    forward-only full-bar consumers (d_ichi/adx) and passes the scalars for the price/volume-series
+    consumers.
+
+    Wiring (identical to lean_entry._seed_daily, lines ~1068-1080):
+      - d_ichi.update(bar) / adx.update(bar) : full TradeBar (adx.updated cascades adx_window).
+      - sma200/roc13/macd.update(end_time, c): price-series (macd.updated cascades macd_hist_window).
+      - vol_sma20.update(end_time, v)        : VOLUME-field SMA.
+      - high_window.add(h)                   : the #364 no-new-high window.
+      - tbounce.update(o,h,lo,c, tenkan)     : OHLC + the LIVE daily Tenkan (read AFTER d_ichi.update,
+                                               so 0.0 until d_ichi.is_ready — the exact seed idiom).
+    Order is load-bearing (tbounce reads d_ichi's freshly-updated Tenkan)."""
+    d_ichi = indicators["d_ichi"]
+    d_ichi.update(tradebar)
+    indicators["adx"].update(tradebar)        # cascades adx_window via adx.updated
+    indicators["sma200"].update(end_time, c)
+    indicators["roc13"].update(end_time, c)
+    indicators["macd"].update(end_time, c)    # cascades macd_hist_window via macd.updated
+    indicators["vol_sma20"].update(end_time, v)
+    indicators["high_window"].add(h)
+    tk = d_ichi.tenkan.current.value if getattr(d_ichi, "is_ready", False) else 0.0
+    indicators["tbounce"].update(o, h, lo, c, float(tk))
+
+
 # ── ObjectStore delivery (RUN1 write / RUNn restore-read) — mirrors the #358 weekly-cache pattern ──
 # LOCAL-ONLY key (never uploaded → cloud contains_key False → restore falls back to live warmup) +
 # the embedded fp guard. Separator '-' (the cache_key APFS lesson — ':' maps to '/' on macOS).

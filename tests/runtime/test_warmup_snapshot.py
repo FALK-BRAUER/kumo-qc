@@ -12,8 +12,8 @@ import datetime as _dt
 import pytest
 
 from runtime.warmup_snapshot import (
-    SNAPSHOT_SCHEMA, WarmupSnapshot, load_snapshot_for_symbol, make_daily_bar,
-    serialize_to_store, snapshot_key,
+    SNAPSHOT_SCHEMA, WarmupSnapshot, feed_daily_indicators, load_snapshot_for_symbol,
+    make_daily_bar, serialize_to_store, snapshot_key,
 )
 
 
@@ -189,3 +189,112 @@ def test_load_snapshot_fail_closed_absent_and_fp_mismatch() -> None:
     # falsy args → None
     assert load_snapshot_for_symbol(None, FP, "AAPL") is None
     assert load_snapshot_for_symbol(store, FP, "") is None
+
+
+# ── #365 RESTORE seam — feed_daily_indicators wiring + replay-driven restore ──────────────────
+
+
+class _Rec:
+    """Records .update(...) call args. Models a forward-only indicator: stores the last full-bar
+    update so the suite-order + per-indicator routing can be asserted without QC's C# indicators."""
+
+    def __init__(self) -> None:
+        self.calls: list = []
+
+    def update(self, *args: object) -> None:
+        self.calls.append(args)
+
+    def add(self, x: object) -> None:  # RollingWindow-style (high_window)
+        self.calls.append(("add", x))
+
+
+class _Tenkan:
+    def __init__(self, value: float) -> None:
+        self.current = type("C", (), {"value": value})()
+
+
+class _DIchi(_Rec):
+    """d_ichi stub: is_ready + a tenkan.current.value (read by the tbounce wiring AFTER update)."""
+
+    def __init__(self, ready: bool, tenkan_value: float) -> None:
+        super().__init__()
+        self.is_ready = ready
+        self.tenkan = _Tenkan(tenkan_value)
+
+
+def _suite(d_ichi: _DIchi) -> dict:
+    keys = ("adx", "sma200", "roc13", "macd", "vol_sma20", "tbounce", "high_window")
+    suite: dict = {k: _Rec() for k in keys}
+    suite["d_ichi"] = d_ichi
+    return suite
+
+
+def test_feed_daily_indicators_routes_each_consumer_correctly() -> None:
+    d_ichi = _DIchi(ready=True, tenkan_value=42.0)
+    suite = _suite(d_ichi)
+    et = _dt.datetime(2024, 1, 5)
+    bar = object()  # the full-bar token routed to the forward-only consumers
+    feed_daily_indicators(tradebar=bar, end_time=et, o=10.0, h=11.0, lo=9.0, c=10.5, v=1000.0,
+                          indicators=suite)
+    # full-bar consumers get the TradeBar token
+    assert d_ichi.calls == [(bar,)]
+    assert suite["adx"].calls == [(bar,)]
+    # price-series consumers get (end_time, close)
+    assert suite["sma200"].calls == [(et, 10.5)]
+    assert suite["roc13"].calls == [(et, 10.5)]
+    assert suite["macd"].calls == [(et, 10.5)]
+    # volume-series consumer gets (end_time, volume)
+    assert suite["vol_sma20"].calls == [(et, 1000.0)]
+    # high_window gets the high via add()
+    assert suite["high_window"].calls == [("add", 11.0)]
+    # tbounce gets OHLC + the LIVE tenkan (read AFTER d_ichi.update → ready → 42.0)
+    assert suite["tbounce"].calls == [(10.0, 11.0, 9.0, 10.5, 42.0)]
+
+
+def test_feed_daily_indicators_tbounce_tenkan_zero_until_ready() -> None:
+    # d_ichi not ready → the seed idiom feeds tbounce a 0.0 Tenkan (matches _seed_daily exactly)
+    d_ichi = _DIchi(ready=False, tenkan_value=999.0)
+    suite = _suite(d_ichi)
+    feed_daily_indicators(tradebar=object(), end_time=_dt.datetime(2024, 1, 5),
+                          o=1.0, h=2.0, lo=0.5, c=1.5, v=10.0, indicators=suite)
+    assert suite["tbounce"].calls == [(1.0, 2.0, 0.5, 1.5, 0.0)]
+
+
+def test_restore_replays_full_stream_in_chronological_order() -> None:
+    # the lean_entry restore is `snap.replay(sym, _feed)`; here _feed drives the suite per bar →
+    # prove the WHOLE captured stream replays in capture order (the byte-identical-by-construction
+    # property at MY layer; the C#-indicator byte-identical is the full-FY BT gate).
+    bars = _bars(5)
+    snap = WarmupSnapshot(FP)
+    for b in bars:
+        snap.record("AAPL", b)
+    d_ichi = _DIchi(ready=True, tenkan_value=5.0)
+    suite = _suite(d_ichi)
+    seen: list = []
+
+    def _feed(bar: tuple) -> None:
+        iso, o, h, lo, c, v = bar
+        seen.append(iso)
+        feed_daily_indicators(tradebar=("tb", iso), end_time=_dt.datetime.fromisoformat(iso),
+                              o=o, h=h, lo=lo, c=c, v=v, indicators=suite)
+
+    n = snap.replay("AAPL", _feed)
+    assert n == 5
+    assert seen == [b[0] for b in bars]                 # chronological, every bar
+    assert len(suite["sma200"].calls) == 5              # each consumer fed once per bar
+    assert suite["high_window"].calls == [("add", b[2]) for b in bars]  # highs, in order
+
+
+def test_restore_cold_for_unwarmed_symbol() -> None:
+    # a symbol absent from the snapshot replays 0 bars → stays COLD (the #358 (ii) universe-gated fix)
+    snap = WarmupSnapshot(FP)
+    for b in _bars(3):
+        snap.record("AAPL", b)
+    suite = _suite(_DIchi(ready=False, tenkan_value=0.0))
+
+    def _feed(bar: tuple) -> None:  # pragma: no cover — must NOT be called
+        feed_daily_indicators(tradebar=object(), end_time=_dt.datetime(2024, 1, 5),
+                              o=bar[1], h=bar[2], lo=bar[3], c=bar[4], v=bar[5], indicators=suite)
+
+    assert snap.replay("NVDA", _feed) == 0
+    assert suite["sma200"].calls == []  # nothing fed → cold
