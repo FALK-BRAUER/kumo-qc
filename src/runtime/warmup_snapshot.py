@@ -132,6 +132,17 @@ def make_daily_bar(d: _dt.date | str, o: float, h: float, l: float, c: float, v:
     return (iso, float(o), float(h), float(l), float(c), float(v))
 
 
+def restore_warmup_days(*, restore_fp: "str | None", has_object_store: bool,
+                        minimal_days: int, full_days: int) -> tuple[int, bool]:
+    """#365 — pick the warmup length, fail-closed. RESTORE is ARMED iff a fingerprint is set AND a
+    local object_store exists; armed → `minimal_days` (the cheap coarse-DV fill; the heavy per-symbol
+    indicators restore from the snapshot at warmup-end) + True. Else → `full_days` (the canonical
+    560d warmup) + False — the cloud path (no fp / no store) and the default both take this branch,
+    byte-untouched. Pure → unit-testable without QC."""
+    armed = bool(restore_fp) and has_object_store
+    return (minimal_days if armed else full_days), armed
+
+
 def feed_daily_indicators(*, tradebar: Any, end_time: Any, o: float, h: float, lo: float,
                           c: float, v: float, indicators: dict) -> None:
     """#365 RESTORE — feed ONE daily bar into the daily indicator suite, mirroring `_seed_daily`'s

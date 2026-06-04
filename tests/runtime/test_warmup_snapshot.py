@@ -13,7 +13,7 @@ import pytest
 
 from runtime.warmup_snapshot import (
     SNAPSHOT_SCHEMA, WarmupSnapshot, feed_daily_indicators, load_snapshot_for_symbol,
-    make_daily_bar, serialize_to_store, snapshot_key,
+    make_daily_bar, restore_warmup_days, serialize_to_store, snapshot_key,
 )
 
 
@@ -298,3 +298,18 @@ def test_restore_cold_for_unwarmed_symbol() -> None:
 
     assert snap.replay("NVDA", _feed) == 0
     assert suite["sma200"].calls == []  # nothing fed → cold
+
+
+def test_restore_warmup_days_fail_closed_gate() -> None:
+    # ARMED: a fp + a local object_store → minimal (the coarse-DV fill) + armed=True
+    days, armed = restore_warmup_days(restore_fp=FP, has_object_store=True,
+                                      minimal_days=40, full_days=560)
+    assert (days, armed) == (40, True)
+    # no object_store (cloud analogue) → full 560d, fail-closed
+    assert restore_warmup_days(restore_fp=FP, has_object_store=False,
+                               minimal_days=40, full_days=560) == (560, False)
+    # no fp (default / cloud) → full 560d, byte-untouched
+    assert restore_warmup_days(restore_fp=None, has_object_store=True,
+                               minimal_days=40, full_days=560) == (560, False)
+    assert restore_warmup_days(restore_fp="", has_object_store=True,
+                               minimal_days=40, full_days=560) == (560, False)

@@ -323,6 +323,12 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
     # NOTE: this is the FULL-SIGNAL warmup. A Step-A-parity-only override may set ~40d; that is
     # NOT the strategy default and must never be hardcoded here.
     WARMUP_DAYS: int = 560
+    # #365 RESTORE minimal-warmup length (calendar days), used ONLY when RESTORE_WARMUP_SNAPSHOT is
+    # armed. ~2× ADV_WINDOW(20) trading days in CALENDAR terms (≈28 trading ≥ the 20-deep DV deque,
+    # the calendar-vs-trading margin 358b validated): enough to fill qc._dv_windows (maxlen=ADV_WINDOW
+    # → byte-identical to the 560d fill, the deque keeps only the last ADV_WINDOW) WITHOUT the heavy
+    # 560d per-symbol indicator warmup (those restore from the captured snapshot at warmup-end).
+    MINIMAL_WARMUP_DAYS: int = 40
     # #336/#338 ws1 — CONTINUOUS-WEEKLY fix (default OFF = byte-untouched ship path). When True, the
     # daily decision re-derives each candidate's weekly Ichimoku from full CONTINUOUS daily history
     # (WeeklyIchimokuAsOf over self.history — bypasses the subscription-gated consolidator at the
@@ -395,7 +401,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self.set_cash(self.CASH)
         self.set_benchmark("SPY")
         self.set_time_zone("America/New_York")  # match legacy champion (scheduling/timestamps)
-        self.set_warmup(timedelta(days=self.WARMUP_DAYS))
+        self._apply_warmup()
         # #336/#338 continuous-weekly: CONTINUOUS_WEEKLY is the class-attr master switch (default OFF =
         # byte-untouched ship path; set True via class-attr injection for a flag-on run). flag-on → arm
         # qc._warmup_cache so the BctScoreFull cache branch consumes the per-decision
@@ -1114,6 +1120,29 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             )
 
         return snap.replay(sym.value, _feed)
+
+    def _apply_warmup(self) -> None:
+        """#365 RESTORE — choose the warmup length (fail-closed). DEFAULT (RESTORE off / cloud /
+        no object_store) → the canonical WARMUP_DAYS (560d) per-symbol warmup, byte-untouched. When
+        RESTORE_WARMUP_SNAPSHOT is armed (a fp + a local object_store) → a MINIMAL warmup of
+        MINIMAL_WARMUP_DAYS calendar days: it fills ONLY the coarse trailing-DV deque (qc._dv_windows,
+        maxlen=ADV_WINDOW — byte-identical to the 560d fill, the deque keeps only the last
+        ADV_WINDOW), while the heavy 560d-needing per-symbol indicators restore from the captured
+        snapshot at warmup-end (inc3 wiring). set_warmup is STILL CALLED (never skip-entirely) so LEAN
+        emits "Algorithm finished warming up." → the WarmupGate releases early → the cap>=2 parallel
+        fan-out (skip-entirely → no marker → the gate holds to process-exit → serialized, self-
+        defeating). NOTE: arming RESTORE is not yet functional end-to-end — the warmup-end snapshot
+        replay (inc3) must land first; until then RESTORE_WARMUP_SNAPSHOT stays None (default)."""
+        from runtime.warmup_snapshot import restore_warmup_days
+        days, armed = restore_warmup_days(
+            restore_fp=self.RESTORE_WARMUP_SNAPSHOT,
+            has_object_store=getattr(self, "object_store", None) is not None,
+            minimal_days=self.MINIMAL_WARMUP_DAYS, full_days=self.WARMUP_DAYS,
+        )
+        self.set_warmup(timedelta(days=days))
+        if armed:
+            self.log(f"#365 RESTORE: MINIMAL warmup {days}d (coarse-DV fill) + snapshot indicator "
+                     f"restore at warmup-end (fp {self.RESTORE_WARMUP_SNAPSHOT[:12]}…)")
 
     def on_warmup_finished(self) -> None:
         """#362 SPIKE: at warmup-end, serialize the captured per-symbol warmup input streams to the
