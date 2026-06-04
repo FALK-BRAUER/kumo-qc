@@ -33,7 +33,6 @@ sys.path[:0] = [str(_ROOT), str(_ROOT / "src"), str(_ROOT / "scripts")]
 os.environ.setdefault("DOCKER_HOST", "unix:///Users/falk/.docker/run/docker.sock")
 
 from sweeps.adapters.qc_local_prod import make_local_run  # noqa: E402
-from sweeps.run_sweep import run_sweep  # noqa: E402
 from sweeps.types import PhaseChoice, SweepConfig, Window  # noqa: E402
 
 # S1 champion base (no rotation) — the validate _S1REF (hash 65c0cf447168). continuous_weekly=True.
@@ -56,11 +55,18 @@ def _data_fingerprint() -> str:
         return "local-365-parity"
 
 
-def _run(label: str, class_attrs: dict) -> object:
+def _run(label: str, class_attrs: dict) -> tuple[object, float]:
+    """Run ONE cell directly via the local adapter (bypasses run_sweep's >=2-window panel gate —
+    a parity test is a single (S1, FY) cell, not a statistical sweep). Returns (RunResult, seconds).
+    RUN2 restore may raise (degraded / 0 orders if restore broke) — the caller catches to report a
+    clean gate-FAIL, never a crash."""
+    import time
     os.environ["SWEEP_CLASS_ATTRS"] = json.dumps(class_attrs)
     print(f"\n=== #365 parity {label}: SWEEP_CLASS_ATTRS={class_attrs} ===", flush=True)
-    return run_sweep([S1], make_local_run(), windows=[FY], max_workers=1,
-                     pins=("run365-parity", label, "parity_v1"), min_windows=1)
+    adapter = make_local_run()
+    t0 = time.perf_counter()
+    result = adapter.run_result(S1, FY)
+    return result, time.perf_counter() - t0
 
 
 def _run_dir() -> Path:
@@ -98,22 +104,26 @@ def main() -> None:
     fp = _data_fingerprint()
     print(f"#365 parity gate — S1 {S1.config_hash}, fp {fp[:12]}…, run_dir {_run_dir()}", flush=True)
 
-    _run("capture", {"CAPTURE_WARMUP_SNAPSHOT": fp})
-    bts_after_run1 = _backtest_dirs()
-    run1_bt = bts_after_run1[-1] if bts_after_run1 else None
-    run1_orders = _order_count(run1_bt) if run1_bt else -1
+    r1, t1 = _run("capture", {"CAPTURE_WARMUP_SNAPSHOT": fp})
+    run1_orders = int(getattr(r1.metrics, "orders", -1))
+    n_before = len(_backtest_dirs())
+    run1_bt = _backtest_dirs()[-1] if n_before else None
     cap_writes = _grep_log(run1_bt, "WARMUP_SNAPSHOT_WRITE") if run1_bt else []
-    print(f"\nRUN1 capture: orders={run1_orders} bt={run1_bt.name if run1_bt else None} "
-          f"snapshot_writes={cap_writes}", flush=True)
+    print(f"\nRUN1 capture: orders={run1_orders} wall={t1:.1f}s snapshot_writes={cap_writes}", flush=True)
 
-    _run("restore", {"RESTORE_WARMUP_SNAPSHOT": fp, "DECISION_TRACE": True})
-    bts_after_run2 = _backtest_dirs()
-    run2_bt = bts_after_run2[-1] if len(bts_after_run2) > len(bts_after_run1) else None
-    run2_orders = _order_count(run2_bt) if run2_bt else -1
+    try:
+        r2, t2 = _run("restore", {"RESTORE_WARMUP_SNAPSHOT": fp, "DECISION_TRACE": True})
+        run2_orders = int(getattr(r2.metrics, "orders", -1))
+    except Exception as e:  # noqa: BLE001 — a restore that breaks (degraded/0-orders) is a gate FAIL, report it
+        print(f"\nRUN2 restore RAISED: {type(e).__name__}: {str(e)[:300]}", flush=True)
+        run2_orders, t2 = -1, float("nan")
+    bts_after = _backtest_dirs()
+    run2_bt = bts_after[-1] if len(bts_after) > n_before else None
     engaged = _grep_log(run2_bt, "rebuilt") if run2_bt else []
     minimal = _grep_log(run2_bt, "MINIMAL warmup") if run2_bt else []
+    print(f"\nRUN2 restore: orders={run2_orders} wall={t2:.1f}s", flush=True)
 
-    # --- the 3-point gate ---
+    # --- the 3-point engage gate (byte-identical alone is necessary-NOT-sufficient) ---
     p1_engaged = any("rebuilt" in ln and " 0 from snapshot" not in ln for ln in engaged)
     p2_minimal = bool(minimal)
     p3_identical = run1_orders >= 0 and run1_orders == run2_orders
@@ -123,8 +133,11 @@ def main() -> None:
     print(f"  2. MINIMAL WARMUP   : {'PASS' if p2_minimal else 'FAIL'}  {minimal}")
     print(f"  3. BYTE-IDENTICAL   : {'PASS' if p3_identical else 'FAIL'}  "
           f"(RUN1 orders={run1_orders} vs RUN2 orders={run2_orders})")
+    speedup = (t1 / t2) if (t2 == t2 and t2 > 0) else float("nan")  # t2==t2 guards NaN
+    print(f"\n  PER-CELL SPEED (minimal-warmup alone, pre cap-flip): "
+          f"RUN1={t1:.1f}s vs RUN2={t2:.1f}s ({speedup:.1f}× faster)")
     verdict = "PASS" if (p1_engaged and p2_minimal and p3_identical) else "FAIL"
-    print(f"\n  VERDICT: {verdict}  (all three required — byte-identical alone is necessary-not-sufficient)")
+    print(f"\n  VERDICT: {verdict}  (all three required)")
     if verdict != "PASS":
         sys.exit(1)
 
