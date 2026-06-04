@@ -54,6 +54,8 @@ def main() -> None:
     ap.add_argument("--fp", required=True, help="data fingerprint (cache dir name + embedded guard)")
     ap.add_argument("--cache-root", default=str(_ROOT / "results" / "warmup_cache"))
     ap.add_argument("--storage", default=str(_ROOT / "storage"), help="LEAN LocalObjectStore dir")
+    ap.add_argument("--daily-dir", default=None,
+                    help="daily-zip universe for the #370 coverage manifest (default: ensure._DEFAULT_DAILY)")
     args = ap.parse_args()
 
     cache_dir = Path(args.cache_root) / args.fp
@@ -70,10 +72,21 @@ def main() -> None:
         keyfile.write_text(blob)
         total_rows += len(rows)
         total_bytes += len(blob)
+    # #370 COVERAGE MANIFEST — written ATOMICALLY at the end of a full build. Its presence is the
+    # completion marker; its (data_fp, universe_sig) lets ensure_weekly_cache verify the cache covers
+    # the requested universe (kills the partial-cache-passes-idempotent-skip bug). universe_sig is over
+    # the FULL daily universe the build ran against; absent symbols are the legit-uncomputable
+    # (pre-78wk / delisted) ones the runtime's weekly_miss_action skips (never throws).
+    from sweeps.warmup_cache.ensure import universe_signature, write_cache_manifest
+    daily_dir = args.daily_dir or None
+    usig, n_univ = universe_signature(daily_dir) if daily_dir else universe_signature()
+    manifest_path = write_cache_manifest(
+        storage, args.fp, universe_sig=usig, n_universe=n_univ, n_built=len(syms), n_keys=total_rows)
     print(json.dumps({
         "scheme": "per-symbol", "fp": args.fp, "keys": len(syms),
         "rows": total_rows, "bytes": total_bytes, "storage": str(storage),
         "sample_key": weekly_cache_key(args.fp, next(iter(syms))) if syms else None,
+        "manifest": str(manifest_path), "universe_sig": usig[:12], "n_universe": n_univ,
     }, indent=1))
 
 
