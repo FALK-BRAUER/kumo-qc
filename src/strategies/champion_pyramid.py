@@ -42,8 +42,11 @@ CONFIG = StrategyConfig(
             Slot(impl=VixPercentile, params=VixPercentile.Params(vix_percentile_enabled=False)),
         ],
         "sizing": Slot(impl=FlatPctHeatcap, params=FlatPctHeatcap.Params(position_pct=0.05, resolution="intraday")),
-        # REQUIRED for adds: the gross-exposure ceiling that bound_adds enforces at FIRE_ADDS (100%, no leverage)
-        "portfolio_risk": Slot(impl=GrossExposureCap, params=GrossExposureCap.Params(max_gross_pct=1.0)),
+        # REQUIRED for adds: the gross-exposure ceiling. resolution="intraday" — the entry-seam cap runs
+        # in S1's INTRADAY entry-execution chain (sizing is intraday), so it must share that clock (else
+        # the engine's mixed-clocks ConfigError). bound_adds (the add-seam) still fires at FIRE_ADDS.
+        "portfolio_risk": Slot(impl=GrossExposureCap,
+                               params=GrossExposureCap.Params(max_gross_pct=1.0, resolution="intraday")),
         "exit_hard": [Slot(impl=CloudAdherenceTrail, params=CloudAdherenceTrail.Params())],
         "entry_selection": [
             Slot(impl=PreFlightStaleness, params=PreFlightStaleness.Params()),
