@@ -27,10 +27,14 @@ from sweeps.warmup_cache.table_builder import read_daily_zip
 _DAILY = Path("/Users/falk/projects/kumo-qc/data/equity/usa/daily")
 _LABEL_END = _dt.date(2025, 12, 31)
 # (window → trace log). bear = Q1,Q4 ; bull = Q2,Q3 (the #349 robustness split).
+# All 4 quarters gathered at ONE consistent base (S1 = 65c0cf447168). The score-7 pool is
+# SIGNAL-determined (bct_score_full, before any swept phase) → config-independent, so a single base is
+# valid AND removes the old a8c1014476af Q3 wart (a stale different-config run). Regenerate via
+# run_349_trace.py (idempotent, DECISION_TRACE on, full warmup).
 _QUARTERS = {
     "Q1": ("bear", "65c0cf447168/w1_2025q1"),
     "Q2": ("bull", "65c0cf447168/w2_2025q2"),
-    "Q3": ("bull", "a8c1014476af/w3_2025q3"),
+    "Q3": ("bull", "65c0cf447168/w3_2025q3"),
     "Q4": ("bear", "65c0cf447168/w4_2025q4"),
 }
 
