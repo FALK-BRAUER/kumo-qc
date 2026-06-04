@@ -126,3 +126,26 @@ def test_make_gated_run_lean_uses_gate(monkeypatch) -> None:
     assert rc == 0
     assert captured["argv"] == ["lean", "backtest", "/tmp/projX"]
     assert "docker.sock" in captured["docker_host"]
+
+
+# ── #368 cap-flip: env-gated WarmupGate capacity (the Docker-RAM-raised parallel unlock) ──────────
+
+
+def test_warmup_gate_capacity_defaults_to_1(monkeypatch) -> None:
+    monkeypatch.delenv("WARMUP_GATE_CAPACITY", raising=False)
+    assert WarmupGate().capacity == 1  # byte-unchanged default = the OOM-safe serial warmup
+
+
+def test_warmup_gate_capacity_from_env(monkeypatch) -> None:
+    monkeypatch.setenv("WARMUP_GATE_CAPACITY", "6")
+    assert WarmupGate().capacity == 6  # the cap-flip: N concurrent warmups once Docker RAM is raised
+
+
+def test_warmup_gate_explicit_arg_overrides_env(monkeypatch) -> None:
+    monkeypatch.setenv("WARMUP_GATE_CAPACITY", "6")
+    assert WarmupGate(capacity=2).capacity == 2  # tests pin it explicitly
+
+
+def test_warmup_gate_capacity_floor_1(monkeypatch) -> None:
+    monkeypatch.setenv("WARMUP_GATE_CAPACITY", "0")
+    assert WarmupGate().capacity == 1  # never <1 (would deadlock the semaphore)

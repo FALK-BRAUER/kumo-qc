@@ -70,6 +70,19 @@ def local_dist_builder(config: SweepConfig, window: Window, run_dir: Path) -> st
         # archive can never be confused with flag-OFF. (Env SWEEP_CLASS_ATTRS stays for ad-hoc attrs.)
         if getattr(config, "continuous_weekly", False):
             extra.setdefault("CONTINUOUS_WEEKLY", True)
+        # #368: warmup_days drives the WARMUP_DAYS class-attr (config IDENTITY → in config_hash). When
+        # TRIMMED (<560), the weekly-cache is REQUIRED (else the 78wk weekly starves → 0 trades) — arm
+        # WARMUP_WEEKLY_CACHE_FP to the data fingerprint so the weekly comes from cache, with the
+        # #368 fail-loud guard catching any coverage gap. Default 560 → no injection (byte-untouched).
+        _wd = getattr(config, "warmup_days", 560)
+        if _wd != 560:
+            extra.setdefault("WARMUP_DAYS", _wd)
+            if _wd < 560:  # trimmed → the weekly-cache is mandatory
+                manifest = _REPO / "data" / "MANIFEST.json"
+                if manifest.exists():
+                    fp = _json.loads(manifest.read_text()).get("fingerprint")
+                    if fp:
+                        extra.setdefault("WARMUP_WEEKLY_CACHE_FP", fp)
         attr_lines = "".join(f"    {k} = {v!r}\n" for k, v in extra.items())
         s = s.replace(
             "    STRATEGY_CONFIG = STRATEGY_CONFIG\n", _window_class_attrs(window) + attr_lines, 1
@@ -88,6 +101,7 @@ def make_local_run(
     marker_check: bool = True,
     archive: bool = True,
     warmup_gate: WarmupGate | None = None,
+    ensure_weekly_cache_fp: str | None = None,
 ) -> LocalLeanRun:
     """The production local RunConfig primitive: LocalLeanRun wired with the real DistBuilder +
     local toolchain (`lean backtest` w/ the Docker host fix) + the durable persist. Provenance
@@ -103,6 +117,16 @@ def make_local_run(
     data_root = data_root or (_REPO / "data")
     runs_root = runs_root or (_REPO / "sweeps" / "runs")
     runs_root.mkdir(parents=True, exist_ok=True)
+    # #368 item-4: a trimmed-warmup sweep REQUIRES the weekly-cache (else the 78wk weekly starves →
+    # silent 0-trades). When the launcher passes the data fingerprint, ensure the cache exists pre-
+    # sweep — idempotent (skip-if-present), deterministic (build_warmup_cache → write_weekly_objectstore),
+    # fail-loud (0 keys → raise). Off by default (None) → existing/full-warmup flows byte-untouched.
+    if ensure_weekly_cache_fp:
+        from sweeps.warmup_cache.ensure import ensure_weekly_cache
+        ensure_weekly_cache(
+            ensure_weekly_cache_fp,
+            storage_dir=_REPO / "storage", cache_root=_REPO / "results" / "warmup_cache",
+        )
     run_lean = make_gated_run_lean(warmup_gate) if warmup_gate is not None else _default_run_lean
 
     persist = None
