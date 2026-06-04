@@ -1200,18 +1200,31 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             from runtime.warmup_snapshot import load_snapshot_for_symbol
             fp = self.RESTORE_WARMUP_SNAPSHOT
             store = getattr(self, "object_store", None)
-            restored = cold = 0
+            restored = cold = skipped = 0
             for sym in list(self._active):
                 if sym in self._indicators:
                     continue  # defensive — the deferral leaves active names unregistered until here
+                # #365: register only LIVE subscriptions. A transient warmup-universe name LEAN has
+                # released by the warmup→live boundary (the deferral kept no consolidator anchoring its
+                # subscription) → self.ichimoku(sym) raises "register to receive data via AddSecurity".
+                # Skip it: not in the live start-of-FY universe → cold is correct (universe-gated).
+                if not self.securities.contains_key(sym):
+                    skipped += 1
+                    continue
                 sym_snap = load_snapshot_for_symbol(store, fp, sym.value)
-                self._register_indicators(sym, restore_snap=sym_snap, restore_mode=True)
+                try:
+                    self._register_indicators(sym, restore_snap=sym_snap, restore_mode=True)
+                except Exception as e:  # noqa: BLE001 — one transient name must not kill a 33-min run;
+                    # log LOUD + skip (the next cycle surfaces ALL problem names, not one-at-a-time).
+                    skipped += 1
+                    self.log(f"#365 RESTORE_SKIP|{getattr(sym, 'value', sym)}|{type(e).__name__}: {str(e)[:120]}")
+                    continue
                 if sym_snap is None:
                     cold += 1
                 else:
                     restored += 1
-            self.log(f"#365 RESTORE: warmup-end rebuilt {restored} from snapshot, {cold} cold "
-                     f"of {len(self._active)} active (cold>0 ⇒ universe desync vs capture)")
+            self.log(f"#365 RESTORE: warmup-end rebuilt {restored} from snapshot, {cold} cold, "
+                     f"{skipped} skipped of {len(self._active)} active (cold>0 ⇒ universe desync vs capture)")
 
     def on_data(self, data: Any) -> None:
         """The INTRADAY execution clock ONLY (#313). on_data feeds the 5-min ("minute") bars to the
