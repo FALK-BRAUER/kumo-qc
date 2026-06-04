@@ -45,6 +45,7 @@ class _Store:
 
 class _Stub:
     WARMUP_DAYS = 560
+    WEEKLY_FLOOR_DAYS = 560  # #368: mirrors BCTAlgorithm; the miss-fallback re-derives at this floor
 
     def __init__(self, fp, store):
         self._weekly_cache_fp = fp

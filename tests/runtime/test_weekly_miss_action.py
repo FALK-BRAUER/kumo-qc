@@ -1,0 +1,22 @@
+"""#368 fail-loud guard — weekly_miss_action (in-window throw vs legit skip vs canonical value)."""
+from __future__ import annotations
+
+from runtime.warmup_weekly_cache import weekly_miss_action
+
+
+def test_in_window_trimmed_throws() -> None:
+    # computable (ready) + armed + trimmed (320<560) → THROW (real cache gap, would silently drop)
+    assert weekly_miss_action(rederive_ready=True, armed=True, warmup_days=320, weekly_floor=560) == "throw"
+
+
+def test_legit_uncomputable_skips() -> None:
+    # NOT ready (pre-78wk-from-listing / post-delisting / sparse) → SKIP, never throw — even armed+trimmed
+    assert weekly_miss_action(rederive_ready=False, armed=True, warmup_days=320, weekly_floor=560) == "skip"
+    assert weekly_miss_action(rederive_ready=False, armed=True, warmup_days=560, weekly_floor=560) == "skip"
+
+
+def test_untrimmed_or_unarmed_returns_value() -> None:
+    # full warmup (not trimmed) → canonical re-derive value, NO throw
+    assert weekly_miss_action(rederive_ready=True, armed=True, warmup_days=560, weekly_floor=560) == "value"
+    # unarmed (no cache, the 560-baseline path) → value, never throws
+    assert weekly_miss_action(rederive_ready=True, armed=False, warmup_days=320, weekly_floor=560) == "value"

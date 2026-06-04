@@ -320,6 +320,13 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
     # NOTE: this is the FULL-SIGNAL warmup. A Step-A-parity-only override may set ~40d; that is
     # NOT the strategy default and must never be hardcoded here.
     WARMUP_DAYS: int = 560
+    # #368 the WEEKLY warmup floor (bars): the weekly Ichimoku needs Senkou-B(52wk) + 26wk forward
+    # displacement ≈ 78 weeks; 560 daily bars ≈ 112 weeks ≥ 78. The fail-loud guard re-derives a
+    # weekly-cache MISS from max(WARMUP_DAYS, WEEKLY_FLOOR_DAYS) so an in-window cache GAP is DETECTED
+    # (computable) vs a legit pre-78wk/post-delist miss (uncomputable) — even when WARMUP_DAYS is
+    # trimmed below the weekly floor (the trim+cache speed path: daily indicators warm at the trimmed
+    # WARMUP_DAYS, the weekly comes from the cache, this floor = the fail-loud/computability test).
+    WEEKLY_FLOOR_DAYS: int = 560
     # #336/#338 ws1 — CONTINUOUS-WEEKLY fix (default OFF = byte-untouched ship path). When True, the
     # daily decision re-derives each candidate's weekly Ichimoku from full CONTINUOUS daily history
     # (WeeklyIchimokuAsOf over self.history — bypasses the subscription-gated consolidator at the
@@ -958,7 +965,13 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             self._weekly_cache_misses += 1
             # MISS (sym not cached / date not ready) → fall through to live re-derivation (fail-closed)
         from runtime.lean_indicators import WeeklyIchimokuAsOf  # lazy — flag-ON path only (#336/#338)
-        hist = self.history(sym, self.WARMUP_DAYS, Resolution.DAILY)
+        # #368 fail-loud: re-derive from the FULL weekly window (max(WARMUP_DAYS, WEEKLY_FLOOR_DAYS)),
+        # NOT the possibly-trimmed WARMUP_DAYS. At a trimmed warmup, history(WARMUP_DAYS) can't even
+        # compute the 78wk weekly → can't tell an in-window cache GAP from a legit pre-78wk name. The
+        # full floor window (>=78wk) computes it if the name is in-window → weekly_miss_action then
+        # decides throw (gap) vs skip (legit) vs value (untrimmed canonical).
+        rederive_days = max(self.WARMUP_DAYS, self.WEEKLY_FLOOR_DAYS)
+        hist = self.history(sym, rederive_days, Resolution.DAILY)
         if hist is None or hist.empty:
             return None
         if isinstance(hist.index, pd.MultiIndex):
@@ -968,9 +981,21 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         for ts, row in hist.iterrows():
             d = ts.date() if hasattr(ts, "date") else ts
             w.update(d, float(row["open"]), float(row["high"]), float(row["low"]), float(row["close"]))
-        if not w.is_ready:
-            return None
-        return {
+        from runtime.warmup_weekly_cache import WeeklyCacheGapError, weekly_miss_action
+        action = weekly_miss_action(
+            rederive_ready=bool(w.is_ready), armed=bool(fp),
+            warmup_days=self.WARMUP_DAYS, weekly_floor=self.WEEKLY_FLOOR_DAYS,
+        )
+        if action == "skip":
+            return None  # uncomputable (pre-78wk-from-listing / post-delisting) — legit
+        if action == "throw":
+            raise WeeklyCacheGapError(
+                f"#368 weekly-cache GAP: {getattr(sym, 'value', sym)} @ {asof_date} is computable "
+                f"(>=78wk) but MISSED the cache at trimmed warmup (WARMUP_DAYS={self.WARMUP_DAYS}"
+                f"<{self.WEEKLY_FLOOR_DAYS}) — would silently drop a valid candidate. Rebuild the "
+                f"weekly-cache to cover this (symbol,date); never ship a silent-divergence."
+            )
+        return {  # 'value' — full-warmup (or unarmed) canonical re-derive, byte-identical to a hit
             "w_tenkan": w.tenkan, "w_kijun": w.kijun,
             "w_senkou_a": w.senkou_a, "w_senkou_b": w.senkou_b,
             "w_close_0": w.w_close(0), "w_close_26": w.w_close(26),

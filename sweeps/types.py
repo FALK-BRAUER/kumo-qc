@@ -117,6 +117,13 @@ class SweepConfig:
     # default), so an all-default config hashes EXACTLY as before (e3b0c44298fc unchanged) — the
     # canonical archive/test/dist-pin keys never move. flag-ON → a new distinct hash.
     continuous_weekly: bool = False
+    # #368: WARMUP_DAYS is part of the config IDENTITY (a 320d-warmup champion makes the SAME
+    # decisions as 560d ONLY with the weekly-cache armed; without it 320 silently drops the weekly →
+    # different trades). Folding it into config_hash means a trimmed-warmup result CANNOT be confused
+    # with / served-stale-for a full-warmup one (the archive/provenance collision). Default 560 = the
+    # legacy value → it enters the hash ONLY when != 560, so every existing all-default config hashes
+    # EXACTLY as before (canonical archive/dist-pin keys never move). A 320 champion → distinct hash.
+    warmup_days: int = 560
 
     @property
     def total_free_params(self) -> int:
@@ -133,6 +140,9 @@ class SweepConfig:
         # all-default hash is byte-identical to before (backward-compatible by construction).
         if self.continuous_weekly:
             parts.append("continuous_weekly:1")
+        # #368: non-default ONLY → all-default (560) configs hash byte-identical to before.
+        if self.warmup_days != 560:
+            parts.append(f"warmup_days:{self.warmup_days}")
         return hashlib.sha256("|".join(parts).encode()).hexdigest()[:12]
 
 

@@ -24,6 +24,31 @@ from typing import Any
 WEEKLY_FIELDS = ("w_tenkan", "w_kijun", "w_senkou_a", "w_senkou_b", "w_close_0", "w_close_26")
 
 
+class WeeklyCacheGapError(Exception):
+    """#368 fail-loud: a weekly-cache MISS on an IN-WINDOW name (the weekly IS computable from full
+    history) while the warmup is TRIMMED → the cache has a coverage gap that would SILENTLY drop a
+    valid candidate (the live re-derive at the trimmed window can't compute it). Halt loud — never
+    ship a silent-divergence. (A miss on a pre-78wk-from-listing / post-delisting name is LEGIT and
+    does NOT raise — that name is genuinely uncomputable, correctly skipped.)"""
+
+
+def weekly_miss_action(*, rederive_ready: bool, armed: bool, warmup_days: int,
+                       weekly_floor: int) -> str:
+    """#368 — decide what an armed weekly-cache MISS does, AFTER re-deriving from the FULL weekly_floor
+    window (NOT the possibly-trimmed warmup). Pure → unit-testable.
+      - NOT ready  → 'skip'  : uncomputable (pre-78wk-from-listing OR post-delisting) → legit, return None.
+      - ready + trimmed (armed AND warmup_days < weekly_floor) → 'throw' : the name IS computable in
+        its valid window but the cache lacked it AND the warmup is trimmed → at the trimmed warmup the
+        live fallback would silently drop it → a real coverage gap → fail loud.
+      - ready + NOT trimmed → 'value' : full warmup (or unarmed) → the re-derive is the canonical
+        path → return the value (byte-identical to a hit). NO throw (untrimmed fallback is valid)."""
+    if not rederive_ready:
+        return "skip"
+    if armed and warmup_days < weekly_floor:
+        return "throw"
+    return "value"
+
+
 # ── shared cache-KEY formula (framework standard; PR-2 generalizes to AsOfScalarCache) ──
 def indicator_params_hash(params: tuple[object, ...]) -> str:
     """Short stable hash of an indicator's defining params (periods etc.) = its validity scope."""
