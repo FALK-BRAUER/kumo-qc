@@ -125,8 +125,14 @@ def main() -> None:
         cap_writes = _grep_log(run1_bt, "WARMUP_SNAPSHOT_WRITE") if run1_bt else []
         print(f"\nRUN1 capture: orders={run1_orders} wall={t1:.1f}s snapshot_writes={cap_writes}", flush=True)
 
+    # DECISION_TRACE only when PARITY_TRACE=1 (it ~2-3x's the wall-clock via per-tick synchronous
+    # logging — NOT needed for the orders==72 byte-identical headline; enable only for the deep
+    # per-day candidate-set parity diff).
+    restore_attrs = {"RESTORE_WARMUP_SNAPSHOT": fp}
+    if os.environ.get("PARITY_TRACE") == "1":
+        restore_attrs["DECISION_TRACE"] = True
     try:
-        r2, t2 = _run("restore", {"RESTORE_WARMUP_SNAPSHOT": fp, "DECISION_TRACE": True})
+        r2, t2 = _run("restore", restore_attrs)
         run2_orders = int(getattr(r2.metrics, "orders", -1))
     except Exception as e:  # noqa: BLE001 — a restore that breaks (degraded/0-orders) is a gate FAIL, report it
         print(f"\nRUN2 restore RAISED: {type(e).__name__}: {str(e)[:300]}", flush=True)
