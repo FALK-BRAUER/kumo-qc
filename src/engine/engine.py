@@ -155,6 +155,8 @@ class StrategyEngine:
         self._fired_entries = 0
         self._fired_exits = 0
         self._fired_adds = 0
+        self._fired_trims = 0
+        self._exited_this_bar: set[str] = set()
         self._tick_entry_value = 0.0  # #181 BUG-2 Stage 0: this tick's entry $ (commit-aware adds cap)
 
         validate_invariants(config)
@@ -189,6 +191,20 @@ class StrategyEngine:
         phase would otherwise produce a silent-zero champion). FIRE_ENTRIES' clock = the entry clock
         (entry_timing if wired, else entry_selection); with no entry phase wired (a fixture) there is
         no chain to validate (FIRE_ENTRIES fires the daily stubs directly) → no-op."""
+        # #379 review (CRITICAL): FIRE_EXITS (exit_hard) and FIRE_TRIMS (profit) share the
+        # exit-supersedes-trim over-sell guard (`_exited_this_bar`, reset per `_run_clock`). If
+        # exit_hard and profit run on DIFFERENT clocks they land in SEPARATE `_run_clock` calls → the
+        # set resets between them → a sym FIRE_EXITS fully closed could then be trimmed by FIRE_TRIMS →
+        # over-sell. Enforce co-clocking when BOTH are wired (the invariant the guard relies on).
+        if self.phases.get("exit_hard") and self.phases.get("profit"):
+            ec, pc = self._phase_clock("exit_hard"), self._phase_clock("profit")
+            if ec != pc:
+                raise ConfigError(
+                    f"exit_hard clock ({ec}) != profit clock ({pc}) — FIRE_EXITS and FIRE_TRIMS MUST "
+                    f"share one clock so the #379 exit-supersedes-trim over-sell guard holds (a sym "
+                    f"fully exited this bar must not then be trimmed). Set PHASE_RESOLUTION consistently "
+                    f"on the exit_hard + profit phases."
+                )
         if not (self.phases.get("entry_timing") or self.phases.get("entry_selection")):
             return  # no entry-confirm phase (fixture) → no entry-execution chain to enforce
         fire_clock = (self._phase_clock("entry_timing") if self.phases.get("entry_timing")
@@ -353,7 +369,10 @@ class StrategyEngine:
         ONLY change is iterating `order` (a clock subset) instead of the full PHASE_ORDER."""
         bar_blocked = False
         phases_run: list[str] = []
-        self._fired_entries = self._fired_exits = self._fired_adds = 0
+        self._fired_entries = self._fired_exits = self._fired_adds = self._fired_trims = 0
+        # #379 GAP-1: shared across FIRE_EXITS → FIRE_TRIMS (same clock subset) — a sym fully exited
+        # this bar must NOT then be trimmed (over-sell on an already-closed position). Exit supersedes trim.
+        self._exited_this_bar: set[str] = set()
         # #181 BUG-2 Stage 0: $-value of entry orders submitted THIS tick, for the commit-aware
         # gross cap on adds (LEAN fill-lag → total_holdings_value may not yet reflect these fills).
         self._tick_entry_value = 0.0
@@ -487,6 +506,15 @@ class StrategyEngine:
                 sym = active_by_key.get(canonical_symbol_key(intent.ticker))
                 if sym is None:
                     continue
+                # CRITICAL (#339-RUN1 review): >1 exit phase (e.g. CloudAdherenceTrail + a loser-exit)
+                # can emit an exit_intent for the SAME sym the same bar. Without this dedup, the second
+                # _submit sells -qty AGAIN on an already-closing position → over-sell → flips long→short
+                # (the catastrophic class). Fire EXACTLY ONE exit per symbol per bar; drop the rest.
+                # self._exited_this_bar is ALSO read by FIRE_TRIMS (#379 GAP-1: exit supersedes trim).
+                key = canonical_symbol_key(intent.ticker)
+                if key in self._exited_this_bar:
+                    continue
+                self._exited_this_bar.add(key)
                 self._cancel_protective_stop(qc, sym, date_str)  # BEFORE the exit — no orphan
                 self._submit(qc, sym, intent)  # the exit (qty negative), per intent.order_type
                 getattr(qc, "_position_meta", {}).pop(sym, None)
@@ -510,12 +538,21 @@ class StrategyEngine:
                 sym = active_by_key.get(canonical_symbol_key(intent.ticker))
                 if sym is None:
                     continue
-                # #276a GUARD-1 (trim + live stop): a partial trim (+10→+6) leaves the resting
-                # stop at the full -10 → if it fires it over-sells, flipping long→short. The
-                # catastrophic over-sell class. Fail loud until #276b's cancel-replace re-sizes the
-                # stop on trim. Only fires when a protective stop is LIVE.
-                self._guard_position_change_vs_protective_stop(qc, sym, "trim")
+                # #379 GAP-1 (exit supersedes trim): a never-proved fader can BOTH structure-exit
+                # (FIRE_EXITS, runs first) AND age-trim (here) the SAME bar. A trim on the
+                # already-fully-exited position → over-sell. Skip any sym exited this bar.
+                if canonical_symbol_key(intent.ticker) in self._exited_this_bar:
+                    continue
+                # #379 (was #276a GUARD-1): a partial trim shrinks the position → the resting
+                # protective stop must SHRINK to the remaining qty, else it over-sells (long→short) on a
+                # later trigger. Resize the stop DOWN FIRST (never over-sizes → no over-sell window — the
+                # SAFE direction, opposite of #378's add pre-grow); only then submit the trim. Resize
+                # fail / lifecycle unwired → skip the trim (stop+position stay → no gap).
+                # trim_intent.qty is a NEGATIVE sell qty (like exits) → pass the MAGNITUDE shrunk off.
+                if not self._resize_protective_stop_for_trim(qc, sym, abs(int(intent.qty)), date_str):
+                    continue
                 self._submit(qc, sym, intent)
+                self._fired_trims += 1
 
     def _bound_adds_to_gross_cap(self, ctx: PhaseContext) -> None:
         """#181 BUG-2 Stage 0: COMMIT-AWARE gross cap at the FIRE_ADDS seam. Reuses the configured
@@ -578,6 +615,55 @@ class StrategyEngine:
             f"PROTECTIVE_STOP_RESIZE|{date_str}|{sym.value}|{cur_qty}->{new_qty} "
             f"(stop grown to cover orig+add — #378 floor-safe pyramid)"
         )
+        return True
+
+    def _resize_protective_stop_for_trim(self, qc: Any, sym: Any, trim_qty: int, date_str: str) -> bool:
+        """#379 floor-safe partial trim — SHRINK the resting GTC protective stop to cover the remaining
+        qty (held − trim) BEFORE the trim fires. Mirror of `_resize_protective_stop_for_add` but the
+        opposite DIRECTION: resize DOWN-first NEVER over-sizes the stop (|stop| ≤ |held| at every step →
+        no over-sell window — the SAFE direction; #378's add path pre-GROWS, this must NOT).
+
+        Returns True when the trim may proceed (no live stop → nothing to maintain; or the stop shrank).
+        Returns False when the resize FAILED → caller SKIPS the trim (stop + position stay → no gap).
+        FAIL-LOUD when the resize lifecycle is UNWIRED (the #276a trim-guard's reason: a full-qty stop
+        on a trimmed position over-sells). INVARIANT: the new stop qty is ≤ the old in magnitude and
+        never flips sign (never covers MORE than held) — a bad/over trim is refused, never executed."""
+        meta = getattr(qc, "_position_meta", {}).get(sym)
+        if not meta or meta.get("protective_stop_ticket") is None:
+            return True  # no live protective stop → no floor to maintain → trim proceeds
+        update_hook = getattr(qc, "update_order_quantity", None)
+        if not callable(update_hook):
+            raise DegradedConfigError(
+                f"trim on {sym.value} with a LIVE protective stop, but the stop-resize lifecycle "
+                f"(qc.update_order_quantity, #379) is NOT wired — the trim would leave the full-qty stop "
+                f"OVER-sized (over-sell long→short on a later trigger). Wire the resize hook before "
+                f"trimming a stop-protected position (#276a guard / #379 lifecycle)"
+            )
+        if "protective_stop_qty" not in meta:
+            raise DegradedConfigError(
+                f"trim on {sym.value}: protective_stop_ticket present but protective_stop_qty missing — "
+                f"cannot safely shrink the floor (#379)"
+            )
+        ticket = meta["protective_stop_ticket"]
+        cur_qty = int(meta["protective_stop_qty"])          # NEGATIVE (sell-stop) = -held
+        new_qty = cur_qty + int(trim_qty)                   # shrink toward 0: -10 + 4 = -6 (remaining 6)
+        # INVARIANT (HQ + #379 review): the stop must NEVER cover more than held — down-resize only. A
+        # new_qty that crosses/reaches 0 (over-trim OR a FULL trim = the whole position) or grows in
+        # magnitude is refused: new_qty==0 would leave an orphan 0-qty stop + stale meta (reconcile
+        # skips it on invested=False) — a FULL liquidation is an EXIT (FIRE_EXITS cancels the stop +
+        # pops meta), not a trim. new_qty>0 would flip the stop to a BUY. Refuse both.
+        if new_qty >= 0 or abs(new_qty) > abs(cur_qty):
+            qc.log(f"PROTECTIVE_STOP_TRIM_BADQTY|{date_str}|{sym.value}|cur={cur_qty} trim={trim_qty}"
+                   f"->{new_qty} REFUSED (full/over-trim → use an exit, not a trim) #379")
+            return False
+        ok = bool(update_hook(ticket, new_qty))
+        if not ok:
+            qc.log(f"PROTECTIVE_STOP_TRIM_RESIZE_FAIL|{date_str}|{sym.value}|{cur_qty}->{new_qty} "
+                   f"REJECTED → TRIM SKIPPED (stop stays at {cur_qty}, no over-sell) #379")
+            return False
+        meta["protective_stop_qty"] = new_qty               # the stop now covers only the remaining qty
+        qc.log(f"PROTECTIVE_STOP_TRIM_RESIZE|{date_str}|{sym.value}|{cur_qty}->{new_qty} "
+               f"(stop shrunk to remaining — #379 floor-safe trim)")
         return True
 
     def reconcile_protective_stop_to_position(self, qc: Any, sym: Any, date_str: str = "") -> None:

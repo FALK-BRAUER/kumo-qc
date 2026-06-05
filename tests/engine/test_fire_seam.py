@@ -192,6 +192,18 @@ def test_protective_stop_cancelled_on_runtime_exit() -> None:
     assert sym not in qc._position_meta  # meta cleared on exit
 
 
+def test_fire_exits_dedups_same_symbol_no_oversell() -> None:
+    # OVER-SELL GUARD (#339-RUN1 review): >1 exit phase (CloudAdherenceTrail + a loser-exit) can emit
+    # an exit_intent for the SAME sym the same bar. The engine must fire EXACTLY ONE sell — a second
+    # -qty submit on an already-closing position → over-sell → flips long→short (catastrophic).
+    qc = FakeQC(); eng = _engine(qc); sym = FakeSym("AAPL"); qc._active = {sym}
+    ctx = _ctx(qc)
+    ctx.bar_state.exit_intents = [_intent("AAPL", qty=-10), _intent("AAPL", qty=-10)]
+    eng._fire(FIRE_EXITS, ctx)
+    moo_sells = [c for c in qc.calls if c[0] == "moo" and c[1] == "AAPL"]
+    assert eng._fired_exits == 1 and len(moo_sells) == 1, "exactly ONE exit per sym/bar — no over-sell"
+
+
 def test_exit_without_protective_stop_is_clean() -> None:
     # control: exiting a position that had NO protective stop → no crash, no spurious cancel.
     qc = FakeQC(); eng = _engine(qc); sym = FakeSym("AAPL"); qc._active = {sym}
@@ -217,12 +229,14 @@ def _entry_with_stop(eng, qc, sym, qty=10, stop=90.0):
     assert qc._position_meta[sym].get("protective_stop_ticket") is not None  # live stop
 
 
-def test_guard_trim_with_live_protective_stop_raises() -> None:
-    # GUARD-1: a trim on a position with a live protective stop → RAISE (would over-sell long→short).
-    qc = FakeQC(); eng = _engine(qc); sym = FakeSym("AAPL")
+def test_guard_trim_with_live_protective_stop_raises_when_unwired() -> None:
+    # #379: a trim on a stop-protected position with the resize lifecycle UNWIRED → RAISE (a full-qty
+    # stop on a trimmed position over-sells long→short). When WIRED it resizes instead
+    # (test_379_trim_resizes_stop_down_then_fires). The guard fires only when the lifecycle is absent.
+    qc = FakeQCNoResize(); eng = _engine(qc); sym = FakeSym("AAPL")
     _entry_with_stop(eng, qc, sym)
     ctx = _ctx(qc); ctx.bar_state.trim_intents = [_intent("AAPL", qty=-4)]
-    with pytest.raises(DegradedConfigError, match="trim on AAPL with a LIVE protective stop"):
+    with pytest.raises(DegradedConfigError, match="stop-resize lifecycle .* is NOT wired"):
         eng._fire(FIRE_TRIMS, ctx)
 
 
@@ -303,6 +317,102 @@ def test_378_reconcile_noop_when_stop_qty_invariant_missing() -> None:
     del qc._position_meta[sym]["protective_stop_qty"]
     eng.reconcile_protective_stop_to_position(qc, sym, "d")   # must not raise
     assert qc.update_calls == [], "no resize attempted on a missing-invariant meta"
+
+
+# ── #379 trim-side floor-lifecycle: resize the stop DOWN on a partial trim (mirror of #378, opposite
+# direction) + exit-supersedes-trim over-sell guard. Real-engine harness; floor code = mutation-proven.
+
+def test_379_trim_resizes_stop_down_then_fires() -> None:
+    # a partial trim (sell 4 of held 10) → the protective stop SHRINKS -10 → -6 (remaining) FIRST,
+    # then the trim fires. The stop is never over-sized → no over-sell.
+    qc = FakeQC(); eng = _engine(qc); sym = FakeSym("AAPL")
+    _entry_with_stop(eng, qc, sym, qty=10)
+    ticket = qc._position_meta[sym]["protective_stop_ticket"]
+    ctx = _ctx(qc); ctx.bar_state.trim_intents = [_intent("AAPL", qty=-4)]   # sell 4 (negative)
+    eng._fire(FIRE_TRIMS, ctx)
+    assert (ticket, -6) in qc.update_calls, "stop must shrink to the remaining qty (-6) before the trim"
+    assert qc._position_meta[sym]["protective_stop_qty"] == -6 and ticket.quantity == -6
+    assert ("moo", "AAPL", -4) in qc.calls and eng._fired_trims == 1
+
+
+def test_379_trim_skipped_when_resize_fails_no_oversell() -> None:
+    # TEETH: the resize is rejected → the trim is SKIPPED, the stop stays at -10 (still covers held 10,
+    # never over-sized). No naked over-sell.
+    qc = FakeQC(); qc.update_ok = False; eng = _engine(qc); sym = FakeSym("AAPL")
+    _entry_with_stop(eng, qc, sym, qty=10)
+    ctx = _ctx(qc); ctx.bar_state.trim_intents = [_intent("AAPL", qty=-4)]
+    eng._fire(FIRE_TRIMS, ctx)
+    assert eng._fired_trims == 0 and not any(c == ("moo", "AAPL", -4) for c in qc.calls)
+    assert qc._position_meta[sym]["protective_stop_qty"] == -10
+
+
+def test_379_trim_with_stop_but_resize_unwired_raises() -> None:
+    qc = FakeQCNoResize(); eng = _engine(qc); sym = FakeSym("AAPL")
+    _entry_with_stop(eng, qc, sym, qty=10)
+    ctx = _ctx(qc); ctx.bar_state.trim_intents = [_intent("AAPL", qty=-4)]
+    with pytest.raises(DegradedConfigError, match="stop-resize lifecycle .* is NOT wired"):
+        eng._fire(FIRE_TRIMS, ctx)
+
+
+def test_379_trim_invariant_refuses_overtrim() -> None:
+    # INVARIANT (HQ): the stop must never cover MORE than held. An over-trim (sell 12 of 10) → the new
+    # stop qty would cross 0 (-10+12=+2, flip to a buy-stop) → REFUSED, trim NOT fired, stop unchanged.
+    qc = FakeQC(); eng = _engine(qc); sym = FakeSym("AAPL")
+    _entry_with_stop(eng, qc, sym, qty=10)
+    ctx = _ctx(qc); ctx.bar_state.trim_intents = [_intent("AAPL", qty=-12)]
+    eng._fire(FIRE_TRIMS, ctx)
+    assert eng._fired_trims == 0 and qc._position_meta[sym]["protective_stop_qty"] == -10
+
+
+def test_379_co_clock_invariant_raises_on_exit_profit_split() -> None:
+    # CRITICAL (#379 review): exit_hard (daily) + profit (intraday) = SPLIT clocks → FIRE_EXITS and
+    # FIRE_TRIMS land in separate _run_clock calls → `_exited_this_bar` resets between them → the
+    # exit-supersedes-trim over-sell guard silently fails. The init invariant must REFUSE the config.
+    qc = FakeQC()
+    cfg = StrategyConfig(name="t", version="1.0.0", is_fixture=True, phases={
+        "universe": slot("universe"), "signal": slot("signal"), "sizing": slot("sizing"),
+        "exit_hard": slot("exit_hard", resolution="daily"),
+        "profit": slot("profit", resolution="intraday"),
+    })
+    with pytest.raises(ConfigError, match="exit_hard clock .* != profit clock"):
+        StrategyEngine(config=cfg, qc=qc)
+
+
+def test_379_co_clock_same_clock_ok() -> None:
+    # CONTROL: exit_hard + profit BOTH daily (the methodology — EOD-only exits) → no raise.
+    qc = FakeQC()
+    cfg = StrategyConfig(name="t", version="1.0.0", is_fixture=True, phases={
+        "universe": slot("universe"), "signal": slot("signal"), "sizing": slot("sizing"),
+        "exit_hard": slot("exit_hard", resolution="daily"),
+        "profit": slot("profit", resolution="daily"),
+    })
+    StrategyEngine(config=cfg, qc=qc)  # must NOT raise
+
+
+def test_379_trim_full_qty_refused_use_exit() -> None:
+    # #379 review bug: a FULL trim (sell all 10 of held 10) → new_qty 0 → REFUSED (a full liquidation
+    # is an EXIT — FIRE_EXITS cancels the stop + pops meta; a 0-qty trim would orphan a 0-qty stop +
+    # stale meta). Trim NOT fired, stop unchanged.
+    qc = FakeQC(); eng = _engine(qc); sym = FakeSym("AAPL")
+    _entry_with_stop(eng, qc, sym, qty=10)
+    ctx = _ctx(qc); ctx.bar_state.trim_intents = [_intent("AAPL", qty=-10)]
+    eng._fire(FIRE_TRIMS, ctx)
+    assert eng._fired_trims == 0 and qc._position_meta[sym]["protective_stop_qty"] == -10
+
+
+def test_379_exit_supersedes_trim_no_double_sell() -> None:
+    # GAP-1 (#379 review): a fader BOTH structure-exits AND age-trims the same bar. FIRE_EXITS runs
+    # first + fully closes the position; the trim on the gone position would over-sell. Exit supersedes:
+    # FIRE_TRIMS skips a sym exited this bar.
+    qc = FakeQC(); eng = _engine(qc); sym = FakeSym("AAPL")
+    _entry_with_stop(eng, qc, sym, qty=10)
+    ctx = _ctx(qc)
+    ctx.bar_state.exit_intents = [_intent("AAPL", qty=-10)]
+    eng._fire(FIRE_EXITS, ctx)
+    assert eng._fired_exits == 1 and sym not in qc._position_meta   # fully exited
+    ctx.bar_state.trim_intents = [_intent("AAPL", qty=-4)]
+    eng._fire(FIRE_TRIMS, ctx)
+    assert eng._fired_trims == 0, "exit supersedes trim — must NOT trim an already-exited position"
 
 
 def test_378_reconcile_noop_when_add_filled() -> None:
