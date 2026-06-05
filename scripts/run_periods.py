@@ -61,7 +61,7 @@ def main() -> None:
     running, done, failed = [], [], []
     qi = 0
     while qi < len(queue) or running:
-        while len(running) < 3 and qi < len(queue):
+        while len(running) < 2 and qi < len(queue):  # 2-wide: full-warmup 4.3GB ea; leaves room for a concurrent cached FY run
             t, k, sb, wk = queue[qi]; qi += 1
             p = subprocess.Popen([sys.executable, str(_CELL), str(t), str(k), str(sb), wk, RUNS])
             running.append((p, (t, k, sb, wk)))
