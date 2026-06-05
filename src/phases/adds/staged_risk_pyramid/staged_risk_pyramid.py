@@ -29,6 +29,31 @@ from phases.shared.param_space import ComplexityDecl, ParamSpace
 from phases.adds.staged_risk_pyramid.pyramid_engine import add_dollars
 
 
+def _is_stop_order(order: Any) -> bool:
+    """True if a LEAN open order is a resting protective STOP (StopMarket/StopLimit/TrailingStop).
+
+    Such a GTC stop sits on EVERY held position (CloudProtectiveStop places one at FIRE_ENTRIES) — so
+    it must NOT block a pyramid add. THE #340-B BUG: the open-order guard skipped every held name every
+    bar (FY: 2326/2326 evals = 100% open-order-present, ZERO adds, byte-identical to S1) because the
+    standing protective stop made get_open_orders() always non-empty. Pending ENTRY/ADD orders
+    (Market/MarketOnOpen/Limit) are NOT stops → they still block (so adds never STACK on an unfilled
+    order — the guard's real purpose).
+
+    Name-based (`str(order.type)` contains 'STOP') — deliberately avoids a hard `QuantConnect.Orders`
+    enum import so the pure-Python unit tests run without the LEAN runtime; every OrderType member with
+    'Stop' in its name (StopMarket/StopLimit/TrailingStop) is a resting/protective order, never a
+    pending entry. Checks both snake (`type`) and Pascal (`Type`) bindings defensively.
+
+    ASSUMPTION (pinned, code-review #340-B): clr renders a C# OrderType enum value as its MEMBER NAME
+    ("StopMarket"), not its integer ("4"). The whole fix hinges on this — if str() ever yielded the
+    int, every order would read non-stop and the zero-adds bug would silently return. Verified against
+    the LEAN OrderType members (no non-stop member contains 'stop'); the regression tests assert it."""
+    t = getattr(order, "type", None)
+    if t is None:
+        t = getattr(order, "Type", "")
+    return "STOP" in str(t).upper()
+
+
 class StagedRiskPyramid(BasePhase):
     PHASE_KIND = "adds"
     # DAILY clock (deliberate — code-review #340-B): an add fires market-on-open off a DAILY fresh
@@ -59,6 +84,16 @@ class StagedRiskPyramid(BasePhase):
         self.p = params
         self._state: dict[Any, dict] = {}  # symbol → {entry_date, lots, prev_tk_above}
 
+    def _diag(self, qc: Any, sym: Any, reason: str, **fields: Any) -> None:
+        """#340-B instrumentation: per-held-position per-bar add-eval trace → LEAN log.txt. Makes the
+        no-op FAIL-LOUD-VISIBLE (a pyramid firing 0 adds over a full year is a bug, not 'no opportunity'
+        — the skip_reason histogram pinpoints WHERE the add-path dies). Diagnostic-only; remove/gate
+        once the add-path is proven firing."""
+        log = getattr(qc, "log", None)
+        if callable(log):
+            kv = " ".join(f"{k}={v}" for k, v in fields.items())
+            log(f"PYRAMID_EVAL|{getattr(sym, 'value', sym)}|reason={reason} {kv}")
+
     def evaluate(self, ctx: PhaseContext) -> PhaseResult:
         qc = ctx.qc
         added: list[str] = []
@@ -68,39 +103,62 @@ class StagedRiskPyramid(BasePhase):
             if not holding.invested:
                 continue
             live.add(symbol)
-            if qc.transactions.get_open_orders(symbol):
-                continue  # an order already in flight for this name — don't stack
+            open_orders = qc.transactions.get_open_orders(symbol) or []
+            pending_entry_add = [o for o in open_orders if not _is_stop_order(o)]
+            if pending_entry_add:
+                # a pending ENTRY/ADD is still in flight for this name — don't STACK a duplicate add.
+                # Resting GTC protective STOPS are EXCLUDED (#340-B): they sit on every held position
+                # and previously blocked every add (the guard fired on the stop, never on a real
+                # in-flight entry/add). Now the guard fires ONLY on pending entries/adds.
+                self._diag(qc, symbol, "pending-entry-add",
+                           pending=len(pending_entry_add), stops=len(open_orders) - len(pending_entry_add))
+                continue
             ind = getattr(qc, "_indicators", {}).get(symbol)
             meta = getattr(qc, "_position_meta", {}).get(symbol)
             if ind is None or meta is None:
+                self._diag(qc, symbol, "ind-or-meta-none", has_ind=ind is not None, has_meta=meta is not None)
                 continue
             d_ichi = ind.get("d_ichi")
             if d_ichi is None or not d_ichi.is_ready:
+                self._diag(qc, symbol, "dichi-cold", dichi=d_ichi is not None)
                 continue  # benign: no warm signal → no add (a missed add, not unevaluated risk)
             close = float(qc.securities[symbol].close)
             entry_price = float(meta["entry_price"])
             entry_date = meta["entry_date"]
             if entry_price <= 0.0 or close <= 0.0:
+                self._diag(qc, symbol, "bad-price", entry=entry_price, close=close)
                 continue
 
             tk_above = d_ichi.tenkan.current.value > d_ichi.kijun.current.value
+            unreal_pct = (close / entry_price - 1.0) * 100.0
             st = self._state.get(symbol)
             if st is None or st["entry_date"] != entry_date:
                 # new (or re-entered) position → seed state; NO add on the first bar (no prior cross)
                 self._state[symbol] = {"entry_date": entry_date, "lots": 1, "prev_tk_above": tk_above}
+                self._diag(qc, symbol, "seed", tk_above=tk_above, unreal_pct=round(unreal_pct, 1))
                 continue
-            fresh_cross = tk_above and not st["prev_tk_above"]  # the Pe trigger: a FRESH Tenkan>Kijun cross
+            prev_tk_above = st["prev_tk_above"]
+            fresh_cross = tk_above and not prev_tk_above  # the Pe trigger: a FRESH Tenkan>Kijun cross
             st["prev_tk_above"] = tk_above
 
             if st["lots"] - 1 >= self.p.max_adds:        # this position has used all its adds
+                self._diag(qc, symbol, "lots-maxed", lots=st["lots"], max_adds=self.p.max_adds)
                 continue
             if not (close > entry_price and fresh_cross):  # ADD-TO-WINNERS-ONLY + fresh confirmation
+                self._diag(qc, symbol, "no-trigger", tk_above=tk_above, prev_tk=prev_tk_above,
+                           fresh_cross=fresh_cross, winner=close > entry_price, unreal_pct=round(unreal_pct, 1))
                 continue
-            dollars = add_dollars(self.p.variant, st["lots"], entry_price=entry_price, close=close)
+            # uncapped=True → max_adds (enforced above) is the SINGLE cap source; the engine's ramp
+            # keeps sizing past the ADD_SIZES list (#340-B review: capped mode silently returns $0 for
+            # add-index ≥ len(sizes), making max_adds=3 a no-op for its top tranche). Identical $ to
+            # capped mode within [200,400,600]; only extends the rampup beyond it.
+            dollars = add_dollars(self.p.variant, st["lots"], uncapped=True, entry_price=entry_price, close=close)
             if dollars <= 0.0:
+                self._diag(qc, symbol, "zero-dollars", lots=st["lots"])
                 continue
             qty = int(dollars / close)
             if qty < 1:
+                self._diag(qc, symbol, "qty-lt-1", dollars=dollars, close=close)
                 continue
             ctx.bar_state.add_intents.append(OrderIntent(
                 ticker=symbol.value, qty=qty, price=close, stop=0.0,
@@ -108,6 +166,8 @@ class StagedRiskPyramid(BasePhase):
             ))
             st["lots"] += 1
             added.append(symbol.value)
+            self._diag(qc, symbol, "ADD-PLACED", lots=st["lots"], qty=qty, dollars=dollars,
+                       unreal_pct=round(unreal_pct, 1))
 
         for s in [s for s in self._state if s not in live]:  # GC closed positions (no leak / stale re-entry)
             self._state.pop(s, None)
