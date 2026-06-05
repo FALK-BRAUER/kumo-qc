@@ -52,6 +52,11 @@ PHASE_ORDER: list[str | FireSentinel] = [
     "rebalance", "filter", "universe", "signal", "regime", "ranking",
     "entry_selection", "entry_timing", "sizing",
     "reentry", "eligibility", "portfolio_risk", "cash", "protective_stop",
+    # #386 M1 two-clock: the INTRADAY entry chain. The day chain above ARMS candidates (no fire);
+    # these per-bar phases fire them on the 5-min tick. Both PHASE_RESOLUTION="intraday" → routed to
+    # the intraday subset by _partition_clocks; FIRE_ENTRIES follows entry_trigger's (intraday) clock.
+    # Framework slots only — the strategy is the module wired into each (the #228/#382 mistake fixed).
+    "entry_trigger", "intraday_sizing",
     FIRE_ENTRIES,
     "stops_initial", "trail",
     "exit_hard", "exit_target", "exit_regime", "exit_rotation",
@@ -233,8 +238,11 @@ class StrategyEngine:
         fires: FIRE_ENTRIES/FIRE_ADDS with the entry/adds clock, FIRE_EXITS/FIRE_TRIMS with the
         exit/profit clock; if those phases aren't wired the sentinel stays daily (fires nothing)."""
         sentinel_clock = {
-            FIRE_ENTRIES: self._phase_clock("entry_timing") if self.phases.get("entry_timing")
-            else self._phase_clock("entry_selection"),
+            # #386 M1: FIRE_ENTRIES follows the entry_trigger (intraday) clock when wired — the
+            # relocate. Falls back to entry_timing/entry_selection for legacy (pre-two-clock) configs.
+            FIRE_ENTRIES: self._phase_clock("entry_trigger") if self.phases.get("entry_trigger")
+            else (self._phase_clock("entry_timing") if self.phases.get("entry_timing")
+                  else self._phase_clock("entry_selection")),
             FIRE_EXITS: self._phase_clock("exit_hard"),
             FIRE_ADDS: self._phase_clock("adds"),
             FIRE_TRIMS: self._phase_clock("profit"),
