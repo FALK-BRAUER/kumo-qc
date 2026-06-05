@@ -81,12 +81,20 @@ ALWAYS_RUN: frozenset[str] = frozenset({"diagnostics", "circuit_breaker"})
 # "filter" is INTENTIONALLY not required (Y, Falk): the champion applies its floors at the
 # selection gate (lean_entry._coarse_selection), so there is no per-bar filter phase. "filter"
 # stays a KNOWN_KIND (in PHASE_ORDER) — a future strategy MAY add a real per-bar filter phase.
-REQUIRED_PHASES: tuple[str, ...] = ("universe", "signal", "sizing")
+REQUIRED_PHASES: tuple[str, ...] = ("universe", "signal")
+
+# #386 (a): orders MUST be sized on EXACTLY ONE clock — the two-clock model sizes INTRADAY at the
+# fire price (intraday_sizing), the legacy/daily model sizes on the daily clock (sizing). Requiring
+# the bare "sizing" KIND would reject the intraday sizer; allowing zero would recreate the phantom-
+# fire hole on the sizing axis (an unsized champion = no qty = fires garbage). So: exactly one of
+# these present — never zero (CRASH), never both (double-sizing = config error).
+SIZING_PHASE_KINDS: frozenset[str] = frozenset({"sizing", "intraday_sizing"})
 
 # #270/#272 fail-loud phase-stack gate. A CHAMPION (a config that actually trades) MUST wire an
 # entry-confirm phase AND an exit phase — there is no implicit market-on-open default. The
-# families (any one member satisfies the requirement):
-ENTRY_PHASE_KINDS: frozenset[str] = frozenset({"entry_selection", "entry_timing"})
+# families (any one member satisfies the requirement). #386 (b): entry_trigger (the two-clock
+# intraday per-bar entry) is a first-class entry-confirm phase alongside the legacy pair.
+ENTRY_PHASE_KINDS: frozenset[str] = frozenset({"entry_selection", "entry_timing", "entry_trigger"})
 EXIT_PHASE_KINDS: frozenset[str] = frozenset(
     {"exit_hard", "exit_target", "exit_regime", "exit_rotation"}
 )
@@ -286,6 +294,16 @@ class StrategyEngine:
         for kind in REQUIRED_PHASES:
             if not self.phases.get(kind):
                 raise ConfigError(f"required phase '{kind}' missing or disabled")
+        # #386 (a): sizing on EXACTLY ONE clock — never zero (the phantom-fire hole on the sizing
+        # axis), never both (double-sizing). The two-clock model uses intraday_sizing; the legacy
+        # daily model uses sizing.
+        sizing_present = sorted(k for k in SIZING_PHASE_KINDS if self.phases.get(k))
+        if len(sizing_present) != 1:
+            raise ConfigError(
+                f"exactly ONE sizing phase required ({'|'.join(sorted(SIZING_PHASE_KINDS))}) — "
+                f"found {sizing_present or 'NONE'}; orders must be sized on exactly one clock, "
+                f"never zero (#386 fail-loud sizing axis)"
+            )
 
     def _validate_execution_stack(self, config: StrategyConfig) -> None:
         """#270/#272 fail-loud phase-stack gate: a CHAMPION must wire an entry-confirm phase
