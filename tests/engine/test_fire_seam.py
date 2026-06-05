@@ -21,8 +21,9 @@ from tests.harness.stub_phases import slot
 
 
 class FakeTicket:
-    def __init__(self) -> None:
+    def __init__(self, quantity: int = 0) -> None:
         self.cancelled = False
+        self.quantity = quantity  # #378: the resting stop's covered qty (resized in place)
 
     def cancel(self) -> None:
         self.cancelled = True
@@ -52,10 +53,23 @@ class FakeSym:
         return isinstance(o, FakeSym) and o.value == self.value
 
 
+class FakeHolding:
+    def __init__(self, quantity: int = 0) -> None:
+        self.quantity = quantity
+        self.invested = quantity != 0
+
+
 class FakePortfolio:
     def __init__(self, equity: float = 100_000.0, held: float = 0.0) -> None:
         self.total_portfolio_value = equity
         self.total_holdings_value = held
+        self._holdings: dict = {}  # #378 reconcile: per-sym held qty
+
+    def __getitem__(self, sym: object) -> FakeHolding:
+        return self._holdings.get(sym, FakeHolding(0))
+
+    def set(self, sym: object, quantity: int) -> None:
+        self._holdings[sym] = FakeHolding(quantity)
 
 
 class FakeQC:
@@ -67,22 +81,38 @@ class FakeQC:
         self._position_meta: dict = {}
         self._active: set = set()
         self.portfolio = FakePortfolio()
+        self.update_ok = True          # #378: toggle to simulate a rejected OrderTicket.update
+        self.update_calls: list[tuple] = []
 
     def Log(self, m: str) -> None: ...
     def log(self, m: str) -> None: ...
 
     def market_on_open_order(self, sym, qty, tag=""):
-        self.calls.append(("moo", sym.value, qty)); return FakeTicket()
+        self.calls.append(("moo", sym.value, qty)); return FakeTicket(quantity=qty)
 
     def market_order(self, sym, qty, tag=""):
-        self.calls.append(("market", sym.value, qty)); return FakeTicket()
+        self.calls.append(("market", sym.value, qty)); return FakeTicket(quantity=qty)
 
     def limit_order(self, sym, qty, price, tag=""):
-        self.calls.append(("limit", sym.value, qty, price)); return FakeTicket()
+        self.calls.append(("limit", sym.value, qty, price)); return FakeTicket(quantity=qty)
 
     def stop_market_order(self, sym, qty, stop, tag=""):
         self.calls.append(("stop_market", sym.value, qty, stop))
-        t = FakeTicket(); self._tickets.append(t); return t
+        t = FakeTicket(quantity=qty); self._tickets.append(t); return t
+
+    def update_order_quantity(self, ticket, new_qty) -> bool:
+        # #378 hook the engine calls to atomically resize the resting stop in place. Mirrors the
+        # runtime impl's contract (returns OrderResponse.is_success). Applies the new qty on success.
+        self.update_calls.append((ticket, new_qty))
+        if self.update_ok:
+            ticket.quantity = new_qty
+        return self.update_ok
+
+
+class FakeQCNoResize(FakeQC):
+    """#378: a qc WITHOUT the resize lifecycle wired (the hook absent) → an add onto a stop-protected
+    position must FAIL LOUD (the #276a guard's reason stands)."""
+    update_order_quantity = None  # type: ignore[assignment]
 
 
 def _engine(qc: FakeQC) -> StrategyEngine:
@@ -196,13 +226,97 @@ def test_guard_trim_with_live_protective_stop_raises() -> None:
         eng._fire(FIRE_TRIMS, ctx)
 
 
-def test_guard_add_with_live_protective_stop_raises() -> None:
-    # GUARD-2: an add on a position with a live protective stop → RAISE (added shares unprotected).
+# ── #378 floor-safe pyramid: add onto a stop-protected position RESIZES the stop (not raises) ──
+# Falk's integration-test rule: exercise the add through the REAL engine + the live protective-stop
+# lifecycle (a resting stop present at orig qty — the exact S1 condition that broke the prover), NOT
+# an isolated mock. Each test asserts the FLOOR INVARIANT: held shares are never left uncovered.
+
+def test_378_add_with_live_stop_resizes_then_fires() -> None:
+    # THE mandated integration test: an add onto a position carrying a CloudProtectiveStop @orig qty
+    # → the stop is atomically grown to (orig+add) FIRST, THEN the add fires. No raise.
     qc = FakeQC(); eng = _engine(qc); sym = FakeSym("AAPL")
-    _entry_with_stop(eng, qc, sym)
+    _entry_with_stop(eng, qc, sym, qty=10)          # held 10, resting stop covers -10
+    ticket = qc._position_meta[sym]["protective_stop_ticket"]
     ctx = _ctx(qc); ctx.bar_state.add_intents = [_intent("AAPL", qty=5)]
-    with pytest.raises(DegradedConfigError, match="add on AAPL with a LIVE protective stop"):
+    eng._fire(FIRE_ADDS, ctx)
+    assert (ticket, -15) in qc.update_calls, "stop must be resized to cover orig+add (-15) before the add"
+    assert qc._position_meta[sym]["protective_stop_qty"] == -15
+    assert ticket.quantity == -15, "the resting stop's qty grew in place (atomic update, no cancel-replace)"
+    assert ("moo", "AAPL", 5) in qc.calls and eng._fired_adds == 1, "the add fires AFTER the resize"
+
+
+def test_378_add_skipped_when_resize_fails_no_gap() -> None:
+    # TEETH: the resize is REJECTED (OrderResponse not success) → the add is SKIPPED, the stop stays at
+    # orig → at no instant are held shares left without a covering stop.
+    qc = FakeQC(); qc.update_ok = False; eng = _engine(qc); sym = FakeSym("AAPL")
+    _entry_with_stop(eng, qc, sym, qty=10)
+    ctx = _ctx(qc); ctx.bar_state.add_intents = [_intent("AAPL", qty=5)]
+    eng._fire(FIRE_ADDS, ctx)
+    assert eng._fired_adds == 0 and not any(c == ("moo", "AAPL", 5) for c in qc.calls), "add must NOT fire"
+    assert qc._position_meta[sym]["protective_stop_qty"] == -10, "stop stays at orig (still covers held 10)"
+
+
+def test_378_add_with_stop_but_resize_unwired_raises() -> None:
+    # the #276a guard's reason still stands when the resize LIFECYCLE is absent: an add onto a
+    # stop-protected position with no qc.update_order_quantity hook → RAISE (would under-size the stop).
+    qc = FakeQCNoResize(); eng = _engine(qc); sym = FakeSym("AAPL")
+    _entry_with_stop(eng, qc, sym, qty=10)
+    ctx = _ctx(qc); ctx.bar_state.add_intents = [_intent("AAPL", qty=5)]
+    with pytest.raises(DegradedConfigError, match="stop-resize lifecycle .* is NOT wired"):
         eng._fire(FIRE_ADDS, ctx)
+
+
+def test_378_reconcile_shrinks_stop_when_add_rejected() -> None:
+    # HQ edge: resize pre-grew the stop to (orig+add), but the add then DID NOT fill (reject/halt) →
+    # the stop is left over-sized. reconcile (called from on_order_event on the terminal event) must
+    # resize it BACK to the actual held qty so a later trigger can't over-sell-to-short.
+    qc = FakeQC(); eng = _engine(qc); sym = FakeSym("AAPL")
+    _entry_with_stop(eng, qc, sym, qty=10)
+    ticket = qc._position_meta[sym]["protective_stop_ticket"]
+    qc.portfolio.set(sym, 10)                        # actually held: 10 (the add has not filled yet)
+    ctx = _ctx(qc); ctx.bar_state.add_intents = [_intent("AAPL", qty=5)]
+    eng._fire(FIRE_ADDS, ctx)                        # stop pre-grown to -15, add submitted
+    assert qc._position_meta[sym]["protective_stop_qty"] == -15
+    # the add is REJECTED → position stays 10 → reconcile on the terminal event
+    eng.reconcile_protective_stop_to_position(qc, sym, "d")
+    assert (ticket, -10) in qc.update_calls and qc._position_meta[sym]["protective_stop_qty"] == -10
+    assert ticket.quantity == -10, "dangling over-sized stop shrunk back to the held qty"
+
+
+def test_378_add_raises_when_stop_qty_invariant_missing() -> None:
+    # fix #5: a live stop ticket WITHOUT its tracked covered-qty is an invariant break — _resize must
+    # FAIL LOUD (never default-0 → never resize the floor to cover only the added shares).
+    qc = FakeQC(); eng = _engine(qc); sym = FakeSym("AAPL")
+    _entry_with_stop(eng, qc, sym, qty=10)
+    del qc._position_meta[sym]["protective_stop_qty"]   # corrupt: ticket present, covered-qty gone
+    ctx = _ctx(qc); ctx.bar_state.add_intents = [_intent("AAPL", qty=5)]
+    with pytest.raises(DegradedConfigError, match="protective_stop_qty missing"):
+        eng._fire(FIRE_ADDS, ctx)
+
+
+def test_378_reconcile_noop_when_stop_qty_invariant_missing() -> None:
+    # fix #5 on the reconcile path (runs in on_order_event) — the same corrupt meta must NOT crash and
+    # must NOT resize (don't guess the floor); a safe return.
+    qc = FakeQC(); eng = _engine(qc); sym = FakeSym("AAPL")
+    _entry_with_stop(eng, qc, sym, qty=10)
+    qc.portfolio.set(sym, 10)
+    del qc._position_meta[sym]["protective_stop_qty"]
+    eng.reconcile_protective_stop_to_position(qc, sym, "d")   # must not raise
+    assert qc.update_calls == [], "no resize attempted on a missing-invariant meta"
+
+
+def test_378_reconcile_noop_when_add_filled() -> None:
+    # CONTROL (mutation-bite): the add DID fill → held becomes 15, stop already -15 → reconcile no-ops
+    # (proves the shrink above is the reject path biting, not an always-shrink).
+    qc = FakeQC(); eng = _engine(qc); sym = FakeSym("AAPL")
+    _entry_with_stop(eng, qc, sym, qty=10)
+    ctx = _ctx(qc); ctx.bar_state.add_intents = [_intent("AAPL", qty=5)]
+    eng._fire(FIRE_ADDS, ctx)                        # stop -15
+    qc.portfolio.set(sym, 15)                        # add filled → held 15
+    n_before = len(qc.update_calls)
+    eng.reconcile_protective_stop_to_position(qc, sym, "d")
+    assert len(qc.update_calls) == n_before, "stop already matches held 15 → no reconcile"
+    assert qc._position_meta[sym]["protective_stop_qty"] == -15
 
 
 def test_guard_reentry_with_live_protective_stop_raises() -> None:

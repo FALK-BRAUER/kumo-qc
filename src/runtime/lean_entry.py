@@ -224,12 +224,13 @@ try:  # pragma: no cover - QC runtime import; absent in the dev venv / unit test
         Symbol,
         TradeBar,
         TradeBarConsolidator,
+        UpdateOrderFields,
     )
 except ImportError:  # pragma: no cover
     QCAlgorithm = object
     DataNormalizationMode = Resolution = SecurityType = Market = Symbol = None
     Calendar = IchimokuKinkoHyo = RollingWindow = TradeBar = TradeBarConsolidator = None
-    Field = MovingAverageType = OrderStatus = None
+    Field = MovingAverageType = OrderStatus = UpdateOrderFields = None
 
 
 def _to_decimal(x: Any) -> Decimal:
@@ -1416,6 +1417,43 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                 if ev_id is not None and tk_id is not None and ev_id == tk_id:
                     self._position_meta.pop(sym, None)        # floor sold the position — clear its meta
                     self._pending_entry_today.discard(sym)    # and any stale pending (re-entry now clean)
+        # #378 reconcile: an add pre-grows the protective stop at submit (over-coverage). If the add is
+        # REJECTED (Canceled/Invalid) the stop is left over-sized → resize it back to the actual held
+        # qty. CANCELED/INVALID ONLY (#378 review bug-1): NOT on Filled/PartiallyFilled — a partial add
+        # has a live remainder in flight, so shrinking to held-so-far would leave that remainder
+        # unprotected (a new under-coverage window). The happy full-add-fill needs no reconcile (the
+        # pre-grow already matches held); the remainder's own terminal event reconciles to the true qty.
+        # And SKIP when the terminal event is the protective stop's OWN ticket (#378 review bug-3): never
+        # resize a stop that is itself cancelling/terminal (don't fight the cancel-on-exit / floor-fill).
+        engine = getattr(self, "engine", None)  # set in initialize(); absent in bare-constructed test algos
+        if engine is not None and status in {OrderStatus.Canceled, OrderStatus.Invalid}:
+            meta = getattr(self, "_position_meta", {}).get(sym)
+            stop_tk = meta.get("protective_stop_ticket") if meta else None
+            ev_id = getattr(order_event, "order_id", getattr(order_event, "OrderId", None))
+            stop_id = getattr(stop_tk, "order_id", getattr(stop_tk, "OrderId", None)) if stop_tk else None
+            if not (stop_id is not None and ev_id is not None and ev_id == stop_id):
+                engine.reconcile_protective_stop_to_position(self, sym, str(getattr(self, "time", "")))
+
+    def update_order_quantity(self, ticket: Any, new_qty: int) -> bool:
+        """#378 engine hook — atomically resize a resting order's quantity in place (LEAN
+        OrderTicket.update(UpdateOrderFields{quantity})). Used by the engine's #378 floor-safe pyramid
+        to GROW the protective stop to cover (orig+add) BEFORE the add fires, with NO cancel-replace
+        gap. Returns the broker OrderResponse.is_success (False → the engine refuses the add → the
+        floor is never left under-sized). QC-specific (UpdateOrderFields) → lives in the runtime, so
+        the engine stays pure-Python/unit-testable; the FakeQC test double stubs this hook."""
+        if UpdateOrderFields is None:  # dev venv / no QC — the engine guards on callable()/hook presence
+            return False
+        fields = UpdateOrderFields()
+        fields.quantity = int(new_qty)
+        try:
+            response = ticket.update(fields)
+        except Exception as exc:  # noqa: BLE001 — LEAN can throw updating an already-terminal/firing ticket
+            # NEVER let a stop-resize crash the algo inside on_order_event. A failed update returns
+            # False → the engine treats it as resize-fail (skip the add / no-op the reconcile), so the
+            # floor stays at its prior (still-covering) qty, never under-sized (#378 review).
+            self.log(f"PROTECTIVE_STOP_UPDATE_EXC|{getattr(self, 'time', '')}|update->{new_qty}|{exc!r}")
+            return False
+        return bool(getattr(response, "is_success", False))
 
     # ------------------------------------------------------------------------------------
     # #276b-1 FUNNEL — the 9 cumulative candidate-collapse counters. Observe-only: nothing in the

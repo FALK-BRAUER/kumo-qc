@@ -229,6 +229,97 @@ def test_runtime_exit_already_popped_meta_is_noop(monkeypatch) -> None:
     assert qc._position_meta == {}
 
 
+# ── #378 reconcile WIRING (real engine on_order_event → reconcile_protective_stop_to_position) ──
+# Falk's integration rule: the wiring must be exercised IN-HARNESS with a real engine, not bypassed
+# by direct-calling reconcile. The engine-logic unit tests live in tests/engine/test_fire_seam.py;
+# these prove on_order_event dispatches to it correctly (the branch that short-circuited untested
+# because qc.engine was never set).
+
+from engine.config import StrategyConfig  # noqa: E402
+from engine.engine import StrategyEngine  # noqa: E402
+from tests.harness.stub_phases import slot  # noqa: E402
+
+
+class _HoldQ:  # a .quantity-bearing holding (the real LEAN SecurityHolding shape, not the .invested-only mock)
+    def __init__(self, quantity: int) -> None:
+        self.quantity = quantity
+        self.invested = quantity != 0
+
+
+class _TicketQ:
+    def __init__(self, order_id: Any, quantity: int) -> None:
+        self.order_id = order_id
+        self.quantity = quantity
+
+
+def _qc_with_engine(monkeypatch, stop_id: int, stop_qty: int, held: int):
+    """A runtime algo with a REAL StrategyEngine wired (qc.engine) + a stop-protected position, so
+    on_order_event actually dispatches into engine.reconcile_protective_stop_to_position."""
+    monkeypatch.setattr(lean_entry, "OrderStatus", _OS)
+    qc = _qc(["AAPL"])
+    sym = qc._syms["AAPL"]
+    qc.Log = qc.log  # type: ignore[attr-defined]  # the engine ctor logs PHASE_LOADED via qc.Log (capital)
+    cfg = StrategyConfig(name="t", version="1.0.0", is_fixture=True, phases={
+        "universe": slot("universe"), "signal": slot("signal"), "sizing": slot("sizing"),
+    })
+    qc.engine = StrategyEngine(config=cfg, qc=qc)
+    qc.portfolio = {sym: _HoldQ(held)}  # type: ignore[assignment]
+    qc._position_meta = {sym: {"protective_stop_ticket": _TicketQ(stop_id, stop_qty),
+                               "protective_stop_qty": stop_qty, "entry_price": 100.0}}
+    qc.update_calls = []  # type: ignore[attr-defined]
+
+    def _fake_update(ticket, new_qty):  # the resize primitive (records + applies); real LEAN one tested by BT
+        qc.update_calls.append((ticket.order_id, new_qty))
+        ticket.quantity = new_qty
+        return True
+    qc.update_order_quantity = _fake_update  # type: ignore[assignment,method-assign]
+    return qc, sym
+
+
+def test_378_wiring_rejected_add_reconciles_stop_down(monkeypatch) -> None:
+    # the ADD (id 9 ≠ stop id 5) is REJECTED → on_order_event(Canceled) → engine.reconcile → the
+    # pre-grown stop (-15) shrinks to the actual held (-10). The real wiring, in-harness.
+    qc, sym = _qc_with_engine(monkeypatch, stop_id=5, stop_qty=-15, held=10)
+    qc.on_order_event(_OE(sym, _OS.Canceled, order_id=9))
+    assert qc.update_calls == [(5, -10)], "rejected add must reconcile the stop down to held qty"
+    assert qc._position_meta[sym]["protective_stop_qty"] == -10
+
+
+def test_378_wiring_skips_reconcile_on_stops_own_cancel(monkeypatch) -> None:
+    # the terminal event IS the protective stop's OWN ticket (id 5 == stop id) → reconcile MUST be
+    # skipped (never resize a stop that is itself cancelling/firing). No update call, qty unchanged.
+    qc, sym = _qc_with_engine(monkeypatch, stop_id=5, stop_qty=-15, held=10)
+    qc.on_order_event(_OE(sym, _OS.Canceled, order_id=5))
+    assert qc.update_calls == [], "must NOT resize the protective stop on its own cancel event"
+    assert qc._position_meta[sym]["protective_stop_qty"] == -15
+
+
+def test_378_wiring_no_reconcile_on_partial_fill_even_when_mismatched(monkeypatch) -> None:
+    # MUTATION-BITE for fix #1 (the dangerous one): a PARTIAL add fill with the stop still pre-grown
+    # ABOVE held (held 12, stop -15) must NOT reconcile — shrinking to -12 here would leave the
+    # in-flight remainder unprotected. The held≠stop mismatch makes this BITE: if the status set were
+    # widened to include PartiallyFilled, reconcile would fire update(-12) → update_calls != [].
+    qc, sym = _qc_with_engine(monkeypatch, stop_id=5, stop_qty=-15, held=12)
+    qc.on_order_event(_OE(sym, _OS.PartiallyFilled, order_id=9))
+    assert qc.update_calls == [], "partial fill must NOT shrink the stop (remainder still in flight)"
+
+
+def test_378_runtime_update_hook_never_raises(monkeypatch) -> None:
+    # bug-2: ticket.update() can throw (updating an already-terminal/firing ticket) — the runtime hook
+    # must CATCH it and return False (never crash on_order_event), so the engine treats it as
+    # resize-fail (safe). Exercises the try/except with a non-None UpdateOrderFields.
+    class _UOF:  # fake UpdateOrderFields (real one absent in the dev venv)
+        def __init__(self) -> None:
+            self.quantity = 0
+    monkeypatch.setattr(lean_entry, "UpdateOrderFields", _UOF)
+    qc = _qc(["AAPL"])
+
+    class _Boom:
+        def update(self, _fields):
+            raise RuntimeError("cannot update a terminal ticket")
+    assert qc.update_order_quantity(_Boom(), -10) is False  # caught → False, NOT raised
+
+
 # ── SHOP same-session re-entry guard (the churn fix) ──
 
 def test_filled_entry_blocks_same_session_reentry_after_stopout(monkeypatch) -> None:
