@@ -1237,6 +1237,36 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self._sync_intraday_subscriptions(winners)
         # capture the WINNERS' theses (signal_price + daily_kijun) for the intraday confirm + floor.
         self._capture_candidate_snapshot(winners)
+        # #386 STAGE-1 LIVE PARITY ASSERTION (additive, crash-on-divergence). When an `arm` phase is
+        # wired it ran IN-CHAIN (after regime, line 1063) and wrote qc._armed. Prove the modular arm
+        # reproduces the legacy daily decision EXACTLY before Stage-2 deletes the snapshot path: same
+        # winner set, zone==signal_price, daily_kijun==daily_kijun. Divergence = the modular path does
+        # NOT reproduce the legacy decision → CRASH, never run a half-migrated decision blind.
+        if getattr(self.engine, "phases", {}).get("arm"):
+            self._assert_arm_parity()
+
+    def _assert_arm_parity(self) -> None:
+        """#386 Stage-1: qc._armed (modular arm output) must == qc._candidate_snapshot (legacy daily
+        handoff) on the winner set + zone/daily_kijun. Crash-on-divergence — the live proof the
+        modular daily decision reproduces the legacy one before anything is deleted (Stage 2)."""
+        armed = getattr(self, "_armed", {})
+        snap = getattr(self, "_candidate_snapshot", {})
+        a_keys, s_keys = set(armed), set(snap)
+        if a_keys != s_keys:
+            only_arm = sorted(str(getattr(k, "value", k)) for k in a_keys - s_keys)
+            only_snap = sorted(str(getattr(k, "value", k)) for k in s_keys - a_keys)
+            raise DegradedDataError(
+                f"#386 ARM-PARITY set divergence ({self.time.date()}): armed∖snapshot={only_arm} "
+                f"snapshot∖armed={only_snap} — modular arm does not reproduce the legacy winner set"
+            )
+        for k in a_keys:
+            az, sz = armed[k]["zone"], snap[k]["signal_price"]
+            ak, sk = armed[k]["daily_kijun"], snap[k]["daily_kijun"]
+            if az != sz or ak != sk:
+                raise DegradedDataError(
+                    f"#386 ARM-PARITY field divergence ({self.time.date()}|{getattr(k, 'value', k)}): "
+                    f"zone={az} vs signal_price={sz}; daily_kijun={ak} vs {sk}"
+                )
 
     def _assert_schedule_health(self) -> None:
         """#313 WATCHDOG — the daily DECISION must keep pace with elapsed trading days. Called from
