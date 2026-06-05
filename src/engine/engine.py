@@ -52,6 +52,8 @@ PHASE_ORDER: list[str | FireSentinel] = [
     "rebalance", "filter", "universe", "signal", "regime", "ranking",
     "entry_selection", "entry_timing", "sizing",
     "reentry", "eligibility", "portfolio_risk", "cash", "protective_stop",
+    # #386 M1: the day-clock ARM phase — writes the candidate carry qc._armed (module owns the values).
+    "arm",
     # #386 M1 two-clock: the INTRADAY entry chain. The day chain above ARMS candidates (no fire);
     # these per-bar phases fire them on the 5-min tick. Both PHASE_RESOLUTION="intraday" → routed to
     # the intraday subset by _partition_clocks; FIRE_ENTRIES follows entry_trigger's (intraday) clock.
@@ -483,6 +485,12 @@ class StrategyEngine:
                     )
                 qc._position_meta[sym] = meta
                 self._fired_entries += 1
+                # #386 M1: the armed candidate FIRED → evict it from the carry (by-sym, OPAQUE — the
+                # engine never reads the blob's contents, only pops the key). Lifecycle: arm (module
+                # writes) → carry/expose (qc attr) → fire+evict (here). No-op if no arm module wired it.
+                _armed = getattr(qc, "_armed", None)
+                if _armed is not None:
+                    _armed.pop(sym, None)
                 # #181 BUG-2 Stage 0: accumulate this tick's entry exposure so the FIRE_ADDS gross
                 # cap is commit-aware (fill-lag safe — see _bound_adds_to_gross_cap).
                 self._tick_entry_value += abs(intent.qty) * price
