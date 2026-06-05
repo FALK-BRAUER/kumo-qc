@@ -30,6 +30,10 @@ class FakeQC:
     def market_on_open_order(self, symbol: Any, qty: int, tag: str = "") -> None:
         self.orders.append((symbol, qty))
 
+    def market_order(self, symbol: Any, qty: int, tag: str = "") -> None:
+        # #386 M1: the new contract fires intraday "market" (the silent market_on_open is deleted).
+        self.orders.append((symbol, qty))
+
 
 def base_phases(**extra: Any) -> dict[str, Any]:
     p: dict[str, Any] = {
@@ -228,8 +232,10 @@ def _sym_in(qc: FakeQC, value: str) -> Any:
     return next(s for s in qc._active if s.value == value)
 
 
-def _intent(ticker: str, qty: int, price: float = 0.0) -> OrderIntent:
-    return OrderIntent(ticker=ticker, qty=qty, price=price, stop=0.0, module="t", risk_dollars=0.0)
+def _intent(ticker: str, qty: int, price: float = 0.0, order_type: str = "market") -> OrderIntent:
+    # #386 M1: explicit order_type — the silent market_on_open default is DELETED (#382 2nd-slot).
+    return OrderIntent(ticker=ticker, qty=qty, price=price, stop=0.0, module="t", risk_dollars=0.0,
+                       order_type=order_type)
 
 
 def _ctx_with(qc: FakeQC, bar: BarState) -> PhaseContext:

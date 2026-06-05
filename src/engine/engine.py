@@ -409,9 +409,11 @@ class StrategyEngine:
         archive can recover the conditions-at-decision from /orders/read (the one durable channel —
         logs/charts/ObjectStore are dead). Empty for non-entry fires. Passed as a kwarg so a broker
         stub that does not accept it (older fakes) fails loud rather than mis-binding positionally."""
-        ot = getattr(intent, "order_type", "market_on_open")
-        if ot == "market_on_open":
-            return qc.market_on_open_order(sym, intent.qty, tag=tag)
+        # #386 M1: NO market_on_open default fire-path — the deleted 2nd-slot (the 15:51 EOD fills,
+        # the #382 root). The only entry fire is FIRE_ENTRIES on the INTRADAY clock via entry_trigger
+        # ("market"). An intent with order_type market_on_open (or absent) now FAILS LOUD below — a
+        # config that would blind-MOO is the phantom model the reset deletes (#382 resolved by construction).
+        ot = getattr(intent, "order_type", None)
         if ot == "market":
             return qc.market_order(sym, intent.qty, tag=tag)
         if ot == "stop_market":
@@ -419,8 +421,8 @@ class StrategyEngine:
         if ot == "limit":
             return qc.limit_order(sym, intent.qty, intent.price, tag=tag)
         raise ConfigError(
-            f"unknown OrderIntent.order_type {ot!r} for {intent.ticker} — the fire seam dispatches "
-            f"market_on_open|market|stop_market|limit only (#276a)"
+            f"OrderIntent.order_type {ot!r} for {intent.ticker} — the fire seam dispatches "
+            f"market|stop_market|limit only; market_on_open is DELETED (#386 2nd-slot / #382 root)"
         )
 
     def _fire(self, sentinel: FireSentinel, ctx: PhaseContext) -> None:
