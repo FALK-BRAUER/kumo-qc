@@ -110,3 +110,9 @@ def test_all_candidates_filled_when_cash_ample():
     ctx = make_ctx(qc, ["AAPL", "MSFT", "GOOG"])
     phase.evaluate(ctx)
     assert len(ctx.bar_state.sized_orders) == 3
+
+
+def test_base_params_has_no_reserve_field():
+    # the #340-reserve param lives ONLY on ReserveHeatcap.Params — keeping FlatPctHeatcap.Params (and the
+    # champion config_hash e573e84b1ce1) byte-identical. Guard against re-adding it to the base by mistake.
+    assert not hasattr(FlatPctHeatcap.Params(), "base_entry_gross_budget")

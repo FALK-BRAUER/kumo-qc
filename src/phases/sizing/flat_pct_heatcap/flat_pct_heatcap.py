@@ -69,6 +69,12 @@ class FlatPctHeatcap(BasePhase):
         # Heat-cap (cash) only — no slot count. Fill ranked candidates until cash exhausted.
         committed_cash = 0.0
         available_cash = float(qc.portfolio.cash)
+        # #340-reserve: hold back (1 - budget) of portfolio value as cash the BASE entries may NOT touch
+        # — reserved for the pyramid adds. Read via getattr so the param lives ONLY on the ReserveHeatcap
+        # subclass Params (NOT on this base Params) → champion config_hash stays byte-identical
+        # (e573e84b1ce1); base/champion → default 1.0 → reserve 0.0 → behaviour-identical noop.
+        budget = getattr(self.p, "base_entry_gross_budget", 1.0)
+        reserve = max(0.0, (1.0 - budget) * float(qc.portfolio.total_portfolio_value))
         active_by_key = {canonical_symbol_key(s): s for s in getattr(qc, "_active", set())}  # #276b-1 FIX3
         filled: list[OrderIntent] = []
         skipped_cash = 0
@@ -85,9 +91,9 @@ class FlatPctHeatcap(BasePhase):
                 continue
 
             target_value = float(qc.portfolio.total_portfolio_value) * position_pct
-            if available_cash - committed_cash < target_value:
+            if available_cash - committed_cash - reserve < target_value:
                 skipped_cash += 1
-                break  # cash exhausted (oracle breaks, not continues)
+                break  # base-entry budget exhausted (reserve held back for the pyramid; oracle breaks)
             # #276b-1 funnel stage 8 (cash_ok): the candidate cleared the cash/heat-cap (a fundable
             # target). Recorded BEFORE the qty>0 cut so cash_ok ⊇ sized — the two stages stay
             # distinguishable (cash-fundable vs actually-sized). Observe-only.
