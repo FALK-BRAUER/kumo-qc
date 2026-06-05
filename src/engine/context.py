@@ -18,10 +18,11 @@ class OrderIntent:
     stop: float
     module: str
     risk_dollars: float
-    # #276a fire-seam: the order TYPE the FIRE_* sentinel dispatches on. Default "market_on_open"
-    # = today's behaviour (the fixture/back-compat) → existing configs UNCHANGED. The intraday
-    # entry_timing phase sets "market" (fire now intraday on confirm); exits set "stop_market".
-    order_type: str = "market_on_open"
+    # #386 M1 fire-seam: the order TYPE the FIRE_* sentinel dispatches on. NO firing default — the
+    # silent "market_on_open" default WAS the #382 2nd-slot (a phase that forgot order_type blind-MOO'd
+    # at EOD). The sentinel "UNSET" FAILS LOUD at _submit: every order-emitting phase MUST set
+    # order_type explicitly (entry_trigger → "market"; exits → "stop_market"/"market"). No silent trade.
+    order_type: str = "UNSET"
     # #290 GTC protective stop: a non-zero level places a resting broker-side stop_market (GTC)
     # alongside the entry on FIRE_ENTRIES — the catastrophic floor UNDER the runtime exit. 0.0 =
     # no protective stop (the fixture/back-compat). Set by the sizer/entry_timing for a champion.
