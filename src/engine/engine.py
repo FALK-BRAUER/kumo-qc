@@ -469,6 +469,9 @@ class StrategyEngine:
                     stop_ticket = qc.stop_market_order(sym, -intent.qty, intent.protective_stop)
                     meta["protective_stop_ticket"] = stop_ticket
                     meta["protective_stop_price"] = float(intent.protective_stop)
+                    # #378: track the qty the resting stop covers (NEGATIVE, sell-stop) so a later add
+                    # can grow it to the new total (orig+add) via _resize_protective_stop_for_add.
+                    meta["protective_stop_qty"] = -int(intent.qty)
                     qc.log(
                         f"PROTECTIVE_STOP|{date_str}|{intent.ticker}|qty={-intent.qty}|"
                         f"stop={intent.protective_stop:.2f} (GTC catastrophic floor #290)"
@@ -493,11 +496,13 @@ class StrategyEngine:
                 sym = active_by_key.get(canonical_symbol_key(intent.ticker))
                 if sym is None or intent.qty <= 0:
                     continue
-                # #276a GUARD-2 (add + live stop): an add grows the position (+10→+15) but the
-                # resting protective stop still covers only the original -10 → 5 shares UNPROTECTED
-                # (under-protection of the catastrophic floor). Fail loud until #276b's cancel-
-                # replace re-sizes the stop on add. Only fires when a protective stop is LIVE.
-                self._guard_position_change_vs_protective_stop(qc, sym, "add")
+                # #378 (was #276a GUARD-2): an add grows the position → the resting protective stop
+                # must GROW to cover the new total (orig+add), else the added shares ride unprotected.
+                # Resize the stop FIRST (atomic in-place, qc.update_order_quantity); only then submit
+                # the add. If the resize fails (or the lifecycle is unwired) the add is refused — the
+                # floor is NEVER left under-sized.
+                if not self._resize_protective_stop_for_add(qc, sym, int(intent.qty), date_str):
+                    continue  # resize failed → skip the add (position+stop stay at orig → no gap)
                 self._submit(qc, sym, intent)
                 self._fired_adds += 1
         elif sentinel is FIRE_TRIMS:
@@ -522,6 +527,90 @@ class StrategyEngine:
         for cap in self.phases.get("portfolio_risk", []):
             if getattr(cap, "enabled", True) and hasattr(cap, "bound_adds"):
                 cap.bound_adds(ctx, self._tick_entry_value)
+
+    def _resize_protective_stop_for_add(self, qc: Any, sym: Any, add_qty: int, date_str: str) -> bool:
+        """#378 floor-safe pyramid add — atomically GROW the resting GTC protective stop to cover the
+        post-add total qty (orig+add) via the `qc.update_order_quantity` hook (LEAN OrderTicket.update,
+        in-place → NO cancel-replace gap), BEFORE the add is submitted.
+
+        Returns True when the add MAY proceed:
+          - no live protective stop tracked → nothing to maintain → add is unguarded (the champion's
+            no-stop path, unchanged); or
+          - the stop was successfully grown to cover orig+add.
+        Returns False when the resize FAILED → the caller SKIPS the add, so position + stop both stay
+        at orig (fully covered) — at no instant are held shares left without a covering stop.
+
+        FAIL-LOUD when the resize lifecycle is UNWIRED (no `qc.update_order_quantity`): an add onto a
+        stop-protected position is refused (the #276a guard's reason stands — a fixed-qty stop would
+        be under-sized). The atomic in-place update replaces the old cancel-replace plan: there is no
+        cancel-succeeds-replace-fails window — the resting order's quantity changes, or it does not."""
+        meta = getattr(qc, "_position_meta", {}).get(sym)
+        if not meta or meta.get("protective_stop_ticket") is None:
+            return True  # no live protective stop → no floor to maintain → add proceeds unguarded
+        update_hook = getattr(qc, "update_order_quantity", None)
+        if not callable(update_hook):
+            raise DegradedConfigError(
+                f"add on {sym.value} with a LIVE protective stop, but the stop-resize lifecycle "
+                f"(qc.update_order_quantity, #378) is NOT wired — the add would leave the original-qty "
+                f"stop under-sized (added shares unprotected). Wire the resize hook before allowing "
+                f"adds onto stop-protected positions (#276a guard / #378 lifecycle)"
+            )
+        ticket = meta["protective_stop_ticket"]
+        if "protective_stop_qty" not in meta:
+            # invariant break: a live stop ticket MUST carry its covered qty (set at entry). Defaulting
+            # to 0 here would resize the stop to cover ONLY the added shares → drop the original →
+            # under-protection. Fail loud, never guess the floor (#378 review).
+            raise DegradedConfigError(
+                f"add on {sym.value}: protective_stop_ticket present but protective_stop_qty missing — "
+                f"cannot safely resize the floor (would under-cover the original position) (#378)"
+            )
+        cur_qty = int(meta["protective_stop_qty"])          # NEGATIVE (sell-stop)
+        new_qty = cur_qty - int(add_qty)                    # grow more-negative: -10 - 5 = -15
+        ok = bool(update_hook(ticket, new_qty))
+        if not ok:
+            qc.log(
+                f"PROTECTIVE_STOP_RESIZE_FAIL|{date_str}|{sym.value}|update {cur_qty}->{new_qty} "
+                f"REJECTED → ADD SKIPPED (floor stays at {cur_qty}, no unprotected shares) #378"
+            )
+            return False
+        meta["protective_stop_qty"] = new_qty               # the stop now covers orig+add
+        qc.log(
+            f"PROTECTIVE_STOP_RESIZE|{date_str}|{sym.value}|{cur_qty}->{new_qty} "
+            f"(stop grown to cover orig+add — #378 floor-safe pyramid)"
+        )
+        return True
+
+    def reconcile_protective_stop_to_position(self, qc: Any, sym: Any, date_str: str = "") -> None:
+        """#378 reconcile — after an order resolves, ensure the resting protective stop covers EXACTLY
+        the held qty. Handles the add-didn't-fill edge (HQ): the stop is pre-grown at submit (over-
+        coverage, the safe direction), but if the add is REJECTED/halted/partial the stop is left
+        over-sized (covers more than held → over-sell-to-short on a later trigger). Resize it back to
+        -position. Called from the runtime's on_order_event on any terminal order event.
+
+        No-op when: no live stop; the qty already matches; the position is FLAT (an exit/floor-fill —
+        the cancel-on-exit / GTC-floor-fill paths own that, this must not fight them); or the resize
+        lifecycle is unwired. Public (the runtime calls it)."""
+        meta = getattr(qc, "_position_meta", {}).get(sym)
+        if not meta or meta.get("protective_stop_ticket") is None:
+            return
+        if "protective_stop_qty" not in meta:
+            return  # invariant break elsewhere; don't guess the floor in a fill callback (no crash, no resize)
+        holding = qc.portfolio[sym]
+        if not getattr(holding, "invested", False):
+            return  # flat → exit/floor-fill path owns the cancel+pop; don't fight it
+        desired = -int(holding.quantity)
+        cur = int(meta["protective_stop_qty"])
+        if desired == cur:
+            return  # stop already matches the held qty (the common path: add filled as intended)
+        update_hook = getattr(qc, "update_order_quantity", None)
+        if not callable(update_hook):
+            return  # no resize lifecycle wired → nothing to reconcile with (the add-guard gates entry)
+        if bool(update_hook(meta["protective_stop_ticket"], desired)):
+            meta["protective_stop_qty"] = desired
+            qc.log(
+                f"PROTECTIVE_STOP_RECONCILE|{date_str}|{sym.value}|{cur}->{desired} "
+                f"(stop matched to held qty — add did not fully fill; #378)"
+            )
 
     def _guard_position_change_vs_protective_stop(self, qc: Any, sym: Any, op: str) -> None:
         """#276a GUARD-1/2: a trim/add on a position with a LIVE protective stop, without the
