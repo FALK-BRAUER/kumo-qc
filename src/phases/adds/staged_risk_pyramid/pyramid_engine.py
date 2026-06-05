@@ -44,7 +44,14 @@ _PRICE_THRESH = {
 # ATR multiples for Pc, by add index
 _ATR_MULT = {"Pc": [1.0, 2.0]}
 
-VARIANTS = ("Pa", "Pb", "Pc", "Pd", "Pe", "Pe-rampup", "Pe-conviction", "Pe-winscale")
+VARIANTS = ("Pa", "Pb", "Pc", "Pd", "Pe", "Pe-rampup", "Pe-conviction", "Pe-winscale",
+            "Pe-posfrac", "Pe-convstack")
+
+# #340-C value-scaled add fraction + the floor.
+_VALUE_FRACTION = 0.25      # add = 25% of the CURRENT position market value
+_VALUE_FLOOR = 200.0        # min add $; the EFFECTIVE floor is max($200, 1 share's price) — a flat $200
+                            # floor below the share price would round to 0 shares (qty-lt-1) on high-price
+                            # names, so the floor is raised to afford ≥1 share (review #340-C bug fix).
 
 
 def add_dollars(
@@ -54,6 +61,7 @@ def add_dollars(
     *,
     entry_price: float | None = None,
     close: float | None = None,
+    position_value: float | None = None,
 ) -> float:
     """$-risk for the add creating lot `lots+1`. 0 if beyond the scheme.
     uncapped (Pc/Pe + Pe-* only): the lot count is bounded by signal frequency +
@@ -62,7 +70,32 @@ def add_dollars(
       Pe-rampup    : keep growing 200*(idx+1) for any add index (anti-Kelly).
       Pe-conviction: decreasing then floor at 100 (never below 100, never 0).
       Pe-winscale  : gain-conditional, index-independent (handled below for all modes).
-    entry_price/close are only consumed by Pe-winscale; if None it falls back to base."""
+      Pe-posfrac   : #340-C — 25% of CURRENT position value, floored $200 (scales the add with the
+                     winner: a HOOD grown to $10k gets a $2.5k add, not a token $200). index-independent.
+      Pe-convstack : #340-C — Pe-posfrac × conviction_mult = clamp(unrealized%/10, 0.5, 3.0): the
+                     biggest adds to the strongest winners (+30%→3×), damped on marginal (+5%→0.5×).
+    entry_price/close consumed by Pe-winscale + Pe-convstack; position_value by Pe-posfrac/Pe-convstack
+    (None → the $200 floor)."""
+    # #340-C: value-scaled variants compute from the live position, not an index-keyed table.
+    if variant in ("Pe-posfrac", "Pe-convstack"):
+        # the floor must afford ≥1 SHARE: a flat $-floor below the share price → int($/close)=0 → the
+        # phase's qty-lt-1 skip, defeating the add on high-price names. Floor = max($200, 1 share).
+        floor = max(_VALUE_FLOOR, float(close)) if close and close > 0.0 else _VALUE_FLOOR
+        if position_value is None or position_value <= 0.0:
+            return floor  # no position context → the floor (never 0 → the add still fires ≥1 share)
+        dollars = _VALUE_FRACTION * float(position_value)
+        if variant == "Pe-convstack":
+            # the upstream phase gate (close>entry_price) means a true LOSER never reaches here; the 0.5
+            # clamp floor applies to MARGINAL winners (+0..+5%), not losses. add_dollars does NOT
+            # self-gate losers — the phase's add-to-winners-only does.
+            if entry_price and close and entry_price > 0.0:
+                unreal_pct = (float(close) / float(entry_price) - 1.0) * 100.0
+                mult = min(max(unreal_pct / 10.0, 0.5), 3.0)  # clamp [0.5, 3.0]
+            else:
+                mult = 1.0
+            dollars *= mult
+        return max(dollars, floor)
+
     sizes = ADD_SIZES.get(variant, [])
     idx = lots - 1
     if idx < 0 or not sizes:
@@ -114,7 +147,8 @@ def should_add(
     if idx < 0:
         return False
 
-    if uncapped and variant in ("Pe", "Pe-rampup", "Pe-conviction", "Pe-winscale"):
+    if uncapped and variant in ("Pe", "Pe-rampup", "Pe-conviction", "Pe-winscale",
+                                "Pe-posfrac", "Pe-convstack"):
         return bool(tk_cross)  # fire on every fresh cross; size differs by variant
     if uncapped and variant == "Pc":
         if entry_atr is None or entry_atr <= 0:

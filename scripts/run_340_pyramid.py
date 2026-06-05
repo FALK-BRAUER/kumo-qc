@@ -36,12 +36,16 @@ from sweeps.windows import SIX_WINDOWS  # noqa: E402
 
 PYRAMID = SweepConfig(choices=(), continuous_weekly=True)  # empty → base_module fully defines the strategy
 FY = Window(name="fy2025_full", start="2025-01-01", end="2025-12-31")
+# #378 first-proof: a 2-WEEK window (window-then-FY protocol). Spans the Jan-6 point where the
+# pre-#378 runs Runtime-Error'd on the first add — now the add must resize the stop + run THROUGH it.
+W2WK = Window(name="w2wk_2025jan", start="2025-01-01", end="2025-01-17")
 RUNS = _ROOT / "sweeps" / "runs_340pyramid"
 
 
 def main() -> None:
     mode = sys.argv[1] if len(sys.argv) > 1 else "all"
-    windows = [FY] if mode == "fy" else [FY, *SIX_WINDOWS]
+    # window-then-FY (Falk): the 6-window panel FIRST, FY LAST — never FY-first.
+    windows = {"fy": [FY], "2wk": [W2WK], "all": [*SIX_WINDOWS, FY]}.get(mode, [*SIX_WINDOWS, FY])
     adapter = make_local_run(runs_root=RUNS)
     print(f"=== #340-B champion_pyramid BT (full-warmup) — {[w.name for w in windows]} ===", flush=True)
     print(f"    config_hash={PYRAMID.config_hash} base_module={_PYRAMID_BASE} runs_root={RUNS}", flush=True)

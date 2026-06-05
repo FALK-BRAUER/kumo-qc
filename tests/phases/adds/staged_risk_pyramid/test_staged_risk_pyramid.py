@@ -17,7 +17,7 @@ def _ind(tenkan: float, kijun: float, ready: bool = True):
 class _Hold:
     def __init__(self, invested=True, quantity=100):
         self.invested = invested
-        self.quantity = quantity
+        self.quantity = quantity  # #340-C: position_value = quantity × close (Pe-posfrac/Pe-convstack)
 
 
 class _Sec:
@@ -52,18 +52,18 @@ def _sym(name="HOOD"):
     return type("Symbol", (), {"value": name})()
 
 
-def _setup(close, entry_price, tenkan, kijun):
+def _setup(close, entry_price, tenkan, kijun, qty=100):
     qc = _QC()
     s = _sym()
-    qc.portfolio[s] = _Hold(invested=True)
+    qc.portfolio[s] = _Hold(invested=True, quantity=qty)
     qc.securities[s] = _Sec(close)
     qc._indicators[s] = {"d_ichi": _ind(tenkan, kijun)}
     qc._position_meta[s] = {"entry_price": entry_price, "entry_date": _ENTRY}
     return qc, s
 
 
-def _phase(max_adds=2):
-    return StagedRiskPyramid(StagedRiskPyramid.Params(variant="Pe-rampup", max_adds=max_adds), logger=None)
+def _phase(max_adds=2, variant="Pe-rampup"):
+    return StagedRiskPyramid(StagedRiskPyramid.Params(variant=variant, max_adds=max_adds), logger=None)
 
 
 def test_fresh_cross_in_profit_adds():
@@ -121,6 +121,78 @@ def test_staged_sizing_second_add_is_400():
     ctx = PhaseContext(qc=qc, time=datetime(2025, 3, 1), data=None)
     p.evaluate(ctx)
     assert len(ctx.bar_state.add_intents) == 1 and ctx.bar_state.add_intents[0].risk_dollars == 400.0
+
+
+# ── #340-C value-scaled variants (V2 Pe-posfrac, V3 Pe-convstack) — the sizing screen ──
+
+def test_v2_posfrac_sizes_quarter_of_position():
+    # V2: add = 0.25 × position_value (held_qty × close). qty=100, close=110 → posval 11000 → $2750.
+    p = _phase(variant="Pe-posfrac")
+    qc, s = _setup(close=110.0, entry_price=100.0, tenkan=12.0, kijun=10.0, qty=100)
+    p._state[s] = {"entry_date": _ENTRY, "lots": 1, "prev_tk_above": False}  # fresh cross + in profit
+    ctx = PhaseContext(qc=qc, time=datetime(2025, 3, 1), data=None)
+    p.evaluate(ctx)
+    assert len(ctx.bar_state.add_intents) == 1
+    assert ctx.bar_state.add_intents[0].risk_dollars == 2750.0          # 0.25 × 11000 (scales w/ the winner)
+    assert ctx.bar_state.add_intents[0].qty == int(2750.0 / 110.0)
+
+
+def test_v2_posfrac_floored_at_200_on_small_position():
+    # V2 floor: a tiny position (qty=5, close=110 → posval 550 → 0.25×550=137.5) floors UP to $200
+    # (avoids the qty-lt-1 bug on high-price names).
+    p = _phase(variant="Pe-posfrac")
+    qc, s = _setup(close=110.0, entry_price=100.0, tenkan=12.0, kijun=10.0, qty=5)
+    p._state[s] = {"entry_date": _ENTRY, "lots": 1, "prev_tk_above": False}
+    ctx = PhaseContext(qc=qc, time=datetime(2025, 3, 1), data=None)
+    p.evaluate(ctx)
+    assert ctx.bar_state.add_intents[0].risk_dollars == 200.0
+
+
+def test_v2_posfrac_floor_affords_one_share_on_high_price():
+    # the floor must buy ≥1 SHARE on a high-price name: close=300, qty=2 → posval 600 → 0.25×600=$150,
+    # but a flat $200 floor → int(200/300)=0 → SKIP. The share-aware floor = max($200, $300) → $300 →
+    # int(300/300)=1 share FIRES. (the review #340-C bug fix: the floor solves qty-lt-1 for real.)
+    p = _phase(variant="Pe-posfrac")
+    qc, s = _setup(close=300.0, entry_price=250.0, tenkan=12.0, kijun=10.0, qty=2)  # in profit, fresh cross
+    p._state[s] = {"entry_date": _ENTRY, "lots": 1, "prev_tk_above": False}
+    ctx = PhaseContext(qc=qc, time=datetime(2025, 3, 1), data=None)
+    p.evaluate(ctx)
+    assert len(ctx.bar_state.add_intents) == 1, "high-price floor must FIRE ≥1 share, not skip on qty-lt-1"
+    assert ctx.bar_state.add_intents[0].risk_dollars == 300.0 and ctx.bar_state.add_intents[0].qty == 1
+
+
+def test_v3_convstack_high_conviction_3x():
+    # V3: mult = clamp(unrealized%/10, 0.5, 3.0). +30% → 3.0×. qty=100,close=130 → posval 13000 →
+    # 0.25×13000×3.0 = $9750 (the biggest add to the strongest winner — the monster).
+    p = _phase(variant="Pe-convstack")
+    qc, s = _setup(close=130.0, entry_price=100.0, tenkan=12.0, kijun=10.0, qty=100)
+    p._state[s] = {"entry_date": _ENTRY, "lots": 1, "prev_tk_above": False}
+    ctx = PhaseContext(qc=qc, time=datetime(2025, 3, 1), data=None)
+    p.evaluate(ctx)
+    assert ctx.bar_state.add_intents[0].risk_dollars == 9750.0
+
+
+def test_v3_convstack_marginal_winner_half():
+    # V3 damps marginal winners: +5% → mult 0.5×. qty=100,close=105 → posval 10500 →
+    # 0.25×10500×0.5 = $1312.50 (small add to a marginal winner).
+    p = _phase(variant="Pe-convstack")
+    qc, s = _setup(close=105.0, entry_price=100.0, tenkan=12.0, kijun=10.0, qty=100)
+    p._state[s] = {"entry_date": _ENTRY, "lots": 1, "prev_tk_above": False}
+    ctx = PhaseContext(qc=qc, time=datetime(2025, 3, 1), data=None)
+    p.evaluate(ctx)
+    assert round(ctx.bar_state.add_intents[0].risk_dollars, 4) == 1312.5  # 0.25×10500×0.5 (float-safe)
+
+
+def test_v2v3_decline_without_fresh_cross():
+    # the DECLINE half (Falk's rule): the value-scaled variants still obey the SAME Pe-trigger —
+    # no fresh cross → no add, regardless of sizing scheme (isolates sizing, not trigger).
+    for variant in ("Pe-posfrac", "Pe-convstack"):
+        p = _phase(variant=variant)
+        qc, s = _setup(close=110.0, entry_price=100.0, tenkan=12.0, kijun=10.0, qty=100)
+        p._state[s] = {"entry_date": _ENTRY, "lots": 1, "prev_tk_above": True}  # already above → not fresh
+        ctx = PhaseContext(qc=qc, time=datetime(2025, 3, 1), data=None)
+        p.evaluate(ctx)
+        assert ctx.bar_state.add_intents == [], f"{variant} must obey the Pe-trigger (no add w/o fresh cross)"
 
 
 def test_resting_protective_stop_does_NOT_block_add():

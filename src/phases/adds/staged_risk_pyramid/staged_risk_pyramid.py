@@ -152,7 +152,12 @@ class StagedRiskPyramid(BasePhase):
             # keeps sizing past the ADD_SIZES list (#340-B review: capped mode silently returns $0 for
             # add-index ≥ len(sizes), making max_adds=3 a no-op for its top tranche). Identical $ to
             # capped mode within [200,400,600]; only extends the rampup beyond it.
-            dollars = add_dollars(self.p.variant, st["lots"], uncapped=True, entry_price=entry_price, close=close)
+            # position_value (held_qty × close) feeds the #340-C value-scaled variants (Pe-posfrac /
+            # Pe-convstack) — they size the add as a fraction of the CURRENT position; ignored by the
+            # fixed-$ variants.
+            position_value = abs(float(holding.quantity)) * close
+            dollars = add_dollars(self.p.variant, st["lots"], uncapped=True,
+                                  entry_price=entry_price, close=close, position_value=position_value)
             if dollars <= 0.0:
                 self._diag(qc, symbol, "zero-dollars", lots=st["lots"])
                 continue
