@@ -25,9 +25,18 @@ class _Sec:
         self.close = close
 
 
+class _Order:
+    """Minimal LEAN-order stand-in: only `.type` (the field the guard inspects)."""
+    def __init__(self, order_type: str):
+        self.type = order_type
+
+
 class _Txn:
+    def __init__(self, open_orders=None):
+        self._open = open_orders or []
+
     def get_open_orders(self, symbol=None):
-        return []
+        return list(self._open)
 
 
 class _QC:
@@ -112,6 +121,45 @@ def test_staged_sizing_second_add_is_400():
     ctx = PhaseContext(qc=qc, time=datetime(2025, 3, 1), data=None)
     p.evaluate(ctx)
     assert len(ctx.bar_state.add_intents) == 1 and ctx.bar_state.add_intents[0].risk_dollars == 400.0
+
+
+def test_resting_protective_stop_does_NOT_block_add():
+    """#340-B regression: every held position carries a GTC StopMarket protective stop. The add MUST
+    still fire — the resting stop is excluded from the open-order guard. (The bug: it blocked 100% of
+    adds → byte-identical-to-S1 no-op. The mock previously returned [] open orders, hiding it.)"""
+    p = _phase()
+    qc, s = _setup(close=110.0, entry_price=100.0, tenkan=12.0, kijun=10.0)  # fresh cross + in profit
+    qc.transactions = _Txn(open_orders=[_Order("StopMarket")])               # the protective stop
+    p._state[s] = {"entry_date": _ENTRY, "lots": 1, "prev_tk_above": False}
+    ctx = PhaseContext(qc=qc, time=datetime(2025, 3, 1), data=None)
+    p.evaluate(ctx)
+    assert len(ctx.bar_state.add_intents) == 1   # add FIRES despite the resting stop
+    assert p._state[s]["lots"] == 2
+
+
+def test_pending_entry_or_add_DOES_block_add():
+    """The guard's real purpose is preserved: a pending ENTRY/ADD (Market/MarketOnOpen) still blocks a
+    new add → no STACKING duplicate adds on an unfilled order."""
+    p = _phase()
+    for ot in ("MarketOnOpen", "Market", "Limit"):
+        qc, s = _setup(close=110.0, entry_price=100.0, tenkan=12.0, kijun=10.0)
+        qc.transactions = _Txn(open_orders=[_Order(ot)])                      # pending entry/add in flight
+        p._state[s] = {"entry_date": _ENTRY, "lots": 1, "prev_tk_above": False}
+        ctx = PhaseContext(qc=qc, time=datetime(2025, 3, 1), data=None)
+        p.evaluate(ctx)
+        assert ctx.bar_state.add_intents == [], f"{ot} should block the add (no stacking)"
+
+
+def test_stop_present_but_pending_entry_also_present_blocks():
+    """Mixed open orders (a resting stop + a pending entry) → the pending entry still blocks; the stop
+    is correctly ignored but does not un-block."""
+    p = _phase()
+    qc, s = _setup(close=110.0, entry_price=100.0, tenkan=12.0, kijun=10.0)
+    qc.transactions = _Txn(open_orders=[_Order("StopMarket"), _Order("MarketOnOpen")])
+    p._state[s] = {"entry_date": _ENTRY, "lots": 1, "prev_tk_above": False}
+    ctx = PhaseContext(qc=qc, time=datetime(2025, 3, 1), data=None)
+    p.evaluate(ctx)
+    assert ctx.bar_state.add_intents == []   # pending entry blocks; stop alone would not have
 
 
 def test_closed_position_state_gc():
