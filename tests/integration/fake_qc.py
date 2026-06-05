@@ -266,7 +266,14 @@ class FakeQC:
         self.plots: list[tuple[str, str, float]] = []
 
     # ---- order API (engine._fire) ----
+    def market_order(self, symbol: Any, qty: int, tag: str = "") -> None:
+        # #386: the only entry fire path post-MOO-delete — _submit → qc.market_order for order_type
+        # "market" (the explicit entry seam stamps it). Same capture sink as the retired MOO path.
+        self.orders.append((symbol, qty))
+
     def market_on_open_order(self, symbol: Any, qty: int, tag: str = "") -> None:
+        # RETIRED in production (#386 deleted market_on_open from the fire seam); kept ONLY for the
+        # MarketOnOpenEntry-phase unit tests pending the MOO-model retirement (separate followup).
         self.orders.append((symbol, qty))
 
     # ---- logging ----
