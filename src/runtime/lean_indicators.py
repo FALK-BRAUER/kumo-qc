@@ -259,8 +259,12 @@ class WeeklyIchimokuAsOf:
     weekly Ichimoku 'current' from week W+1's first trading day onward (and unchanged within a week).
     A completed week's OHLC = open(first)/high(max)/low(min)/close(last) of its daily bars."""
 
-    def __init__(self) -> None:
-        self._w_ichi = Ichimoku()
+    def __init__(self, tenkan_period: int = 9, kijun_period: int = 26, senkou_b_period: int = 52) -> None:
+        # #periods: thread the swept periods into the re-derived weekly so the CONTINUOUS_WEEKLY path
+        # matches the live consolidator weekly (lean_entry uses delays=kijun → same here). Defaults
+        # 9/26/52 → Ichimoku(9,26,52,26,26) = byte-identical (the parity gate). NOT threading this was
+        # the dual-path divergence the review caught (a swept daily scored against a 9/26/52 weekly).
+        self._w_ichi = Ichimoku(tenkan_period, kijun_period, senkou_b_period, kijun_period, kijun_period)
         self._w_close: deque[float] = deque(maxlen=64)  # completed weekly closes, newest at [-1]
         self._cur_monday: _dt.date | None = None
         self._cur: dict[str, float] | None = None  # accumulating (incomplete) week OHLC

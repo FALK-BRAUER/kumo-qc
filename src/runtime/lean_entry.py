@@ -365,6 +365,16 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
     INTRADAY_SUBSCRIBE_CAP: int = 50
     INTRADAY_TENKAN: int = 9
     INTRADAY_VOL_WINDOW: int = 20
+    # #periods: daily+weekly Ichimoku periods as injectable class-attrs (default 9/26/52 = champion,
+    # BYTE-IDENTICAL when not injected — the parity gate). Swept via SWEEP_CLASS_ATTRS to test entry
+    # TIMING (the one mechanism #349 doesn't wall: periods change WHEN the signal fires, not WHICH
+    # names by feature). senkouA-period + the 26-displacement track KIJUN (conventional scaled
+    # Ichimoku). Changing any breaks the weekly-cache (keyed to 9/26/52) → period cells run FULL
+    # warmup (WARMUP_DAYS=560, no cache fp). The intraday-tenkan + vix ichimoku are NOT swept (separate
+    # concerns); only the daily+weekly ENTRY signal uses these.
+    TENKAN: int = 9
+    KIJUN: int = 26
+    SENKOU_B: int = 52
 
     # #321 realistic IBKR cost+slippage. SLIPPAGE_PERCENT = the EXPLICIT, version-pinned per-side
     # slippage fed to ConstantSlippageModel (5 bps; conservative for the liquid ADV>=$100M universe).
@@ -407,6 +417,15 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self._symbol_sparse: dict[str, bool] = {}  # #370 (2')-(i): per-symbol sparsity, classified once
         self._weekly_cache_fp: str | None = None
         self._weekly_loaded: dict[str, dict[Any, dict[str, float]] | None] = {}  # per-sym memo (None = attempted-missing)
+        # #periods FAIL-CLOSED: the weekly-cache key bakes 9/26/52 (warmup_weekly_cache.WEEKLY_ICHIMOKU_PARAMS),
+        # so a NON-DEFAULT period set + an armed cache would serve 9/26/52 weekly scalars against a swept
+        # daily (the dual-path divergence the review caught). Period cells run NO cache by construction
+        # (fp=None) — this guard makes that an INVARIANT, not an operator convention: refuse to arm.
+        if (self.TENKAN, self.KIJUN, self.SENKOU_B) != (9, 26, 52) and self.WARMUP_WEEKLY_CACHE_FP:
+            raise ValueError(
+                f"weekly-cache armed with non-default Ichimoku periods "
+                f"(t{self.TENKAN}/k{self.KIJUN}/s{self.SENKOU_B}) — the cache key is 9/26/52, would serve "
+                f"wrong weekly. Run non-default periods with FULL warmup (no WARMUP_WEEKLY_CACHE_FP).")
         if self.CONTINUOUS_WEEKLY and self.WARMUP_WEEKLY_CACHE_FP and getattr(self, "object_store", None) is not None:
             self._weekly_cache_fp = self.WARMUP_WEEKLY_CACHE_FP
             self.log(f"#358 weekly-cache: per-symbol lazy-load ARMED (fp {self._weekly_cache_fp[:12]}…)")
@@ -695,7 +714,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         Daily ichimoku 9/26/26/52/26/26 + sma200 (QC native), weekly ichimoku fed by a MANUAL
         TradeBarConsolidator (Calendar.WEEKLY) — the proven QC-cloud resample-timeout fix
         (8048c29). EXACT legacy carve."""
-        d_ichi = self.ichimoku(sym, 9, 26, 26, 52, 26, 26)
+        d_ichi = self.ichimoku(sym, self.TENKAN, self.KIJUN, self.KIJUN, self.SENKOU_B, self.KIJUN, self.KIJUN)
         sma200 = self.sma(sym, 200)
         # #213f maintained indicators so the SIGNAL reads O(1)/candidate (no per-bar history).
         # ADX(9) → condition 7 (adx>=20, +DI>-DI). adx_window holds recent ADX values so
@@ -716,7 +735,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         macd.updated += lambda _s, _pt: macd_hist_window.add(macd.histogram.current.value)
         vol_sma20 = self.sma(sym, 20, Resolution.DAILY, Field.VOLUME)
         tbounce = TBounceTracker()
-        w_ichi = IchimokuKinkoHyo(9, 26, 26, 52, 26, 26)
+        w_ichi = IchimokuKinkoHyo(self.TENKAN, self.KIJUN, self.KIJUN, self.SENKOU_B, self.KIJUN, self.KIJUN)
         w_close = RollingWindow[float](28)
         consolidator = TradeBarConsolidator(Calendar.WEEKLY)
 
@@ -1036,7 +1055,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         if isinstance(hist.index, pd.MultiIndex):
             hist = hist.droplevel(0)
         hist.columns = [c.lower() for c in hist.columns]
-        w = WeeklyIchimokuAsOf()
+        w = WeeklyIchimokuAsOf(self.TENKAN, self.KIJUN, self.SENKOU_B)
         last_bar_date = None
         last_bar_volume = 0.0
         vols: list[float] = []
