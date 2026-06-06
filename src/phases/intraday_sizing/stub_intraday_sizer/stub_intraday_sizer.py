@@ -17,7 +17,7 @@ from engine.context import PhaseContext
 class StubIntradaySizer(BasePhase):
     PHASE_KIND = "intraday_sizing"
     PHASE_RESOLUTION = "intraday"
-    REQUIRES_UPSTREAM = ["sized_orders"]
+    REQUIRES_UPSTREAM = ["entry_trigger"]  # the KIND that emits the intraday sized_orders stubs (a kind, not a field)
     PROVIDES_DOWNSTREAM = ["sized_orders"]
 
     @dataclass(slots=True)

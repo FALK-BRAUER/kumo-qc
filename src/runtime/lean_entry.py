@@ -1161,9 +1161,12 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             if fed_intraday:
                 ictx = PhaseContext(qc=self, time=self.time, data=data)
                 ictx.clock = "intraday"
-                # #276b-1: seed the standing daily candidates into this fresh per-tick bar_state
-                # BEFORE the intraday clock runs, so entry_selection can gate them (the two-clock seam).
-                self._inject_intraday_candidates(ictx)
+                # #386 2b: the two-clock entry decision. When an `entry_trigger` phase is wired (the
+                # relocated intraday entry), it reads qc._armed DIRECTLY per-bar — no snapshot seed.
+                # The LEGACY path (entry_selection/gap_vol_confirm) still needs the snapshot stubs
+                # seeded into bar_state, so keep the inject ONLY when there is no entry_trigger.
+                if not getattr(self.engine, "phases", {}).get("entry_trigger"):
+                    self._inject_intraday_candidates(ictx)
                 self.engine.on_intraday_bar(ictx)
                 # #276b-1 FUNNEL: fold this tick's per-stage survivor sets into the per-DAY sets (set
                 # membership = the per-day dedup — a candidate evaluated every tick counts ONCE/day at
