@@ -6,3 +6,6 @@ The #386 A/B/C scenario configs — the modularization proof. Each `scenario_*.p
 What goes here: scenario/blueprint configs that compose catalog modules (A/B/C, future variants).
 What doesn't: the production champion (stays at strategies/champion_intraday_gapvol.py), retired
 fixtures (→ strategies/archive/), phase implementations (→ src/phases/).
+
+Scenario variants may reuse the same modules with different params when the proof needs multiple
+intraday runs without changing the engine.

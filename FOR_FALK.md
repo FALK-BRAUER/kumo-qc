@@ -1,3 +1,51 @@
+# FOR_FALK - #386 scenario architecture proof, 2026-06-06
+
+What happened: Claude stopped because of a session limit, after pushing the Scenario A stop wiring.
+I picked up the branch and moved the proof from "one possible intraday run" to four marker-proven
+direct LEAN runs: A, B, C, and a C parameter variant.
+
+## What changed
+
+- Added Scenario B catalog modules: sector-rotation universe, VIX regime, composite ranking,
+  risk/reward filter, buy-stop intraday trigger, vol-adjusted intraday sizing, ATR initial stop,
+  and profit-tightening trail.
+- Added `scenario_b.py`, `scenario_c.py`, and `scenario_c_wide_entry.py` blueprints. A/B/C now prove
+  module-map variation; C-wide proves parameter variation without engine changes.
+- Kept the engine untouched in this pass. The only engine diff on the branch remains the existing
+  #386 two-clock co-clock validation from the earlier commit.
+- Kept production breadth behavior fail-closed, but made fixture blueprints explicitly skip missing
+  breadth so proof runs are not vacuous when the runtime has no `breadth_pct_above_200ma` feed.
+- Extended `scripts/run_386_arm_direct.py` with `jan2025_proof`, a shorter real LEAN window for
+  intraday marker gates.
+- After your cache question: confirmed the four completed proof runs did **not** arm the #358 weekly
+  cache (`#358 weekly-cache: NOT armed` in logs). Patched the direct runner so future runs default to
+  cache-backed trimmed warmup (`WARMUP_DAYS=320` + `WARMUP_WEEKLY_CACHE_FP=<data_fp>`) and keep
+  `--full-warmup` as the explicit slow/canonical escape hatch.
+
+## Proof Runs
+
+All four direct LEAN runs used `scripts/run_386_arm_direct.py jan <blueprint>` before the cache-backed
+runner patch, generated isolated run dirs under `sweeps/runs/`, exited `lean rc: 0`, and had zero
+`DegradedDataError`, zero `ARM-PARITY`, zero `Runtime Error`.
+
+| Run | Config hash | Result JSON | Arm markers | Intraday trigger markers | Intraday sizer markers | Entry lines |
+| --- | --- | --- | ---: | ---: | ---: | ---: |
+| A | `671af6ec6a46` | `direct_scenario_a/jan2025_proof/backtests/2026-06-06_14-20-35/1661479047.json` | 15 | 5071 | 5071 | 66 |
+| B | `26d069e6539a` | `direct_scenario_b/jan2025_proof/backtests/2026-06-06_14-28-31/1137834601.json` | 15 | 5071 | 5071 | 694 |
+| C | `1962771d8813` | `direct_scenario_c/jan2025_proof/backtests/2026-06-06_14-35-57/1392645598.json` | 15 | 5071 | 5071 | 143 |
+| C-wide | `e2d4975532e0` | `direct_scenario_c_wide_entry/jan2025_proof/backtests/2026-06-06_14-43-23/1424912375.json` | 15 | 5071 | 5071 | 69 |
+
+## Interpretation
+
+The core idea now holds empirically: the engine is orchestration, and behavior lives in pluggable
+phase modules plus typed params. Daily phases choose and arm candidates; intraday phases trigger and
+size at the fire bar; `FIRE_ENTRIES` remains the engine seam. A/B/C/C-wide all ran the same engine
+shape with different module or param maps.
+
+Remaining caveat: these are architecture-proof fixtures, not deployable champion configs. The real
+M3 entry-trigger work (#396) still has to replace the stub/proof trigger behavior with production
+gap/open/morning timing.
+
 # FOR_FALK — overnight run 2026-06-02 (branch feat/276b-1-intraday)
 
 Falk — what shipped while you slept, why, and what's waiting on you. All committed + pushed

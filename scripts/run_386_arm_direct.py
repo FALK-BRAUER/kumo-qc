@@ -5,10 +5,14 @@ decision). The sweep SweepConfig(arm) path DROPS arm (vacuous) — this replaces
 Gate PASS = the run completes AND stub_arm_v2 markers > 0 (arm actually ran) AND zero DegradedDataError/
 ARM-PARITY (the assertion never diverged across ~63 daily decisions) = empirical arm==snapshot proof.
 
-Usage: python3 scripts/run_386_arm_direct.py <q1|fy>
+Usage:
+  python3 scripts/run_386_arm_direct.py <jan|q1|fy> [module]
+  python3 scripts/run_386_arm_direct.py jan strategies.blueprints.scenario_b --full-warmup
 """
 from __future__ import annotations
 
+import argparse
+import json
 import os
 import shutil
 import sys
@@ -21,16 +25,50 @@ os.environ.setdefault("DOCKER_HOST", "unix:///Users/falk/.docker/run/docker.sock
 import build.cloud_package as cp  # noqa: E402
 from sweeps.adapters.local_lean import _default_find_result, _default_run_lean  # noqa: E402
 from sweeps.types import Window  # noqa: E402
+from sweeps.warmup_cache.ensure import ensure_weekly_cache  # noqa: E402
 
 WINDOWS = {
+    "jan": Window(name="jan2025_proof", start="2025-01-13", end="2025-01-31"),
     "q1": Window(name="w1_2025q1", start="2025-01-01", end="2025-03-31"),
     "fy": Window(name="fy2025_full", start="2025-01-01", end="2025-12-31"),
 }
 
 
+def _args() -> argparse.Namespace:
+    p = argparse.ArgumentParser()
+    p.add_argument("window", nargs="?", default="q1", choices=sorted(WINDOWS))
+    p.add_argument("module", nargs="?", default="strategies.m1_arm_parity")
+    p.add_argument(
+        "--warmup-days",
+        type=int,
+        default=int(os.environ.get("KUMO_386_WARMUP_DAYS", "320")),
+        help="BCTAlgorithm.WARMUP_DAYS for cache-backed direct runs.",
+    )
+    p.add_argument(
+        "--full-warmup",
+        action="store_true",
+        help="Use the canonical 560-day live warmup/rederive path and do not arm the weekly cache.",
+    )
+    return p.parse_args()
+
+
+def _cache_attrs(res: cp.BuildResult, *, warmup_days: int, full_warmup: bool) -> dict[str, object]:
+    if full_warmup:
+        return {}
+    if warmup_days >= 560:
+        return {"WARMUP_WEEKLY_CACHE_FP": res.data_fingerprint}
+    ensure_weekly_cache(
+        res.data_fingerprint,
+        storage_dir=_ROOT / "storage",
+        cache_root=_ROOT / "results" / "warmup_cache",
+    )
+    return {"WARMUP_DAYS": warmup_days, "WARMUP_WEEKLY_CACHE_FP": res.data_fingerprint}
+
+
 def main() -> None:
-    win = WINDOWS[sys.argv[1] if len(sys.argv) > 1 else "q1"]
-    module = sys.argv[2] if len(sys.argv) > 2 else "strategies.m1_arm_parity"
+    args = _args()
+    win = WINDOWS[args.window]
+    module = args.module
     tag = module.split(".")[-1]
     run = _ROOT / "sweeps" / "runs" / f"direct_{tag}" / win.name
     if run.exists():
@@ -42,6 +80,8 @@ def main() -> None:
     arm_files = [f for f in res.included if "arm" in f.lower()]
     print(f"arm phase in dist: {arm_files}", flush=True)
     assert arm_files, "FAIL: StubArm not codegen'd — abort (would be vacuous)"
+    extra_attrs = _cache_attrs(res, warmup_days=args.warmup_days, full_warmup=args.full_warmup)
+    print(f"cache attrs: {json.dumps(extra_attrs, sort_keys=True)}", flush=True)
 
     # window inject (the cloud-parity BCTAlgorithm class-attr pattern; m1_arm_parity is continuous_weekly)
     sy, sm, sd = (int(x) for x in win.start.split("-"))
@@ -54,6 +94,8 @@ def main() -> None:
         f"    END_DATE = ({ey}, {em}, {ed})\n"
         "    CONTINUOUS_WEEKLY = True\n"
     )
+    for k, v in extra_attrs.items():
+        inject += f"    {k} = {v!r}\n"
     assert "    STRATEGY_CONFIG = STRATEGY_CONFIG\n" in s, "FAIL: inject anchor missing"
     main_py.write_text(s.replace("    STRATEGY_CONFIG = STRATEGY_CONFIG\n", inject, 1))
     (run / "lean.json").write_text('{ "description": "m1 arm direct", "parameters": {} }\n')

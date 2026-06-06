@@ -36,7 +36,10 @@ CONFIG = StrategyConfig(
         # --- DAY decision chain (the A-specific catalog modules) ---
         "universe": Slot(impl=DvRankCap, params=DvRankCap.Params()),
         "signal": Slot(impl=Tier1HighConviction, params=Tier1HighConviction.Params()),
-        "regime": [Slot(impl=MarketBreadthGate, params=MarketBreadthGate.Params(pct_threshold=0.50))],
+        "regime": [Slot(impl=MarketBreadthGate, params=MarketBreadthGate.Params(
+            pct_threshold=0.50,
+            missing_breadth_blocks=False,
+        ))],
         "ranking": Slot(impl=ScoreDvRanking, params=ScoreDvRanking.Params()),
         "entry_selection": Slot(impl=ResistanceProximityFilter, params=ResistanceProximityFilter.Params(buffer_pct=0.03)),
         "arm": Slot(impl=StubArm, params=StubArm.Params()),

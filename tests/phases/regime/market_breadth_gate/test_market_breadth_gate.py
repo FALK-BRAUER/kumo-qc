@@ -1,4 +1,4 @@
-"""MarketBreadthGate: breadth>threshold passes, <=threshold blocks, cold→fail-closed block."""
+"""MarketBreadthGate: breadth>threshold passes, <=threshold blocks, cold default blocks."""
 from datetime import datetime
 from engine.context import PhaseContext
 from phases.regime.market_breadth_gate.market_breadth_gate import MarketBreadthGate
@@ -14,8 +14,14 @@ def _ctx(qc):
     return PhaseContext(qc=qc, time=datetime(2025, 1, 2), data=None)
 
 
-def _run(breadth, threshold=0.50):
-    p = MarketBreadthGate(MarketBreadthGate.Params(pct_threshold=threshold), logger=None)
+def _run(breadth, threshold=0.50, missing_breadth_blocks=True):
+    p = MarketBreadthGate(
+        MarketBreadthGate.Params(
+            pct_threshold=threshold,
+            missing_breadth_blocks=missing_breadth_blocks,
+        ),
+        logger=None,
+    )
     return p.evaluate(_ctx(_QC(breadth)))
 
 
@@ -31,6 +37,12 @@ def test_breadth_at_or_below_threshold_blocks():
 
 def test_cold_breadth_fail_closed_blocks():
     assert _run(None).blocked is True          # missing → BLOCK (never fail-open)
+
+
+def test_fixture_can_skip_cold_breadth_without_blocking():
+    r = _run(None, missing_breadth_blocks=False)
+    assert r.blocked is False
+    assert r.decision == "skip"
 
 
 def test_param_threshold_40_for_scenario_c():

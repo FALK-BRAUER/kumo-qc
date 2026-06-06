@@ -3,8 +3,10 @@
 Eligible-to-open ONLY when > THRESHOLD% of the S&P constituents are above their 200-day MA (breadth).
 Below threshold → BLOCK new longs (a risk-off breadth regime). Param: pct_threshold (A=0.50, C=0.40).
 
-Reads qc.breadth_pct_above_200ma (the runtime maintains it; 0..1). FAIL-CLOSED (#261-7): a not-ready /
-missing breadth value BLOCKS (a cold regime gate never fail-opens). Kind: regime · Marker: market_breadth_gate_v1.
+Reads qc.breadth_pct_above_200ma (the runtime maintains it; 0..1). FAIL-CLOSED by default (#261-7):
+a not-ready/missing breadth value BLOCKS. Fixture blueprints may explicitly set
+missing_breadth_blocks=False so missing breadth is observable but does not make a modular proof run
+vacuous. Kind: regime · Marker: market_breadth_gate_v1.
 """
 from __future__ import annotations
 from dataclasses import dataclass
@@ -22,6 +24,7 @@ class MarketBreadthGate(BasePhase):
     @dataclass(slots=True)
     class Params:
         pct_threshold: float = 0.50  # >50% of S&P >200MA to open (A); 0.40 for C
+        missing_breadth_blocks: bool = True
         enabled: bool = True
 
     def __init__(self, params: "MarketBreadthGate.Params", logger: Any) -> None:
@@ -32,10 +35,11 @@ class MarketBreadthGate(BasePhase):
         qc = ctx.qc
         date_str = ctx.time.strftime("%Y-%m-%d")
         breadth = getattr(qc, "breadth_pct_above_200ma", None)
-        # FAIL-CLOSED: cold/missing breadth → BLOCK (never fire ungated on partial state, #261-7).
         if breadth is None:
-            return PhaseResult(decision="block", blocked=True,
-                               reason="breadth not ready — BLOCK until warm (fail-closed regime)",
+            blocked = self.p.missing_breadth_blocks
+            action = "BLOCK" if blocked else "SKIP"
+            return PhaseResult(decision="block" if blocked else "skip", blocked=blocked,
+                               reason=f"breadth not ready — {action} until warm",
                                facts={"date": date_str, "regime_ready": False}, metrics={})
         breadth = float(breadth)
         if breadth <= self.p.pct_threshold:
