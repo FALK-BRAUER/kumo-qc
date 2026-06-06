@@ -8,7 +8,7 @@ Kind: stops_initial · Clock: DAILY · Marker: support_atr_stop_v1.
 """
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Mapping
 
 from engine.base import BasePhase, PhaseResult
 from engine.context import PhaseContext
@@ -56,7 +56,7 @@ class SupportAtrStop(BasePhase):
                            reason=f"support+ATR stops: {stamped} new, {len(stops)} held",
                            facts={"stamped": stamped, "held_stops": len(stops)}, metrics={})
 
-    def _support_atr(self, ind: "dict | None") -> "float | None":
+    def _support_atr(self, ind: Mapping[str, Any] | None) -> float | None:
         if not ind:
             return None
         d_ichi = ind.get("d_ichi")
