@@ -357,16 +357,37 @@ class StrategyEngine:
             item: i for i, item in enumerate(PHASE_ORDER) if isinstance(item, str)
         }
         enabled_kinds = set(self.phases)
+        provided_by: dict[str, list[str]] = {}
+        for provider_kind, provider_instances in self.phases.items():
+            for provider_phase in provider_instances:
+                for provided in getattr(provider_phase, "PROVIDES_DOWNSTREAM", []):
+                    provided_by.setdefault(provided, []).append(provider_kind)
+
         for kind, instances in self.phases.items():
             for phase in instances:
                 for req in phase.REQUIRES_UPSTREAM:
-                    if req not in enabled_kinds:
+                    if req in enabled_kinds:
+                        if order_idx.get(req, 99) >= order_idx.get(kind, -1):
+                            raise DependencyError(
+                                f"phase '{kind}' upstream '{req}' not earlier in PHASE_ORDER"
+                            )
+                        continue
+
+                    providers = provided_by.get(req, [])
+                    if not providers:
                         raise DependencyError(
-                            f"phase '{kind}' requires upstream '{req}' (missing/disabled)"
+                            f"phase '{kind}' requires upstream '{req}' "
+                            f"(missing/disabled kind or provided downstream contract)"
                         )
-                    if order_idx.get(req, 99) >= order_idx.get(kind, -1):
+
+                    earlier = [
+                        provider for provider in providers
+                        if order_idx.get(provider, 99) < order_idx.get(kind, -1)
+                    ]
+                    if not earlier:
                         raise DependencyError(
-                            f"phase '{kind}' upstream '{req}' not earlier in PHASE_ORDER"
+                            f"phase '{kind}' upstream contract '{req}' provided by "
+                            f"{sorted(providers)} not earlier in PHASE_ORDER"
                         )
 
     def _log_phase_markers(self) -> None:

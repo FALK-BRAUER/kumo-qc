@@ -9,3 +9,6 @@ fixtures (→ strategies/archive/), phase implementations (→ src/phases/).
 
 Scenario variants may reuse the same modules with different params when the proof needs multiple
 intraday runs without changing the engine.
+
+The `scenario_exit_*` variants are #398 George-style exit-management proofs. They reuse the scenario-C
+entry stack and vary only the trail/exit modules.

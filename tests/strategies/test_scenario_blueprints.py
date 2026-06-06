@@ -5,7 +5,14 @@ from typing import Any
 
 from engine.config import Slot
 from engine.engine import FIRE_ENTRIES, StrategyEngine
-from strategies.blueprints import scenario_a, scenario_b, scenario_c, scenario_c_wide_entry
+from strategies.blueprints import (
+    scenario_a,
+    scenario_b,
+    scenario_c,
+    scenario_c_wide_entry,
+    scenario_exit_proactive,
+    scenario_exit_proactive_scratch,
+)
 
 
 class FakeQC:
@@ -31,7 +38,14 @@ def _slot_impls(value: Any) -> tuple[type[Any], ...]:
 
 
 def test_scenario_blueprints_compose_and_route_two_clock() -> None:
-    for module in (scenario_a, scenario_b, scenario_c, scenario_c_wide_entry):
+    for module in (
+        scenario_a,
+        scenario_b,
+        scenario_c,
+        scenario_c_wide_entry,
+        scenario_exit_proactive,
+        scenario_exit_proactive_scratch,
+    ):
         eng = StrategyEngine(config=module.CONFIG, qc=FakeQC())
         daily = _kind_names(eng._daily_order)
         intraday = _kind_names(eng._intraday_order)
@@ -69,3 +83,17 @@ def test_scenario_c_wide_entry_is_param_variant_only() -> None:
     assert isinstance(trigger, Slot)
     assert isinstance(base_trigger, Slot)
     assert trigger.params.near_pct != base_trigger.params.near_pct
+
+
+def test_george_exit_scenarios_use_position_path_tracker() -> None:
+    for module in (scenario_exit_proactive, scenario_exit_proactive_scratch):
+        phases = module.CONFIG.phases
+        assert "trail" in phases
+        assert "exit_hard" in phases
+
+    proactive_exit = _slot_impls(scenario_exit_proactive.CONFIG.phases["exit_hard"])
+    scratch_exit = _slot_impls(scenario_exit_proactive_scratch.CONFIG.phases["exit_hard"])
+
+    assert len(proactive_exit) == 1
+    assert len(scratch_exit) == 2
+    assert proactive_exit != scratch_exit
