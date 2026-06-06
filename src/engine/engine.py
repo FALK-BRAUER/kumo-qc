@@ -201,14 +201,27 @@ class StrategyEngine:
 
         Mirrors the per-kind MIXED-clocks guard, extended to the cross-kind chain. ESSENTIAL for
         programmatic configs (Epic-2 sweeps generate configs; a forgotten resolution on one chain
-        phase would otherwise produce a silent-zero champion). FIRE_ENTRIES' clock = the entry clock
-        (entry_timing if wired, else entry_selection); with no entry phase wired (a fixture) there is
-        no chain to validate (FIRE_ENTRIES fires the daily stubs directly) → no-op."""
-        if not (self.phases.get("entry_timing") or self.phases.get("entry_selection")):
+        phase would otherwise produce a silent-zero champion).
+
+        #386 TWO-CLOCK: when an `entry_trigger` phase is wired, the entry-EXECUTION chain is the
+        INTRADAY sub-chain `entry_trigger → intraday_sizing → FIRE_ENTRIES` (FIRE_ENTRIES follows
+        entry_trigger's clock, per _partition_clocks). The DAY-phase entry DECISION upstream
+        (entry_selection candidate-filters, arm, day sizing) runs on the daily tick and hands off via
+        qc._armed — it is NOT part of the intraday execution sequence, so it is EXEMPT from the
+        co-clock requirement (a daily entry_selection filter + an intraday entry_trigger is the
+        intended A/C two-clock shape, not a misclocked-stub bug). So the check validates ONLY the
+        intraday sub-chain `[entry_trigger : FIRE_ENTRIES]`. LEGACY (no entry_trigger): the single
+        entry chain `[entry_selection : FIRE_ENTRIES]`, unchanged. Fixture (no entry phase): no-op."""
+        if self.phases.get("entry_trigger"):
+            # two-clock: validate the intraday execution sub-chain only (day-decision phases exempt)
+            fire_clock = self._phase_clock("entry_trigger")
+            start = PHASE_ORDER.index("entry_trigger")
+        elif self.phases.get("entry_timing") or self.phases.get("entry_selection"):
+            fire_clock = (self._phase_clock("entry_timing") if self.phases.get("entry_timing")
+                          else self._phase_clock("entry_selection"))
+            start = PHASE_ORDER.index("entry_selection")
+        else:
             return  # no entry-confirm phase (fixture) → no entry-execution chain to enforce
-        fire_clock = (self._phase_clock("entry_timing") if self.phases.get("entry_timing")
-                      else self._phase_clock("entry_selection"))
-        start = PHASE_ORDER.index("entry_selection")
         end = PHASE_ORDER.index(FIRE_ENTRIES)
         chain_kinds = [k for k in PHASE_ORDER[start:end] if isinstance(k, str)]
         mismatched = [
