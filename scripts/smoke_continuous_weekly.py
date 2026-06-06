@@ -88,7 +88,7 @@ def _diff_live_vs_offline_urbn() -> None:
     live: dict[str, dict] = {}
     for line in Path(logs[-1]).read_text().splitlines():
         if "CW_SCALARS|URBN|" in line:
-            _, _sym, d, payload = line.split("CW_SCALARS|", 1)[1].split("|", 3)
+            _sym, d, payload = line.split("CW_SCALARS|", 1)[1].split("|", 2)
             live[d] = json.loads(payload)
     zp = _DAILY / "urbn.zip"
     offline = {dd.isoformat(): s for dd, s in build_ticker_scalars(read_daily_zip(zp))} if zp.exists() else {}

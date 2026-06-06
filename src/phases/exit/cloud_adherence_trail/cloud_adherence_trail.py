@@ -51,33 +51,49 @@ class CloudAdherenceTrail(BasePhase):
             if not holding.invested or qc.transactions.get_open_orders(symbol):
                 continue
 
-            ind = getattr(qc, "_indicators", {}).get(symbol)
-            if ind is None:
-                # Benign skip: no indicator object at all (delisted/unsubscribed name still held —
-                # nothing to evaluate a stop against). Distinct from the cold-d_ichi raise below
-                # (indicator EXISTS but isn't ready = broken wiring on a warmed name). Mirrors
-                # KijunG3Exits' #261-8 boundary exactly.
-                continue
-            # FAIL-LOUD (#261-8): an INVESTED position whose daily Ichimoku is missing/COLD at
-            # stop-eval rides UNPROTECTED — raise (an invested name must have a warm d_ichi; entry
-            # required it + _seed_daily warmed it).
-            d_ichi = ind.get("d_ichi")
-            if d_ichi is None or not d_ichi.is_ready:
-                raise DegradedDataError(
-                    f"invested position with a cold/missing daily Ichimoku at stop-eval: "
-                    f"symbol={symbol.value!r} date={date_str} d_ichi_present={d_ichi is not None} "
-                    f"is_ready={getattr(d_ichi, 'is_ready', None)} — the cloud-adherence stop cannot "
-                    f"be evaluated, so the position would ride UNPROTECTED. An invested name must have "
-                    f"a warm d_ichi (entry requires it); a cold one is degraded data, fail loud (#261-8)"
-                )
-
             close = float(qc.securities[symbol].close)
-            senkou_a = d_ichi.senkou_a.current.value
-            senkou_b = d_ichi.senkou_b.current.value
-            cloud_bottom = min(senkou_a, senkou_b)
 
-            w_ichi = ind.get("w_ichi")
-            w_kijun = w_ichi.kijun.current.value if (w_ichi and w_ichi.is_ready) else None
+            # #358b WARMUP-SKIP: when the daily_scalar cache is armed, the live d_ichi is COLD
+            # (set_warmup skipped) → read the cloud-bottom from cache. A cache MISS (no row for
+            # (sym,date)) == the OFF live ind-None benign-skip (a held name with no evaluable daily
+            # data, e.g. delisted) → continue, NOT a raise (byte-identity with OFF; names WITH data are
+            # cached → evaluated, so no evaluable name rides unprotected). weekly_kijun_exit is
+            # unsupported under warmup-skip (no w_kijun in the daily_scalar cache; champion runs it OFF).
+            daily_fp = getattr(qc, "_daily_cache_fp", None)
+            if daily_fp:
+                if weekly_kijun_exit:
+                    raise DegradedDataError(
+                        "warmup-skip + weekly_kijun_exit_enabled unsupported: w_kijun is not in the "
+                        "daily_scalar cache (the champion runs weekly_kijun_exit OFF)"
+                    )
+                row = qc._require_daily_row(symbol, ctx.time.date())  # raises on held-position desync
+                if row is None:
+                    continue  # symbol present, date-not-ready == OFF ind-None benign-skip
+                cloud_bottom = row["d_cloud_bottom"]
+                w_kijun = None
+            else:
+                ind = getattr(qc, "_indicators", {}).get(symbol)
+                if ind is None:
+                    # Benign skip: no indicator object at all (delisted/unsubscribed name still held —
+                    # nothing to evaluate a stop against). Distinct from the cold-d_ichi raise below
+                    # (indicator EXISTS but isn't ready = broken wiring on a warmed name). Mirrors
+                    # KijunG3Exits' #261-8 boundary exactly.
+                    continue
+                # FAIL-LOUD (#261-8): an INVESTED position whose daily Ichimoku is missing/COLD at
+                # stop-eval rides UNPROTECTED — raise (an invested name must have a warm d_ichi; entry
+                # required it + _seed_daily warmed it).
+                d_ichi = ind.get("d_ichi")
+                if d_ichi is None or not d_ichi.is_ready:
+                    raise DegradedDataError(
+                        f"invested position with a cold/missing daily Ichimoku at stop-eval: "
+                        f"symbol={symbol.value!r} date={date_str} d_ichi_present={d_ichi is not None} "
+                        f"is_ready={getattr(d_ichi, 'is_ready', None)} — the cloud-adherence stop cannot "
+                        f"be evaluated, so the position would ride UNPROTECTED. An invested name must have "
+                        f"a warm d_ichi (entry requires it); a cold one is degraded data, fail loud (#261-8)"
+                    )
+                cloud_bottom = min(d_ichi.senkou_a.current.value, d_ichi.senkou_b.current.value)
+                w_ichi = ind.get("w_ichi")
+                w_kijun = w_ichi.kijun.current.value if (w_ichi and w_ichi.is_ready) else None
 
             # BCT-3 cloud adherence: exit ONLY when price breaches the cloud bottom (structure
             # broken). A dip below Kijun but ABOVE the cloud is a recoverable dip → HOLD.
