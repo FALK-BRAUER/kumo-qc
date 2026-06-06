@@ -30,12 +30,14 @@ WINDOWS = {
 
 def main() -> None:
     win = WINDOWS[sys.argv[1] if len(sys.argv) > 1 else "q1"]
-    run = _ROOT / "sweeps" / "runs" / "m1_arm_direct" / win.name
+    module = sys.argv[2] if len(sys.argv) > 2 else "strategies.m1_arm_parity"
+    tag = module.split(".")[-1]
+    run = _ROOT / "sweeps" / "runs" / f"direct_{tag}" / win.name
     if run.exists():
         shutil.rmtree(run)
     run.mkdir(parents=True)
 
-    res = cp.build("strategies.m1_arm_parity", dist_dir=run)
+    res = cp.build(module, dist_dir=run)
     print(f"=== #386 arm-direct | config_hash={res.config_hash} | win={win.name} ===", flush=True)
     arm_files = [f for f in res.included if "arm" in f.lower()]
     print(f"arm phase in dist: {arm_files}", flush=True)
