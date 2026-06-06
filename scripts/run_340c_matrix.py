@@ -1,14 +1,14 @@
-"""#340-reserve grid — cash-reserve × size × pyramid (charter-compliant successor to the starved 16-cell
-matrix). ReserveHeatcap.base_entry_gross_budget reserves (1-budget) cash for the pyramid adds → tests
-whether the pyramid re-concentrates into the provers WHEN GIVEN ROOM (the #340-C question, finally with
-cash). Q1-bear + Q3-bull, trim+cache, floor-proxy leaderboard same-method vs S1.
+"""#340-C-redo — sizing × pyramid MATRIX (Falk's reopened winner-side). per-entry-size {0.05,0.033,
+0.025,0.0165} × pyramid {OFF,ON} on trim+cache, Q1-bear + Q3-bull, floor-proxy leaderboard same-method
+vs S1. KEY cell = {0.025/0.0165 × ON} (small probes + re-concentrate into provers). gross-cap stays 1.0
+(headroom from sizing-DOWN, not leverage).
 
-THE CONTROL (decisive, run first) = {sz050_b070_on}: S1-size big entries, 30% reserved for adds. vs S1
-= PURE pyramid-reserve (isolated from breadth). pyrOFF controls confirm the reserve only pays WITH the
-pyramid (idle reserve = pure downside).
+Instruments the 2 traps: per-cell FILLS + DISTINCT-NAMES-entered (slot-fill: do smaller entries fill MORE
+names, or idle?) — NOTE the count is LOCAL (over-counts signals ~6× vs cloud; flag, don't over-trust).
+Dilution shows as {smaller × OFF} losing; pyramid-re-concentration as {smaller × ON} recovering.
 
-Instruments: per-cell FILLS + DISTINCT-NAMES (LOCAL, over-counts signals ~6× vs cloud — flag, anchor to
-cloud before trusting). Usage: python3 scripts/run_340reserve.py [sz050_b070_on ...] [q1 q3]
+Default runs the KEY cells first (decisive), then the rest. Usage:
+  python3 scripts/run_340c_matrix.py [sz050_off sz025_on ...] [q1 q3]
 """
 from __future__ import annotations
 
@@ -29,22 +29,16 @@ from sweeps.windows import SIX_WINDOWS  # noqa: E402
 from kpi import report_and_log  # noqa: E402
 
 _FP = "90f2d7e3fb80d0a4d2eb286f6a43199e1519495a3ce9d787a4d7d0dfc70c535c"
-RUNS = _ROOT / "sweeps" / "runs_340reserve"
+RUNS = _ROOT / "sweeps" / "runs_340cmatrix"
 TRIM = SweepConfig(choices=(), continuous_weekly=True, warmup_days=320)
 _BY = {w.name: w for w in SIX_WINDOWS}
 WINDOWS = {"q1": _BY["w1_2025q1"], "q3": _BY["w3_2025q3"]}
-# CONTROL first (decisive pure pyramid-reserve), then small×budget pyrON, then pyrOFF controls.
+# KEY cells first (decisive): S1 baseline, the small×ON bets, the small×OFF dilution-isolation.
 CELLS = [
-    ("sz050_b070_on", "S1-size × reserve30% × pyrON [CONTROL: pure pyramid-reserve]"),
-    ("sz050_b050_on", "S1-size × reserve50% × pyrON"),
-    ("sz025_b070_on", "0.5× × reserve30% × pyrON"),
-    ("sz0165_b070_on", "0.33× × reserve30% × pyrON"),
-    ("sz025_b050_on", "0.5× × reserve50% × pyrON"),
-    ("sz0165_b050_on", "0.33× × reserve50% × pyrON"),
-    ("sz050_b070_off", "S1-size × reserve30% × pyrOFF [control: reserve idles]"),
-    ("sz025_b070_off", "0.5× × reserve30% × pyrOFF [control]"),
-    ("sz050_b050_off", "S1-size × reserve50% × pyrOFF [leader b050 isolation twin]"),
-    ("sz025_b050_off", "0.5× × reserve50% × pyrOFF [b050 isolation twin]"),
+    ("sz050_off", "S1 baseline (1.0x, pyrOFF)"), ("sz025_on", "0.5x + pyrON [KEY]"),
+    ("sz0165_on", "0.33x + pyrON [KEY]"), ("sz025_off", "0.5x pyrOFF [dilution]"),
+    ("sz0165_off", "0.33x pyrOFF [dilution]"), ("sz050_on", "1.0x + pyrON [=#340-C]"),
+    ("sz033_on", "0.66x + pyrON"), ("sz033_off", "0.66x pyrOFF"),
 ]
 
 
@@ -68,20 +62,20 @@ def main() -> None:
     args = [a.lower() for a in sys.argv[1:]]
     ck = [a for a in args if a.startswith("sz")] or [c for c, _ in CELLS]
     wk = [a for a in args if a in ("q1", "q3")] or ["q1", "q3"]
-    print(f"=== #340-reserve GRID — {ck} × {wk} (vs S1 floor-proxy; CONTROL=sz050_b070_on) ===", flush=True)
+    print(f"=== #340-C-redo MATRIX — {ck} × {wk} (vs S1 floor-proxy; KEY=small×ON) ===", flush=True)
     for cell, label in CELLS:
         if cell not in ck:
             continue
         sb.build_sweep_dist.__kwdefaults__ = {**(sb.build_sweep_dist.__kwdefaults__ or {}),
-                                              "base_module": f"strategies.reserve_{cell}"}
+                                              "base_module": f"strategies.matrix_{cell}"}
         for w in [WINDOWS[k] for k in wk]:
             adapter = make_local_run(runs_root=RUNS / cell / w.name, warmup_gate=None, ensure_weekly_cache_fp=_FP)
             print(f"\n--- {cell} [{label}] {w.name} ---", flush=True)
             m = adapter(TRIM, w)
             rd = RUNS / cell / w.name / TRIM.config_hash / w.name
-            report_and_log(rd, f"#340Rsv {cell} {w.name}", sharpe=m.sharpe, net_pct=m.ret_pct,
-                           dd_pct=m.dd_pct, fills=m.orders, config_hash=TRIM.config_hash,
-                           window=w.name, stamp="2026-06-05", asof=_dt.date.fromisoformat(w.end))
+            k = report_and_log(rd, f"#340Cm {cell} {w.name}", sharpe=m.sharpe, net_pct=m.ret_pct,
+                               dd_pct=m.dd_pct, fills=m.orders, config_hash=TRIM.config_hash,
+                               window=w.name, stamp="2026-06-05", asof=_dt.date.fromisoformat(w.end))
             print(f"    distinct-names-entered: {_distinct_names(rd)} (slot-fill; LOCAL count, ~6x vs cloud — flag)", flush=True)
 
 
