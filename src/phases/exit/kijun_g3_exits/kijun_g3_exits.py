@@ -120,6 +120,7 @@ class KijunG3Exits(BasePhase):
                             stop=cloud_bottom,
                             module="exit.kijun_g3_exits",
                             risk_dollars=0.0,
+                            order_type="market",  # #386: market sell on breach (no implicit MOO)
                         )
                     )
                     exits_logged.append(f"PHASE3_EXIT|{date_str}|{symbol.value}")
@@ -133,6 +134,7 @@ class KijunG3Exits(BasePhase):
                             stop=kijun,
                             module="exit.kijun_g3_exits",
                             risk_dollars=0.0,
+                            order_type="market",  # #386: market sell on breach (no implicit MOO)
                         )
                     )
                     exits_logged.append(f"STOP|{date_str}|{symbol.value}")
@@ -145,6 +147,7 @@ class KijunG3Exits(BasePhase):
                             stop=cloud_top,
                             module="exit.kijun_g3_exits",
                             risk_dollars=0.0,
+                            order_type="market",  # #386: market sell on breach (no implicit MOO)
                         )
                     )
                     exits_logged.append(f"CLOUD_EXIT|{date_str}|{symbol.value}")
@@ -157,6 +160,7 @@ class KijunG3Exits(BasePhase):
                             stop=w_kijun,
                             module="exit.kijun_g3_exits",
                             risk_dollars=0.0,
+                            order_type="market",  # #386: market sell on breach (no implicit MOO)
                         )
                     )
                     exits_logged.append(f"WEEKLY_KIJUN_STOP|{date_str}|{symbol.value}")

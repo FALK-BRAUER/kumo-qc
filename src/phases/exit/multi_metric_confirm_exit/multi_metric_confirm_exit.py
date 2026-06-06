@@ -86,6 +86,7 @@ class MultiMetricConfirmExit(BasePhase):
                     OrderIntent(
                         ticker=symbol.value, qty=-holding.quantity, price=close,
                         stop=kijun, module="exit.multi_metric_confirm_exit", risk_dollars=0.0,
+                        order_type="market",  # #386: market sell on breach (no implicit MOO)
                     )
                 )
                 exits_logged.append(
