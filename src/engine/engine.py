@@ -510,6 +510,16 @@ class StrategyEngine:
                 # writes) → carry/expose (qc attr) → fire+evict (here). No-op if no arm module wired it.
                 _armed = getattr(qc, "_armed", None)
                 if _armed is not None:
+                    # #386 fire⊆armed soundness invariant (the permanent guard, replacing the Stage-1
+                    # arm-parity assertion): an entry may fire ONLY for a sym the daily decision ARMED.
+                    # A fired sym absent from qc._armed = an entry with NO daily decision behind it (the
+                    # phantom-fire class, #382's relative) → crash, never fire unauthorized. Structural
+                    # check only (set membership) — zero strategy logic. No-op when no arm module wired.
+                    if sym not in _armed:
+                        raise CharterViolation(
+                            f"#386 fire⊆armed: FIRE_ENTRIES fired {getattr(sym, 'value', sym)} but it "
+                            f"is NOT in qc._armed — an entry with no daily decision behind it (no arm)"
+                        )
                     _armed.pop(sym, None)
                 # #181 BUG-2 Stage 0: accumulate this tick's entry exposure so the FIRE_ADDS gross
                 # cap is commit-aware (fill-lag safe — see _bound_adds_to_gross_cap).
