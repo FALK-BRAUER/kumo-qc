@@ -1015,7 +1015,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self._weekly_cache_misses += 1
         return None
 
-    def _weekly_from_history(self, sym: Any, asof_date: Any):
+    def _weekly_from_history(self, sym: Any, asof_date: Any) -> "tuple[bool, dict[str, float] | None, bool, bool] | None":
         """#358/#370 — re-derive the weekly from history(max(WARMUP_DAYS, WEEKLY_FLOOR_DAYS)) as-of
         asof_date — the canonical #336 path, IDENTICAL to the untrimmed full-warmup path (same
         WeeklyIchimokuAsOf port, same self.history data) → byte-identical to a (dense) cache hit.

@@ -87,7 +87,7 @@ def write_cache_manifest(storage_dir: Path | str, fp: str, *, universe_sig: str,
     return path
 
 
-def read_cache_manifest(storage_dir: Path | str, fp: str) -> dict | None:
+def read_cache_manifest(storage_dir: Path | str, fp: str) -> dict[str, Any] | None:
     """The coverage manifest for fp, or None if absent/unreadable/malformed (→ treated as incomplete)."""
     path = _manifest_path(storage_dir, fp)
     if not path.exists():
