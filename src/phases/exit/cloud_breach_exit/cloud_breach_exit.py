@@ -75,6 +75,7 @@ class CloudBreachExit(BasePhase):
                     OrderIntent(
                         ticker=symbol.value, qty=-holding.quantity, price=close,
                         stop=cloud_top, module="exit.cloud_breach_exit", risk_dollars=0.0,
+                        order_type="market",  # #386: market sell on breach (no implicit MOO)
                     )
                 )
                 exits_logged.append(f"CLOUD_BREACH_EXIT|{date_str}|{symbol.value}")
@@ -83,6 +84,7 @@ class CloudBreachExit(BasePhase):
                     OrderIntent(
                         ticker=symbol.value, qty=-holding.quantity, price=close,
                         stop=w_kijun, module="exit.cloud_breach_exit", risk_dollars=0.0,
+                        order_type="market",  # #386: market sell on breach (no implicit MOO)
                     )
                 )
                 exits_logged.append(f"WEEKLY_KIJUN_STOP|{date_str}|{symbol.value}")

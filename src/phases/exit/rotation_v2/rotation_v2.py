@@ -133,6 +133,7 @@ class RotationV2(BasePhase):
                     ticker=worst_held_sym.value, qty=-holding.quantity,
                     price=float(qc.securities[worst_held_sym].close),
                     stop=0.0, module="exit.rotation_v2", risk_dollars=0.0,
+                    order_type="market",  # #386: market sell on slot-recycle (no implicit MOO)
                 )
             )
             rotations = 1

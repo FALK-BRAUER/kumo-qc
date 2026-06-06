@@ -86,6 +86,7 @@ class CloudAdherenceTrail(BasePhase):
                     OrderIntent(
                         ticker=symbol.value, qty=-holding.quantity, price=close,
                         stop=cloud_bottom, module="exit.cloud_adherence_trail", risk_dollars=0.0,
+                        order_type="market",  # #386: market sell on breach (no implicit MOO default)
                     )
                 )
                 exits_logged.append(f"CLOUD_ADHERENCE_EXIT|{date_str}|{symbol.value}")
@@ -94,6 +95,7 @@ class CloudAdherenceTrail(BasePhase):
                     OrderIntent(
                         ticker=symbol.value, qty=-holding.quantity, price=close,
                         stop=w_kijun, module="exit.cloud_adherence_trail", risk_dollars=0.0,
+                        order_type="market",  # #386: market sell on breach (no implicit MOO default)
                     )
                 )
                 exits_logged.append(f"WEEKLY_KIJUN_STOP|{date_str}|{symbol.value}")
