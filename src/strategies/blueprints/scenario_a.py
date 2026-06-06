@@ -19,6 +19,7 @@ from phases.signal.tier1_high_conviction.tier1_high_conviction import Tier1HighC
 from phases.regime.market_breadth_gate.market_breadth_gate import MarketBreadthGate
 from phases.ranking.score_dv_ranking.score_dv_ranking import ScoreDvRanking
 from phases.entry_selection.resistance_proximity_filter.resistance_proximity_filter import ResistanceProximityFilter
+from phases.stops_initial.cloud_bottom_stop.cloud_bottom_stop import CloudBottomStop
 from phases.exit.cloud_adherence_trail.cloud_adherence_trail import CloudAdherenceTrail  # trail
 from phases.exit.cloud_breach_exit.cloud_breach_exit import CloudBreachExit  # exit
 # two-clock carry + the shared intraday entry (M1 stubs; the day-phase variation is the isolated proof)
@@ -42,7 +43,7 @@ CONFIG = StrategyConfig(
         # --- INTRADAY execution (shared A/C two-clock entry; the day-phase variation is the proof) ---
         "entry_trigger": Slot(impl=StubEntryTrigger, params=StubEntryTrigger.Params()),
         "intraday_sizing": Slot(impl=StubIntradaySizer, params=StubIntradaySizer.Params()),
-        # stops_initial CloudBottomStop deferred (two-clock post-fire stop module — built next)
+        "stops_initial": Slot(impl=CloudBottomStop, params=CloudBottomStop.Params()),  # cloud-bottom post-fire stop
         # --- exits (day) ---
         "exit_hard": [Slot(impl=CloudAdherenceTrail, params=CloudAdherenceTrail.Params()),
                       Slot(impl=CloudBreachExit, params=CloudBreachExit.Params())],
