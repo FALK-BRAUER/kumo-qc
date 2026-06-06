@@ -183,3 +183,8 @@ Never bulk-drop on your own read of "stale"; never skip the backup because it's 
 
 ## Anti-drift
 - **Every non-hidden directory has a `README.md`** (3-5 lines: what it holds / what goes here / what doesn't). Create/update it when you touch a directory. This is how the structure stays honest.
+
+## Marker-count gate (every assertion/marker-gated run)
+- **Absence-of-error is NEVER a pass.** A gated check (a live assertion, a phase that must fire, a guard that must trip) can silently NO-OP — gated off, dropped from the build, or never reached. So a run that "completed with 0 errors" proves nothing about the gate.
+- **PASS requires the marker fired-count == expected N**, verified from the artifact. For an assertion-live run: the phase's version-marker count in the lean log == the expected decision count (e.g. `stub_arm_v2` ≈ 63 over a quarter), AND the divergence count == 0. Check BOTH — the positive (it ran) and the negative (it didn't diverge).
+- **Codegen pre-check:** before trusting any marker-gated run, confirm the module is actually IN the codegen'd dist (`grep <phase_file> dist/` / the build's `included` list). The #388 sweep-silent-drop bug produced a `config_hash` change with the module ABSENT → the gate (the d9640 arm-parity run) was vacuous (`stub_arm_v2 = 0`). Verify presence, then verify firing.
