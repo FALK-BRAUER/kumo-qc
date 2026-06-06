@@ -1,3 +1,41 @@
+# FOR_FALK - #398/#406/#407 George-style exit proof, 2026-06-06
+
+What changed after your MFE tracker note: PR #411 adds a reliable `position_path` contract to the
+phase stack. `PositionPathTracker` is a `trail` phase that provides the named downstream contract;
+`ProactiveStrengthExit` and `ScratchFlatExit` now require `REQUIRES_UPSTREAM = ["position_path"]`.
+The engine validates named downstream contracts at init, so a missing or misordered MFE/path tracker
+fails before LEAN can run a fake proof.
+
+## Built
+
+- `PositionPathTracker`: per-position entry, peak, trough, last price, MFE/MAE, and days-held state.
+- `ProactiveStrengthExit`: market exit for winners into bullish strength, currently target/giveback
+  based.
+- `ScratchFlatExit`: market exit for no-progress, roundtrip-flat, or capped-loss-after-MFE trades.
+- Two Scenario-C proof blueprints:
+  - `scenario_exit_proactive`
+  - `scenario_exit_proactive_scratch`
+
+## Verified
+
+- `PYTHONPATH=src pytest -q` -> 1447 passed, 3 skipped, 1 warning.
+- `mypy` -> clean across 192 source files.
+- GitHub PR checks for #411 -> passed.
+- Three real LEAN Jan 2025 proof runs after the contract patch, all `lean rc: 0`.
+- Cache was used on all three: weekly fp `90f2d7e3fb80d0a4d2eb286f6a43199e1519495a3ce9d787a4d7d0dfc70c535c`.
+
+| Blueprint | Config hash | Return | Net Profit | Drawdown | Total Orders | Exit activity |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| `scenario_c` | `1962771d8813` | 3.33% | 3.329% | 2.300% | 272 | baseline |
+| `scenario_exit_proactive` | `074d3833c494` | 3.62% | 3.617% | 2.200% | 45 | 12 proactive target exits |
+| `scenario_exit_proactive_scratch` | `49d1c008f433` | 3.93% | 3.926% | 2.200% | 79 | 18 scratch exits + 11 proactive target exits |
+
+GitHub comments posted:
+- #398 implementation/proof summary
+- #406 proactive proof detail
+- #407 scratch-flat proof detail
+- #386 cache-backed intraday proof follow-up
+
 # FOR_FALK - #386 scenario architecture proof, 2026-06-06
 
 What happened: Claude stopped because of a session limit, after pushing the Scenario A stop wiring.
