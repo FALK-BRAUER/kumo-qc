@@ -52,6 +52,13 @@ PHASE_ORDER: list[str | FireSentinel] = [
     "rebalance", "filter", "universe", "signal", "regime", "ranking",
     "entry_selection", "entry_timing", "sizing",
     "reentry", "eligibility", "portfolio_risk", "cash", "protective_stop",
+    # #386 M1: the day-clock ARM phase — writes the candidate carry qc._armed (module owns the values).
+    "arm",
+    # #386 M1 two-clock: the INTRADAY entry chain. The day chain above ARMS candidates (no fire);
+    # these per-bar phases fire them on the 5-min tick. Both PHASE_RESOLUTION="intraday" → routed to
+    # the intraday subset by _partition_clocks; FIRE_ENTRIES follows entry_trigger's (intraday) clock.
+    # Framework slots only — the strategy is the module wired into each (the #228/#382 mistake fixed).
+    "entry_trigger", "intraday_sizing",
     FIRE_ENTRIES,
     "stops_initial", "trail",
     "exit_hard", "exit_target", "exit_regime", "exit_rotation",
@@ -74,12 +81,20 @@ ALWAYS_RUN: frozenset[str] = frozenset({"diagnostics", "circuit_breaker"})
 # "filter" is INTENTIONALLY not required (Y, Falk): the champion applies its floors at the
 # selection gate (lean_entry._coarse_selection), so there is no per-bar filter phase. "filter"
 # stays a KNOWN_KIND (in PHASE_ORDER) — a future strategy MAY add a real per-bar filter phase.
-REQUIRED_PHASES: tuple[str, ...] = ("universe", "signal", "sizing")
+REQUIRED_PHASES: tuple[str, ...] = ("universe", "signal")
+
+# #386 (a): orders MUST be sized on EXACTLY ONE clock — the two-clock model sizes INTRADAY at the
+# fire price (intraday_sizing), the legacy/daily model sizes on the daily clock (sizing). Requiring
+# the bare "sizing" KIND would reject the intraday sizer; allowing zero would recreate the phantom-
+# fire hole on the sizing axis (an unsized champion = no qty = fires garbage). So: exactly one of
+# these present — never zero (CRASH), never both (double-sizing = config error).
+SIZING_PHASE_KINDS: frozenset[str] = frozenset({"sizing", "intraday_sizing"})
 
 # #270/#272 fail-loud phase-stack gate. A CHAMPION (a config that actually trades) MUST wire an
 # entry-confirm phase AND an exit phase — there is no implicit market-on-open default. The
-# families (any one member satisfies the requirement):
-ENTRY_PHASE_KINDS: frozenset[str] = frozenset({"entry_selection", "entry_timing"})
+# families (any one member satisfies the requirement). #386 (b): entry_trigger (the two-clock
+# intraday per-bar entry) is a first-class entry-confirm phase alongside the legacy pair.
+ENTRY_PHASE_KINDS: frozenset[str] = frozenset({"entry_selection", "entry_timing", "entry_trigger"})
 EXIT_PHASE_KINDS: frozenset[str] = frozenset(
     {"exit_hard", "exit_target", "exit_regime", "exit_rotation"}
 )
@@ -233,8 +248,11 @@ class StrategyEngine:
         fires: FIRE_ENTRIES/FIRE_ADDS with the entry/adds clock, FIRE_EXITS/FIRE_TRIMS with the
         exit/profit clock; if those phases aren't wired the sentinel stays daily (fires nothing)."""
         sentinel_clock = {
-            FIRE_ENTRIES: self._phase_clock("entry_timing") if self.phases.get("entry_timing")
-            else self._phase_clock("entry_selection"),
+            # #386 M1: FIRE_ENTRIES follows the entry_trigger (intraday) clock when wired — the
+            # relocate. Falls back to entry_timing/entry_selection for legacy (pre-two-clock) configs.
+            FIRE_ENTRIES: self._phase_clock("entry_trigger") if self.phases.get("entry_trigger")
+            else (self._phase_clock("entry_timing") if self.phases.get("entry_timing")
+                  else self._phase_clock("entry_selection")),
             FIRE_EXITS: self._phase_clock("exit_hard"),
             FIRE_ADDS: self._phase_clock("adds"),
             FIRE_TRIMS: self._phase_clock("profit"),
@@ -276,6 +294,16 @@ class StrategyEngine:
         for kind in REQUIRED_PHASES:
             if not self.phases.get(kind):
                 raise ConfigError(f"required phase '{kind}' missing or disabled")
+        # #386 (a): sizing on EXACTLY ONE clock — never zero (the phantom-fire hole on the sizing
+        # axis), never both (double-sizing). The two-clock model uses intraday_sizing; the legacy
+        # daily model uses sizing.
+        sizing_present = sorted(k for k in SIZING_PHASE_KINDS if self.phases.get(k))
+        if len(sizing_present) != 1:
+            raise ConfigError(
+                f"exactly ONE sizing phase required ({'|'.join(sorted(SIZING_PHASE_KINDS))}) — "
+                f"found {sizing_present or 'NONE'}; orders must be sized on exactly one clock, "
+                f"never zero (#386 fail-loud sizing axis)"
+            )
 
     def _validate_execution_stack(self, config: StrategyConfig) -> None:
         """#270/#272 fail-loud phase-stack gate: a CHAMPION must wire an entry-confirm phase
@@ -399,9 +427,11 @@ class StrategyEngine:
         archive can recover the conditions-at-decision from /orders/read (the one durable channel —
         logs/charts/ObjectStore are dead). Empty for non-entry fires. Passed as a kwarg so a broker
         stub that does not accept it (older fakes) fails loud rather than mis-binding positionally."""
-        ot = getattr(intent, "order_type", "market_on_open")
-        if ot == "market_on_open":
-            return qc.market_on_open_order(sym, intent.qty, tag=tag)
+        # #386 M1: NO market_on_open default fire-path — the deleted 2nd-slot (the 15:51 EOD fills,
+        # the #382 root). The only entry fire is FIRE_ENTRIES on the INTRADAY clock via entry_trigger
+        # ("market"). An intent with order_type market_on_open (or absent) now FAILS LOUD below — a
+        # config that would blind-MOO is the phantom model the reset deletes (#382 resolved by construction).
+        ot = getattr(intent, "order_type", None)
         if ot == "market":
             return qc.market_order(sym, intent.qty, tag=tag)
         if ot == "stop_market":
@@ -409,8 +439,8 @@ class StrategyEngine:
         if ot == "limit":
             return qc.limit_order(sym, intent.qty, intent.price, tag=tag)
         raise ConfigError(
-            f"unknown OrderIntent.order_type {ot!r} for {intent.ticker} — the fire seam dispatches "
-            f"market_on_open|market|stop_market|limit only (#276a)"
+            f"OrderIntent.order_type {ot!r} for {intent.ticker} — the fire seam dispatches "
+            f"market|stop_market|limit only; market_on_open is DELETED (#386 2nd-slot / #382 root)"
         )
 
     def _fire(self, sentinel: FireSentinel, ctx: PhaseContext) -> None:
@@ -475,6 +505,22 @@ class StrategyEngine:
                     )
                 qc._position_meta[sym] = meta
                 self._fired_entries += 1
+                # #386 M1: the armed candidate FIRED → evict it from the carry (by-sym, OPAQUE — the
+                # engine never reads the blob's contents, only pops the key). Lifecycle: arm (module
+                # writes) → carry/expose (qc attr) → fire+evict (here). No-op if no arm module wired it.
+                _armed = getattr(qc, "_armed", None)
+                if _armed is not None:
+                    # #386 fire⊆armed soundness invariant (the permanent guard, replacing the Stage-1
+                    # arm-parity assertion): an entry may fire ONLY for a sym the daily decision ARMED.
+                    # A fired sym absent from qc._armed = an entry with NO daily decision behind it (the
+                    # phantom-fire class, #382's relative) → crash, never fire unauthorized. Structural
+                    # check only (set membership) — zero strategy logic. No-op when no arm module wired.
+                    if sym not in _armed:
+                        raise CharterViolation(
+                            f"#386 fire⊆armed: FIRE_ENTRIES fired {getattr(sym, 'value', sym)} but it "
+                            f"is NOT in qc._armed — an entry with no daily decision behind it (no arm)"
+                        )
+                    _armed.pop(sym, None)
                 # #181 BUG-2 Stage 0: accumulate this tick's entry exposure so the FIRE_ADDS gross
                 # cap is commit-aware (fill-lag safe — see _bound_adds_to_gross_cap).
                 self._tick_entry_value += abs(intent.qty) * price

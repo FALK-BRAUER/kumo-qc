@@ -41,7 +41,13 @@ from datetime import datetime
 
 from engine.context import PhaseContext
 from engine.engine import StrategyEngine
-from strategies.champion_asis import CONFIG
+from strategies.champion_asis import CONFIG as _RAW_CONFIG
+
+from tests.integration.stub_entry import with_entry_seam
+# #386: champion_asis is the retired blind-MOO fixture (the #228 entry-seam was left unfilled). Post-
+# MOO-delete it cannot fire implicitly — drive it through an EXPLICIT stub entry seam. The lifecycle
+# this test pins is unchanged: the same names fire, now as market orders via the entry phase.
+CONFIG = with_entry_seam(_RAW_CONFIG)
 
 from tests.integration.fake_qc import (
     FakeHolding,

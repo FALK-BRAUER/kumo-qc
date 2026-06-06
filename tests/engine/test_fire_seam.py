@@ -97,19 +97,24 @@ def _ctx(qc: FakeQC) -> PhaseContext:
     return PhaseContext(qc=qc, time=datetime(2025, 1, 2), data=None)
 
 
-def _intent(ticker: str, qty: int = 10, order_type: str = "market_on_open",
+def _intent(ticker: str, qty: int = 10, order_type: str = "market",
             protective_stop: float = 0.0, stop: float = 0.0, price: float = 100.0) -> OrderIntent:
+    # #386 M1: the new contract — entries fire intraday "market" (the silent market_on_open default is
+    # DELETED, #382 2nd-slot). The generic fixtures here just need an entry intent; "market" is correct.
     return OrderIntent(ticker=ticker, qty=qty, price=price, stop=stop, module="t",
                        risk_dollars=0.0, order_type=order_type, protective_stop=protective_stop)
 
 
 # ── order_type dispatch ──
 
-def test_default_order_type_is_market_on_open() -> None:
+def test_missing_order_type_fails_loud() -> None:
+    # #386 M1: an intent with the UNSET sentinel (a phase that forgot order_type) MUST fail loud — the
+    # silent market_on_open default WAS the #382 2nd-slot (the 15:51 blind-MOO). No silent trade.
     qc = FakeQC(); eng = _engine(qc); sym = FakeSym("AAPL"); qc._active = {sym}
-    ctx = _ctx(qc); ctx.bar_state.sized_orders = [_intent("AAPL")]
-    eng._fire(FIRE_ENTRIES, ctx)
-    assert ("moo", "AAPL", 10) in qc.calls, "default order_type must dispatch market_on_open"
+    ctx = _ctx(qc); ctx.bar_state.sized_orders = [_intent("AAPL", order_type="UNSET")]
+    with pytest.raises(ConfigError, match="market_on_open is DELETED"):
+        eng._fire(FIRE_ENTRIES, ctx)
+    assert not any(c[0] == "moo" for c in qc.calls), "must NOT dispatch market_on_open"
 
 
 def test_order_type_market_dispatches_market_order() -> None:
@@ -122,7 +127,7 @@ def test_order_type_market_dispatches_market_order() -> None:
 def test_unknown_order_type_raises() -> None:
     qc = FakeQC(); eng = _engine(qc); sym = FakeSym("AAPL"); qc._active = {sym}
     ctx = _ctx(qc); ctx.bar_state.sized_orders = [_intent("AAPL", order_type="teleport")]
-    with pytest.raises(ConfigError, match="unknown OrderIntent.order_type"):
+    with pytest.raises(ConfigError, match="market|stop_market|limit only"):
         eng._fire(FIRE_ENTRIES, ctx)
 
 

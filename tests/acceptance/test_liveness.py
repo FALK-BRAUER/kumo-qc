@@ -39,6 +39,7 @@ from scripts.check_liveness_band import (
     ORDERS_FLOOR,
     check_band,
 )
+from tests.integration.stub_entry import with_entry_seam
 from tests.integration.fake_qc import (
     FakeQC,
     FakeSecurity,
@@ -106,7 +107,10 @@ def _entry_bar_qc() -> FakeQC:
 def _run_one_entry_bar(config: StrategyConfig) -> int:
     """Drive `config` through StrategyEngine on the single triggering bar; return orders fired."""
     qc = _entry_bar_qc()
-    engine = StrategyEngine(config=config, qc=qc)
+    # #386: champion_asis is the retired blind-MOO fixture — fire through an EXPLICIT stub entry seam
+    # (post-MOO-delete there is no implicit default). The liveness gate is unchanged: the champion
+    # drives a positive count, the dead-signal config still fires zero (no winner to stamp).
+    engine = StrategyEngine(config=with_entry_seam(config), qc=qc)
     ctx = PhaseContext(qc=qc, time=datetime(2025, 1, 6), data=None)
     engine.on_data_with_ctx(ctx)
     return len(qc.orders)
