@@ -10,8 +10,12 @@ from strategies.blueprints import (
     scenario_b,
     scenario_c,
     scenario_c_wide_entry,
+    scenario_exit_proactive_giveback_tight,
     scenario_exit_proactive,
     scenario_exit_proactive_scratch,
+    scenario_exit_proactive_scratch_fast,
+    scenario_exit_proactive_scratch_patient,
+    scenario_exit_proactive_scratch_tight_risk,
 )
 
 
@@ -45,6 +49,10 @@ def test_scenario_blueprints_compose_and_route_two_clock() -> None:
         scenario_c_wide_entry,
         scenario_exit_proactive,
         scenario_exit_proactive_scratch,
+        scenario_exit_proactive_giveback_tight,
+        scenario_exit_proactive_scratch_fast,
+        scenario_exit_proactive_scratch_patient,
+        scenario_exit_proactive_scratch_tight_risk,
     ):
         eng = StrategyEngine(config=module.CONFIG, qc=FakeQC())
         daily = _kind_names(eng._daily_order)
@@ -86,7 +94,14 @@ def test_scenario_c_wide_entry_is_param_variant_only() -> None:
 
 
 def test_george_exit_scenarios_use_position_path_tracker() -> None:
-    for module in (scenario_exit_proactive, scenario_exit_proactive_scratch):
+    for module in (
+        scenario_exit_proactive,
+        scenario_exit_proactive_scratch,
+        scenario_exit_proactive_giveback_tight,
+        scenario_exit_proactive_scratch_fast,
+        scenario_exit_proactive_scratch_patient,
+        scenario_exit_proactive_scratch_tight_risk,
+    ):
         phases = module.CONFIG.phases
         assert "trail" in phases
         assert "exit_hard" in phases
@@ -97,3 +112,16 @@ def test_george_exit_scenarios_use_position_path_tracker() -> None:
     assert len(proactive_exit) == 1
     assert len(scratch_exit) == 2
     assert proactive_exit != scratch_exit
+
+
+def test_george_exit_scenarios_have_six_distinct_settings() -> None:
+    modules = (
+        scenario_exit_proactive,
+        scenario_exit_proactive_giveback_tight,
+        scenario_exit_proactive_scratch,
+        scenario_exit_proactive_scratch_fast,
+        scenario_exit_proactive_scratch_patient,
+        scenario_exit_proactive_scratch_tight_risk,
+    )
+    assert len({module.CONFIG.name for module in modules}) == 6
+    assert len({repr(module.CONFIG.phases["exit_hard"]) for module in modules}) == 6

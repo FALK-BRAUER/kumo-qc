@@ -12,9 +12,15 @@ fails before LEAN can run a fake proof.
 - `ProactiveStrengthExit`: market exit for winners into bullish strength, currently target/giveback
   based.
 - `ScratchFlatExit`: market exit for no-progress, roundtrip-flat, or capped-loss-after-MFE trades.
-- Two Scenario-C proof blueprints:
+- Six Scenario-C proof blueprints:
   - `scenario_exit_proactive`
+  - `scenario_exit_proactive_giveback_tight`
   - `scenario_exit_proactive_scratch`
+  - `scenario_exit_proactive_scratch_fast`
+  - `scenario_exit_proactive_scratch_patient`
+  - `scenario_exit_proactive_scratch_tight_risk`
+- `scripts/run_398_fy_exit_sixpack.py`: one-process runner that submits the six FY2025 rows through
+  shared warmup/cache orchestration and supports targeted retry via `KUMO_398_MODULES`.
 
 ## Verified
 
@@ -23,12 +29,32 @@ fails before LEAN can run a fake proof.
 - GitHub PR checks for #411 -> passed.
 - Three real LEAN Jan 2025 proof runs after the contract patch, all `lean rc: 0`.
 - Cache was used on all three: weekly fp `90f2d7e3fb80d0a4d2eb286f6a43199e1519495a3ce9d787a4d7d0dfc70c535c`.
+- Six FY2025 LEAN rows are now banked with completed statistics blocks. First pass launched all six
+  together (`workers=6`, `WARMUP_GATE_CAPACITY=6`) and completed four; Docker dropped two cells with
+  non-terminal `Running` JSONs under resource pressure. The two dropped cells were rerun together
+  (`workers=2`, same weekly cache fp) and completed cleanly.
 
 | Blueprint | Config hash | Return | Net Profit | Drawdown | Total Orders | Exit activity |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
 | `scenario_c` | `1962771d8813` | 3.33% | 3.329% | 2.300% | 272 | baseline |
 | `scenario_exit_proactive` | `074d3833c494` | 3.62% | 3.617% | 2.200% | 45 | 12 proactive target exits |
 | `scenario_exit_proactive_scratch` | `49d1c008f433` | 3.93% | 3.926% | 2.200% | 79 | 18 scratch exits + 11 proactive target exits |
+
+### FY2025 six-pack
+
+| Blueprint | Config hash | Net Profit | Drawdown | Total Orders | Sharpe | Exit activity |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| `scenario_exit_proactive` | `074d3833c494` | 10.118% | 17.300% | 243 | 0.526 | 110 proactive exits: 71 target, 39 giveback |
+| `scenario_exit_proactive_giveback_tight` | `b20162c96a94` | 9.956% | 17.900% | 383 | 0.511 | 181 proactive exits: 33 target, 148 giveback |
+| `scenario_exit_proactive_scratch` | `49d1c008f433` | 5.996% | 18.300% | 1870 | 0.299 | 748 scratch exits + 177 proactive exits |
+| `scenario_exit_proactive_scratch_fast` | `6198e1004968` | 3.783% | 18.600% | 2354 | 0.188 | 984 scratch exits + 184 proactive exits |
+| `scenario_exit_proactive_scratch_patient` | `d3a568250513` | 7.877% | 18.900% | 1622 | 0.381 | 653 scratch exits + 147 proactive exits |
+| `scenario_exit_proactive_scratch_tight_risk` | `8324ba659106` | 5.667% | 17.800% | 1413 | 0.286 | 543 scratch exits + 153 proactive exits |
+
+Interpretation: proactive-only is the best FY2025 performer in this set. The scratch family proves the
+path/MFE contract and produces heavy intraday exit activity, but it does not yet improve return or DD
+versus proactive-only on FY2025. The next design step should tune scratch thresholds against intraday
+trade context (gap behavior, day regime, sector/industry rotation), not add more arbitrary exits.
 
 GitHub comments posted:
 - #398 implementation/proof summary

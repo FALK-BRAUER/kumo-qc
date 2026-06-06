@@ -13,6 +13,8 @@ macOS keychain at runtime.
   `conform_coarse.py`, `build_etf_universe.py`, `extend_local_data_2026.py`.
 - **Backtest keepers** (`kumo bt`): `lean-bt.sh`, `record_bt_result.py`,
   `validate_parity.py`, `collect_results.py`.
+- **Scenario proof runners:** `run_386_arm_direct.py` and `run_398_fy_exit_sixpack.py` are retained
+  for marker-proven direct LEAN architecture proofs and FY2025 exit-management panels.
 - **Deploy / live keepers** (`kumo deploy`): `qc_v2_cloud.py`, `gate.py`, `deploy.py`.
 - **Held for cutover:** `qc_pe_cloud.py` (KEEP till #216), `build_ticker_sector_map.py`.
 

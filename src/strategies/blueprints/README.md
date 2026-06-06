@@ -11,4 +11,5 @@ Scenario variants may reuse the same modules with different params when the proo
 intraday runs without changing the engine.
 
 The `scenario_exit_*` variants are #398 George-style exit-management proofs. They reuse the scenario-C
-entry stack and vary only the trail/exit modules.
+entry stack and vary only the trail/exit modules/params, including the FY2025 six-pack in
+`scenario_exit_george_factory.py`.
