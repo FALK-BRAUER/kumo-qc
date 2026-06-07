@@ -1,0 +1,36 @@
+{
+  "ok_count": 1,
+  "reports": {
+    "exit_events_all_csv": "/Users/falk/projects/kumo-qc-george-range-sweep/sweeps/reports/george_range_30_smoke/exit_events_all.csv",
+    "orders_all_csv": "/Users/falk/projects/kumo-qc-george-range-sweep/sweeps/reports/george_range_30_smoke/orders_all.csv",
+    "summary_csv": "/Users/falk/projects/kumo-qc-george-range-sweep/sweeps/reports/george_range_30_smoke/summary.csv",
+    "trades_all_csv": "/Users/falk/projects/kumo-qc-george-range-sweep/sweeps/reports/george_range_30_smoke/trades_all.csv"
+  },
+  "sweep_id": "george_range_30_smoke",
+  "variant_count": 1,
+  "variants": [
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "stub",
+      "entry_trigger_params": {
+        "near_pct": 0.015
+      },
+      "family": "anchor",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Prior proactive-only anchor from #398.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "p_only_base"
+    }
+  ]
+}

@@ -1,3 +1,85 @@
+# FOR_FALK - #398/#408 George-range 30-pack local BT sweep, 2026-06-08
+
+Built and ran the 30-variant FY2025 local LEAN sweep for the George-style intraday architecture
+proof. The harness is `scripts/run_408_george_range_30.py`: it generates 30 `StrategyConfig`
+variants from the phase catalog, runs real local LEAN BTs, and preserves per-variant plus aggregate
+orders/trades CSVs for later trade-history analysis.
+
+## Verified
+
+- Compile: `python3 -m py_compile scripts/run_408_george_range_30.py`.
+- Prepare-only: all 30 configs built and cache attrs resolved.
+- Smoke: Jan 2025, one variant, local LEAN `rc=0`.
+- Full FY2025 sweep: 30/30 completed, 30/30 `ok=True`.
+- Actual stable command: bundled Python + `scripts/run_408_george_range_30.py --workers 3`.
+- Important runtime caveat: the runner defaults/supports `--workers 6`, but six active Docker LEAN
+  jobs exceeded the current Docker Desktop 16 GiB memory envelope and killed one child. The successful
+  banked FY2025 run used three parallel workers.
+- Post-run artifact rebuild: `scripts/run_408_george_range_30.py --rebuild-artifacts`, adding
+  `date`, `entry_date`, `exit_date`, and `duration_days` to the exported data.
+
+## Artifacts
+
+- Report dir: `sweeps/reports/george_range_30/`
+- Summary: `sweeps/reports/george_range_30/summary.csv`
+- Orders: `sweeps/reports/george_range_30/orders_all.csv` — 42,065 rows.
+- Trades: `sweeps/reports/george_range_30/trades_all.csv` — 21,372 rows, 20,693 closed trades with
+  populated dates and duration.
+- Per-variant run dirs: `sweeps/runs/george_range_30/<variant>/fy2025_full/`
+
+## First Read
+
+| Variant | Family | Net Profit | Drawdown | Orders | Sharpe | Read |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| `giveback_tight_no_bull` | exit_target | 10.960% | 17.600% | 257 | 0.569 | best clean return/DD tradeoff |
+| `target_08_let_run` | exit_target | 10.330% | 17.700% | 223 | 0.530 | runner-up, low order count |
+| `p_only_tight_giveback` | anchor | 10.292% | 17.400% | 326 | 0.535 | anchor still strong |
+| `minpeak_low_03` | exit_target | 10.012% | 17.100% | 478 | 0.523 | best DD among ~10% return set |
+| `buy_stop_005` | entry_trigger | 8.058% | 15.900% | 1291 | 0.415 | useful entry idea: lower DD |
+| `buy_stop_010` | entry_trigger | 7.099% | 15.800% | 1084 | 0.371 | lower DD, lower return |
+| `pos_03_atr_075` | risk_stack | 5.616% | 13.700% | 1870 | 0.338 | lowest DD, return too low |
+| `volrisk_125` | risk_stack | 11.897% | 34.900% | 1870 | 0.404 | highest return, unacceptable DD |
+
+Interpretation: exit policy matters more than scratch/no-progress management in this FY2025 slice.
+The best clean cell is `giveback_tight_no_bull`; buy-stop entries are interesting because they cut DD
+meaningfully, but they also give up return. Vol-risk sizing can manufacture return but blows up DD, so
+it is a negative control until risk caps are reworked.
+
+Caveats: `exit_events_all.csv` is structurally present but empty because the current phase logs emit
+aggregate phase exit counts, not per-symbol exit-event rows. The trade/order CSVs are still usable for
+analysis, but the phase contract should emit per-symbol exit diagnostics if we want reliable exit-reason
+labels. `resistance_loose_010` and `breadth_050_strict` matched `scratch_base`, so those params likely
+did not bind in this current config path and should not be treated as independent evidence.
+
+## Analysis pass
+
+Added `scripts/analyze_408_george_range_30.py` and generated
+`sweeps/reports/george_range_30/analysis/`.
+
+Outputs:
+- `analysis.md`: human readout of best cells, low-DD cells, parameter confidence, indicator bins,
+  hold-time bins, and symbol edges.
+- `parameter_confidence.csv`: axis-level recommendations and confidence.
+- `variant_trade_diagnostics.csv`: per-variant win rate, return, profit factor, duration, and
+  decision-tag diagnostics.
+- `metric_ranges.csv`: observed ranges for every usable summary/trade/order/entry-tag metric.
+- `entry_indicator_bins.csv`: decision rank, gap, volatility, and hold-time bins.
+- `symbol_edges.csv`: repeated-symbol winners/laggards across the variants.
+
+First analysis reads:
+- Exit target management has the best medium-confidence range: target 6-8%, min peak 3-5%, giveback
+  1.5-2.5%, with `giveback_tight_no_bull` best observed.
+- Buy-stop breakout offsets 0.5-1.0% are worth the next lower-DD entry experiment; 0.5% is the best
+  return/DD balance in this panel.
+- Scratch/no-progress exits should not be promoted as the primary edge; they prove the path contract
+  but trail proactive-only return.
+- Hold time is a large signal in this data: 0-3 day closed trades are negative on average, while
+  7+ day holds are strongly positive. That argues against premature exits unless they are clearly
+  failed entries.
+- Negative gap entries below -1% are weak; 1-2% gap entries are strongest in this limited tag set.
+- Best repeated symbol behavior: AVGO, AMD, ORCL, GOOGL, NVDA. Weakest repeated behavior: NFLX, HD,
+  V, CRM.
+
 # FOR_FALK - #398/#406/#407 George-style exit proof, 2026-06-06
 
 What changed after your MFE tracker note: PR #411 adds a reliable `position_path` contract to the
