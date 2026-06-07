@@ -62,6 +62,7 @@ class ScratchFlatExit(BasePhase):
             peak = max(float(path.get("peak_price", entry_price)), close, entry_price)
             pnl_pct = close / entry_price - 1.0
             peak_pct = float(path.get("mfe_pct", peak / entry_price - 1.0))
+            mae_pct = float(path.get("mae_pct", min(close, entry_price) / entry_price - 1.0))
             days_held = int(path.get("days_held", max((ctx.time - entry_date).days, 0)))
 
             reason = ""
@@ -99,8 +100,22 @@ class ScratchFlatExit(BasePhase):
                 )
             )
             exits_logged.append(
-                f"SCRATCH_FLAT_EXIT|{date_str}|{symbol.value}|reason={reason}"
-                f"|days={days_held}|pnl={pnl_pct:.4f}|peak={peak_pct:.4f}"
+                log_exit_event(
+                    qc,
+                    event="SCRATCH_FLAT_EXIT",
+                    date=date_str,
+                    symbol=symbol,
+                    module="exit.scratch_flat_exit",
+                    reason=reason,
+                    quantity=float(holding.quantity),
+                    entry_price=entry_price,
+                    exit_price=close,
+                    days_held=days_held,
+                    mfe_pct=peak_pct,
+                    mae_pct=mae_pct,
+                    peak_return_pct=peak_pct,
+                    giveback_from_peak_pct=peak_pct - pnl_pct,
+                )
             )
 
         return PhaseResult(
@@ -128,3 +143,53 @@ class ScratchFlatExit(BasePhase):
     @property
     def version_marker(self) -> str:
         return "scratch_flat_exit_v1"
+
+
+def log_exit_event(
+    qc: Any,
+    *,
+    event: str,
+    date: str,
+    symbol: Any,
+    module: str,
+    reason: str,
+    quantity: float,
+    entry_price: float,
+    exit_price: float,
+    days_held: int,
+    mfe_pct: float,
+    mae_pct: float,
+    peak_return_pct: float,
+    giveback_from_peak_pct: float,
+) -> str:
+    ticker = str(getattr(symbol, "value", symbol))
+    pnl = (exit_price - entry_price) * quantity
+    return_pct = exit_price / entry_price - 1.0 if entry_price > 0.0 else 0.0
+    fields = {
+        "event": event,
+        "module": module,
+        "reason": reason,
+        "days_held": days_held,
+        "qty": quantity,
+        "entry_price": entry_price,
+        "exit_price": exit_price,
+        "pnl": pnl,
+        "return_pct": return_pct,
+        "mfe_pct": mfe_pct,
+        "mae_pct": mae_pct,
+        "peak_return_pct": peak_return_pct,
+        "giveback_from_peak_pct": giveback_from_peak_pct,
+    }
+    line = f"EXIT_EVENT|{date}|{ticker}|" + "|".join(
+        f"{key}={_format_value(value)}" for key, value in fields.items()
+    )
+    log = getattr(qc, "log", None) or getattr(qc, "Log", None)
+    if callable(log):
+        log(line)
+    return line
+
+
+def _format_value(value: object) -> str:
+    if isinstance(value, float):
+        return f"{value:.6f}"
+    return str(value)

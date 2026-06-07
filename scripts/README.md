@@ -17,6 +17,10 @@ macOS keychain at runtime.
   `run_408_george_range_30.py` are retained for marker-proven direct LEAN architecture proofs,
   FY2025 exit-management panels, and the 30-variant George-range local BT sweep. The George
   sweep can also refresh CSV artifacts from completed local JSONs with `--rebuild-artifacts`.
+- **Combo proof runners:** `run_414_george_combo_30.py` reuses the #408 harness for the second
+  30-variant recombination sweep around the best exit, buy-stop, min-hold, and sizing cells.
+  From worktrees, pass `--data-folder /Users/falk/projects/kumo-qc/data` so LEAN mounts the
+  populated raw cache instead of the skeletal branch-local `data/` folder.
 - **Sweep analysis:** `analyze_408_george_range_30.py` regenerates confidence tables, indicator
   ranges, and Markdown analysis from the George-range aggregate CSVs.
 - **Deploy / live keepers** (`kumo deploy`): `qc_v2_cloud.py`, `gate.py`, `deploy.py`.

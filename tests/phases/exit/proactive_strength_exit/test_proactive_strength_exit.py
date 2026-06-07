@@ -41,6 +41,10 @@ class FakeQC:
         self._position_meta = {sym: {"entry_price": entry, "entry_date": datetime(2025, 1, 1)}}
         self._position_path = {sym: {"peak_price": close, "mfe_pct": close / entry - 1.0, "days_held": 9}}
         self._indicators = {sym: {"d_ichi": FakeIchi()}}
+        self.logged = []
+
+    def log(self, msg):
+        self.logged.append(msg)
 
 
 def _sym(name="AAPL"):
@@ -65,6 +69,12 @@ def test_target_exit_fires_while_still_bullish():
     assert intent.ticker == "AAPL"
     assert intent.qty == -100
     assert intent.order_type == "market"
+    assert qc.logged == [
+        "EXIT_EVENT|2025-01-10|AAPL|event=PROACTIVE_STRENGTH_EXIT|module=exit.proactive_strength_exit"
+        "|reason=target|days_held=9|qty=100.000000|entry_price=100.000000|exit_price=106.000000"
+        "|pnl=600.000000|return_pct=0.060000|mfe_pct=0.060000|mae_pct=0.000000"
+        "|peak_return_pct=0.060000|giveback_from_peak_pct=0.000000"
+    ]
 
 
 def test_requires_position_path_contract():
@@ -101,6 +111,18 @@ def test_no_exit_when_not_still_bullish():
 
     assert result.facts["exit_count"] == 0
     assert ctx.bar_state.exit_intents == []
+
+
+def test_min_hold_days_defers_proactive_exit():
+    sym = _sym("AMD")
+    qc = FakeQC(sym, close=110.0)
+    qc._position_path[sym]["days_held"] = 3
+
+    result, ctx = _run(qc, target_pct=0.06, min_hold_days=7)
+
+    assert result.facts["exit_count"] == 0
+    assert ctx.bar_state.exit_intents == []
+    assert qc.logged == []
 
 
 def test_skips_when_exit_already_present():

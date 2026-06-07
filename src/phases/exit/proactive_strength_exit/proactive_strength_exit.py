@@ -25,6 +25,7 @@ class ProactiveStrengthExit(BasePhase):
         min_peak_pct: float = 0.05
         giveback_from_peak_pct: float = 0.025
         require_still_bullish: bool = True
+        min_hold_days: int = 0
         enabled: bool = True
 
     def __init__(self, params: "ProactiveStrengthExit.Params", logger: Any) -> None:
@@ -60,7 +61,12 @@ class ProactiveStrengthExit(BasePhase):
             peak = max(float(path.get("peak_price", entry_price)), close, entry_price)
             pnl_pct = close / entry_price - 1.0
             peak_pct = float(path.get("mfe_pct", peak / entry_price - 1.0))
+            mae_pct = float(path.get("mae_pct", min(close, entry_price) / entry_price - 1.0))
             giveback_pct = peak_pct - pnl_pct
+            days_held = int(path.get("days_held", 0) or 0)
+
+            if days_held < self.p.min_hold_days:
+                continue
 
             if self.p.require_still_bullish and not self._still_bullish(qc, symbol, close):
                 continue
@@ -87,8 +93,22 @@ class ProactiveStrengthExit(BasePhase):
                 )
             )
             exits_logged.append(
-                f"PROACTIVE_STRENGTH_EXIT|{date_str}|{symbol.value}|reason={reason}"
-                f"|pnl={pnl_pct:.4f}|peak={peak_pct:.4f}|giveback={giveback_pct:.4f}"
+                log_exit_event(
+                    qc,
+                    event="PROACTIVE_STRENGTH_EXIT",
+                    date=date_str,
+                    symbol=symbol,
+                    module="exit.proactive_strength_exit",
+                    reason=reason,
+                    quantity=float(holding.quantity),
+                    entry_price=entry_price,
+                    exit_price=close,
+                    days_held=days_held,
+                    mfe_pct=peak_pct,
+                    mae_pct=mae_pct,
+                    peak_return_pct=peak_pct,
+                    giveback_from_peak_pct=giveback_pct,
+                )
             )
 
         return PhaseResult(
@@ -132,3 +152,53 @@ class ProactiveStrengthExit(BasePhase):
     @property
     def version_marker(self) -> str:
         return "proactive_strength_exit_v1"
+
+
+def log_exit_event(
+    qc: Any,
+    *,
+    event: str,
+    date: str,
+    symbol: Any,
+    module: str,
+    reason: str,
+    quantity: float,
+    entry_price: float,
+    exit_price: float,
+    days_held: int,
+    mfe_pct: float,
+    mae_pct: float,
+    peak_return_pct: float,
+    giveback_from_peak_pct: float,
+) -> str:
+    ticker = str(getattr(symbol, "value", symbol))
+    pnl = (exit_price - entry_price) * quantity
+    return_pct = exit_price / entry_price - 1.0 if entry_price > 0.0 else 0.0
+    fields = {
+        "event": event,
+        "module": module,
+        "reason": reason,
+        "days_held": days_held,
+        "qty": quantity,
+        "entry_price": entry_price,
+        "exit_price": exit_price,
+        "pnl": pnl,
+        "return_pct": return_pct,
+        "mfe_pct": mfe_pct,
+        "mae_pct": mae_pct,
+        "peak_return_pct": peak_return_pct,
+        "giveback_from_peak_pct": giveback_from_peak_pct,
+    }
+    line = f"EXIT_EVENT|{date}|{ticker}|" + "|".join(
+        f"{key}={_format_value(value)}" for key, value in fields.items()
+    )
+    log = getattr(qc, "log", None) or getattr(qc, "Log", None)
+    if callable(log):
+        log(line)
+    return line
+
+
+def _format_value(value: object) -> str:
+    if isinstance(value, float):
+        return f"{value:.6f}"
+    return str(value)
