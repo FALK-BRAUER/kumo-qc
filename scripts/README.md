@@ -13,6 +13,12 @@ macOS keychain at runtime.
   `conform_coarse.py`, `build_etf_universe.py`, `extend_local_data_2026.py`.
 - **Backtest keepers** (`kumo bt`): `lean-bt.sh`, `record_bt_result.py`,
   `validate_parity.py`, `collect_results.py`.
+- **Scenario proof runners:** `run_386_arm_direct.py`, `run_398_fy_exit_sixpack.py`, and
+  `run_408_george_range_30.py` are retained for marker-proven direct LEAN architecture proofs,
+  FY2025 exit-management panels, and the 30-variant George-range local BT sweep. The George
+  sweep can also refresh CSV artifacts from completed local JSONs with `--rebuild-artifacts`.
+- **Sweep analysis:** `analyze_408_george_range_30.py` regenerates confidence tables, indicator
+  ranges, and Markdown analysis from the George-range aggregate CSVs.
 - **Deploy / live keepers** (`kumo deploy`): `qc_v2_cloud.py`, `gate.py`, `deploy.py`.
 - **Held for cutover:** `qc_pe_cloud.py` (KEEP till #216), `build_ticker_sector_map.py`.
 

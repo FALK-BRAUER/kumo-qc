@@ -1,3 +1,149 @@
+# FOR_FALK - #398/#408 George-range 30-pack local BT sweep, 2026-06-08
+
+Built and ran the 30-variant FY2025 local LEAN sweep for the George-style intraday architecture
+proof. The harness is `scripts/run_408_george_range_30.py`: it generates 30 `StrategyConfig`
+variants from the phase catalog, runs real local LEAN BTs, and preserves per-variant plus aggregate
+orders/trades CSVs for later trade-history analysis.
+
+## Verified
+
+- Compile: `python3 -m py_compile scripts/run_408_george_range_30.py`.
+- Prepare-only: all 30 configs built and cache attrs resolved.
+- Smoke: Jan 2025, one variant, local LEAN `rc=0`.
+- Full FY2025 sweep: 30/30 completed, 30/30 `ok=True`.
+- Actual stable command: bundled Python + `scripts/run_408_george_range_30.py --workers 3`.
+- Important runtime caveat: the runner defaults/supports `--workers 6`, but six active Docker LEAN
+  jobs exceeded the current Docker Desktop 16 GiB memory envelope and killed one child. The successful
+  banked FY2025 run used three parallel workers.
+- Post-run artifact rebuild: `scripts/run_408_george_range_30.py --rebuild-artifacts`, adding
+  `date`, `entry_date`, `exit_date`, and `duration_days` to the exported data.
+
+## Artifacts
+
+- Report dir: `sweeps/reports/george_range_30/`
+- Summary: `sweeps/reports/george_range_30/summary.csv`
+- Orders: `sweeps/reports/george_range_30/orders_all.csv` — 42,065 rows.
+- Trades: `sweeps/reports/george_range_30/trades_all.csv` — 21,372 rows, 20,693 closed trades with
+  populated dates and duration.
+- Per-variant run dirs: `sweeps/runs/george_range_30/<variant>/fy2025_full/`
+
+## First Read
+
+| Variant | Family | Net Profit | Drawdown | Orders | Sharpe | Read |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| `giveback_tight_no_bull` | exit_target | 10.960% | 17.600% | 257 | 0.569 | best clean return/DD tradeoff |
+| `target_08_let_run` | exit_target | 10.330% | 17.700% | 223 | 0.530 | runner-up, low order count |
+| `p_only_tight_giveback` | anchor | 10.292% | 17.400% | 326 | 0.535 | anchor still strong |
+| `minpeak_low_03` | exit_target | 10.012% | 17.100% | 478 | 0.523 | best DD among ~10% return set |
+| `buy_stop_005` | entry_trigger | 8.058% | 15.900% | 1291 | 0.415 | useful entry idea: lower DD |
+| `buy_stop_010` | entry_trigger | 7.099% | 15.800% | 1084 | 0.371 | lower DD, lower return |
+| `pos_03_atr_075` | risk_stack | 5.616% | 13.700% | 1870 | 0.338 | lowest DD, return too low |
+| `volrisk_125` | risk_stack | 11.897% | 34.900% | 1870 | 0.404 | highest return, unacceptable DD |
+
+Interpretation: exit policy matters more than scratch/no-progress management in this FY2025 slice.
+The best clean cell is `giveback_tight_no_bull`; buy-stop entries are interesting because they cut DD
+meaningfully, but they also give up return. Vol-risk sizing can manufacture return but blows up DD, so
+it is a negative control until risk caps are reworked.
+
+Caveats: `exit_events_all.csv` is structurally present but empty because the current phase logs emit
+aggregate phase exit counts, not per-symbol exit-event rows. The trade/order CSVs are still usable for
+analysis, but the phase contract should emit per-symbol exit diagnostics if we want reliable exit-reason
+labels. `resistance_loose_010` and `breadth_050_strict` matched `scratch_base`, so those params likely
+did not bind in this current config path and should not be treated as independent evidence.
+
+## Analysis pass
+
+Added `scripts/analyze_408_george_range_30.py` and generated
+`sweeps/reports/george_range_30/analysis/`.
+
+Outputs:
+- `analysis.md`: human readout of best cells, low-DD cells, parameter confidence, indicator bins,
+  hold-time bins, and symbol edges.
+- `parameter_confidence.csv`: axis-level recommendations and confidence.
+- `variant_trade_diagnostics.csv`: per-variant win rate, return, profit factor, duration, and
+  decision-tag diagnostics.
+- `metric_ranges.csv`: observed ranges for every usable summary/trade/order/entry-tag metric.
+- `entry_indicator_bins.csv`: decision rank, gap, volatility, and hold-time bins.
+- `symbol_edges.csv`: repeated-symbol winners/laggards across the variants.
+
+First analysis reads:
+- Exit target management has the best medium-confidence range: target 6-8%, min peak 3-5%, giveback
+  1.5-2.5%, with `giveback_tight_no_bull` best observed.
+- Buy-stop breakout offsets 0.5-1.0% are worth the next lower-DD entry experiment; 0.5% is the best
+  return/DD balance in this panel.
+- Scratch/no-progress exits should not be promoted as the primary edge; they prove the path contract
+  but trail proactive-only return.
+- Hold time is a large signal in this data: 0-3 day closed trades are negative on average, while
+  7+ day holds are strongly positive. That argues against premature exits unless they are clearly
+  failed entries.
+- Negative gap entries below -1% are weak; 1-2% gap entries are strongest in this limited tag set.
+- Best repeated symbol behavior: AVGO, AMD, ORCL, GOOGL, NVDA. Weakest repeated behavior: NFLX, HD,
+  V, CRM.
+
+# FOR_FALK - #398/#406/#407 George-style exit proof, 2026-06-06
+
+What changed after your MFE tracker note: PR #411 adds a reliable `position_path` contract to the
+phase stack. `PositionPathTracker` is a `trail` phase that provides the named downstream contract;
+`ProactiveStrengthExit` and `ScratchFlatExit` now require `REQUIRES_UPSTREAM = ["position_path"]`.
+The engine validates named downstream contracts at init, so a missing or misordered MFE/path tracker
+fails before LEAN can run a fake proof.
+
+## Built
+
+- `PositionPathTracker`: per-position entry, peak, trough, last price, MFE/MAE, and days-held state.
+- `ProactiveStrengthExit`: market exit for winners into bullish strength, currently target/giveback
+  based.
+- `ScratchFlatExit`: market exit for no-progress, roundtrip-flat, or capped-loss-after-MFE trades.
+- Six Scenario-C proof blueprints:
+  - `scenario_exit_proactive`
+  - `scenario_exit_proactive_giveback_tight`
+  - `scenario_exit_proactive_scratch`
+  - `scenario_exit_proactive_scratch_fast`
+  - `scenario_exit_proactive_scratch_patient`
+  - `scenario_exit_proactive_scratch_tight_risk`
+- `scripts/run_398_fy_exit_sixpack.py`: one-process runner that submits the six FY2025 rows through
+  shared warmup/cache orchestration and supports targeted retry via `KUMO_398_MODULES`.
+
+## Verified
+
+- `PYTHONPATH=src pytest -q` -> 1447 passed, 3 skipped, 1 warning.
+- `mypy` -> clean across 192 source files.
+- GitHub PR checks for #411 -> passed.
+- Three real LEAN Jan 2025 proof runs after the contract patch, all `lean rc: 0`.
+- Cache was used on all three: weekly fp `90f2d7e3fb80d0a4d2eb286f6a43199e1519495a3ce9d787a4d7d0dfc70c535c`.
+- Six FY2025 LEAN rows are now banked with completed statistics blocks. First pass launched all six
+  together (`workers=6`, `WARMUP_GATE_CAPACITY=6`) and completed four; Docker dropped two cells with
+  non-terminal `Running` JSONs under resource pressure. The two dropped cells were rerun together
+  (`workers=2`, same weekly cache fp) and completed cleanly.
+
+| Blueprint | Config hash | Return | Net Profit | Drawdown | Total Orders | Exit activity |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| `scenario_c` | `1962771d8813` | 3.33% | 3.329% | 2.300% | 272 | baseline |
+| `scenario_exit_proactive` | `074d3833c494` | 3.62% | 3.617% | 2.200% | 45 | 12 proactive target exits |
+| `scenario_exit_proactive_scratch` | `49d1c008f433` | 3.93% | 3.926% | 2.200% | 79 | 18 scratch exits + 11 proactive target exits |
+
+### FY2025 six-pack
+
+| Blueprint | Config hash | Net Profit | Drawdown | Total Orders | Sharpe | Exit activity |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| `scenario_exit_proactive` | `074d3833c494` | 10.118% | 17.300% | 243 | 0.526 | 110 proactive exits: 71 target, 39 giveback |
+| `scenario_exit_proactive_giveback_tight` | `b20162c96a94` | 9.956% | 17.900% | 383 | 0.511 | 181 proactive exits: 33 target, 148 giveback |
+| `scenario_exit_proactive_scratch` | `49d1c008f433` | 5.996% | 18.300% | 1870 | 0.299 | 748 scratch exits + 177 proactive exits |
+| `scenario_exit_proactive_scratch_fast` | `6198e1004968` | 3.783% | 18.600% | 2354 | 0.188 | 984 scratch exits + 184 proactive exits |
+| `scenario_exit_proactive_scratch_patient` | `d3a568250513` | 7.877% | 18.900% | 1622 | 0.381 | 653 scratch exits + 147 proactive exits |
+| `scenario_exit_proactive_scratch_tight_risk` | `8324ba659106` | 5.667% | 17.800% | 1413 | 0.286 | 543 scratch exits + 153 proactive exits |
+
+Interpretation: proactive-only is the best FY2025 performer in this set. The scratch family proves the
+path/MFE contract and produces heavy intraday exit activity, but it does not yet improve return or DD
+versus proactive-only on FY2025. The next design step should tune scratch thresholds against intraday
+trade context (gap behavior, day regime, sector/industry rotation), not add more arbitrary exits.
+
+GitHub comments posted:
+- #398 implementation/proof summary
+- #406 proactive proof detail
+- #407 scratch-flat proof detail
+- #386 cache-backed intraday proof follow-up
+
 # FOR_FALK - #386 scenario architecture proof, 2026-06-06
 
 What happened: Claude stopped because of a session limit, after pushing the Scenario A stop wiring.

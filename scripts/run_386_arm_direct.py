@@ -96,6 +96,9 @@ def main() -> None:
     )
     for k, v in extra_attrs.items():
         inject += f"    {k} = {v!r}\n"
+    if args.window == "fy":
+        inject += "    LOG_ONLY_ACTIVE_PHASES = True\n"
+        inject += "    LOG_TICK_EVENTS = False\n"
     assert "    STRATEGY_CONFIG = STRATEGY_CONFIG\n" in s, "FAIL: inject anchor missing"
     main_py.write_text(s.replace("    STRATEGY_CONFIG = STRATEGY_CONFIG\n", inject, 1))
     (run / "lean.json").write_text('{ "description": "m1 arm direct", "parameters": {} }\n')

@@ -1,0 +1,34 @@
+# George Range 30 Local BT Summary
+
+| variant | family | net | dd | orders | sharpe | ok |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| p_only_base | anchor | 10.118% | 17.300% | 243 | 0.526 | True |
+| p_only_tight_giveback | anchor | 10.292% | 17.400% | 326 | 0.535 | True |
+| scratch_base | anchor | 5.996% | 18.300% | 1870 | 0.299 | True |
+| scratch_fast | anchor | 4.584% | 18.800% | 1661 | 0.228 | True |
+| scratch_patient | anchor | 5.240% | 19.400% | 2011 | 0.261 | True |
+| scratch_tight_risk | anchor | 6.053% | 17.600% | 1385 | 0.306 | True |
+| target_04_fast_take | exit_target | 10.196% | 17.800% | 245 | 0.527 | True |
+| target_08_let_run | exit_target | 10.330% | 17.700% | 223 | 0.53 | True |
+| target_10_patient_giveback | exit_target | 9.640% | 18.200% | 239 | 0.487 | True |
+| giveback_loose_04 | exit_target | 9.957% | 17.300% | 259 | 0.517 | True |
+| giveback_tight_no_bull | exit_target | 10.960% | 17.600% | 257 | 0.569 | True |
+| minpeak_low_03 | exit_target | 10.012% | 17.100% | 478 | 0.523 | True |
+| scratch_1d_low_mfe | scratch_grid | 6.950% | 18.100% | 1755 | 0.35 | True |
+| scratch_2d_low_mfe | scratch_grid | 4.440% | 18.400% | 2045 | 0.221 | True |
+| scratch_5d_wide_band | scratch_grid | 5.936% | 18.100% | 1916 | 0.301 | True |
+| scratch_7d_patient | scratch_grid | 5.080% | 18.400% | 1696 | 0.252 | True |
+| scratch_losscap_03 | scratch_grid | 5.650% | 18.300% | 2204 | 0.279 | True |
+| scratch_roundtrip_wide_01 | scratch_grid | 4.358% | 18.300% | 2391 | 0.217 | True |
+| entry_near_010 | entry_trigger | 4.624% | 17.800% | 1613 | 0.234 | True |
+| entry_near_020 | entry_trigger | 5.329% | 18.900% | 2055 | 0.263 | True |
+| entry_near_025 | entry_trigger | 7.588% | 18.500% | 2215 | 0.367 | True |
+| buy_stop_flat | entry_trigger | 6.838% | 17.200% | 1483 | 0.343 | True |
+| buy_stop_005 | entry_trigger | 8.058% | 15.900% | 1291 | 0.415 | True |
+| buy_stop_010 | entry_trigger | 7.099% | 15.800% | 1084 | 0.371 | True |
+| pos_03_atr_075 | risk_stack | 5.616% | 13.700% | 1870 | 0.338 | True |
+| pos_05_atr_050 | risk_stack | 5.548% | 22.200% | 1822 | 0.257 | True |
+| volrisk_075 | risk_stack | 10.087% | 26.800% | 1870 | 0.393 | True |
+| volrisk_125 | risk_stack | 11.897% | 34.900% | 1870 | 0.404 | True |
+| resistance_loose_010 | risk_stack | 5.996% | 18.300% | 1870 | 0.299 | True |
+| breadth_050_strict | risk_stack | 5.996% | 18.300% | 1870 | 0.299 | True |

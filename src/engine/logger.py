@@ -17,6 +17,8 @@ class ComponentLogger:
         self._qc = qc
 
     def log_phase(self, kind: str, phase: Any, result: PhaseResult) -> None:
+        if getattr(self._qc, "LOG_ONLY_ACTIVE_PHASES", False) and not self._is_active_result(result):
+            return
         self._qc.Log(json.dumps({
             "evt": "PHASE",
             "kind": kind,
@@ -33,6 +35,8 @@ class ComponentLogger:
             }, separators=(",", ":")))
 
     def log_tick(self, chain: list[str], entries: int, exits: int, adds: int) -> None:
+        if getattr(self._qc, "LOG_TICK_EVENTS", True) is False and entries == 0 and exits == 0 and adds == 0:
+            return
         self._qc.Log(json.dumps({
             "evt": "STRATEGY_TICK", "chain": chain,
             "entries": entries, "exits": exits, "adds": adds,
@@ -47,3 +51,31 @@ class ComponentLogger:
         self._qc.Log(json.dumps({
             "evt": "PHASE_LOADED", "kind": kind, "marker": marker,
         }, separators=(",", ":")))
+
+    @staticmethod
+    def _is_active_result(result: PhaseResult) -> bool:
+        if result.blocked:
+            return True
+        decision = result.decision
+        if isinstance(decision, (list, tuple, set, dict)) and len(decision) > 0:
+            return True
+        active_fact_keys = {
+            "exit_count",
+            "target_count",
+            "giveback_count",
+            "no_progress_count",
+            "roundtrip_count",
+            "capped_loss_count",
+            "filled",
+            "fired",
+            "stamped",
+            "updated",
+        }
+        for key in active_fact_keys:
+            value = result.facts.get(key)
+            if isinstance(value, bool):
+                if value:
+                    return True
+            elif isinstance(value, (int, float)) and value > 0:
+                return True
+        return False

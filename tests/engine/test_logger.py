@@ -124,6 +124,61 @@ def test_log_tick_empty_chain() -> None:
     assert rec["chain"] == []
 
 
+def test_log_only_active_phases_suppresses_noop_phase() -> None:
+    qc = FakeQC()
+    qc.LOG_ONLY_ACTIVE_PHASES = True
+    logger = ComponentLogger(qc)
+
+    logger.log_phase(
+        "entry_trigger",
+        FakePhase("stub_entry_trigger_v1"),
+        PhaseResult(
+            decision=[],
+            blocked=False,
+            reason="no fire",
+            facts={"fired": 0, "armed": 18},
+            metrics={},
+        ),
+    )
+
+    assert qc.logged == []
+
+
+def test_log_only_active_phases_keeps_active_phase() -> None:
+    qc = FakeQC()
+    qc.LOG_ONLY_ACTIVE_PHASES = True
+    logger = ComponentLogger(qc)
+
+    logger.log_phase(
+        "exit_hard",
+        FakePhase("scratch_flat_exit_v1"),
+        PhaseResult(
+            decision=[],
+            blocked=False,
+            reason="2 scratch-flat exits",
+            facts={"exit_count": 2},
+            metrics={},
+        ),
+    )
+
+    (rec,) = _records(qc)
+    assert rec["evt"] == "PHASE"
+    assert rec["facts"] == {"exit_count": 2}
+
+
+def test_log_tick_events_false_suppresses_noop_tick_but_keeps_active_tick() -> None:
+    qc = FakeQC()
+    qc.LOG_TICK_EVENTS = False
+    logger = ComponentLogger(qc)
+
+    logger.log_tick(chain=["entry_trigger"], entries=0, exits=0, adds=0)
+    logger.log_tick(chain=["entry_trigger"], entries=1, exits=0, adds=0)
+
+    (rec,) = _records(qc)
+    assert rec["evt"] == "STRATEGY_TICK"
+    assert rec["entries"] == 1
+
+
 # ------------------------------------------------------------------------ log_strategy_init
 
 

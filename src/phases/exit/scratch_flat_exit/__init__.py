@@ -1,0 +1,2 @@
+"""Scratch-flat exit phase."""
+

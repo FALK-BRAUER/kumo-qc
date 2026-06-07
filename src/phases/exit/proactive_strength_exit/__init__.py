@@ -1,0 +1,2 @@
+"""Proactive strength exit phase."""
+

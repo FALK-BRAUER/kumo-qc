@@ -1,0 +1,821 @@
+{
+  "ok_count": 30,
+  "reports": {
+    "exit_events_all_csv": "/Users/falk/projects/kumo-qc-george-range-sweep/sweeps/reports/george_range_30/exit_events_all.csv",
+    "orders_all_csv": "/Users/falk/projects/kumo-qc-george-range-sweep/sweeps/reports/george_range_30/orders_all.csv",
+    "summary_csv": "/Users/falk/projects/kumo-qc-george-range-sweep/sweeps/reports/george_range_30/summary.csv",
+    "trades_all_csv": "/Users/falk/projects/kumo-qc-george-range-sweep/sweeps/reports/george_range_30/trades_all.csv"
+  },
+  "sweep_id": "george_range_30",
+  "variant_count": 30,
+  "variants": [
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "stub",
+      "entry_trigger_params": {
+        "near_pct": 0.015
+      },
+      "family": "anchor",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Prior proactive-only anchor from #398.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "p_only_base"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "stub",
+      "entry_trigger_params": {
+        "near_pct": 0.015
+      },
+      "family": "anchor",
+      "giveback_from_peak_pct": 0.015,
+      "hypothesis": "Prior proactive anchor with tighter giveback capture.",
+      "min_peak_pct": 0.04,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "p_only_tight_giveback"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "stub",
+      "entry_trigger_params": {
+        "near_pct": 0.015
+      },
+      "family": "anchor",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Prior scratch baseline: no-progress and round-trip-to-flat management.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": {
+        "max_loss_after_mfe_pct": 0.02,
+        "min_mfe_pct": 0.02,
+        "no_progress_days": 3,
+        "scratch_band_pct": 0.005
+      },
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "scratch_base"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "stub",
+      "entry_trigger_params": {
+        "near_pct": 0.015
+      },
+      "family": "anchor",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Fast scratch: test whether early stalled trades should be cut sooner.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": {
+        "max_loss_after_mfe_pct": 0.015,
+        "min_mfe_pct": 0.015,
+        "no_progress_days": 2,
+        "scratch_band_pct": 0.004
+      },
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "scratch_fast"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "stub",
+      "entry_trigger_params": {
+        "near_pct": 0.015
+      },
+      "family": "anchor",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Patient scratch: allow more time and more MFE before judging the path.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": {
+        "max_loss_after_mfe_pct": 0.025,
+        "min_mfe_pct": 0.03,
+        "no_progress_days": 5,
+        "scratch_band_pct": 0.0075
+      },
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "scratch_patient"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "stub",
+      "entry_trigger_params": {
+        "near_pct": 0.015
+      },
+      "family": "anchor",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Tight risk scratch: same no-progress window, smaller flat band and loss cap.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": {
+        "max_loss_after_mfe_pct": 0.01,
+        "min_mfe_pct": 0.02,
+        "no_progress_days": 3,
+        "scratch_band_pct": 0.003
+      },
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "scratch_tight_risk"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "stub",
+      "entry_trigger_params": {
+        "near_pct": 0.015
+      },
+      "family": "exit_target",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Take strength earlier at +4%.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.04,
+      "variant_id": "target_04_fast_take"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "stub",
+      "entry_trigger_params": {
+        "near_pct": 0.015
+      },
+      "family": "exit_target",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Let winners run to +8% before target exit.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.08,
+      "variant_id": "target_08_let_run"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "stub",
+      "entry_trigger_params": {
+        "near_pct": 0.015
+      },
+      "family": "exit_target",
+      "giveback_from_peak_pct": 0.04,
+      "hypothesis": "High target plus looser giveback to see whether big trend holds offset noise.",
+      "min_peak_pct": 0.08,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.1,
+      "variant_id": "target_10_patient_giveback"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "stub",
+      "entry_trigger_params": {
+        "near_pct": 0.015
+      },
+      "family": "exit_target",
+      "giveback_from_peak_pct": 0.04,
+      "hypothesis": "Proactive winner handling with a wider giveback band.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "giveback_loose_04"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "stub",
+      "entry_trigger_params": {
+        "near_pct": 0.015
+      },
+      "family": "exit_target",
+      "giveback_from_peak_pct": 0.015,
+      "hypothesis": "Tight giveback without requiring the daily structure to remain bullish.",
+      "min_peak_pct": 0.04,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": false,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "giveback_tight_no_bull"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "stub",
+      "entry_trigger_params": {
+        "near_pct": 0.015
+      },
+      "family": "exit_target",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Treat smaller MFE peaks as actionable for giveback exits.",
+      "min_peak_pct": 0.03,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "minpeak_low_03"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "stub",
+      "entry_trigger_params": {
+        "near_pct": 0.015
+      },
+      "family": "scratch_grid",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "One-day low-MFE scratch: aggressive stale-trade removal.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": {
+        "max_loss_after_mfe_pct": 0.01,
+        "min_mfe_pct": 0.01,
+        "no_progress_days": 1,
+        "scratch_band_pct": 0.003
+      },
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "scratch_1d_low_mfe"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "stub",
+      "entry_trigger_params": {
+        "near_pct": 0.015
+      },
+      "family": "scratch_grid",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Two-day low-MFE scratch: less harsh than same-day, still early.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": {
+        "max_loss_after_mfe_pct": 0.015,
+        "min_mfe_pct": 0.01,
+        "no_progress_days": 2,
+        "scratch_band_pct": 0.005
+      },
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "scratch_2d_low_mfe"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "stub",
+      "entry_trigger_params": {
+        "near_pct": 0.015
+      },
+      "family": "scratch_grid",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Five-day scratch with wider round-trip-to-flat band.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": {
+        "max_loss_after_mfe_pct": 0.02,
+        "min_mfe_pct": 0.02,
+        "no_progress_days": 5,
+        "scratch_band_pct": 0.01
+      },
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "scratch_5d_wide_band"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "stub",
+      "entry_trigger_params": {
+        "near_pct": 0.015
+      },
+      "family": "scratch_grid",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Very patient scratch: preserve slower-developing winners.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": {
+        "max_loss_after_mfe_pct": 0.03,
+        "min_mfe_pct": 0.03,
+        "no_progress_days": 7,
+        "scratch_band_pct": 0.0075
+      },
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "scratch_7d_patient"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "stub",
+      "entry_trigger_params": {
+        "near_pct": 0.015
+      },
+      "family": "scratch_grid",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Loose post-MFE loss cap tests whether exits were premature.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": {
+        "max_loss_after_mfe_pct": 0.03,
+        "min_mfe_pct": 0.02,
+        "no_progress_days": 3,
+        "scratch_band_pct": 0.005
+      },
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "scratch_losscap_03"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "stub",
+      "entry_trigger_params": {
+        "near_pct": 0.015
+      },
+      "family": "scratch_grid",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Wide flat band catches more round trips after initial MFE.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": {
+        "max_loss_after_mfe_pct": 0.02,
+        "min_mfe_pct": 0.02,
+        "no_progress_days": 3,
+        "scratch_band_pct": 0.01
+      },
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "scratch_roundtrip_wide_01"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "stub",
+      "entry_trigger_params": {
+        "near_pct": 0.01
+      },
+      "family": "entry_trigger",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Tighter proximity trigger: fewer but cleaner intraday fires.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": {
+        "max_loss_after_mfe_pct": 0.02,
+        "min_mfe_pct": 0.02,
+        "no_progress_days": 3,
+        "scratch_band_pct": 0.005
+      },
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "entry_near_010"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "stub",
+      "entry_trigger_params": {
+        "near_pct": 0.02
+      },
+      "family": "entry_trigger",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Wider proximity trigger: test whether scanner is good but entry waits too long.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": {
+        "max_loss_after_mfe_pct": 0.02,
+        "min_mfe_pct": 0.02,
+        "no_progress_days": 3,
+        "scratch_band_pct": 0.005
+      },
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "entry_near_020"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "stub",
+      "entry_trigger_params": {
+        "near_pct": 0.025
+      },
+      "family": "entry_trigger",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Very wide proximity trigger: intentionally permissive entry timing.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": {
+        "max_loss_after_mfe_pct": 0.02,
+        "min_mfe_pct": 0.02,
+        "no_progress_days": 3,
+        "scratch_band_pct": 0.005
+      },
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "entry_near_025"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.0
+      },
+      "family": "entry_trigger",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Breakout-through-zone trigger with no extra breakout offset.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": {
+        "max_loss_after_mfe_pct": 0.02,
+        "min_mfe_pct": 0.02,
+        "no_progress_days": 3,
+        "scratch_band_pct": 0.005
+      },
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "buy_stop_flat"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.005
+      },
+      "family": "entry_trigger",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Breakout trigger requiring +0.5% through the armed zone.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": {
+        "max_loss_after_mfe_pct": 0.02,
+        "min_mfe_pct": 0.02,
+        "no_progress_days": 3,
+        "scratch_band_pct": 0.005
+      },
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "buy_stop_005"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.01
+      },
+      "family": "entry_trigger",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Breakout trigger requiring +1.0% through the armed zone.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": {
+        "max_loss_after_mfe_pct": 0.02,
+        "min_mfe_pct": 0.02,
+        "no_progress_days": 3,
+        "scratch_band_pct": 0.005
+      },
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "buy_stop_010"
+    },
+    {
+      "atr_mult": 0.75,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "stub",
+      "entry_trigger_params": {
+        "near_pct": 0.015
+      },
+      "family": "risk_stack",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Smaller flat sizing with looser ATR stop cushion.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": {
+        "max_loss_after_mfe_pct": 0.02,
+        "min_mfe_pct": 0.02,
+        "no_progress_days": 3,
+        "scratch_band_pct": 0.005
+      },
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.03
+      },
+      "target_pct": 0.06,
+      "variant_id": "pos_03_atr_075"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "stub",
+      "entry_trigger_params": {
+        "near_pct": 0.015
+      },
+      "family": "risk_stack",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Larger flat sizing at the baseline stop.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": {
+        "max_loss_after_mfe_pct": 0.02,
+        "min_mfe_pct": 0.02,
+        "no_progress_days": 3,
+        "scratch_band_pct": 0.005
+      },
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.05
+      },
+      "target_pct": 0.06,
+      "variant_id": "pos_05_atr_050"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "stub",
+      "entry_trigger_params": {
+        "near_pct": 0.015
+      },
+      "family": "risk_stack",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Vol-adjusted risk sizing, conservative risk budget.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": {
+        "max_loss_after_mfe_pct": 0.02,
+        "min_mfe_pct": 0.02,
+        "no_progress_days": 3,
+        "scratch_band_pct": 0.005
+      },
+      "sizer": "vol_risk",
+      "sizer_params": {
+        "fallback_stop_pct": 0.06,
+        "max_position_pct": 0.06,
+        "min_scale": 0.4,
+        "risk_pct": 0.0075,
+        "vix_baseline": 20.0,
+        "vix_slope": 0.02
+      },
+      "target_pct": 0.06,
+      "variant_id": "volrisk_075"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "stub",
+      "entry_trigger_params": {
+        "near_pct": 0.015
+      },
+      "family": "risk_stack",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Vol-adjusted risk sizing, less conservative risk budget.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": {
+        "max_loss_after_mfe_pct": 0.02,
+        "min_mfe_pct": 0.02,
+        "no_progress_days": 3,
+        "scratch_band_pct": 0.005
+      },
+      "sizer": "vol_risk",
+      "sizer_params": {
+        "fallback_stop_pct": 0.08,
+        "max_position_pct": 0.08,
+        "min_scale": 0.4,
+        "risk_pct": 0.0125,
+        "vix_baseline": 20.0,
+        "vix_slope": 0.02
+      },
+      "target_pct": 0.06,
+      "variant_id": "volrisk_125"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "stub",
+      "entry_trigger_params": {
+        "near_pct": 0.015
+      },
+      "family": "risk_stack",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Looser resistance filter: allow entries closer to 52-week highs.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.01,
+      "scratch": {
+        "max_loss_after_mfe_pct": 0.02,
+        "min_mfe_pct": 0.02,
+        "no_progress_days": 3,
+        "scratch_band_pct": 0.005
+      },
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "resistance_loose_010"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.5,
+      "entry_trigger": "stub",
+      "entry_trigger_params": {
+        "near_pct": 0.015
+      },
+      "family": "risk_stack",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Stricter breadth gate: fewer entries in weaker market regimes.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": {
+        "max_loss_after_mfe_pct": 0.02,
+        "min_mfe_pct": 0.02,
+        "no_progress_days": 3,
+        "scratch_band_pct": 0.005
+      },
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "breadth_050_strict"
+    }
+  ]
+}

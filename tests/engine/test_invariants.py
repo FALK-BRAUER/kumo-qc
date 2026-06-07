@@ -92,6 +92,34 @@ def test_dependency_satisfied_passes() -> None:
     StrategyEngine(config=cfg, qc=FakeQC())  # filter<universe<signal<sizing, must not raise
 
 
+def test_downstream_contract_dependency_satisfied_passes() -> None:
+    cfg = StrategyConfig(name="t", version="1.0.0", is_fixture=True, phases={
+        "filter": slot("filter"), "universe": slot("universe"), "signal": slot("signal"),
+        "sizing": slot("sizing"), "trail": slot("trail", provides=("position_path",)),
+        "exit_hard": slot("exit_hard", requires=("position_path",)),
+    })
+    StrategyEngine(config=cfg, qc=FakeQC())  # trail provides position_path before exit_hard
+
+
+def test_downstream_contract_dependency_missing_raises() -> None:
+    cfg = StrategyConfig(name="t", version="1.0.0", is_fixture=True, phases={
+        "filter": slot("filter"), "universe": slot("universe"), "signal": slot("signal"),
+        "sizing": slot("sizing"), "exit_hard": slot("exit_hard", requires=("position_path",)),
+    })
+    with pytest.raises(DependencyError, match="position_path"):
+        StrategyEngine(config=cfg, qc=FakeQC())
+
+
+def test_downstream_contract_dependency_misordered_raises() -> None:
+    cfg = StrategyConfig(name="t", version="1.0.0", is_fixture=True, phases={
+        "filter": slot("filter"), "universe": slot("universe"), "signal": slot("signal"),
+        "sizing": slot("sizing"), "exit_hard": slot("exit_hard", provides=("position_path",)),
+        "trail": slot("trail", requires=("position_path",)),
+    })
+    with pytest.raises(DependencyError, match="not earlier"):
+        StrategyEngine(config=cfg, qc=FakeQC())
+
+
 # ── #272 fail-loud phase-stack gate: entry + exit REQUIRED for a champion (no implicit MOO) ──
 
 def _champion_phases(**extra: object) -> dict[str, object]:
