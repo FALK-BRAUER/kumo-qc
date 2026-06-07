@@ -1,3 +1,36 @@
+# FOR_FALK - #412/#414 exit diagnostics + combo sweep, 2026-06-08
+
+Implemented #412 per-symbol exit diagnostics and created the second 30-pack combo sweep runner.
+
+What changed:
+- `ProactiveStrengthExit` and `ScratchFlatExit` now emit one `EXIT_EVENT|date|symbol|...` row per
+  symbol exit through `qc.log`, including module, reason, days held, qty, entry/exit price, pnl,
+  return, MFE, MAE, peak return, and giveback from peak.
+- `ProactiveStrengthExit.Params` now has `min_hold_days=0` so combo scenarios can test the first
+  sweep's hold-time signal without changing existing defaults.
+- `scripts/run_408_george_range_30.py --rebuild-artifacts` now parses the new `EXIT_EVENT` rows into
+  per-run `exit_events.csv` and aggregate `exit_events_all.csv`, while still tolerating legacy strings.
+- `scripts/run_414_george_combo_30.py` defines exactly 30 recombination variants and reuses the #408
+  local LEAN harness/exporter. Default command: `python3 scripts/run_414_george_combo_30.py --workers 6`.
+- Worktree-safe cache command: `python3 scripts/run_414_george_combo_30.py --data-folder /Users/falk/projects/kumo-qc/data --full-warmup --workers 6`.
+  The harness injects `--lean-config <generated lean.json>` when `--data-folder` is used, so LEAN
+  mounts the populated main raw data cache instead of the skeletal worktree `data/` folder.
+
+Second 30-pack design:
+- Centered on `giveback_tight_no_bull` plus `buy_stop_005` / `buy_stop_010`.
+- Tests 7d/14d proactive min-hold, 3-4.5% flat sizing, target-8 and min-peak-3 variants, tight scratch
+  overlays, capped vol-risk, 0.75 ATR cushion, and stricter breadth/resistance cells.
+- This creates the true recombination matrix the first 30-pack did not yet cover.
+
+Verification:
+- Focused pytest: 15/15 passing.
+- Real Jan 2025 LEAN smoke through the combo harness:
+  `combo_gb_buy005`, full warmup, main data cache, `rc=0`, `Completed`, 62 orders,
+  net `3.495%`, DD `1.800%`, Sharpe `5.823`.
+- Rebuilt `exit_events_all.csv` contains 20 per-symbol exit rows: 16 `target`, 4 `giveback`, with
+  complete entry/exit, MFE, MAE, peak-return, and giveback fields. The parser rejoins LEAN-wrapped
+  log lines before writing CSV.
+
 # FOR_FALK - #398/#408 George-range 30-pack local BT sweep, 2026-06-08
 
 Built and ran the 30-variant FY2025 local LEAN sweep for the George-style intraday architecture

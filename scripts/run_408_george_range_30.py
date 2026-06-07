@@ -7,6 +7,7 @@ the direct local BT path, and preserve order/trade artifacts for later analysis.
 Usage:
   python3 scripts/run_408_george_range_30.py --workers 6
   python3 scripts/run_408_george_range_30.py --window jan --limit 1 --workers 1 --sweep-id george_range_30_smoke
+  python3 scripts/run_408_george_range_30.py --data-folder /Users/falk/projects/kumo-qc/data --full-warmup --workers 6
   WARMUP_GATE_CAPACITY=2 python3 scripts/run_408_george_range_30.py --workers 6
   python3 scripts/run_408_george_range_30.py --symlink-data --workers 6
   python3 scripts/run_408_george_range_30.py --rebuild-artifacts
@@ -67,6 +68,7 @@ class VariantSpec:
     min_peak_pct: float = 0.05
     giveback_from_peak_pct: float = 0.025
     require_still_bullish: bool = True
+    proactive_min_hold_days: int = 0
     scratch: dict[str, Any] | None = None
     entry_trigger: str = "stub"
     entry_trigger_params: dict[str, Any] = field(default_factory=lambda: {"near_pct": 0.015})
@@ -407,11 +409,14 @@ class _LeanCliWarmupGate(WarmupGate):
                 self._sem.release()
 
 
-def _make_logged_gated_run_lean(gate: WarmupGate) -> Any:
+def _make_logged_gated_run_lean(gate: WarmupGate, *, use_project_lean_config: bool = False) -> Any:
     def run_lean(project_dir: Path) -> int:
         env = dict(os.environ)
         env.setdefault("DOCKER_HOST", "unix:///Users/falk/.docker/run/docker.sock")
-        argv = ["lean", "backtest", "--no-update", str(project_dir)]
+        argv = ["lean", "backtest", "--no-update"]
+        if use_project_lean_config:
+            argv.extend(["--lean-config", str(project_dir / "lean.json")])
+        argv.append(str(project_dir))
         return gate.run(
             argv,
             env,
@@ -427,6 +432,7 @@ def _strategy_config(spec: VariantSpec) -> StrategyConfig:
         min_peak_pct=spec.min_peak_pct,
         giveback_from_peak_pct=spec.giveback_from_peak_pct,
         require_still_bullish=spec.require_still_bullish,
+        min_hold_days=spec.proactive_min_hold_days,
     )
     exits: list[Slot[object]] = []
     if spec.scratch is not None:
@@ -510,6 +516,7 @@ def _prepare(
     warmup_days: int,
     full_warmup: bool,
     symlink_data: bool,
+    data_folder: Path | None,
 ) -> PreparedRun:
     sweep_root = _ROOT / "sweeps" / "runs" / sweep_id
     _ensure_readme(
@@ -559,11 +566,13 @@ def _prepare(
     marker = f"# GEORGE_RANGE_30_VARIANT {spec.variant_id} {res.config_hash}\n"
     main_py.write_text(marker + source.replace(anchor, inject, 1), encoding="utf-8")
 
-    (run / "lean.json").write_text(
-        json.dumps({"description": f"#408 George-range 30 FY2025 {spec.variant_id}", "parameters": {}})
-        + "\n",
-        encoding="utf-8",
-    )
+    lean_config: dict[str, Any] = {
+        "description": f"#408 George-range 30 FY2025 {spec.variant_id}",
+        "parameters": {},
+    }
+    if data_folder is not None:
+        lean_config["data-folder"] = str(data_folder.expanduser().resolve())
+    (run / "lean.json").write_text(json.dumps(lean_config) + "\n", encoding="utf-8")
     data = run / "data"
     if symlink_data:
         if not data.exists():
@@ -699,17 +708,55 @@ def _orders_to_rows(
 
 
 EXIT_RE = re.compile(
-    r"(?P<event>SCRATCH_FLAT_EXIT|PROACTIVE_STRENGTH_EXIT)\|"
+    r"(?:(?P<prefix>EXIT_EVENT)|(?P<legacy>SCRATCH_FLAT_EXIT|PROACTIVE_STRENGTH_EXIT))\|"
     r"(?P<date>\d{4}-\d{2}-\d{2})\|(?P<symbol>[A-Za-z0-9.\-]+)\|(?P<rest>[^\n\r]*)"
 )
+EXIT_EVENT_DONE_RE = re.compile(r"(?:^|\|)giveback_from_peak_pct=-?\d+(?:\.\d+)?$")
+LEAN_LOG_PREFIX_RE = re.compile(r"^\d{8}\s+\d{2}:\d{2}:\d{2}\.\d+\s+\w+::")
+
+
+def _exit_record_complete(record: str) -> bool:
+    if record.startswith("EXIT_EVENT|"):
+        return EXIT_EVENT_DONE_RE.search(record) is not None
+    return True
+
+
+def _exit_event_records(text: str) -> list[str]:
+    records: list[str] = []
+    pending = ""
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        match = EXIT_RE.search(line)
+        if match is not None:
+            if pending:
+                records.append(pending)
+            pending = line[match.start():]
+            if _exit_record_complete(pending):
+                records.append(pending)
+                pending = ""
+            continue
+        if pending:
+            if LEAN_LOG_PREFIX_RE.match(line):
+                records.append(pending)
+                pending = ""
+                continue
+            pending += line
+            if _exit_record_complete(pending):
+                records.append(pending)
+                pending = ""
+    if pending:
+        records.append(pending)
+    return records
 
 
 def _parse_exit_events(stdout_path: Path, prepared: PreparedRun) -> list[dict[str, Any]]:
     if not stdout_path.exists():
         return []
     rows: list[dict[str, Any]] = []
-    for line in stdout_path.read_text(encoding="utf-8", errors="replace").splitlines():
-        match = EXIT_RE.search(line)
+    for record in _exit_event_records(stdout_path.read_text(encoding="utf-8", errors="replace")):
+        match = EXIT_RE.search(record)
         if not match:
             continue
         fields: dict[str, str] = {}
@@ -721,15 +768,23 @@ def _parse_exit_events(stdout_path: Path, prepared: PreparedRun) -> list[dict[st
             {
                 "variant_id": prepared.spec.variant_id,
                 "config_hash": prepared.config_hash,
-                "event": match.group("event"),
+                "event": fields.get("event") or match.group("legacy") or "EXIT_EVENT",
                 "date": match.group("date"),
                 "symbol": match.group("symbol"),
+                "module": fields.get("module"),
                 "reason": fields.get("reason"),
-                "days": fields.get("days"),
+                "order_id": fields.get("order_id"),
+                "days_held": fields.get("days_held") or fields.get("days"),
+                "qty": fields.get("qty"),
+                "entry_price": fields.get("entry_price"),
+                "exit_price": fields.get("exit_price"),
                 "pnl": fields.get("pnl"),
-                "peak": fields.get("peak"),
-                "giveback": fields.get("giveback"),
-                "raw": match.group(0),
+                "return_pct": fields.get("return_pct"),
+                "mfe_pct": fields.get("mfe_pct"),
+                "mae_pct": fields.get("mae_pct"),
+                "peak_return_pct": fields.get("peak_return_pct") or fields.get("peak"),
+                "giveback_from_peak_pct": fields.get("giveback_from_peak_pct") or fields.get("giveback"),
+                "raw": record,
             }
         )
     return rows
@@ -934,11 +989,19 @@ EXIT_EVENT_FIELDS = [
     "event",
     "date",
     "symbol",
+    "module",
     "reason",
-    "days",
+    "order_id",
+    "days_held",
+    "qty",
+    "entry_price",
+    "exit_price",
     "pnl",
-    "peak",
-    "giveback",
+    "return_pct",
+    "mfe_pct",
+    "mae_pct",
+    "peak_return_pct",
+    "giveback_from_peak_pct",
     "raw",
 ]
 
@@ -1213,6 +1276,11 @@ def _args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--data-folder",
+        type=Path,
+        help="Explicit LEAN data-folder for generated projects; useful when running from a worktree.",
+    )
+    parser.add_argument(
         "--rebuild-artifacts",
         action="store_true",
         help="Refresh per-run and aggregate CSV artifacts from existing completed local BT JSONs.",
@@ -1240,6 +1308,8 @@ def main() -> None:
     variants = _select_variants(args.variants, args.limit)
     if not variants:
         raise SystemExit("no variants selected")
+    if args.symlink_data and args.data_folder is not None:
+        raise SystemExit("--symlink-data and --data-folder are mutually exclusive")
     if not args.rebuild_artifacts and not 1 <= args.workers <= len(variants):
         raise SystemExit(f"--workers must be between 1 and {len(variants)}, got {args.workers}")
 
@@ -1266,6 +1336,7 @@ def main() -> None:
             warmup_days=args.warmup_days,
             full_warmup=args.full_warmup,
             symlink_data=args.symlink_data,
+            data_folder=args.data_folder,
         )
         for spec in variants
     ]
@@ -1282,7 +1353,10 @@ def main() -> None:
         return
 
     gate = _LeanCliWarmupGate()
-    run_lean = _make_logged_gated_run_lean(gate)
+    run_lean = _make_logged_gated_run_lean(
+        gate,
+        use_project_lean_config=bool(args.symlink_data or args.data_folder is not None),
+    )
     outcomes: list[RunOutcome] = []
     with ThreadPoolExecutor(max_workers=args.workers) as executor:
         futures = [executor.submit(_run_one, item, run_lean) for item in prepared]

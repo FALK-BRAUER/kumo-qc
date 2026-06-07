@@ -37,6 +37,10 @@ class FakeQC:
                 "days_held": 5,
             }
         }
+        self.logged = []
+
+    def log(self, msg):
+        self.logged.append(msg)
 
 
 def _sym(name="AAPL"):
@@ -59,6 +63,12 @@ def test_no_progress_exit_after_wait_window():
     assert result.facts["no_progress_count"] == 1
     assert len(ctx.bar_state.exit_intents) == 1
     assert ctx.bar_state.exit_intents[0].ticker == "AAPL"
+    assert qc.logged == [
+        "EXIT_EVENT|2025-01-06|AAPL|event=SCRATCH_FLAT_EXIT|module=exit.scratch_flat_exit"
+        "|reason=no_progress|days_held=5|qty=100.000000|entry_price=100.000000|exit_price=100.200000"
+        "|pnl=20.000000|return_pct=0.002000|mfe_pct=0.002000|mae_pct=0.000000"
+        "|peak_return_pct=0.002000|giveback_from_peak_pct=0.000000"
+    ]
 
 
 def test_requires_position_path_contract():
