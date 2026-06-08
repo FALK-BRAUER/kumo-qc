@@ -31,6 +31,24 @@ from sweeps.types import SweepConfig, Window
 _REPO = Path(__file__).resolve().parents[2]
 
 
+def _link_repo_storage(run_dir: Path) -> None:
+    """Expose repo-level LocalObjectStore keys to generated local LEAN projects."""
+    target = _REPO / "storage"
+    target.mkdir(parents=True, exist_ok=True)
+    storage = run_dir / "storage"
+    if storage.is_symlink():
+        if storage.resolve() == target.resolve():
+            return
+        storage.unlink()
+    elif storage.exists():
+        if any(storage.iterdir()):
+            raise RuntimeError(
+                f"{storage} exists and is not empty; refuse to replace object-store contents"
+            )
+        storage.rmdir()
+    storage.symlink_to(target)
+
+
 def _window_class_attrs(window: Window) -> str:
     """The cloud-PARITY window injection: BCTAlgorithm START_DATE/END_DATE class attrs from the
     Window's ISO start/end (same Window→dates mapping as qc_v2_cloud.STEP_A_WINDOW)."""
@@ -70,19 +88,25 @@ def local_dist_builder(config: SweepConfig, window: Window, run_dir: Path) -> st
         # archive can never be confused with flag-OFF. (Env SWEEP_CLASS_ATTRS stays for ad-hoc attrs.)
         if getattr(config, "continuous_weekly", False):
             extra.setdefault("CONTINUOUS_WEEKLY", True)
-        # #368: warmup_days drives the WARMUP_DAYS class-attr (config IDENTITY → in config_hash). When
-        # TRIMMED (<560), the weekly-cache is REQUIRED (else the 78wk weekly starves → 0 trades) — arm
-        # WARMUP_WEEKLY_CACHE_FP to the data fingerprint so the weekly comes from cache, with the
-        # #368 fail-loud guard catching any coverage gap. Default 560 → no injection (byte-untouched).
+        # #368/#358: continuous-weekly local sweeps should use the weekly cache whenever the data
+        # fingerprint is known. The cache is REQUIRED for trimmed warmup (<560), and still desired
+        # for default/full-length warmup so mass sweeps do not silently re-derive the weekly path.
+        # WARMUP_DAYS remains part of config identity only when non-default.
         _wd = getattr(config, "warmup_days", 560)
+        if getattr(config, "continuous_weekly", False):
+            manifest = _REPO / "data" / "MANIFEST.json"
+            fp = ""
+            if manifest.exists():
+                fp = str(_json.loads(manifest.read_text()).get("fingerprint") or "")
+            if fp:
+                extra.setdefault("WARMUP_WEEKLY_CACHE_FP", fp)
+            elif _wd < 560:
+                raise RuntimeError(
+                    "trimmed continuous-weekly sweep requires data/MANIFEST.json fingerprint "
+                    "to arm WARMUP_WEEKLY_CACHE_FP"
+                )
         if _wd != 560:
             extra.setdefault("WARMUP_DAYS", _wd)
-            if _wd < 560:  # trimmed → the weekly-cache is mandatory
-                manifest = _REPO / "data" / "MANIFEST.json"
-                if manifest.exists():
-                    fp = _json.loads(manifest.read_text()).get("fingerprint")
-                    if fp:
-                        extra.setdefault("WARMUP_WEEKLY_CACHE_FP", fp)
         attr_lines = "".join(f"    {k} = {v!r}\n" for k, v in extra.items())
         s = s.replace(
             "    STRATEGY_CONFIG = STRATEGY_CONFIG\n", _window_class_attrs(window) + attr_lines, 1
@@ -90,6 +114,7 @@ def local_dist_builder(config: SweepConfig, window: Window, run_dir: Path) -> st
     if marker not in s:
         s = f"# {marker}\n" + s
     main.write_text(s)
+    _link_repo_storage(run_dir)
     (run_dir / "lean.json").write_text('{ "description": "sweep cell", "parameters": {} }\n')
     return marker
 
