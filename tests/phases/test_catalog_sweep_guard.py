@@ -17,13 +17,17 @@ import pytest
 from engine.base import PhaseInterface
 from phases.entry_selection.library import ENTRY_SELECTION_PHASES
 from phases.entry_timing.library import ENTRY_TIMING_PHASES
+from phases.ranking.library import RANKING_PHASES
+from phases.rebalance.library import REBALANCE_PHASES
 from phases.shared.param_space import ComplexityDecl, ParamSpace
 from phases.signal.library import SIGNAL_PHASES
 from phases.sizing.library import SIZING_PHASES
 
 # All ADR D3 catalogs — extend when new kinds graduate.
 CATALOGS: list[tuple[str, tuple[type[Any], ...]]] = [
+    ("rebalance", REBALANCE_PHASES),
     ("signal", SIGNAL_PHASES),
+    ("ranking", RANKING_PHASES),
     ("sizing", SIZING_PHASES),
     ("entry_selection", ENTRY_SELECTION_PHASES),
     ("entry_timing", ENTRY_TIMING_PHASES),

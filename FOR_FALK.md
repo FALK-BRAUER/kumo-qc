@@ -1,3 +1,14 @@
+# George Context Baseline
+
+This branch adds the first George-context architecture slice without changing existing champion behavior.
+It introduces a daily `rebalance` phase for industry warm-up context and a `ranking` phase that reorders current candidates using industry heat, ticker attention, and lightweight watchlist memory.
+
+What is intentionally not here yet: selection-gate watchlist carry, profile/attention file loaders, runtime config/codegen knobs, and the FY2025 6-pack/30-pack backtest sweep. Those are tracked in GitHub issue #416 and the Codex plan.
+
+Verified:
+- `pytest -q tests/phases/test_george_context_phases.py tests/phases/test_catalog_sweep_guard.py tests/strategies/test_champion_george_context.py`
+- `PYTHONPATH=build:src /Users/falk/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3` build smoke for `strategies.champion_george_context`
+
 # FOR_FALK - #412/#414 exit diagnostics + combo sweep, 2026-06-08
 
 Implemented #412 per-symbol exit diagnostics and created the second 30-pack combo sweep runner.
