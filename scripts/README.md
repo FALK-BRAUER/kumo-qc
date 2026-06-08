@@ -21,8 +21,17 @@ macOS keychain at runtime.
   30-variant recombination sweep around the best exit, buy-stop, min-hold, and sizing cells.
   From worktrees, pass `--data-folder /Users/falk/projects/kumo-qc/data` so LEAN mounts the
   populated raw cache instead of the skeletal branch-local `data/` folder.
+- **George context proof runner:** `run_416_george_context_sweep.py` runs the named #416
+  George-context six-pack and 30-pack variants from `sweeps/grids/george_context.py` using the
+  `champion_george_context` base strategy and local weekly-cache path. It writes the resolved
+  LEAN market-data `data-folder` into every generated project and copies George CSV inputs into
+  the generated `/LeanCLI/data/...` project tree; from unusual worktrees, pass `--data-folder`.
+  Generated cells compact phase logs and suppress intraday heartbeat logs so FY runs finish with
+  parseable LEAN statistics instead of hitting the local log ceiling.
 - **Sweep analysis:** `analyze_408_george_range_30.py` regenerates confidence tables, indicator
-  ranges, and Markdown analysis from the George-range aggregate CSVs.
+  ranges, and Markdown analysis from the George-range aggregate CSVs. `analyze_416_george_context_trades.py`
+  reads completed #416 LEAN result JSONs and writes per-variant, per-symbol, and baseline-delta
+  trade diagnostics for the George-context 30-pack.
 - **Deploy / live keepers** (`kumo deploy`): `qc_v2_cloud.py`, `gate.py`, `deploy.py`.
 - **Held for cutover:** `qc_pe_cloud.py` (KEEP till #216), `build_ticker_sector_map.py`.
 

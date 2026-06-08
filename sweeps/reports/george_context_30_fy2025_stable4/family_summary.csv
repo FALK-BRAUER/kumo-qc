@@ -1,0 +1,6 @@
+family,n,best_variant,best_ret_pct,best_dd_pct,avg_ret_pct,worst_variant,worst_ret_pct
+entry_confirmation,6,entry_gapvol_base,27.813,20.2,19.010,entry_gapvol_gap05,0.018
+exit_management,6,exit_kijun_phase3_base,27.813,20.2,27.813,exit_kijun_phase3_base,27.813
+george_attention,6,attention_ticker_heavy,27.197,20.2,25.802,attention_floor_05,22.241
+industry_warmup,6,industry_top3_focus,27.695,19.4,27.470,industry_attention_boost,26.343
+watchlist_carry,6,carry_3_ttl5,27.695,19.4,27.695,carry_3_ttl5,27.695
