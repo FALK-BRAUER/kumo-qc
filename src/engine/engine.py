@@ -24,7 +24,7 @@ from engine.base import (
     DependencyError,
     PhaseInterface,
 )
-from engine.config import Slot, StrategyConfig
+from engine.config import Slot, StrategyConfig, effective_runtime, runtime_overrides
 from engine.context import PhaseContext
 from engine.logger import ComponentLogger
 from engine.symbol_key import canonical_symbol_key
@@ -155,6 +155,11 @@ def _params_canonical(params: Any) -> str:
 
 def _config_hash(config: StrategyConfig) -> str:
     parts: list[str] = [config.name, config.version]
+    overrides = runtime_overrides(effective_runtime(config))
+    if overrides.pop("continuous_weekly", False):
+        parts.append("continuous_weekly:1")
+    for key in sorted(overrides):
+        parts.append(f"runtime.{key}:{overrides[key]!r}")
     for kind in sorted(config.phases):
         for slot in _slots(config.phases[kind]):
             parts.append(f"{kind}:{slot.impl.__name__}:{slot.enabled}:{_params_canonical(slot.params)}")

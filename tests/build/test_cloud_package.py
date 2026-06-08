@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 import cloud_package as cp
+from engine.config import RuntimeConfig, StrategyConfig
 
 SAMPLE = "strategies._build_sample"
 CHAMPION = "strategies.champion_asis"
@@ -73,6 +74,7 @@ def test_metadata_emitted(built: tuple[cp.BuildResult, Path]) -> None:
     # metadata fingerprint == build result (consistency), not a hardcoded literal
     assert f"DATA_FINGERPRINT = {result.data_fingerprint!r}" in meta
     assert "CONFIG_HASH" in meta and "GIT_COMMIT" in meta
+    assert "RUNTIME_OVERRIDES = {}" in meta
 
 
 def test_flat_dist_importable(built: tuple[cp.BuildResult, Path]) -> None:
@@ -136,13 +138,88 @@ def test_non_fixture_omits_is_fixture_line(tmp_path: Path) -> None:
     assert "is_fixture" not in main_txt, "is_fixture line emitted for a non-fixture champion"
 
 
+def test_default_runtime_config_omits_runtime_literal(tmp_path: Path) -> None:
+    dist = tmp_path / "dist"
+    cp.build("strategies.champion_entry", dist_dir=dist)
+    main_txt = (dist / "main.py").read_text()
+    assert "runtime=RuntimeConfig" not in main_txt
+    assert "CONTINUOUS_WEEKLY = True" not in main_txt
+    manifest = json.loads((dist / "_manifest.json").read_text())
+    assert manifest["runtime_overrides"] == {}
+
+
+def test_runtime_config_emits_class_attrs_and_provenance(tmp_path: Path) -> None:
+    base = cp._load_config("strategies.champion_george_context")
+    cfg = StrategyConfig(
+        name="runtime-probe",
+        version="1.0.0",
+        phases=base.phases,
+        runtime=RuntimeConfig(
+            warmup_days=320,
+            watchlist_carry_max=6,
+            security_profile_source="profiles.csv",
+        ),
+    )
+
+    dist = tmp_path / "dist"
+    result = cp.build_from_config(cfg, deployable=True, dist_dir=dist)
+    main_txt = (dist / "main.py").read_text()
+    assert "runtime=RuntimeConfig(" in main_txt
+    assert "warmup_days=320" in main_txt
+    assert "watchlist_carry_max=6" in main_txt
+    assert "security_profile_source='profiles.csv'" in main_txt
+    assert "WARMUP_DAYS = 320" in main_txt
+    assert "WATCHLIST_CARRY_MAX = 6" in main_txt
+    assert "SECURITY_PROFILE_SOURCE = 'profiles.csv'" in main_txt
+
+    out = subprocess.run(
+        [sys.executable, "-c",
+         "import main; "
+         "print(main.STRATEGY_CONFIG.runtime.warmup_days, "
+         "main.BCTAlgorithm.WATCHLIST_CARRY_MAX, "
+         "main.BCTAlgorithm.SECURITY_PROFILE_SOURCE)"],
+        cwd=str(dist), capture_output=True, text=True,
+    )
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.strip() == "320 6 profiles.csv"
+
+    manifest = json.loads((dist / "_manifest.json").read_text())
+    assert manifest["config_hash"] == result.config_hash
+    assert manifest["runtime_overrides"] == {
+        "security_profile_source": "profiles.csv",
+        "warmup_days": 320,
+        "watchlist_carry_max": 6,
+    }
+    meta = (dist / "_metadata.py").read_text()
+    assert "'watchlist_carry_max': 6" in meta
+
+
+def test_legacy_continuous_weekly_shim_still_roundtrips(tmp_path: Path) -> None:
+    dist = tmp_path / "dist"
+    result = cp.build("strategies.champion_intraday_gapvol", dist_dir=dist)
+    main_txt = (dist / "main.py").read_text()
+    assert "continuous_weekly=True" in main_txt
+    assert "CONTINUOUS_WEEKLY = True" in main_txt
+    manifest = json.loads((dist / "_manifest.json").read_text())
+    assert manifest["runtime_overrides"] == {"continuous_weekly": True}
+
+    out = subprocess.run(
+        [sys.executable, "-c",
+         "import main; import engine; "
+         "print(main.STRATEGY_CONFIG.continuous_weekly, "
+         "main.BCTAlgorithm.CONTINUOUS_WEEKLY, "
+         "engine._config_hash(main.STRATEGY_CONFIG))"],
+        cwd=str(dist), capture_output=True, text=True,
+    )
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.strip() == f"True True {result.config_hash}"
+
+
 def test_codegen_field_completeness_guard(tmp_path: Path) -> None:
     # #272: the codegen FAILS LOUD if StrategyConfig gains a field _emit_main doesn't handle
     # (the bug class that dropped is_fixture). Simulate a config carrying an unknown field and
     # assert the build raises rather than silently emitting an incomplete dist config.
     import dataclasses
-    from engine.config import StrategyConfig
-
     @dataclasses.dataclass(slots=True)
     class _ExtendedConfig(StrategyConfig):
         new_field: str = "x"  # a field the emitter doesn't know about
