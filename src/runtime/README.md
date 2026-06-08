@@ -11,3 +11,6 @@ bundled), phase implementations (`src/phases/`), or the engine core (`src/engine
 
 Bundling rule (#358): runtime-READ code lives here (dist-bundled); offline-WRITE/build code lives in
 `scripts/`/`sweeps/`; a shared key formula lives here so write==read from one source.
+
+Runtime class attrs should be declared on `BctEngineAlgorithm` and surfaced through
+`engine.config.RuntimeConfig`/`build.cloud_package`; do not add hidden per-strategy runtime globals.

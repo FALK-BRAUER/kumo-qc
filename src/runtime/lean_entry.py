@@ -380,6 +380,15 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
     # find the real truncation/reject point, set this to <90% of it + a CI assert). #archive-followup.
     ENTRY_TAG_MAX: int = 200
 
+    # George-context runtime hooks (#416 PR2 foundation). Default OFF/None and deliberately inert
+    # in this PR: the selection-gate carry behavior lands in the next PR after these knobs are
+    # typed, hashable, and emitted by the build.
+    WATCHLIST_CARRY_MAX: int = 0
+    WATCHLIST_CARRY_MIN_PRICE: float = 10.0
+    WATCHLIST_CARRY_MIN_AVG_DOLLAR_VOLUME: float = 100_000_000.0
+    SECURITY_PROFILE_SOURCE: str | None = None
+    GEORGE_ATTENTION_SOURCE: str | None = None
+
     def initialize(self) -> None:
         self.set_start_date(*self.START_DATE)
         self.set_end_date(*self.END_DATE)

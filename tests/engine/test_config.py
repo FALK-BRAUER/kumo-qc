@@ -14,7 +14,7 @@ from dataclasses import dataclass
 import pytest
 
 from engine.base import BasePhase
-from engine.config import Slot, StrategyConfig
+from engine.config import RuntimeConfig, Slot, StrategyConfig
 from engine.engine import _config_hash, _kind_enabled, _slots
 
 
@@ -209,3 +209,33 @@ def test_config_hash_changes_with_name() -> None:
     a = StrategyConfig(name="alpha", version="1")
     b = StrategyConfig(name="beta", version="1")
     assert _config_hash(a) != _config_hash(b)
+
+
+def test_config_hash_ignores_default_runtime_config() -> None:
+    a = StrategyConfig(name="t", version="1", phases={"filter": _slot(_Phase)})
+    b = StrategyConfig(name="t", version="1", phases={"filter": _slot(_Phase)}, runtime=RuntimeConfig())
+    assert _config_hash(a) == _config_hash(b)
+
+
+def test_config_hash_changes_with_runtime_override() -> None:
+    a = StrategyConfig(name="t", version="1", phases={"filter": _slot(_Phase)})
+    b = StrategyConfig(
+        name="t",
+        version="1",
+        phases={"filter": _slot(_Phase)},
+        runtime=RuntimeConfig(watchlist_carry_max=3),
+    )
+    assert _config_hash(a) != _config_hash(b)
+
+
+def test_continuous_weekly_shim_matches_runtime_identity() -> None:
+    legacy = StrategyConfig(
+        name="t", version="1", phases={"filter": _slot(_Phase)}, continuous_weekly=True
+    )
+    runtime = StrategyConfig(
+        name="t",
+        version="1",
+        phases={"filter": _slot(_Phase)},
+        runtime=RuntimeConfig(continuous_weekly=True),
+    )
+    assert _config_hash(legacy) == _config_hash(runtime)

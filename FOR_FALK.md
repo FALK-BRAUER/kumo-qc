@@ -1,3 +1,11 @@
+# George RuntimeConfig Foundation
+
+This branch adds the typed runtime contract needed before selection-gate watchlist carry.
+`RuntimeConfig` now owns LEAN runtime knobs, build codegen emits non-default values as `BCTAlgorithm` class attributes, and manifest/metadata record runtime overrides for provenance.
+
+Existing configs remain compatible: default runtime settings do not move legacy hashes, and the old top-level `continuous_weekly=True` flag still round-trips as the same identity dimension.
+This PR intentionally does not implement watchlist carry behavior yet; it only makes the runtime knobs typed, hashable, and deployable.
+
 # George Context Baseline
 
 This branch adds the first George-context architecture slice without changing existing champion behavior.
