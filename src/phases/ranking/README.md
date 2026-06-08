@@ -1,3 +1,5 @@
-Ranking phases order already-qualified entry candidates.
-Put deterministic candidate ordering logic here, using data emitted by universe and signal phases.
-Do not qualify new names, size orders, or submit broker orders in this directory.
+# ranking phases
+
+Ranking phases reorder or filter already-qualified ticker candidates before entry confirmation.
+Use this directory for candidate-priority logic that consumes context from `rebalance`, `signal`, and prior watchlist state.
+Do not place sizing, broker order mechanics, or exit logic here.

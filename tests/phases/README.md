@@ -1,3 +1,5 @@
-Phase tests live alongside the production phase taxonomy.
-Put focused unit tests for phase contracts and edge cases here.
-Do not put end-to-end LEAN runs or generated sweep outputs in this directory.
+# phase tests
+
+Unit tests for phase contracts, catalogs, and pure phase behavior.
+Use this directory for fast tests that do not require LEAN or downloaded market data.
+Do not put long-running backtests or cloud integration artifacts here.
