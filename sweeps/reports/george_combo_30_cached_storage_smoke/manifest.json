@@ -1,0 +1,37 @@
+{
+  "ok_count": 1,
+  "reports": {
+    "exit_events_all_csv": "/Users/falk/projects/kumo-qc-412-exit-diagnostics/sweeps/reports/george_combo_30_cached_storage_smoke/exit_events_all.csv",
+    "orders_all_csv": "/Users/falk/projects/kumo-qc-412-exit-diagnostics/sweeps/reports/george_combo_30_cached_storage_smoke/orders_all.csv",
+    "summary_csv": "/Users/falk/projects/kumo-qc-412-exit-diagnostics/sweeps/reports/george_combo_30_cached_storage_smoke/summary.csv",
+    "trades_all_csv": "/Users/falk/projects/kumo-qc-412-exit-diagnostics/sweeps/reports/george_combo_30_cached_storage_smoke/trades_all.csv"
+  },
+  "sweep_id": "george_combo_30_cached_storage_smoke",
+  "variant_count": 1,
+  "variants": [
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.005
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.015,
+      "hypothesis": "Best exit plus 0.5% buy-stop offset.",
+      "min_peak_pct": 0.04,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 0,
+      "require_still_bullish": false,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "combo_gb_buy005"
+    }
+  ]
+}
