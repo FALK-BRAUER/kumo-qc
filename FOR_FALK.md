@@ -1,3 +1,13 @@
+# George Watchlist Carry
+
+This branch adds default-off George watchlist carry at the LEAN selection gate.
+When `WATCHLIST_CARRY_MAX > 0`, `_coarse_selection` can append bounded watchlist tickers that appear in today's coarse-derived raw metrics, pass carry price/liquidity floors, and are not already normally ranked.
+
+The helper is pure (`runtime.watchlist_carry`) and deterministic; the LEAN hook publishes `_selection_sources`, `_watchlist_carry_today`, `_watchlist_carry_rejected`, and logs `WATCHLIST_CARRY|...` rows.
+Default behavior stays unchanged because `WATCHLIST_CARRY_MAX` is `0`.
+
+Verified with focused runtime/build tests plus the broader runtime/data selection subset.
+
 # George RuntimeConfig Foundation
 
 This branch adds the typed runtime contract needed before selection-gate watchlist carry.
