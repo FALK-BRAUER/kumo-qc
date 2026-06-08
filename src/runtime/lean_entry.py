@@ -66,8 +66,10 @@ from engine.engine import StrategyEngine
 from engine.symbol_key import canonical_symbol_key
 from phases.shared.oracle_helpers import score_symbol_native
 from runtime.cost_model import wire_cost_models
+from runtime.george_attention import load_george_attention_maps
 from runtime.tag_schema import encode_entry_tag
 from runtime.indicators import INDICATOR_KEYS, TBounceTracker, weekly_aggregate
+from runtime.security_profiles import load_security_profile_maps
 # #336/#338 continuous-weekly fix: WeeklyIchimokuAsOf is imported LAZILY inside
 # _continuous_weekly_scalars (the flag-ON path only) so the default flag-OFF load path adds NO new
 # import dependency — keeps the cloud bundle byte-untouched until the cloud leg is taken (deferred).
@@ -441,6 +443,14 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self._active: set[Any] = set()
         self._indicators: dict[Any, dict[str, Any]] = {}
         self._position_meta: dict[Any, Any] = {}
+        self._security_profiles: dict[str, dict[str, Any]] = {}
+        self._industry_by_ticker: dict[str, str] = {}
+        self._sector_by_ticker: dict[str, str] = {}
+        self._proxy_by_ticker: dict[str, str] = {}
+        self._george_attention_ticker: dict[str, float] = {}
+        self._george_attention_industry: dict[str, float] = {}
+        self._george_source_role_counts: dict[str, int] = {}
+        self._load_optional_george_context()
 
         # #275b INTRADAY state — SEPARATE from _indicators (which carries the strict daily
         # INDICATOR_KEYS contract). _intraday[sym] = {intraday_tenkan, vol_window, last_close,
@@ -552,6 +562,43 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             f"start={self.START_DATE}|end={self.END_DATE} "
             f"(prefilter -> floors -> rank+cap at selection; subscribe only qualifying)"
         )
+
+    def _load_optional_george_context(self) -> None:
+        if self.SECURITY_PROFILE_SOURCE:
+            try:
+                maps = load_security_profile_maps(self.SECURITY_PROFILE_SOURCE)
+            except Exception as exc:
+                self.log(
+                    f"GEORGE_PROFILE_LOAD|source={self.SECURITY_PROFILE_SOURCE}|"
+                    f"loaded=0|error={type(exc).__name__}:{exc}"
+                )
+            else:
+                self._security_profiles = maps["security_profiles"]
+                self._industry_by_ticker = maps["industry_by_ticker"]
+                self._sector_by_ticker = maps["sector_by_ticker"]
+                self._proxy_by_ticker = maps["proxy_by_ticker"]
+                self.log(
+                    f"GEORGE_PROFILE_LOAD|source={self.SECURITY_PROFILE_SOURCE}|"
+                    f"loaded={len(self._security_profiles)}|error="
+                )
+
+        if self.GEORGE_ATTENTION_SOURCE:
+            try:
+                maps = load_george_attention_maps(self.GEORGE_ATTENTION_SOURCE)
+            except Exception as exc:
+                self.log(
+                    f"GEORGE_ATTENTION_LOAD|source={self.GEORGE_ATTENTION_SOURCE}|"
+                    f"loaded=0|error={type(exc).__name__}:{exc}"
+                )
+            else:
+                self._george_attention_ticker = maps["ticker_attention"]
+                self._george_attention_industry = maps["industry_attention"]
+                self._george_source_role_counts = maps["source_role_counts"]
+                self.log(
+                    f"GEORGE_ATTENTION_LOAD|source={self.GEORGE_ATTENTION_SOURCE}|"
+                    f"ticker={len(self._george_attention_ticker)}|"
+                    f"industry={len(self._george_attention_industry)}|error="
+                )
 
     def _coarse_selection(self, coarse: Any) -> Any:
         """Once-daily LIVE SELECTION GATE (#238 / Y, Falk): coarse feed → MAINTAIN rolling DV →

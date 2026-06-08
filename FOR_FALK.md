@@ -1,3 +1,11 @@
+# George Profile And Attention Loaders
+
+This branch adds optional runtime loaders for George-context profile and attention data.
+`security_profiles.py` reads ticker -> sector/industry/subindustry/proxy/source/confidence maps; `george_attention.py` reads confidence-weighted ticker and industry attention priors while preserving source-role counts.
+
+`BctEngineAlgorithm` now initializes the phase-facing maps (`_industry_by_ticker`, `_george_attention_ticker`, `_george_attention_industry`, etc.) and fail-soft logs missing/bad optional source files.
+Default behavior is unchanged when `SECURITY_PROFILE_SOURCE` and `GEORGE_ATTENTION_SOURCE` are unset.
+
 # George Watchlist Carry
 
 This branch adds default-off George watchlist carry at the LEAN selection gate.
