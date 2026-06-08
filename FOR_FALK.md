@@ -1,3 +1,14 @@
+# George Context Sweep Protocol
+
+This branch makes the George-context architecture runnable as a proper sweep protocol.
+`SweepConfig` can now carry runtime overrides (`WATCHLIST_CARRY_MAX`, profile/attention sources, etc.) and disabled phase choices, and `build/sweep_build.py` maps those into `StrategyConfig.runtime` plus real phase slots before building a dist.
+
+The named protocol lives in `sweeps/grids/george_context.py`:
+- `six_pack()` = baseline, industry-only, attention-only, watchlist-carry-only, industry+watchlist, full George context.
+- `thirty_pack()` = five waves of six: industry warm-up, watchlist carry, George attention, entry confirmation, and exit management.
+
+All George variants default to corrected weekly (`continuous_weekly=True`) and trimmed warmup (`warmup_days=320`) so local sweeps can use the weekly cache path instead of re-deriving the whole weekly stack.
+
 # George Profile And Attention Loaders
 
 This branch adds optional runtime loaders for George-context profile and attention data.
