@@ -78,6 +78,7 @@ from runtime.universe_select import (
     rolling_dv_mean,
     update_dv_windows,
 )
+from runtime.watchlist_carry import select_watchlist_carry
 
 
 def coarse_to_dollar_volume(coarse: Iterable[Any]) -> dict[str, float]:
@@ -651,6 +652,38 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                 f"an EMPTY universe (degraded data: DV/price column corrupted, every name below "
                 f"the floor?). A non-empty feed yielding zero selection must fail loud, never a "
                 f"silent empty universe (the −0.616 empty-universe mirage) (#261-6)"
+            )
+
+        watchlist = getattr(self, "_george_watchlist", {})
+        carry, carry_rejected = select_watchlist_carry(
+            watchlist if isinstance(watchlist, dict) else {},
+            bar_metrics,
+            ranked,
+            max_names=self.WATCHLIST_CARRY_MAX,
+            min_price=self.WATCHLIST_CARRY_MIN_PRICE,
+            min_avg_dollar_volume=self.WATCHLIST_CARRY_MIN_AVG_DOLLAR_VOLUME,
+        )
+        normal_ranked = list(ranked)
+        if carry:
+            ranked = normal_ranked + [c.ticker for c in carry]
+
+        self._watchlist_carry_today = {
+            c.ticker: {
+                "score": c.score,
+                "age_days": c.age_days,
+                "price": c.price,
+                "trailing_dv": c.trailing_dv,
+                "reason": c.reason,
+            }
+            for c in carry
+        }
+        self._watchlist_carry_rejected = carry_rejected
+        self._selection_sources = {t: "ranked" for t in normal_ranked}
+        self._selection_sources.update({c.ticker: "watchlist_carry" for c in carry})
+        for c in carry:
+            self.log(
+                f"WATCHLIST_CARRY|{date_str}|{c.ticker}|reason={c.reason}|price={c.price}|"
+                f"trailing_dv={c.trailing_dv}|score={c.score}"
             )
 
         # Store the selected+ranked+capped set + the dv view (signal tiebreak) + the full

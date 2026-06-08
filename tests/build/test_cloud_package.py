@@ -238,6 +238,7 @@ def test_deployable_strategy_emits_lean_entry(tmp_path: Path) -> None:
     cp.build(CHAMPION, dist_dir=dist)
     assert (dist / "lean_entry.py").is_file()
     assert (dist / "universe_select.py").is_file()  # pulled transitively by lean_entry
+    assert (dist / "watchlist_carry.py").is_file()  # pulled transitively by lean_entry
     assert not (dist / "fingerprints.py").is_file()  # retired (#238)
     main_txt = (dist / "main.py").read_text()
     assert "class BCTAlgorithm(BctEngineAlgorithm):" in main_txt

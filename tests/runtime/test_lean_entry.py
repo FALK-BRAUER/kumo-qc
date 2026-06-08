@@ -342,7 +342,48 @@ def test_coarse_selection_maintains_rolling_windows_no_history(monkeypatch) -> N
     # both pass floors (price>=10, trailing dv>=100M) -> ranked DV-desc
     assert [s.value for s in ranked] == ["AAPL", "MSFT"]
     assert algo._ranked_today == ["aapl", "msft"]
+    assert algo._selection_sources == {"aapl": "ranked", "msft": "ranked"}
+    assert algo._watchlist_carry_today == {}
     assert any(m.startswith("ACTIVE_SET|") for m in algo.logged)
+
+
+def test_coarse_selection_watchlist_carry_disabled_by_default(monkeypatch) -> None:
+    algo = _make_selection_algo(monkeypatch)
+    algo._george_watchlist = {"WATCH": {"score": 10.0, "age_days": 0, "reason": "metals"}}
+    coarse = [
+        FakeCoarse("AAPL", 5.0e9, price=240.0),
+        FakeCoarse("WATCH", 80_000_000.0, price=40.0),
+    ]
+
+    ranked = algo._coarse_selection(coarse)
+
+    assert [s.value for s in ranked] == ["AAPL"]
+    assert algo._ranked_today == ["aapl"]
+    assert algo._watchlist_carry_today == {}
+    assert not any(m.startswith("WATCHLIST_CARRY|") for m in algo.logged)
+
+
+def test_coarse_selection_watchlist_carry_appends_eligible_names(monkeypatch) -> None:
+    algo = _make_selection_algo(monkeypatch)
+    algo.WATCHLIST_CARRY_MAX = 1
+    algo.WATCHLIST_CARRY_MIN_AVG_DOLLAR_VOLUME = 50_000_000.0
+    algo._george_watchlist = {"WATCH": {"score": 10.0, "age_days": 0, "reason": "metals"}}
+    coarse = [
+        FakeCoarse("AAPL", 5.0e9, price=240.0),
+        FakeCoarse("WATCH", 80_000_000.0, price=40.0),
+    ]
+
+    ranked = algo._coarse_selection(coarse)
+
+    assert [s.value for s in ranked] == ["AAPL", "WATCH"]
+    assert algo._ranked_today == ["aapl", "watch"]
+    assert algo._selection_sources == {"aapl": "ranked", "watch": "watchlist_carry"}
+    assert algo._watchlist_carry_today["watch"]["reason"] == "metals"
+    assert algo._watchlist_carry_rejected == {}
+    assert any(
+        m.startswith("WATCHLIST_CARRY|2025-06-02|watch|reason=metals|")
+        for m in algo.logged
+    )
 
 
 def test_coarse_selection_trailing_dv_is_rolling_mean_over_days(monkeypatch) -> None:
