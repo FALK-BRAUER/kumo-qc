@@ -1645,7 +1645,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             injected += 1
         if injected:
             log = getattr(self, "log", None)
-            if callable(log):
+            if callable(log) and getattr(self, "LOG_INTRADAY_INJECT_EVENTS", True):
                 log(f"INTRADAY_INJECT|{self.time.date()}|candidates={injected}")
 
     def _mark_entry_pending(self, sym: Any) -> None:

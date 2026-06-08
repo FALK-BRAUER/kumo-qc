@@ -87,7 +87,7 @@ def _ranking(
 
 
 def _entry(**params: object) -> PhaseChoice:
-    return _phase("entry_selection", "bct_entry_confirm", params=params)
+    return _phase("entry_selection", "bct_intraday_gap_vol_confirm", params=params)
 
 
 def _exit(impl_name: str, **params: object) -> PhaseChoice:
@@ -410,62 +410,62 @@ def thirty_pack() -> tuple[GeorgeSweepVariant, ...]:
     variants.extend(
         [
             _variant(
-                "entry_confirm_2_default",
+                "entry_gapvol_base",
                 "entry_confirmation",
-                "Canonical 2-of-4 confirmation baseline under George ranking.",
+                "Canonical intraday gap/loud-open confirmation under George ranking.",
                 _rebalance(top_n=5),
                 _ranking(industry_weight=1.0, watchlist_weight=0.5, ticker_attention_weight=0.5),
-                _entry(min_confirm=2),
+                _entry(gap_threshold=0.03, vol_mult=1.0, window_bars=6),
                 wave=4,
                 runtime_overrides=_FULL_SOURCE_RUNTIME,
             ),
             _variant(
-                "entry_confirm_3_strict",
+                "entry_gapvol_gap04",
                 "entry_confirmation",
-                "Require 3-of-4 confirmation to reduce marginal entries.",
+                "Require a stronger +4% gap before intraday confirmation.",
                 _rebalance(top_n=5),
                 _ranking(industry_weight=1.0, watchlist_weight=0.5, ticker_attention_weight=0.5),
-                _entry(min_confirm=3),
+                _entry(gap_threshold=0.04, vol_mult=1.0, window_bars=6),
                 wave=4,
                 runtime_overrides=_FULL_SOURCE_RUNTIME,
             ),
             _variant(
-                "entry_gap_strict",
+                "entry_gapvol_gap05",
                 "entry_confirmation",
-                "Treat smaller gap-ups as degraded entries.",
+                "Require the highly selective +5% gap cohort.",
                 _rebalance(top_n=5),
                 _ranking(industry_weight=1.0, watchlist_weight=0.5, ticker_attention_weight=0.5),
-                _entry(gap_up_threshold=0.005),
+                _entry(gap_threshold=0.05, vol_mult=1.0, window_bars=6),
                 wave=4,
                 runtime_overrides=_FULL_SOURCE_RUNTIME,
             ),
             _variant(
-                "entry_gap_loose",
+                "entry_gapvol_window60",
                 "entry_confirmation",
-                "Allow wider gap-ups when George context is strong.",
+                "Allow the first 60 minutes for the gap/loud-open confirmation.",
                 _rebalance(top_n=5),
                 _ranking(industry_weight=1.0, watchlist_weight=0.5, ticker_attention_weight=0.5),
-                _entry(gap_up_threshold=0.02),
+                _entry(gap_threshold=0.03, vol_mult=1.0, window_bars=12),
                 wave=4,
                 runtime_overrides=_FULL_SOURCE_RUNTIME,
             ),
             _variant(
-                "entry_tenkan_tight",
+                "entry_gapvol_vol125",
                 "entry_confirmation",
-                "Tighter pullback tolerance tests stricter chart-quality discipline.",
+                "Require 1.25x opening volume for a louder confirmation.",
                 _rebalance(top_n=5),
                 _ranking(industry_weight=1.0, watchlist_weight=0.5, ticker_attention_weight=0.5),
-                _entry(tenkan_pullback_tol=0.003),
+                _entry(gap_threshold=0.03, vol_mult=1.25, window_bars=6),
                 wave=4,
                 runtime_overrides=_FULL_SOURCE_RUNTIME,
             ),
             _variant(
-                "entry_volume_125",
+                "entry_gapvol_vol150",
                 "entry_confirmation",
-                "Require stronger volume confirmation before entry.",
+                "Require 1.5x opening volume to test stricter selectivity.",
                 _rebalance(top_n=5),
                 _ranking(industry_weight=1.0, watchlist_weight=0.5, ticker_attention_weight=0.5),
-                _entry(volume_gate_mult=1.25),
+                _entry(gap_threshold=0.03, vol_mult=1.5, window_bars=6),
                 wave=4,
                 runtime_overrides=_FULL_SOURCE_RUNTIME,
             ),

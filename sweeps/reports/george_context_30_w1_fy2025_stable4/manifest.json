@@ -1,0 +1,20 @@
+{
+  "data_fingerprint": "90f2d7e3fb80d0a4d2eb286f6a43199e1519495a3ce9d787a4d7d0dfc70c535c",
+  "generated_at": "2026-06-08T19:58:59.949270+00:00",
+  "ok_count": 6,
+  "pack": "thirty",
+  "reports": {
+    "summary_csv": "/Users/falk/projects/kumo-qc-412-exit-diagnostics/sweeps/reports/george_context_30_w1_fy2025_stable4/summary.csv",
+    "summary_md": "/Users/falk/projects/kumo-qc-412-exit-diagnostics/sweeps/reports/george_context_30_w1_fy2025_stable4/summary.md"
+  },
+  "sweep_id": "george_context_30_w1_fy2025_stable4",
+  "variant_count": 6,
+  "wave": 1,
+  "window": {
+    "end": "2025-12-31",
+    "name": "fy2025_full",
+    "runnable_locally": true,
+    "start": "2025-01-01"
+  },
+  "workers": 4
+}

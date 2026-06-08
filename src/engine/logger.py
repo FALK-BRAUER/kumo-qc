@@ -19,6 +19,7 @@ class ComponentLogger:
     def log_phase(self, kind: str, phase: Any, result: PhaseResult) -> None:
         if getattr(self._qc, "LOG_ONLY_ACTIVE_PHASES", False) and not self._is_active_result(result):
             return
+        metrics = result.metrics if getattr(self._qc, "LOG_PHASE_METRICS", True) else {}
         self._qc.Log(json.dumps({
             "evt": "PHASE",
             "kind": kind,
@@ -26,7 +27,7 @@ class ComponentLogger:
             "blocked": result.blocked,
             "reason": result.reason,
             "facts": result.facts,
-            "metrics": result.metrics,
+            "metrics": metrics,
         }, separators=(",", ":")))
         if result.blocked:
             self._qc.Log(json.dumps({
@@ -52,13 +53,13 @@ class ComponentLogger:
             "evt": "PHASE_LOADED", "kind": kind, "marker": marker,
         }, separators=(",", ":")))
 
-    @staticmethod
-    def _is_active_result(result: PhaseResult) -> bool:
+    def _is_active_result(self, result: PhaseResult) -> bool:
         if result.blocked:
             return True
-        decision = result.decision
-        if isinstance(decision, (list, tuple, set, dict)) and len(decision) > 0:
-            return True
+        if getattr(self._qc, "LOG_PHASE_DECISIONS_ACTIVE", True):
+            decision = result.decision
+            if isinstance(decision, (list, tuple, set, dict)) and len(decision) > 0:
+                return True
         active_fact_keys = {
             "exit_count",
             "target_count",
