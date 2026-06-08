@@ -87,13 +87,16 @@ class PhaseChoice:
     `kind` = the phase kind (e.g. "signal"). `impl_name` = the phase class name.
     `params` = the resolved param assignment for THIS variant (field-name -> value), a
     single point in that phase's `space()` grid. `free_params` = the swept-axis count this
-    phase contributes to the strategy DoF (from its ComplexityDecl / space()).
+    phase contributes to the strategy DoF (from its ComplexityDecl / space()). `enabled`
+    is default-true and enters identity only when false, so existing sweep hashes remain
+    byte-compatible while named protocols can explicitly disable a base slot.
     """
 
     kind: str
     impl_name: str
     params: tuple[tuple[str, object], ...]  # sorted (field, value) pairs — hashable
     free_params: int
+    enabled: bool = True
 
     def param_dict(self) -> dict[str, object]:
         return dict(self.params)
@@ -124,6 +127,11 @@ class SweepConfig:
     # legacy value → it enters the hash ONLY when != 560, so every existing all-default config hashes
     # EXACTLY as before (canonical archive/dist-pin keys never move). A 320 champion → distinct hash.
     warmup_days: int = 560
+    # Runtime overrides that do not belong to phase params (for example WATCHLIST_CARRY_MAX or
+    # George profile/attention sources). Stored as sorted-ish pairs to keep the type phase-agnostic;
+    # build/sweep_build validates keys against engine.config.RuntimeConfig before emitting a dist.
+    # Empty tuple = old behavior and old hash.
+    runtime_overrides: tuple[tuple[str, object], ...] = ()
 
     @property
     def total_free_params(self) -> int:
@@ -135,7 +143,8 @@ class SweepConfig:
         parts: list[str] = []
         for c in sorted(self.choices, key=lambda x: x.kind):
             params_repr = ",".join(f"{k}={v!r}" for k, v in c.params)
-            parts.append(f"{c.kind}:{c.impl_name}:{params_repr}")
+            enabled_repr = "" if c.enabled else ":enabled=False"
+            parts.append(f"{c.kind}:{c.impl_name}:{params_repr}{enabled_repr}")
         # non-default ONLY: append the identity dimension when the fix is ON, so the legacy
         # all-default hash is byte-identical to before (backward-compatible by construction).
         if self.continuous_weekly:
@@ -143,7 +152,12 @@ class SweepConfig:
         # #368: non-default ONLY → all-default (560) configs hash byte-identical to before.
         if self.warmup_days != 560:
             parts.append(f"warmup_days:{self.warmup_days}")
+        for key, value in sorted(self.runtime_overrides):
+            parts.append(f"runtime.{key}:{value!r}")
         return hashlib.sha256("|".join(parts).encode()).hexdigest()[:12]
+
+    def runtime_dict(self) -> dict[str, object]:
+        return dict(self.runtime_overrides)
 
 
 # --------------------------------------------------------------------------- #

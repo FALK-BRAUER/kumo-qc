@@ -93,17 +93,25 @@ Verification:
 
 ## Phase 5: Backtest Protocol
 Files:
-- `src/strategies/champion_george_context.py`
-- sweep/scenario files currently used by local BT
+- `sweeps/types.py`
+- `build/sweep_build.py`
+- `sweeps/grids/george_context.py`
+- `tests/sweeps/test_sweep_runtime_overrides.py`
+- `tests/sweeps/test_george_context_grid.py`
 - leaderboard CSV/MD paths currently used by the sweep runner
 
 Plan:
+- Extend `SweepConfig` so runtime overrides and disabled phase choices are sweep identity.
+- Build swept `rebalance`, `ranking`, and optional `trail` slots into the full `StrategyConfig`.
 - First run a 6-pack FY2025 sweep: baseline, industry-only, attention-only, watchlist-only, industry+watchlist, full George context.
-- Then run a 30-pack combination sweep over bounded parameters.
+- Then run a 30-pack combination sweep over bounded parameters in five waves of six.
 - Preserve 6 parallel workers where the runner supports it.
 - Export trade history with realized and unrealized PnL, per-symbol exit diagnostics, watchlist source, industry context, and selection source.
 
 Verification:
+- Hashes remain backward-compatible for old default sweep configs.
+- Runtime override hashes are deterministic and build into `StrategyConfig.runtime`.
+- George protocol exposes exactly 6 + 30 named variants.
 - Leaderboard appends to existing format, not a disconnected result file.
 - Each scenario has orders, realized/unrealized return, max drawdown, trade count, and config hash.
 - Trade-history review identifies scanner miss, universe miss, entry timing miss, premature exit, or sizing issue per symbol where possible.
