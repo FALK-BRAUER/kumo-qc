@@ -169,8 +169,8 @@ class MfeIntradayExit(BasePhase):
         return bool(invested)
 
     @staticmethod
-    def _quantity(holding: Any) -> float:
-        return float(getattr(holding, "quantity", getattr(holding, "Quantity", 0.0)) or 0.0)
+    def _quantity(holding: Any) -> int:
+        return int(getattr(holding, "quantity", getattr(holding, "Quantity", 0)) or 0)
 
     @classmethod
     def _has_blocking_open_orders(cls, qc: Any, symbol: Any, meta: dict[str, Any]) -> bool:

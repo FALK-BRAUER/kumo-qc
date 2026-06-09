@@ -143,8 +143,8 @@ class ProactiveStrengthExit(BasePhase):
         return bool(invested)
 
     @staticmethod
-    def _quantity(holding: Any) -> float:
-        return float(getattr(holding, "quantity", getattr(holding, "Quantity", 0.0)) or 0.0)
+    def _quantity(holding: Any) -> int:
+        return int(getattr(holding, "quantity", getattr(holding, "Quantity", 0)) or 0)
 
     @classmethod
     def _has_blocking_open_orders(cls, qc: Any, symbol: Any, meta: dict[str, Any]) -> bool:
@@ -211,7 +211,7 @@ def log_exit_event(
         "module": module,
         "reason": reason,
         "days_held": days_held,
-        "qty": quantity,
+        "qty": float(quantity),
         "entry_price": entry_price,
         "exit_price": exit_price,
         "pnl": pnl,
