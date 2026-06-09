@@ -1,0 +1,218 @@
+feature,qc_status,deployability_class,safe_for_qc_handoff,used_in_feature_sets,handoff_note
+list_id,unclassified_or_unused,,,,
+date,unclassified_or_unused,,,,
+symbol,unclassified_or_unused,,,,
+george_included,non_deployable_george_evidence,,,,
+scanner_rank,non_deployable_george_evidence,,,,
+george_rank_pct,non_deployable_george_evidence,,,,
+george_list_size,non_deployable_george_evidence,,,,
+george_max_rank,non_deployable_george_evidence,,,,
+is_george_top5,non_deployable_george_evidence,,,,
+is_george_last_row,non_deployable_george_evidence,,,,
+is_george_action,non_deployable_george_evidence,,,,
+is_george_bought,non_deployable_george_evidence,,,,
+is_george_sold,non_deployable_george_evidence,,,,
+decision_label,non_deployable_george_evidence,,,,
+in_candidate_denominator,unclassified_or_unused,,,,
+forced_george_outside_denominator,non_deployable_george_evidence,,,,
+denominator_top_n,unclassified_or_unused,,,,
+open,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+high,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+low,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+close,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+prior_close,unclassified_or_unused,,,,
+volume,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+day_dollar_vol,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+adv20_incl_today,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+avg_volume20,blocked_local_massive_only,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",review before QC handoff
+rel_volume20,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+gap_pct,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+day_return_pct,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+intraday_return_pct,qc_ranker_feature,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",review before QC handoff
+range_pct,qc_ranker_feature,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",review before QC handoff
+day_dv_rank_price10,qc_ranker_feature,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",port only after matching the live QC universe and rank denominator
+adv20_rank_price10,qc_ranker_feature,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",port only after matching the live QC universe and rank denominator
+gap_rank_price10,blocked_local_massive_only,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",port only after matching the live QC universe and rank denominator
+day_return_rank_price10,blocked_local_massive_only,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",port only after matching the live QC universe and rank denominator
+rel_volume20_rank_price10,blocked_local_massive_only,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",port only after matching the live QC universe and rank denominator
+history_days_for_adv,blocked_local_massive_only,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",review before QC handoff
+daily_structure_score,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_price_above_cloud,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_price_inside_cloud,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_price_below_cloud,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_price_above_tenkan,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_tenkan_gt_kijun,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_cloud_green,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_price_above_ma200,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_chikou_ok,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_chikou_open_space,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_cloud_distance_pct,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_tenkan_extension_pct,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_kijun_extension_pct,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_tk_spread_pct,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_magnet_pattern,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_prior_high20,unclassified_or_unused,,,,
+d_prior_high50,unclassified_or_unused,,,,
+d_prior_high252,unclassified_or_unused,,,,
+d_distance_to_prior_high20_pct,qc_ranker_feature,,,,
+d_distance_to_prior_high50_pct,qc_ranker_feature,,,,
+d_distance_to_prior_high252_pct,qc_ranker_feature,,,,
+d_close_above_prior20_high,unclassified_or_unused,,,,
+d_close_above_prior50_high,unclassified_or_unused,,,,
+d_close_above_prior252_high,unclassified_or_unused,,,,
+d_near_prior20_high_within3,qc_ranker_feature,,,,
+d_near_prior50_high_within5,qc_ranker_feature,,,,
+d_near_prior252_high_within5,qc_ranker_feature,,,,
+d_resistance_rejection_today,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_recent_resistance_rejection_count20,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_volume_ma50,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_rel_volume50,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_volume_above_ma50,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_volume_spike_150,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_price_up_volume_down,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_price_up_volume_below50,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_breakout20_volume_confirmed,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_breakout50_volume_confirmed,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_breakout252_volume_confirmed,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_return_5d_pct,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_return_10d_pct,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_return_20d_pct,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_body_pct_range,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_upper_wick_pct_range,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_lower_wick_pct_range,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_doji_or_spinning_top,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_shooting_star_like,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_bearish_reversal_candle,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_overextended_tenkan_3,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_overextended_tenkan_5,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_overextended_tenkan_10,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_rapid_run_10d_15,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_rapid_run_20d_30,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_extension_reversal_warning,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_no_chase_risk,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_kijun_overhead_pct,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_ma200_overhead_pct,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_kijun_overhead_within3,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_ma200_overhead_within3,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+daily_breakout_quality_score,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_tenkan,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_kijun,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_cloud_top,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_cloud_bottom,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_ma200,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_adx,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_plus_di,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_minus_di,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_adx_rising_3,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+bct_valid,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+bct_score,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+bct_rating,unclassified_or_unused,,,,
+bct_weekly_veto,unclassified_or_unused,,,,
+bct_c1_weekly_price_above_cloud,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+bct_c2_weekly_tenkan_gt_kijun,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+bct_c3_weekly_chikou_ok,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+bct_c4_weekly_cloud_green,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+bct_c5_daily_price_above_cloud,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+bct_c6_daily_price_above_tenkan,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+bct_c7_adx_confirmed,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+bct_c8_daily_price_above_ma200,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+w_date,unclassified_or_unused,,,,
+w_close,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+w_tenkan,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+w_kijun,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+w_cloud_top,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+w_cloud_bottom,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+w_cloud_green,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+w_tenkan_gt_kijun,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+w_chikou_ok,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+w_price_above_cloud,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+w_price_inside_cloud,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+w_price_below_cloud,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+w_cloud_distance_pct,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+w_tenkan_extension_pct,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+candidate_source,non_deployable_george_evidence,,,,
+source_kind,non_deployable_george_evidence,,,,
+source_confidence,non_deployable_george_evidence,,,,
+pct_change_text,non_deployable_george_evidence,,,,
+george_notes,non_deployable_george_evidence,,,,
+ocr_confidence_avg,non_deployable_george_evidence,,,,
+ocr_observation_index,non_deployable_george_evidence,,,,
+ocr_text_path,non_deployable_george_evidence,,,,
+post_id,non_deployable_george_evidence,,,,
+source_path,non_deployable_george_evidence,,,,
+day_dv_rank_all,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+adv20_rank_all,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+price_floor,blocked_local_massive_only,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",review before QC handoff
+universe_date,unclassified_or_unused,,,,
+d_span_a,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_span_b,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_close_26_ago,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+d_prior_high26,unclassified_or_unused,,,,
+d_price_above_kijun,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+w_span_a,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+w_span_b,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+w_close_26_ago,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
+adv20_rank_in_panel,blocked_local_massive_only,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",port only after matching the live QC universe and rank denominator
+baseline_same_size_by_adv20,unclassified_or_unused,,,,
+day_dollar_vol_rank_in_panel,blocked_local_massive_only,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",port only after matching the live QC universe and rank denominator
+baseline_same_size_by_day_dollar_vol,unclassified_or_unused,,,,
+gap_pct_rank_in_panel,blocked_local_massive_only,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",port only after matching the live QC universe and rank denominator
+baseline_same_size_by_gap_pct,unclassified_or_unused,,,,
+day_return_pct_rank_in_panel,blocked_local_massive_only,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",port only after matching the live QC universe and rank denominator
+baseline_same_size_by_day_return_pct,unclassified_or_unused,,,,
+rel_volume20_rank_in_panel,blocked_local_massive_only,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",port only after matching the live QC universe and rank denominator
+baseline_same_size_by_rel_volume20,unclassified_or_unused,,,,
+daily_structure_score_rank_in_panel,blocked_local_massive_only,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",port only after matching the live QC universe and rank denominator
+baseline_same_size_by_daily_structure_score,unclassified_or_unused,,,,
+bct_score_rank_in_panel,blocked_local_massive_only,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",port only after matching the live QC universe and rank denominator
+baseline_same_size_by_bct_score,unclassified_or_unused,,,,
+daily_cloud_distance_pct_rank_in_panel,blocked_local_massive_only,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",port only after matching the live QC universe and rank denominator
+baseline_same_size_by_daily_cloud_distance_pct,unclassified_or_unused,,,,
+daily_breakout_quality_score_rank_in_panel,blocked_local_massive_only,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",port only after matching the live QC universe and rank denominator
+baseline_same_size_by_daily_breakout_quality_score,unclassified_or_unused,,,,
+rel_volume50_rank_in_panel,blocked_local_massive_only,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",port only after matching the live QC universe and rank denominator
+baseline_same_size_by_rel_volume50,unclassified_or_unused,,,,
+profile_category,unclassified_or_unused,,,,
+profile_sector,unclassified_or_unused,,,,
+profile_industry,unclassified_or_unused,,,,
+profile_exchange,unclassified_or_unused,,,,
+profile_market_tz,unclassified_or_unused,,,,
+profile_active,blocked_local_massive_only,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",review before QC handoff
+cache_sector,unclassified_or_unused,,,,
+cache_industry,unclassified_or_unused,,,,
+cache_category,unclassified_or_unused,,,,
+resolved_sector,unclassified_or_unused,,,,
+resolved_industry,unclassified_or_unused,,,,
+resolved_category,unclassified_or_unused,,,,
+sector_etf_proxy,unclassified_or_unused,,,,
+is_known_product_symbol,blocked_local_massive_only,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",review before QC handoff
+is_etf_category,blocked_local_massive_only,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",review before QC handoff
+is_arca_listed,blocked_local_massive_only,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",review before QC handoff
+is_adr_category,blocked_local_massive_only,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",review before QC handoff
+has_sector_profile,qc_ranker_feature,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",review before QC handoff
+has_industry_profile,qc_ranker_feature,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",review before QC handoff
+is_profiled_equity,blocked_local_massive_only,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",review before QC handoff
+is_smallcap_unknown_sector,blocked_local_massive_only,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",review before QC handoff
+is_etf_like,blocked_local_massive_only,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",port only after matching the live QC universe and rank denominator
+is_common_equity_proxy,blocked_local_massive_only,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",port only after matching the live QC universe and rank denominator
+instrument_type,unclassified_or_unused,,,,
+sector_key,unclassified_or_unused,,,,
+sector_denominator_count,unclassified_or_unused,,,,
+sector_bct6_count,blocked_tc2000_mapping,tc2000_mapping_required,False,"local_real_data,offline_oof_research,research_with_bct_attention",needs a TC2000-compatible sector/industry mapping before QC handoff
+sector_bct7_count,blocked_tc2000_mapping,tc2000_mapping_required,False,"local_real_data,offline_oof_research,research_with_bct_attention",needs a TC2000-compatible sector/industry mapping before QC handoff
+sector_positive_return_count,blocked_tc2000_mapping,tc2000_mapping_required,False,"local_real_data,offline_oof_research,research_with_bct_attention",needs a TC2000-compatible sector/industry mapping before QC handoff
+sector_median_day_return_pct,blocked_tc2000_mapping,tc2000_mapping_required,False,"local_real_data,offline_oof_research,research_with_bct_attention",needs a TC2000-compatible sector/industry mapping before QC handoff
+sector_median_rel_volume20,blocked_tc2000_mapping,tc2000_mapping_required,False,"local_real_data,offline_oof_research,research_with_bct_attention",needs a TC2000-compatible sector/industry mapping before QC handoff
+sector_bct6_pct,blocked_tc2000_mapping,tc2000_mapping_required,False,"local_real_data,offline_oof_research,research_with_bct_attention",needs a TC2000-compatible sector/industry mapping before QC handoff
+sector_bct7_pct,blocked_tc2000_mapping,tc2000_mapping_required,False,"local_real_data,offline_oof_research,research_with_bct_attention",needs a TC2000-compatible sector/industry mapping before QC handoff
+sector_positive_return_pct,blocked_tc2000_mapping,tc2000_mapping_required,False,"local_real_data,offline_oof_research,research_with_bct_attention",needs a TC2000-compatible sector/industry mapping before QC handoff
+industry_key,unclassified_or_unused,,,,
+industry_denominator_count,unclassified_or_unused,,,,
+industry_bct6_count,blocked_tc2000_mapping,tc2000_mapping_required,False,"local_real_data,offline_oof_research,research_with_bct_attention",needs a TC2000-compatible sector/industry mapping before QC handoff
+industry_bct7_count,blocked_tc2000_mapping,tc2000_mapping_required,False,"local_real_data,offline_oof_research,research_with_bct_attention",needs a TC2000-compatible sector/industry mapping before QC handoff
+industry_positive_return_count,blocked_tc2000_mapping,tc2000_mapping_required,False,"local_real_data,offline_oof_research,research_with_bct_attention",needs a TC2000-compatible sector/industry mapping before QC handoff
+industry_median_day_return_pct,blocked_tc2000_mapping,tc2000_mapping_required,False,"local_real_data,offline_oof_research,research_with_bct_attention",needs a TC2000-compatible sector/industry mapping before QC handoff
+industry_median_rel_volume20,blocked_tc2000_mapping,tc2000_mapping_required,False,"local_real_data,offline_oof_research,research_with_bct_attention",needs a TC2000-compatible sector/industry mapping before QC handoff
+industry_bct6_pct,blocked_tc2000_mapping,tc2000_mapping_required,False,"local_real_data,offline_oof_research,research_with_bct_attention",needs a TC2000-compatible sector/industry mapping before QC handoff
+industry_bct7_pct,blocked_tc2000_mapping,tc2000_mapping_required,False,"local_real_data,offline_oof_research,research_with_bct_attention",needs a TC2000-compatible sector/industry mapping before QC handoff
+industry_positive_return_pct,blocked_tc2000_mapping,tc2000_mapping_required,False,"local_real_data,offline_oof_research,research_with_bct_attention",needs a TC2000-compatible sector/industry mapping before QC handoff
