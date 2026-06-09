@@ -38,6 +38,8 @@ class LambdaMARTConfig:
     use_sector_context: bool = True
     use_denominator_ranks: bool = True
     use_sector_breadth: bool = True
+    use_qc_cloud_safe_features: bool = False
+    promotion_inventory_path: Path = learned.DEFAULT_PROMOTION_INVENTORY
     ks: tuple[int, ...] = topk.DEFAULT_KS
 
 
@@ -165,11 +167,17 @@ def run_lambdamart_ranker(
         panel = learned.add_denominator_rank_features(panel)
 
     gates = topk.default_gates(panel)
+    allowed_features = (
+        learned.load_qc_cloud_safe_feature_names(config.promotion_inventory_path)
+        if config.use_qc_cloud_safe_features
+        else None
+    )
     x_raw, feature_names = learned.build_feature_matrix(
         panel,
         include_sector_context=config.use_sector_context,
         include_denominator_ranks=config.use_denominator_ranks,
         include_sector_breadth=config.use_sector_breadth,
+        allowed_features=allowed_features,
     )
     y = topk._bool_col(panel, "is_george").astype(float).to_numpy(dtype=float)
     folds = learned.make_date_folds(panel["date"].astype(str).tolist(), n_folds=config.n_folds)
@@ -252,6 +260,8 @@ def run_lambdamart_ranker(
 
     all_rows = pd.Series(True, index=panel.index, dtype=bool)
     prefix_parts = ["lambdamart"]
+    if config.use_qc_cloud_safe_features:
+        prefix_parts.append("qc_cloud_safe")
     if config.positive_weight != 1.0 or config.negative_weight != 1.0:
         prefix_parts.append(
             f"pu_pos{int(round(config.positive_weight * 100)):03d}_neg{int(round(config.negative_weight * 100)):03d}"
@@ -320,6 +330,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--no-sector-context", action="store_true")
     parser.add_argument("--no-denominator-ranks", action="store_true")
     parser.add_argument("--no-sector-breadth", action="store_true")
+    parser.add_argument("--use-qc-cloud-safe-features", action="store_true")
+    parser.add_argument("--promotion-inventory", default=learned.DEFAULT_PROMOTION_INVENTORY, type=Path)
     parser.add_argument("--output-dir", type=Path)
     args = parser.parse_args(argv)
 
@@ -345,6 +357,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             use_sector_context=not args.no_sector_context,
             use_denominator_ranks=not args.no_denominator_ranks,
             use_sector_breadth=not args.no_sector_breadth,
+            use_qc_cloud_safe_features=args.use_qc_cloud_safe_features,
+            promotion_inventory_path=args.promotion_inventory,
         ),
     )
     _print_result(result)

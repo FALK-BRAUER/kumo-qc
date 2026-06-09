@@ -152,6 +152,24 @@ def _write_minute_zip(
         zf.writestr(f"{ymd}_{lean}_minute_trade.csv", "\n".join(lines) + "\n")
 
 
+def _write_promotion_inventory(path: Path, rows: list[dict[str, str]]) -> None:
+    columns = [
+        "feature",
+        "qc_status",
+        "deployability_class",
+        "safe_for_qc_handoff",
+        "used_in_feature_sets",
+        "handoff_note",
+    ]
+    path.write_text(
+        ",".join(columns)
+        + "\n"
+        + "\n".join(",".join(row.get(col, "") for col in columns) for row in rows)
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 def test_make_date_folds_are_grouped_and_chronological() -> None:
     folds = L.make_date_folds(["2026-02-13", "2026-02-12", "2026-02-18", "2026-02-17"], n_folds=2)
     assert folds == [{"2026-02-12", "2026-02-13"}, {"2026-02-17", "2026-02-18"}]
@@ -200,6 +218,82 @@ def test_feature_matrix_can_include_sector_breadth_features() -> None:
     assert "sector_positive_return_count" in names
     assert "sector_bct7_pct" in names
     assert "industry_positive_return_pct" in names
+
+
+def test_qc_cloud_safe_filter_uses_promotion_inventory(tmp_path: Path) -> None:
+    inventory = tmp_path / "features.csv"
+    _write_promotion_inventory(
+        inventory,
+        [
+            {
+                "feature": "gap_pct",
+                "qc_status": "qc_ranker_feature",
+                "deployability_class": "qc_cloud_deployable",
+                "safe_for_qc_handoff": "True",
+            },
+            {
+                "feature": "adv20_rank_price10",
+                "qc_status": "blocked_local_massive_only",
+                "deployability_class": "local_massive_only",
+                "safe_for_qc_handoff": "False",
+            },
+        ],
+    )
+
+    safe = L.load_qc_cloud_safe_feature_names(inventory)
+    x, names = L.build_feature_matrix(_denominator(), allowed_features=safe)
+
+    assert names == ["gap_pct"]
+    assert x.shape == (len(_denominator()), 1)
+
+
+def test_run_learned_ranker_can_use_qc_cloud_safe_feature_subset(tmp_path: Path) -> None:
+    inventory = tmp_path / "features.csv"
+    _write_promotion_inventory(
+        inventory,
+        [
+            {
+                "feature": "gap_pct",
+                "qc_status": "qc_ranker_feature",
+                "deployability_class": "qc_cloud_deployable",
+                "safe_for_qc_handoff": "True",
+            },
+            {
+                "feature": "daily_structure_score",
+                "qc_status": "qc_ranker_feature",
+                "deployability_class": "qc_cloud_deployable",
+                "safe_for_qc_handoff": "True",
+            },
+            {
+                "feature": "gap_pct_rank_in_panel",
+                "qc_status": "blocked_local_massive_only",
+                "deployability_class": "local_massive_only",
+                "safe_for_qc_handoff": "False",
+            },
+        ],
+    )
+    labels = [(date, f"P{i}") for i, date in enumerate(("2026-02-12", "2026-02-13", "2026-02-17", "2026-02-18"))]
+
+    result = L.run_learned_ranker(
+        _denominator(),
+        labels,
+        covered_dates={date for date, _symbol in labels},
+        config=L.LearnedRankerConfig(
+            n_folds=2,
+            max_iter=250,
+            learning_rate=0.1,
+            l2=0.001,
+            use_denominator_ranks=True,
+            use_qc_cloud_safe_features=True,
+            promotion_inventory_path=inventory,
+            ks=(1, 2),
+        ),
+    )
+
+    learned = result.rank_summary.set_index("variant").loc["learned_oof_qc_cloud_safe_denominator_ranks_all"]
+    features = set(result.coefficient_summary["feature"])
+    assert learned["hits1"] == 4
+    assert features == {"gap_pct", "daily_structure_score"}
 
 
 def test_logistic_ridge_learns_separable_signal() -> None:

@@ -199,6 +199,40 @@ OOF protocol and, by default, enables sector context, denominator ranks, and pro
 The first local run moved the best top10 benchmark to 107/306 on the all-rows score-6 panel; the
 clean-top2000 LambdaMART variant reached 100/306.
 
+QC-cloud-safe feature subset LambdaMART:
+
+```bash
+PYTHONPATH=src:. .venv/bin/python -m sweeps.archive.george_lambdamart_ranker \
+  --labels-csv /Users/falk/projects/kumo-lab/data/bluecloudtrading/scanner_compare/george_oof_stage1_scores.csv \
+  --denominator-csv /Users/falk/projects/kumo-lab/data/bluecloudtrading/scanner_compare/george_ranking_denominator_profiled.csv \
+  --coarse-dir /Users/falk/projects/kumo-qc/data/equity/usa/fundamental/coarse \
+  --year 2026 \
+  --use-qc-cloud-safe-features
+```
+
+This filters the final feature matrix through `research/scanner-alignment/feature_parity_columns.csv`,
+keeping only `safe_for_qc_handoff=True` and `deployability_class=qc_cloud_deployable` features. The first
+run reached 88/306 recall@10 in clean_top2000 and 72/306 on all rows, so it is not promoted.
+
+QC-cloud-safe pairwise comparison:
+
+```bash
+PYTHONPATH=src:. .venv/bin/python -m sweeps.archive.george_learned_ranker \
+  --labels-csv /Users/falk/projects/kumo-lab/data/bluecloudtrading/scanner_compare/george_oof_stage1_scores.csv \
+  --denominator-csv /Users/falk/projects/kumo-lab/data/bluecloudtrading/scanner_compare/george_ranking_denominator_profiled.csv \
+  --coarse-dir /Users/falk/projects/kumo-qc/data/equity/usa/fundamental/coarse \
+  --year 2026 \
+  --model-type pairwise \
+  --use-sector-context \
+  --use-denominator-ranks \
+  --use-sector-breadth \
+  --use-qc-cloud-safe-features \
+  --learning-rate 0.08 \
+  --pairwise-negatives-per-positive 80
+```
+
+The pairwise QC-safe subset underperformed LambdaMART, with 54/306 recall@10 in clean_top2000.
+
 Optional PU weighting and two-stage LambdaMART rerank:
 
 ```bash

@@ -7,6 +7,7 @@ code must not read George labels, OCR rows, transcripts, or generated lab scores
 from __future__ import annotations
 
 import argparse
+import csv
 import warnings
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -19,6 +20,8 @@ import pandas as pd
 from sweeps.archive import first_hour_confirmation as first_hour
 from sweeps.archive import george_sector_context_audit as sector_context
 from sweeps.archive import george_topk_audit as topk
+
+DEFAULT_PROMOTION_INVENTORY = Path("research/scanner-alignment/feature_parity_columns.csv")
 
 
 @dataclass(frozen=True, slots=True)
@@ -290,6 +293,8 @@ class LearnedRankerConfig:
     use_first_hour: bool = False
     use_denominator_ranks: bool = False
     use_sector_breadth: bool = False
+    use_qc_cloud_safe_features: bool = False
+    promotion_inventory_path: Path = DEFAULT_PROMOTION_INVENTORY
     first_hour_minute_dir: Path | None = None
     ks: tuple[int, ...] = topk.DEFAULT_KS
 
@@ -343,6 +348,43 @@ def add_denominator_rank_features(panel: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def load_qc_cloud_safe_feature_names(path: Path = DEFAULT_PROMOTION_INVENTORY) -> set[str]:
+    """Load feature names explicitly allowed by the scanner runtime-promotion gate."""
+    if not path.exists():
+        raise FileNotFoundError(f"promotion inventory not found: {path}")
+    with path.open(newline="", encoding="utf-8") as fh:
+        reader = csv.DictReader(fh)
+        required = {"feature", "deployability_class", "safe_for_qc_handoff"}
+        missing = required - set(reader.fieldnames or [])
+        if missing:
+            raise ValueError(f"promotion inventory missing required columns: {sorted(missing)}")
+        names = {
+            row["feature"].strip()
+            for row in reader
+            if row.get("safe_for_qc_handoff", "").strip() == "True"
+            and row.get("deployability_class", "").strip() == "qc_cloud_deployable"
+            and row.get("feature", "").strip()
+        }
+    if not names:
+        raise ValueError(f"promotion inventory has no QC-cloud-safe features: {path}")
+    return names
+
+
+def filter_feature_matrix(
+    x: np.ndarray,
+    feature_names: list[str],
+    *,
+    allowed_features: set[str] | None,
+) -> tuple[np.ndarray, list[str]]:
+    """Restrict a feature matrix to an explicit feature-name allowlist."""
+    if allowed_features is None:
+        return x, feature_names
+    keep = [idx for idx, feature in enumerate(feature_names) if feature in allowed_features]
+    if not keep:
+        raise ValueError("QC-cloud-safe feature filter removed every feature")
+    return x[:, keep], [feature_names[idx] for idx in keep]
+
+
 def make_date_folds(dates: Sequence[str], *, n_folds: int) -> list[set[str]]:
     """Create chronological date-group validation folds."""
     unique_dates = sorted(set(dates))
@@ -360,6 +402,7 @@ def build_feature_matrix(
     include_first_hour: bool = False,
     include_denominator_ranks: bool = False,
     include_sector_breadth: bool = False,
+    allowed_features: set[str] | None = None,
 ) -> tuple[np.ndarray, list[str]]:
     """Build a numeric feature matrix from QC-safe denominator columns."""
     columns: list[np.ndarray] = []
@@ -393,7 +436,7 @@ def build_feature_matrix(
     if not columns:
         return np.empty((len(panel), 0), dtype=float), []
     x = np.column_stack(columns).astype(float)
-    return x, names
+    return filter_feature_matrix(x, names, allowed_features=allowed_features)
 
 
 def fit_standardizer(x_train: np.ndarray) -> Standardizer:
@@ -590,12 +633,18 @@ def run_learned_ranker(
             raise ValueError("first_hour_minute_dir is required when use_first_hour=True")
         panel = first_hour.build_confirmation_panel(panel, minute_dir=config.first_hour_minute_dir)
     gates = topk.default_gates(panel)
+    allowed_features = (
+        load_qc_cloud_safe_feature_names(config.promotion_inventory_path)
+        if config.use_qc_cloud_safe_features
+        else None
+    )
     x_raw, feature_names = build_feature_matrix(
         panel,
         include_sector_context=config.use_sector_context,
         include_first_hour=config.use_first_hour,
         include_denominator_ranks=config.use_denominator_ranks,
         include_sector_breadth=config.use_sector_breadth,
+        allowed_features=allowed_features,
     )
     y = topk._bool_col(panel, "is_george").astype(float).to_numpy(dtype=float)
     folds = make_date_folds(panel["date"].astype(str).tolist(), n_folds=config.n_folds)
@@ -639,6 +688,8 @@ def run_learned_ranker(
     prefix_parts = ["learned_oof"]
     if config.model_type != "logistic":
         prefix_parts.append(config.model_type)
+    if config.use_qc_cloud_safe_features:
+        prefix_parts.append("qc_cloud_safe")
     if config.use_sector_context:
         prefix_parts.append("sector_context")
     if config.use_first_hour:
@@ -702,6 +753,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--use-first-hour", action="store_true")
     parser.add_argument("--use-denominator-ranks", action="store_true")
     parser.add_argument("--use-sector-breadth", action="store_true")
+    parser.add_argument("--use-qc-cloud-safe-features", action="store_true")
+    parser.add_argument("--promotion-inventory", default=DEFAULT_PROMOTION_INVENTORY, type=Path)
     parser.add_argument("--minute-dir", type=Path)
     parser.add_argument("--output-dir", type=Path)
     args = parser.parse_args(argv)
@@ -727,6 +780,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             use_first_hour=args.use_first_hour,
             use_denominator_ranks=args.use_denominator_ranks,
             use_sector_breadth=args.use_sector_breadth,
+            use_qc_cloud_safe_features=args.use_qc_cloud_safe_features,
+            promotion_inventory_path=args.promotion_inventory,
             first_hour_minute_dir=args.minute_dir,
         ),
     )
