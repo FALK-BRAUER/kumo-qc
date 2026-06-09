@@ -97,7 +97,7 @@ def default_cells() -> tuple[FeatureSourceCell, ...]:
         FeatureSourceCell(
             cell_id="raw_plus_sector_breadth",
             label="Raw QC-safe plus sector/industry breadth",
-            deployability_class="tc2000_mapping_required",
+            deployability_class="qc_cloud_deployable",
             use_sector_context=False,
             use_denominator_ranks=False,
             use_sector_breadth=True,
@@ -115,7 +115,7 @@ def default_cells() -> tuple[FeatureSourceCell, ...]:
         FeatureSourceCell(
             cell_id="raw_plus_denominator_ranks_sector_breadth",
             label="Raw QC-safe plus denominator ranks plus sector breadth",
-            deployability_class="local_plus_tc2000_blocked",
+            deployability_class="local_massive_denominator_ranks",
             use_sector_context=False,
             use_denominator_ranks=True,
             use_sector_breadth=True,

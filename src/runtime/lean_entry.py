@@ -447,6 +447,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self._industry_by_ticker: dict[str, str] = {}
         self._sector_by_ticker: dict[str, str] = {}
         self._proxy_by_ticker: dict[str, str] = {}
+        self._proxy_etfs_by_ticker: dict[str, list[str]] = {}
         self._george_attention_ticker: dict[str, float] = {}
         self._george_attention_industry: dict[str, float] = {}
         self._george_source_role_counts: dict[str, int] = {}
@@ -577,6 +578,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                 self._industry_by_ticker = maps["industry_by_ticker"]
                 self._sector_by_ticker = maps["sector_by_ticker"]
                 self._proxy_by_ticker = maps["proxy_by_ticker"]
+                self._proxy_etfs_by_ticker = maps["proxy_etfs_by_ticker"]
                 self.log(
                     f"GEORGE_PROFILE_LOAD|source={self.SECURITY_PROFILE_SOURCE}|"
                     f"loaded={len(self._security_profiles)}|error="

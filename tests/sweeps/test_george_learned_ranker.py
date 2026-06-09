@@ -220,6 +220,103 @@ def test_feature_matrix_can_include_sector_breadth_features() -> None:
     assert "industry_positive_return_pct" in names
 
 
+def test_sector_breadth_features_are_recomputed_from_candidate_panel() -> None:
+    panel = pd.DataFrame(
+        [
+            {
+                "date": "2026-02-12",
+                "symbol": "AAA",
+                "resolved_sector": "Technology",
+                "resolved_industry": "Software",
+                "bct_score": 7,
+                "day_return_pct": 2.0,
+                "rel_volume20": 1.4,
+                "sector_denominator_count": 999,
+            },
+            {
+                "date": "2026-02-12",
+                "symbol": "BBB",
+                "resolved_sector": "Technology",
+                "resolved_industry": "Software",
+                "bct_score": 6,
+                "day_return_pct": -1.0,
+                "rel_volume20": 0.8,
+                "sector_denominator_count": 999,
+            },
+            {
+                "date": "2026-02-13",
+                "symbol": "CCC",
+                "resolved_sector": "Technology",
+                "resolved_industry": "Software",
+                "bct_score": 8,
+                "day_return_pct": 4.0,
+                "rel_volume20": 2.0,
+                "sector_denominator_count": 999,
+            },
+        ]
+    )
+
+    enriched = L.add_sector_breadth_features(panel)
+
+    by_symbol = enriched.set_index("symbol")
+    assert by_symbol.loc["AAA", "sector_key"] == "technology"
+    assert by_symbol.loc["AAA", "sector_denominator_count"] == 2
+    assert by_symbol.loc["AAA", "industry_positive_return_pct"] == 50.0
+    assert by_symbol.loc["CCC", "sector_denominator_count"] == 1
+    assert by_symbol.loc["CCC", "sector_bct7_pct"] == 100.0
+
+
+def test_live_denominator_sector_breadth_runs_before_score_gate() -> None:
+    denominator = pd.DataFrame(
+        [
+            {
+                "date": "2026-02-12",
+                "symbol": "AAA",
+                "in_candidate_denominator": True,
+                "adv20_rank_price10": 100,
+                "resolved_sector": "Technology",
+                "resolved_industry": "Software",
+                "bct_score": 7,
+                "day_return_pct": 2.0,
+                "rel_volume20": 1.4,
+            },
+            {
+                "date": "2026-02-12",
+                "symbol": "BBB",
+                "in_candidate_denominator": True,
+                "adv20_rank_price10": 100,
+                "resolved_sector": "Technology",
+                "resolved_industry": "Software",
+                "bct_score": 5,
+                "day_return_pct": -1.0,
+                "rel_volume20": 0.8,
+            },
+            {
+                "date": "2026-02-12",
+                "symbol": "CCC",
+                "in_candidate_denominator": True,
+                "adv20_rank_price10": 4000,
+                "resolved_sector": "Technology",
+                "resolved_industry": "Software",
+                "bct_score": 8,
+                "day_return_pct": 4.0,
+                "rel_volume20": 2.0,
+            },
+        ]
+    )
+
+    enriched = L.add_live_denominator_sector_breadth(
+        denominator,
+        covered_dates={"2026-02-12"},
+        top_n=3000,
+    ).set_index("symbol")
+
+    assert enriched.loc["AAA", "sector_denominator_count"] == 2
+    assert enriched.loc["AAA", "sector_bct6_count"] == 1
+    assert enriched.loc["AAA", "sector_positive_return_pct"] == 50.0
+    assert enriched.loc["CCC", "sector_denominator_count"] == 0
+
+
 def test_qc_cloud_safe_filter_uses_promotion_inventory(tmp_path: Path) -> None:
     inventory = tmp_path / "features.csv"
     _write_promotion_inventory(

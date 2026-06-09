@@ -161,7 +161,16 @@ def run_lambdamart_ranker(
 ) -> LambdaMARTResult:
     """Run date-grouped OOF LambdaMART validation."""
     topk_config = topk.AuditConfig(top_n=config.top_n, min_score=config.min_score, ks=config.ks)
-    panel = topk.build_score6_panel(denominator, labels, covered_dates=covered_dates, config=topk_config)
+    denominator_for_panel = (
+        learned.add_live_denominator_sector_breadth(
+            denominator,
+            covered_dates=covered_dates,
+            top_n=config.top_n,
+        )
+        if config.use_sector_breadth
+        else denominator
+    )
+    panel = topk.build_score6_panel(denominator_for_panel, labels, covered_dates=covered_dates, config=topk_config)
     if config.use_sector_context:
         panel = sector_context.add_stock_context_features(panel)
         panel, _sectors, _industries = sector_context.add_sector_industry_context(panel)

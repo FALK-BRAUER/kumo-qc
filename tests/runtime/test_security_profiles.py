@@ -6,9 +6,9 @@ from runtime.security_profiles import load_security_profile_maps, read_security_
 def test_security_profiles_load_maps_with_defaults(tmp_path) -> None:
     path = tmp_path / "profiles.csv"
     path.write_text(
-        "ticker,sector,industry,subindustry,proxy_etf,source,confidence\n"
-        "ATI,Materials,Specialty Metals,Steel,XME,manual,0.8\n"
-        "BTCM,,,,,unknown,bad\n",
+        "ticker,sector,industry,subindustry,proxy_etf,proxy_etfs,source,confidence\n"
+        "ATI,Materials,Specialty Metals,Steel,XME,XLB;XME;COPX,manual,0.8\n"
+        "BTCM,,,,,,unknown,bad\n",
         encoding="utf-8",
     )
 
@@ -19,5 +19,7 @@ def test_security_profiles_load_maps_with_defaults(tmp_path) -> None:
     assert maps["industry_by_ticker"]["ati"] == "specialty metals"
     assert maps["sector_by_ticker"]["ati"] == "materials"
     assert maps["proxy_by_ticker"]["ati"] == "xme"
+    assert maps["proxy_etfs_by_ticker"]["ati"] == ["xme", "xlb", "copx"]
+    assert maps["security_profiles"]["ati"]["proxy_etfs"] == ["xme", "xlb", "copx"]
     assert maps["security_profiles"]["btcm"]["industry"] == "unknown"
     assert maps["security_profiles"]["btcm"]["confidence"] == 0.0
