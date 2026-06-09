@@ -79,6 +79,7 @@ def test_target_exit_fires_while_still_bullish():
 
 def test_requires_position_path_contract():
     assert ProactiveStrengthExit.REQUIRES_UPSTREAM == ["position_path"]
+    assert ProactiveStrengthExit.PHASE_RESOLUTION == "intraday"
 
 
 def test_missing_position_path_raises_loud():
@@ -100,6 +101,25 @@ def test_giveback_exit_fires_after_profitable_peak():
     assert result.facts["giveback_count"] == 1
     assert len(ctx.bar_state.exit_intents) == 1
     assert ctx.bar_state.exit_intents[0].ticker == "MSFT"
+
+
+def test_uses_position_path_last_price_for_intraday_exit():
+    sym = _sym("META")
+    qc = FakeQC(sym, close=101.0)
+    qc._position_path = {
+        sym: {
+            "last_price": 106.5,
+            "peak_price": 106.5,
+            "current_return_pct": 0.065,
+            "mfe_pct": 0.065,
+            "days_held": 2,
+        }
+    }
+
+    result, ctx = _run(qc, target_pct=0.06)
+
+    assert result.facts["target_count"] == 1
+    assert ctx.bar_state.exit_intents[0].price == 106.5
 
 
 def test_no_exit_when_not_still_bullish():

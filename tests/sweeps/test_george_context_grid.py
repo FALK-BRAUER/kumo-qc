@@ -3,7 +3,13 @@ from __future__ import annotations
 from pathlib import Path
 
 from build.sweep_build import build_sweep_dist, sweep_to_strategy_config
-from sweeps.grids.george_context import BASE_MODULE, all_variants, six_pack, thirty_pack
+from sweeps.grids.george_context import (
+    BASE_MODULE,
+    all_variants,
+    combo_thirty_pack,
+    six_pack,
+    thirty_pack,
+)
 
 
 def test_george_six_pack_has_expected_shape() -> None:
@@ -33,6 +39,21 @@ def test_george_thirty_pack_is_five_waves_of_six() -> None:
         "george_attention",
         "entry_confirmation",
         "exit_management",
+    }
+
+
+def test_george_combo_thirty_pack_is_five_waves_of_six() -> None:
+    variants = combo_thirty_pack()
+
+    assert len(variants) == 30
+    for wave in range(1, 6):
+        assert sum(1 for v in variants if v.wave == wave) == 6
+    assert {v.family for v in variants} == {
+        "mfe_target",
+        "mfe_giveback",
+        "scratch_mfe_combo",
+        "context_exit_combo",
+        "entry_exit_combo",
     }
 
 
@@ -90,3 +111,14 @@ def test_george_exit_management_path_variants_build() -> None:
         cfg = sweep_to_strategy_config(variant.config, base_module=BASE_MODULE)
         assert "trail" in cfg.phases
         assert "exit_hard" in cfg.phases
+
+
+def test_combo_pack_wires_multi_exit_variants() -> None:
+    variant = next(v for v in combo_thirty_pack() if v.variant_id == "combo_scratch3_mfe6")
+
+    cfg = sweep_to_strategy_config(variant.config, base_module=BASE_MODULE)
+
+    exits = cfg.phases["exit_hard"]
+    assert isinstance(exits, list)
+    assert [slot.impl.__name__ for slot in exits] == ["ScratchFlatExit", "MfeIntradayExit"]
+    assert cfg.phases["trail"].impl.__name__ == "PositionPathTracker"  # type: ignore[union-attr]

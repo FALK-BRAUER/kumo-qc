@@ -8,6 +8,7 @@ Usage:
   python3 scripts/run_416_george_context_sweep.py --pack six --workers 6
   python3 scripts/run_416_george_context_sweep.py --pack thirty --wave 1 --workers 6
   python3 scripts/run_416_george_context_sweep.py --pack thirty --workers 6
+  python3 scripts/run_416_george_context_sweep.py --pack combo --wave 1 --workers 6
   python3 scripts/run_416_george_context_sweep.py --pack six --data-folder /Users/falk/projects/kumo-qc/data
 """
 from __future__ import annotations
@@ -41,6 +42,7 @@ from sweeps.grids.george_context import (  # noqa: E402
     GEORGE_ATTENTION_SOURCE,
     GeorgeSweepVariant,
     SECURITY_PROFILE_SOURCE,
+    combo_thirty_pack,
     six_pack,
     thirty_pack,
 )
@@ -79,11 +81,16 @@ SUMMARY_COLUMNS = [
 
 def _args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--pack", choices=("six", "thirty"), default="six")
+    parser.add_argument("--pack", choices=("six", "thirty", "combo"), default="six")
     parser.add_argument("--wave", type=int, choices=(1, 2, 3, 4, 5), default=None)
     parser.add_argument("--window", choices=sorted(WINDOWS), default="fy")
     parser.add_argument("--workers", type=int, default=6)
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument(
+        "--only",
+        default="",
+        help="Comma-separated variant ids to run; useful for retrying failed cells.",
+    )
     parser.add_argument("--sweep-id", default=None)
     parser.add_argument(
         "--data-folder",
@@ -187,9 +194,21 @@ def _dist_builder(window: Window, data_fp: str, data_folder: Path) -> Any:
 
 
 def _variants(args: argparse.Namespace) -> tuple[GeorgeSweepVariant, ...]:
-    variants = six_pack() if args.pack == "six" else thirty_pack()
+    if args.pack == "six":
+        variants = six_pack()
+    elif args.pack == "thirty":
+        variants = thirty_pack()
+    else:
+        variants = combo_thirty_pack()
     if args.wave is not None:
         variants = tuple(v for v in variants if v.wave == args.wave)
+    if args.only:
+        wanted = {part.strip() for part in args.only.split(",") if part.strip()}
+        found = {v.variant_id for v in variants}
+        missing = sorted(wanted - found)
+        if missing:
+            raise SystemExit(f"--only requested unknown variants for selected pack/wave: {', '.join(missing)}")
+        variants = tuple(v for v in variants if v.variant_id in wanted)
     if args.limit is not None:
         variants = variants[: args.limit]
     return variants

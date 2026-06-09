@@ -16,6 +16,7 @@ from engine.context import OrderIntent, PhaseContext
 
 class ProactiveStrengthExit(BasePhase):
     PHASE_KIND = "exit_hard"
+    PHASE_RESOLUTION = "intraday"
     REQUIRES_UPSTREAM = ["position_path"]
     PROVIDES_DOWNSTREAM = ["exit_intents"]
 
@@ -40,16 +41,15 @@ class ProactiveStrengthExit(BasePhase):
         giveback_count = 0
 
         for symbol, holding in list(qc.portfolio.items()):
-            if not getattr(holding, "invested", False) or qc.transactions.get_open_orders(symbol):
+            if not self._is_invested(holding):
                 continue
             if self._already_exiting(ctx, getattr(symbol, "value", str(symbol))):
                 continue
             meta = getattr(qc, "_position_meta", {}).get(symbol, {})
+            if self._has_blocking_open_orders(qc, symbol, meta):
+                continue
             entry_price = float(meta.get("entry_price", 0.0) or 0.0)
             if entry_price <= 0.0:
-                continue
-            close = self._close(qc, symbol)
-            if close <= 0.0:
                 continue
 
             path = getattr(qc, "_position_path", {}).get(symbol)
@@ -58,11 +58,14 @@ class ProactiveStrengthExit(BasePhase):
                     f"proactive strength exit requires PositionPathTracker state: "
                     f"symbol={symbol.value!r} date={date_str} missing qc._position_path entry"
                 )
+            close = float(path.get("last_price", 0.0) or self._close(qc, symbol))
+            if close <= 0.0:
+                continue
             peak = max(float(path.get("peak_price", entry_price)), close, entry_price)
-            pnl_pct = close / entry_price - 1.0
+            pnl_pct = float(path.get("current_return_pct", close / entry_price - 1.0))
             peak_pct = float(path.get("mfe_pct", peak / entry_price - 1.0))
             mae_pct = float(path.get("mae_pct", min(close, entry_price) / entry_price - 1.0))
-            giveback_pct = peak_pct - pnl_pct
+            giveback_pct = float(path.get("giveback_pct", peak_pct - pnl_pct))
             days_held = int(path.get("days_held", 0) or 0)
 
             if days_held < self.p.min_hold_days:
@@ -82,11 +85,11 @@ class ProactiveStrengthExit(BasePhase):
                 continue
 
             ctx.bar_state.exit_intents.append(
-                OrderIntent(
-                    ticker=symbol.value,
-                    qty=-holding.quantity,
-                    price=close,
-                    stop=peak,
+                    OrderIntent(
+                        ticker=symbol.value,
+                        qty=-self._quantity(holding),
+                        price=close,
+                        stop=peak,
                     module="exit.proactive_strength_exit",
                     risk_dollars=0.0,
                     order_type="market",
@@ -100,7 +103,7 @@ class ProactiveStrengthExit(BasePhase):
                     symbol=symbol,
                     module="exit.proactive_strength_exit",
                     reason=reason,
-                    quantity=float(holding.quantity),
+                    quantity=self._quantity(holding),
                     entry_price=entry_price,
                     exit_price=close,
                     days_held=days_held,
@@ -133,6 +136,35 @@ class ProactiveStrengthExit(BasePhase):
         return any(intent.ticker == ticker for intent in ctx.bar_state.exit_intents)
 
     @staticmethod
+    def _is_invested(holding: Any) -> bool:
+        invested = getattr(holding, "invested", None)
+        if invested is None:
+            invested = getattr(holding, "Invested", False)
+        return bool(invested)
+
+    @staticmethod
+    def _quantity(holding: Any) -> int:
+        return int(getattr(holding, "quantity", getattr(holding, "Quantity", 0)) or 0)
+
+    @classmethod
+    def _has_blocking_open_orders(cls, qc: Any, symbol: Any, meta: dict[str, Any]) -> bool:
+        orders = list(qc.transactions.get_open_orders(symbol))
+        if not orders:
+            return False
+        protective_stop_id = cls._ticket_id(meta.get("protective_stop_ticket"))
+        if protective_stop_id is None:
+            return True
+        return any(cls._order_id(order) != protective_stop_id for order in orders)
+
+    @staticmethod
+    def _ticket_id(ticket: Any) -> Any:
+        return getattr(ticket, "order_id", getattr(ticket, "OrderId", None))
+
+    @staticmethod
+    def _order_id(order: Any) -> Any:
+        return getattr(order, "id", getattr(order, "Id", getattr(order, "order_id", getattr(order, "OrderId", None))))
+
+    @staticmethod
     def _still_bullish(qc: Any, symbol: Any, close: float) -> bool:
         ind = getattr(qc, "_indicators", {}).get(symbol)
         if ind is None:
@@ -151,7 +183,7 @@ class ProactiveStrengthExit(BasePhase):
 
     @property
     def version_marker(self) -> str:
-        return "proactive_strength_exit_v1"
+        return "proactive_strength_exit_v2"
 
 
 def log_exit_event(
@@ -179,7 +211,7 @@ def log_exit_event(
         "module": module,
         "reason": reason,
         "days_held": days_held,
-        "qty": quantity,
+        "qty": float(quantity),
         "entry_price": entry_price,
         "exit_price": exit_price,
         "pnl": pnl,

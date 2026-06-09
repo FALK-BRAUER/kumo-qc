@@ -200,7 +200,18 @@ def sweep_to_strategy_config(sweep_config: Any, *, base_module: str = BASE_MODUL
     base: StrategyConfig = _load_config(base_module)
     phases: dict[str, Any] = dict(base.phases)  # shallow copy; we replace whole entries
 
-    choices = {c.kind: c for c in sweep_config.choices}
+    choices_by_kind: dict[str, list[Any]] = {}
+    for choice in sweep_config.choices:
+        choices_by_kind.setdefault(choice.kind, []).append(choice)
+
+    def _single_choice(kind: str) -> Any | None:
+        choices = choices_by_kind.get(kind, [])
+        if len(choices) > 1:
+            raise UnsupportedSweepAxisError(
+                f"{kind!r} received {len(choices)} PhaseChoice entries but is a single-slot sweep "
+                f"kind here. Use a list-kind branch (for example exit_hard) or split the variant."
+            )
+        return choices[0] if choices else None
 
     # --- single-slot kinds. #416 adds rebalance/ranking so George context can be switched and
     # weighted by the sweep instead of hardcoded in one champion scenario.
@@ -208,14 +219,14 @@ def sweep_to_strategy_config(sweep_config: Any, *, base_module: str = BASE_MODUL
     for kind in (
         "rebalance", "universe", "signal", "ranking", "sizing", "protective_stop", "trail",
     ):
-        ch = choices.get(kind)
+        ch = _single_choice(kind)
         if ch is None:
             continue
         phases[kind] = _override_slot(kind, ch, _optional_base_slot(base, kind))
 
     # --- entry_selection (list-kind): PRESERVE guard sub-phases (PreFlightStaleness — the
     # snapshot-staleness tripwire), REPLACE only the ALGORITHM slot with the swept impl. ---
-    ech = choices.get("entry_selection")
+    ech = _single_choice("entry_selection")
     if ech is not None:
         base_es = base.phases.get("entry_selection", [])
         base_es = base_es if isinstance(base_es, list) else [base_es]
@@ -230,7 +241,7 @@ def sweep_to_strategy_config(sweep_config: Any, *, base_module: str = BASE_MODUL
         phases["entry_selection"] = list(guards) + [_override_slot("entry_selection", ech, algos[0])]
 
     # --- regime (list-kind): split spy_200ma (SpySma200) from the vix params ---
-    rch = choices.get("regime")
+    rch = _single_choice("regime")
     if rch is not None:
         swept = rch.param_dict()
         spy_on = bool(swept.get("spy_200ma", False))
@@ -273,8 +284,8 @@ def sweep_to_strategy_config(sweep_config: Any, *, base_module: str = BASE_MODUL
 
     # --- exit_hard (list-kind, base = [Slot(KijunG3Exits)]): SWAP the exit impl (#339). No choice
     # → base exit verbatim (parity: the champion base keeps KijunG3 → e3b0c44298fc/4c2fc8e40607). ---
-    xch = choices.get("exit_hard")
-    if xch is not None:
+    xch = choices_by_kind.get("exit_hard", [])
+    if xch:
         base_ex = base.phases.get("exit_hard", [])
         base_ex = base_ex if isinstance(base_ex, list) else [base_ex]
         if len(base_ex) != 1:
@@ -282,11 +293,11 @@ def sweep_to_strategy_config(sweep_config: Any, *, base_module: str = BASE_MODUL
                 f"exit_hard base has {len(base_ex)} slots (expected exactly 1); a base-shape change "
                 f"would silently drop/duplicate an exit — fail loud."
             )
-        phases["exit_hard"] = [_override_slot("exit_hard", xch, base_ex[0])]
+        phases["exit_hard"] = [_override_slot("exit_hard", ch, base_ex[0]) for ch in xch]
 
     # --- exit_rotation (NEW kind the base lacks): ADD the rotation slot when a choice provides it
     # (the engine already schedules exit_rotation). No choice → no rotation (base behavior). ---
-    roch = choices.get("exit_rotation")
+    roch = _single_choice("exit_rotation")
     if roch is not None:
         phases["exit_rotation"] = [_override_slot("exit_rotation", roch, None)]
 

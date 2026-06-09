@@ -58,6 +58,12 @@ class FakePortfolio:
         self.total_holdings_value = held
 
 
+class FakeHolding:
+    def __init__(self, qty: float) -> None:
+        self.quantity = qty
+        self.invested = qty != 0
+
+
 class FakeQC:
     """Records every broker call so the fire-seam dispatch + GTC + cancel are assertable."""
     def __init__(self) -> None:
@@ -165,6 +171,26 @@ def test_protective_stop_cancelled_on_runtime_exit() -> None:
     eng._fire(FIRE_EXITS, ctx2)
     assert ticket.cancelled is True, "ORPHAN: protective stop NOT cancelled on runtime exit → double-sell risk"
     assert sym not in qc._position_meta  # meta cleared on exit
+
+
+def test_runtime_exit_fires_for_held_symbol_no_longer_active() -> None:
+    qc = FakeQC(); eng = _engine(qc); sym = FakeSym("URBN")
+    ticket = FakeTicket()
+    qc._active = set()
+    qc.portfolio = {sym: FakeHolding(71)}  # type: ignore[assignment]
+    qc._position_meta[sym] = {
+        "entry_date": datetime(2025, 6, 2),
+        "entry_price": 72.83,
+        "protective_stop_ticket": ticket,
+        "protective_stop_price": 49.52,
+    }
+
+    ctx = _ctx(qc); ctx.bar_state.exit_intents = [_intent("URBN", qty=-71)]
+    eng._fire(FIRE_EXITS, ctx)
+
+    assert ticket.cancelled is True
+    assert ("market", "URBN", -71) in qc.calls
+    assert sym not in qc._position_meta
 
 
 def test_exit_without_protective_stop_is_clean() -> None:

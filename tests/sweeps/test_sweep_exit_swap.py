@@ -12,10 +12,12 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 _ROOT = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(_ROOT), str(_ROOT / "src"), str(_ROOT / "build")]
 
-from build.sweep_build import _resolve_impl, sweep_to_strategy_config  # noqa: E402
+from build.sweep_build import UnsupportedSweepAxisError, _resolve_impl, sweep_to_strategy_config  # noqa: E402
 from sweeps.types import PhaseChoice, SweepConfig  # noqa: E402
 
 
@@ -28,6 +30,7 @@ def test_resolver_finds_exit_family_under_phases_exit():
     # exit kinds live under phases.exit/ (dir != kind) — the _KIND_PKG map resolves them.
     assert _resolve_impl("exit_hard", "kijun_g3_exits").__name__ == "KijunG3Exits"
     assert _resolve_impl("exit_hard", "cloud_adherence_trail").__name__ == "CloudAdherenceTrail"
+    assert _resolve_impl("exit_hard", "mfe_intraday_exit").__name__ == "MfeIntradayExit"
 
 
 def test_no_exit_choice_resolves_to_champion_base_exit_and_hash():
@@ -58,3 +61,33 @@ def test_exit_swap_gets_distinct_identity():
     ch = PhaseChoice(kind="exit_hard", impl_name="cloud_adherence_trail", params=(), free_params=0)
     swapped = SweepConfig(choices=(ch,), continuous_weekly=True)
     assert swapped.config_hash not in ("e3b0c44298fc", "4c2fc8e40607")
+
+
+def test_multiple_exit_hard_choices_compose_as_exit_list():
+    scratch = PhaseChoice(kind="exit_hard", impl_name="scratch_flat_exit", params=(), free_params=0)
+    mfe = PhaseChoice(kind="exit_hard", impl_name="mfe_intraday_exit", params=(), free_params=0)
+    sc = sweep_to_strategy_config(
+        SweepConfig(
+            choices=(
+                PhaseChoice(kind="trail", impl_name="position_path_tracker", params=(), free_params=0),
+                scratch,
+                mfe,
+            ),
+            continuous_weekly=True,
+        )
+    )
+
+    slots = _exit_slots(sc)
+    assert [slot.impl.__name__ for slot in slots] == ["ScratchFlatExit", "MfeIntradayExit"]
+    assert {slot.impl.PHASE_RESOLUTION for slot in slots} == {"intraday"}
+
+
+def test_duplicate_single_slot_choice_fails_loud():
+    a = PhaseChoice(kind="ranking", impl_name="george_industry_attention", params=(), free_params=0)
+    b = PhaseChoice(kind="ranking", impl_name="george_industry_attention", params=(), free_params=0)
+
+    with pytest.raises(UnsupportedSweepAxisError, match="single-slot"):
+        sweep_to_strategy_config(
+            SweepConfig(choices=(a, b), continuous_weekly=True),
+            base_module="strategies.champion_george_context",
+        )

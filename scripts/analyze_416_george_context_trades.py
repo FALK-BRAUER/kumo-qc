@@ -105,7 +105,14 @@ def _load_summary(report_dir: Path) -> list[dict[str, str]]:
     if not path.exists():
         raise FileNotFoundError(path)
     with path.open(newline="", encoding="utf-8") as fh:
-        return list(csv.DictReader(fh))
+        rows = list(csv.DictReader(fh))
+    return [row for row in rows if _summary_row_has_result(row)]
+
+
+def _summary_row_has_result(row: dict[str, str]) -> bool:
+    ok_raw = row.get("ok", "True")
+    ok = str(ok_raw).strip().lower() in {"1", "true", "yes"}
+    return ok and bool(row.get("result_path"))
 
 
 def _orders_by_id(result: dict[str, Any]) -> dict[int, dict[str, Any]]:
@@ -347,19 +354,51 @@ def _write_markdown(
             f"| {row['variant_id']} | {row['added_entry_count']} | {row['missed_entry_count']} | "
             f"{row['same_entry_count']} | {row['added_symbols']} | {row['missed_symbols']} |"
         )
-    lines.extend(
-        [
-            "",
-            "## Readout",
-            "",
-            "- Most industry, carry, volume, and exit variants preserve the same entry set as the baseline or the intraday gap-vol base.",
-            "- All completed/closed trades are losers in this FY2025 pack; positive net return is carried by open year-end positions.",
-            "- The George attention variants add entries but do not improve the realized loss profile.",
-            "- Strict gap/window entry variants rotate into a materially different entry set and are the main source of poor results.",
-            "- Exit variants matching the same closed/open trade set confirm that their configured thresholds did not bind in FY2025.",
-        ]
-    )
+    lines.extend(["", "## Readout", ""])
+    lines.extend(_readout_lines(variant_rows, delta_rows))
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _readout_lines(
+    variant_rows: list[dict[str, str]],
+    delta_rows: list[dict[str, str]],
+) -> list[str]:
+    if not variant_rows:
+        return ["- No successful result rows were available for diagnostics."]
+
+    ret_values = {row["ret_pct"] for row in variant_rows}
+    dd_values = {row["dd_pct"] for row in variant_rows}
+    order_values = {row["orders"] for row in variant_rows}
+    entry_changes = [
+        int(row["added_entry_count"]) + int(row["missed_entry_count"])
+        for row in delta_rows
+    ]
+    all_same_entries = all(change == 0 for change in entry_changes)
+    lines: list[str] = []
+
+    if len(ret_values) == len(dd_values) == len(order_values) == 1 and all_same_entries:
+        lines.append(
+            "- All successful variants preserve the same entry set, order count, return, and drawdown."
+        )
+        lines.append(
+            "- The tested phase settings did not bind in this FY2025 window; inspect later waves for exit-path sensitivity."
+        )
+    else:
+        max_change = max(entry_changes, default=0)
+        lines.append(
+            f"- Entry-set deltas versus baseline range from 0 to {max_change} added/missed entries."
+        )
+        lines.append(
+            "- Compare return and drawdown changes against those entry deltas before attributing performance to exits."
+        )
+
+    open_pnl_values = [float(row["implied_open_pnl"]) for row in variant_rows if row["implied_open_pnl"]]
+    realized_values = [float(row["closed_realized_pnl"]) for row in variant_rows if row["closed_realized_pnl"]]
+    if open_pnl_values and realized_values and min(open_pnl_values) > 0 and max(realized_values) < 0:
+        lines.append(
+            "- Net profit is carried by open year-end positions; closed-trade realized PnL is negative."
+        )
+    return lines
 
 
 def run(report_dir: Path, baseline: str) -> None:

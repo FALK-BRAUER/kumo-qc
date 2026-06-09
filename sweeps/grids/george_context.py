@@ -91,7 +91,11 @@ def _entry(**params: object) -> PhaseChoice:
 
 
 def _exit(impl_name: str, **params: object) -> PhaseChoice:
-    return _phase("exit_hard", impl_name, params=params)
+    free_params = len(params)
+    if impl_name == "mfe_intraday_exit" and "diagnostic_log" not in params:
+        params = {**params, "diagnostic_log": True}
+        free_params = len(params) - 1
+    return _phase("exit_hard", impl_name, free_params=free_params, params=params)
 
 
 def _position_path(**params: object) -> PhaseChoice:
@@ -140,6 +144,43 @@ _FULL_SOURCE_RUNTIME = _runtime(
     security_profile_source=SECURITY_PROFILE_SOURCE,
     george_attention_source=GEORGE_ATTENTION_SOURCE,
 )
+_INDUSTRY_CARRY_RUNTIME = _runtime(
+    security_profile_source=SECURITY_PROFILE_SOURCE,
+    watchlist_carry_max=10,
+)
+_FULL_CARRY_RUNTIME = _runtime(
+    security_profile_source=SECURITY_PROFILE_SOURCE,
+    george_attention_source=GEORGE_ATTENTION_SOURCE,
+    watchlist_carry_max=10,
+)
+
+
+def _ctx_top3() -> tuple[PhaseChoice, ...]:
+    return (
+        _rebalance(top_n=3),
+        _ranking(industry_weight=1.0, watchlist_weight=0.0, ticker_attention_weight=0.0),
+    )
+
+
+def _ctx_full_carry() -> tuple[PhaseChoice, ...]:
+    return (
+        _rebalance(top_n=5, attention_weight=1.0, etf_proxy_weight=1.0),
+        _ranking(industry_weight=1.0, watchlist_weight=0.5, ticker_attention_weight=0.5),
+    )
+
+
+def _ctx_industry_carry() -> tuple[PhaseChoice, ...]:
+    return (
+        _rebalance(top_n=5),
+        _ranking(industry_weight=1.0, watchlist_weight=1.0, ticker_attention_weight=0.0),
+    )
+
+
+def _ctx_attention_heavy() -> tuple[PhaseChoice, ...]:
+    return (
+        _rebalance(top_n=5, attention_weight=1.0),
+        _ranking(industry_weight=0.25, watchlist_weight=0.0, ticker_attention_weight=1.0),
+    )
 
 
 def six_pack() -> tuple[GeorgeSweepVariant, ...]:
@@ -554,8 +595,390 @@ def thirty_pack() -> tuple[GeorgeSweepVariant, ...]:
     return tuple(variants)
 
 
+def combo_thirty_pack() -> tuple[GeorgeSweepVariant, ...]:
+    """Second 30-pack (#427): recombine George contexts with intraday MFE exit management."""
+    variants: list[GeorgeSweepVariant] = []
+
+    variants.extend(
+        [
+            _variant(
+                "combo_target_04_top3",
+                "mfe_target",
+                "Top-3 industry context with fast +4% intraday harvest.",
+                *_ctx_top3(),
+                _position_path(),
+                _exit("mfe_intraday_exit", target_pct=0.04, min_hold_bars=2),
+                wave=1,
+                runtime_overrides=_PROFILE_RUNTIME,
+            ),
+            _variant(
+                "combo_target_06_top3",
+                "mfe_target",
+                "Top-3 industry context with +6% intraday harvest.",
+                *_ctx_top3(),
+                _position_path(),
+                _exit("mfe_intraday_exit", target_pct=0.06, min_hold_bars=2),
+                wave=1,
+                runtime_overrides=_PROFILE_RUNTIME,
+            ),
+            _variant(
+                "combo_target_08_top3",
+                "mfe_target",
+                "Top-3 industry context with +8% intraday harvest.",
+                *_ctx_top3(),
+                _position_path(),
+                _exit("mfe_intraday_exit", target_pct=0.08, min_hold_bars=3),
+                wave=1,
+                runtime_overrides=_PROFILE_RUNTIME,
+            ),
+            _variant(
+                "combo_target_06_fullcarry",
+                "mfe_target",
+                "Full George context plus carry with +6% intraday harvest.",
+                *_ctx_full_carry(),
+                _position_path(),
+                _exit("mfe_intraday_exit", target_pct=0.06, min_hold_bars=2),
+                wave=1,
+                runtime_overrides=_FULL_CARRY_RUNTIME,
+            ),
+            _variant(
+                "combo_target_08_fullcarry",
+                "mfe_target",
+                "Full George context plus carry with +8% intraday harvest.",
+                *_ctx_full_carry(),
+                _position_path(),
+                _exit("mfe_intraday_exit", target_pct=0.08, min_hold_bars=3),
+                wave=1,
+                runtime_overrides=_FULL_CARRY_RUNTIME,
+            ),
+            _variant(
+                "combo_target_10_fullcarry",
+                "mfe_target",
+                "Full George context plus carry with patient +10% harvest.",
+                *_ctx_full_carry(),
+                _position_path(),
+                _exit("mfe_intraday_exit", target_pct=0.10, min_hold_bars=4),
+                wave=1,
+                runtime_overrides=_FULL_CARRY_RUNTIME,
+            ),
+        ]
+    )
+
+    variants.extend(
+        [
+            _variant(
+                "combo_giveback_base",
+                "mfe_giveback",
+                "Exit after 40% giveback from at least +6% MFE.",
+                *_ctx_full_carry(),
+                _position_path(),
+                _exit("mfe_intraday_exit", min_mfe_pct=0.06, giveback_fraction=0.40, min_giveback_pct=0.02),
+                wave=2,
+                runtime_overrides=_FULL_CARRY_RUNTIME,
+            ),
+            _variant(
+                "combo_giveback_tight",
+                "mfe_giveback",
+                "Tighter giveback: at least +4% MFE and 35% retrace.",
+                *_ctx_full_carry(),
+                _position_path(),
+                _exit("mfe_intraday_exit", min_mfe_pct=0.04, giveback_fraction=0.35, min_giveback_pct=0.015),
+                wave=2,
+                runtime_overrides=_FULL_CARRY_RUNTIME,
+            ),
+            _variant(
+                "combo_giveback_loose",
+                "mfe_giveback",
+                "Looser giveback: require +8% MFE and 50% retrace.",
+                *_ctx_full_carry(),
+                _position_path(),
+                _exit("mfe_intraday_exit", min_mfe_pct=0.08, giveback_fraction=0.50, min_giveback_pct=0.03),
+                wave=2,
+                runtime_overrides=_FULL_CARRY_RUNTIME,
+            ),
+            _variant(
+                "combo_session_fade",
+                "mfe_giveback",
+                "Use same-session MFE to catch intraday fades before EOD.",
+                *_ctx_full_carry(),
+                _position_path(),
+                _exit(
+                    "mfe_intraday_exit",
+                    min_mfe_pct=0.05,
+                    giveback_fraction=0.50,
+                    min_giveback_pct=0.02,
+                    use_session_path=True,
+                ),
+                wave=2,
+                runtime_overrides=_FULL_CARRY_RUNTIME,
+            ),
+            _variant(
+                "combo_giveback_profit_floor",
+                "mfe_giveback",
+                "Giveback exits only if at least +2% profit remains.",
+                *_ctx_full_carry(),
+                _position_path(),
+                _exit(
+                    "mfe_intraday_exit",
+                    min_mfe_pct=0.06,
+                    giveback_fraction=0.40,
+                    min_giveback_pct=0.02,
+                    min_exit_return_pct=0.02,
+                ),
+                wave=2,
+                runtime_overrides=_FULL_CARRY_RUNTIME,
+            ),
+            _variant(
+                "combo_giveback_patient_bars",
+                "mfe_giveback",
+                "Patient giveback waits for four 5-minute bars after entry.",
+                *_ctx_full_carry(),
+                _position_path(),
+                _exit(
+                    "mfe_intraday_exit",
+                    min_mfe_pct=0.06,
+                    giveback_fraction=0.45,
+                    min_giveback_pct=0.02,
+                    min_hold_bars=4,
+                ),
+                wave=2,
+                runtime_overrides=_FULL_CARRY_RUNTIME,
+            ),
+        ]
+    )
+
+    variants.extend(
+        [
+            _variant(
+                "combo_scratch3_mfe6",
+                "scratch_mfe_combo",
+                "Scratch flat/no-progress first, then +6% MFE harvest.",
+                *_ctx_full_carry(),
+                _position_path(),
+                _exit("scratch_flat_exit", no_progress_days=3, min_mfe_pct=0.02, scratch_band_pct=0.005),
+                _exit("mfe_intraday_exit", target_pct=0.06, min_hold_bars=2),
+                wave=3,
+                runtime_overrides=_FULL_CARRY_RUNTIME,
+            ),
+            _variant(
+                "combo_scratch2_mfe6_tight",
+                "scratch_mfe_combo",
+                "Faster scratch with tight MFE giveback harvest.",
+                *_ctx_full_carry(),
+                _position_path(),
+                _exit("scratch_flat_exit", no_progress_days=2, min_mfe_pct=0.015, scratch_band_pct=0.004),
+                _exit("mfe_intraday_exit", min_mfe_pct=0.05, giveback_fraction=0.35, min_giveback_pct=0.015),
+                wave=3,
+                runtime_overrides=_FULL_CARRY_RUNTIME,
+            ),
+            _variant(
+                "combo_scratch5_mfe8_patient",
+                "scratch_mfe_combo",
+                "Patient scratch plus +8% harvest.",
+                *_ctx_full_carry(),
+                _position_path(),
+                _exit("scratch_flat_exit", no_progress_days=5, min_mfe_pct=0.025, scratch_band_pct=0.004),
+                _exit("mfe_intraday_exit", target_pct=0.08, min_hold_bars=4),
+                wave=3,
+                runtime_overrides=_FULL_CARRY_RUNTIME,
+            ),
+            _variant(
+                "combo_scratch_losscap_mfe",
+                "scratch_mfe_combo",
+                "Tighter post-MFE loss cap plus base giveback harvest.",
+                *_ctx_full_carry(),
+                _position_path(),
+                _exit(
+                    "scratch_flat_exit",
+                    no_progress_days=3,
+                    min_mfe_pct=0.02,
+                    scratch_band_pct=0.003,
+                    max_loss_after_mfe_pct=0.01,
+                ),
+                _exit("mfe_intraday_exit", min_mfe_pct=0.06, giveback_fraction=0.40, min_giveback_pct=0.02),
+                wave=3,
+                runtime_overrides=_FULL_CARRY_RUNTIME,
+            ),
+            _variant(
+                "combo_scratch_session_fade",
+                "scratch_mfe_combo",
+                "Scratch weak trades and exit same-day fades from session MFE.",
+                *_ctx_full_carry(),
+                _position_path(),
+                _exit("scratch_flat_exit", no_progress_days=3, min_mfe_pct=0.02, scratch_band_pct=0.006),
+                _exit(
+                    "mfe_intraday_exit",
+                    min_mfe_pct=0.05,
+                    giveback_fraction=0.50,
+                    min_giveback_pct=0.02,
+                    use_session_path=True,
+                ),
+                wave=3,
+                runtime_overrides=_FULL_CARRY_RUNTIME,
+            ),
+            _variant(
+                "combo_scratch_highmfe_target",
+                "scratch_mfe_combo",
+                "Require more useful MFE before scratch while harvesting +6%.",
+                *_ctx_full_carry(),
+                _position_path(),
+                _exit("scratch_flat_exit", no_progress_days=3, min_mfe_pct=0.04, scratch_band_pct=0.005),
+                _exit("mfe_intraday_exit", target_pct=0.06, min_hold_bars=2),
+                wave=3,
+                runtime_overrides=_FULL_CARRY_RUNTIME,
+            ),
+        ]
+    )
+
+    variants.extend(
+        [
+            _variant(
+                "combo_context_no_george_mfe",
+                "context_exit_combo",
+                "Control context disabled with MFE giveback exit.",
+                *_DISABLE_GEORGE,
+                _position_path(),
+                _exit("mfe_intraday_exit", min_mfe_pct=0.06, giveback_fraction=0.40, min_giveback_pct=0.02),
+                wave=4,
+            ),
+            _variant(
+                "combo_context_top3_mfe",
+                "context_exit_combo",
+                "Top-3 industry context with base MFE giveback.",
+                *_ctx_top3(),
+                _position_path(),
+                _exit("mfe_intraday_exit", min_mfe_pct=0.06, giveback_fraction=0.40, min_giveback_pct=0.02),
+                wave=4,
+                runtime_overrides=_PROFILE_RUNTIME,
+            ),
+            _variant(
+                "combo_context_industry_carry_mfe",
+                "context_exit_combo",
+                "Industry plus watchlist carry with base MFE giveback.",
+                *_ctx_industry_carry(),
+                _position_path(),
+                _exit("mfe_intraday_exit", min_mfe_pct=0.06, giveback_fraction=0.40, min_giveback_pct=0.02),
+                wave=4,
+                runtime_overrides=_INDUSTRY_CARRY_RUNTIME,
+            ),
+            _variant(
+                "combo_context_attention_heavy_mfe",
+                "context_exit_combo",
+                "Attention-heavy context with base MFE giveback.",
+                *_ctx_attention_heavy(),
+                _position_path(),
+                _exit("mfe_intraday_exit", min_mfe_pct=0.06, giveback_fraction=0.40, min_giveback_pct=0.02),
+                wave=4,
+                runtime_overrides=_FULL_SOURCE_RUNTIME,
+            ),
+            _variant(
+                "combo_context_fullcarry_mfe",
+                "context_exit_combo",
+                "Full context and watchlist carry with MFE giveback that keeps at least +1%.",
+                *_ctx_full_carry(),
+                _position_path(),
+                _exit(
+                    "mfe_intraday_exit",
+                    min_mfe_pct=0.06,
+                    giveback_fraction=0.40,
+                    min_giveback_pct=0.02,
+                    min_exit_return_pct=0.01,
+                ),
+                wave=4,
+                runtime_overrides=_FULL_CARRY_RUNTIME,
+            ),
+            _variant(
+                "combo_context_fullcarry_scratch_mfe",
+                "context_exit_combo",
+                "Full context plus scratch-flat and MFE giveback.",
+                *_ctx_full_carry(),
+                _position_path(),
+                _exit("scratch_flat_exit", no_progress_days=3, min_mfe_pct=0.02, scratch_band_pct=0.005),
+                _exit("mfe_intraday_exit", min_mfe_pct=0.06, giveback_fraction=0.40, min_giveback_pct=0.02),
+                wave=4,
+                runtime_overrides=_FULL_CARRY_RUNTIME,
+            ),
+        ]
+    )
+
+    variants.extend(
+        [
+            _variant(
+                "combo_entry_gap03_mfe",
+                "entry_exit_combo",
+                "Base +3% gap/loud-open entry with MFE giveback.",
+                *_ctx_full_carry(),
+                _entry(gap_threshold=0.03, vol_mult=1.0, window_bars=6),
+                _position_path(),
+                _exit("mfe_intraday_exit", min_mfe_pct=0.06, giveback_fraction=0.40, min_giveback_pct=0.02),
+                wave=5,
+                runtime_overrides=_FULL_CARRY_RUNTIME,
+            ),
+            _variant(
+                "combo_entry_window60_mfe",
+                "entry_exit_combo",
+                "Longer first-hour entry window with MFE giveback.",
+                *_ctx_full_carry(),
+                _entry(gap_threshold=0.03, vol_mult=1.0, window_bars=12),
+                _position_path(),
+                _exit("mfe_intraday_exit", min_mfe_pct=0.06, giveback_fraction=0.40, min_giveback_pct=0.02),
+                wave=5,
+                runtime_overrides=_FULL_CARRY_RUNTIME,
+            ),
+            _variant(
+                "combo_entry_gap04_mfe",
+                "entry_exit_combo",
+                "Stronger +4% gap entry with MFE giveback.",
+                *_ctx_full_carry(),
+                _entry(gap_threshold=0.04, vol_mult=1.0, window_bars=6),
+                _position_path(),
+                _exit("mfe_intraday_exit", min_mfe_pct=0.06, giveback_fraction=0.40, min_giveback_pct=0.02),
+                wave=5,
+                runtime_overrides=_FULL_CARRY_RUNTIME,
+            ),
+            _variant(
+                "combo_entry_vol125_mfe",
+                "entry_exit_combo",
+                "Louder 1.25x opening-volume entry with MFE giveback.",
+                *_ctx_full_carry(),
+                _entry(gap_threshold=0.03, vol_mult=1.25, window_bars=6),
+                _position_path(),
+                _exit("mfe_intraday_exit", min_mfe_pct=0.06, giveback_fraction=0.40, min_giveback_pct=0.02),
+                wave=5,
+                runtime_overrides=_FULL_CARRY_RUNTIME,
+            ),
+            _variant(
+                "combo_entry_gap04_window60_mfe",
+                "entry_exit_combo",
+                "Stronger gap with longer confirmation window and MFE giveback.",
+                *_ctx_full_carry(),
+                _entry(gap_threshold=0.04, vol_mult=1.0, window_bars=12),
+                _position_path(),
+                _exit("mfe_intraday_exit", min_mfe_pct=0.06, giveback_fraction=0.40, min_giveback_pct=0.02),
+                wave=5,
+                runtime_overrides=_FULL_CARRY_RUNTIME,
+            ),
+            _variant(
+                "combo_entry_vol150_scratch_mfe",
+                "entry_exit_combo",
+                "Strict 1.5x opening-volume entry with scratch plus MFE giveback.",
+                *_ctx_full_carry(),
+                _entry(gap_threshold=0.03, vol_mult=1.5, window_bars=6),
+                _position_path(),
+                _exit("scratch_flat_exit", no_progress_days=3, min_mfe_pct=0.02, scratch_band_pct=0.005),
+                _exit("mfe_intraday_exit", min_mfe_pct=0.06, giveback_fraction=0.40, min_giveback_pct=0.02),
+                wave=5,
+                runtime_overrides=_FULL_CARRY_RUNTIME,
+            ),
+        ]
+    )
+
+    return tuple(variants)
+
+
 def all_variants() -> tuple[GeorgeSweepVariant, ...]:
-    return six_pack() + thirty_pack()
+    return six_pack() + thirty_pack() + combo_thirty_pack()
+
 
 
 __all__ = [
@@ -564,6 +987,7 @@ __all__ = [
     "SECURITY_PROFILE_SOURCE",
     "GeorgeSweepVariant",
     "all_variants",
+    "combo_thirty_pack",
     "six_pack",
     "thirty_pack",
 ]
