@@ -49,12 +49,14 @@ Examples: `adv20_rank_price10`, `day_dv_rank_price10`, `gap_pct_rank_in_panel`,
 `day_return_pct_rank_in_panel`, `daily_structure_score_rank_in_panel`,
 `daily_cloud_distance_pct_rank_in_panel`.
 
-### TC2000 Mapping Required
+### Security-Profile Taxonomy Features
 
-Allowed for research only until a TC2000-compatible sector and industry mapping exists in both local and cloud:
+Allowed for runtime handoff when computed from the live pre-score candidate denominator and the configured
+`SECURITY_PROFILE_SOURCE` taxonomy:
 
-- `deployability_class=tc2000_mapping_required`
-- `safe_for_qc_handoff=False`
+- `deployability_class=qc_cloud_deployable`
+- `safe_for_qc_handoff=True`
+- unmapped names receive zero breadth rather than an `unknown` pseudo-sector signal
 
 Examples: `sector_bct7_pct`, `sector_positive_return_count`, `industry_bct6_count`,
 `industry_median_rel_volume20`.
@@ -72,13 +74,15 @@ These features can remain in research reports as labels, diagnostics, or leakage
 
 ## Current Decision
 
-After #431, #434, #435, #433, #423 clean-subset testing, and the feature-source ablation, there is no
+After #431, #434, #435, #433, #423 clean-subset testing, the feature-source ablation, and #442
+sector/industry breadth substrate work, there is no
 runtime scanner promotion yet.
 
 - #431 denominator ranks improved clean_top2000 recall@10 from `72/306` to `87/306`, but those ranks are
   local denominator-relative and need a live QC denominator before cloud promotion.
-- #434 sector/industry breadth produced only a small pairwise lift and is blocked on TC2000-compatible
-  sector and industry mapping.
+- #442 makes sector/industry breadth formulas reproducible from a live pre-score candidate denominator
+  and `SECURITY_PROFILE_SOURCE` taxonomy. The best deployable breadth-only clean_top2000 LambdaMART cell
+  remains `101/306` recall@10, below the promotion threshold.
 - #435 plain LambdaMART is the current best research selector at `107/306` recall@10 on the broad score-6
   panel, but it is an optional research harness and uses features that are not all cloud-ready.
 - #433 PU weighting and two-stage reranking did not beat #435, so it is not a runtime candidate.
@@ -86,8 +90,8 @@ runtime scanner promotion yet.
   recall@10 to `72/306`, below the promotion threshold.
 - The #423 feature-source ablation showed sector/industry breadth is the best clean_top2000 lift
   (`88/306` to `101/306` recall@10), while denominator-relative ranks are the best broad-pool lift
-  (`72/306` to `100/306` all-row recall@10). Both remain blocked for cloud promotion.
+  (`72/306` to `100/306` all-row recall@10). The breadth source is now reproducible, but the resulting
+  lift is still not large enough to promote the scanner ranker.
 
-The next promotable path is #442: build a QC-cloud-reproducible sector/industry breadth substrate, then
-rerun the clean_top2000 LambdaMART subset against that deployable feature source. Denominator-relative ranks
-remain the second path once a matching live candidate-panel denominator exists in cloud.
+The next promotable path is denominator-relative ranks over the same live candidate-panel denominator,
+or ETF-proxy strength from Falk's IBKR sector/industry watchlists layered on top of the breadth substrate.

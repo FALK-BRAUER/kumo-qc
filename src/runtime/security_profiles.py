@@ -21,6 +21,7 @@ class SecurityProfile:
     industry: str
     subindustry: str
     proxy_etf: str
+    proxy_etfs: tuple[str, ...]
     source: str
     confidence: float
 
@@ -41,11 +42,27 @@ def _confidence(row: dict[str, Any]) -> float:
     return max(0.0, min(1.0, value))
 
 
+def _proxy_etfs(row: dict[str, Any]) -> tuple[str, ...]:
+    raw_values = [_clean(row, "proxy_etf"), _clean(row, "proxy_etfs")]
+    proxies: list[str] = []
+    seen: set[str] = set()
+    for raw in raw_values:
+        for token in raw.replace(",", ";").split(";"):
+            proxy = canonical_symbol_key(token.strip())
+            if not proxy or proxy in seen:
+                continue
+            seen.add(proxy)
+            proxies.append(proxy)
+    return tuple(proxies)
+
+
 def read_security_profiles(path: str | Path) -> list[SecurityProfile]:
     """Read a CSV profile file.
 
     Required column: `ticker`. Optional columns: `sector`, `industry`, `subindustry`,
-    `proxy_etf`, `source`, `confidence`. Missing sector/industry values become `unknown`.
+    `proxy_etf`, `proxy_etfs`, `source`, `confidence`. Missing sector/industry values
+    become `unknown`. `proxy_etfs` accepts semicolon- or comma-separated symbols; `proxy_etf`
+    is kept as the first proxy for backward compatibility.
     """
     rows: list[SecurityProfile] = []
     with Path(path).open(newline="", encoding="utf-8") as f:
@@ -53,13 +70,15 @@ def read_security_profiles(path: str | Path) -> list[SecurityProfile]:
             ticker = canonical_symbol_key(_clean(row, "ticker"))
             if not ticker:
                 continue
+            proxies = _proxy_etfs(row)
             rows.append(
                 SecurityProfile(
                     ticker=ticker,
                     sector=_clean(row, "sector", "unknown").lower(),
                     industry=_clean(row, "industry", "unknown").lower(),
                     subindustry=_clean(row, "subindustry", "unknown").lower(),
-                    proxy_etf=canonical_symbol_key(_clean(row, "proxy_etf")),
+                    proxy_etf=proxies[0] if proxies else "",
+                    proxy_etfs=proxies,
                     source=_clean(row, "source", "unknown"),
                     confidence=_confidence(row),
                 )
@@ -77,6 +96,7 @@ def profile_maps(profiles: list[SecurityProfile]) -> dict[str, Any]:
                 "industry": p.industry,
                 "subindustry": p.subindustry,
                 "proxy_etf": p.proxy_etf,
+                "proxy_etfs": list(p.proxy_etfs),
                 "source": p.source,
                 "confidence": p.confidence,
             }
@@ -85,6 +105,7 @@ def profile_maps(profiles: list[SecurityProfile]) -> dict[str, Any]:
         "industry_by_ticker": {t: p.industry for t, p in by_ticker.items()},
         "sector_by_ticker": {t: p.sector for t, p in by_ticker.items()},
         "proxy_by_ticker": {t: p.proxy_etf for t, p in by_ticker.items() if p.proxy_etf},
+        "proxy_etfs_by_ticker": {t: list(p.proxy_etfs) for t, p in by_ticker.items() if p.proxy_etfs},
     }
 
 

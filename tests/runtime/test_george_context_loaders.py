@@ -11,6 +11,7 @@ def _algo() -> BctEngineAlgorithm:
     algo._industry_by_ticker = {}
     algo._sector_by_ticker = {}
     algo._proxy_by_ticker = {}
+    algo._proxy_etfs_by_ticker = {}
     algo._george_attention_ticker = {}
     algo._george_attention_industry = {}
     algo._george_source_role_counts = {}
@@ -20,8 +21,8 @@ def _algo() -> BctEngineAlgorithm:
 def test_optional_george_context_loader_populates_runtime_maps(tmp_path) -> None:
     profiles = tmp_path / "profiles.csv"
     profiles.write_text(
-        "ticker,sector,industry,subindustry,proxy_etf,source,confidence\n"
-        "ATI,Materials,Specialty Metals,Steel,XME,manual,0.9\n",
+        "ticker,sector,industry,subindustry,proxy_etf,proxy_etfs,source,confidence\n"
+        "ATI,Materials,Specialty Metals,Steel,XME,XLB;XME;COPX,manual,0.9\n",
         encoding="utf-8",
     )
     attention = tmp_path / "attention.csv"
@@ -39,6 +40,7 @@ def test_optional_george_context_loader_populates_runtime_maps(tmp_path) -> None
     assert algo._industry_by_ticker == {"ati": "specialty metals"}
     assert algo._sector_by_ticker == {"ati": "materials"}
     assert algo._proxy_by_ticker == {"ati": "xme"}
+    assert algo._proxy_etfs_by_ticker == {"ati": ["xme", "xlb", "copx"]}
     assert algo._george_attention_ticker == {"ati": 1.0}
     assert algo._george_attention_industry == {"specialty metals": 1.0}
     assert algo._george_source_role_counts == {"scanner_candidate": 1}

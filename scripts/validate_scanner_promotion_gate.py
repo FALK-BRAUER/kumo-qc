@@ -167,7 +167,6 @@ def validate_inventory(path: Path = DEFAULT_INVENTORY) -> list[dict[str, str]]:
 
     required_statuses = {
         "blocked_local_massive_only",
-        "blocked_tc2000_mapping",
         "clean_available_not_used",
         "non_deployable_george_evidence",
         "qc_ranker_feature",

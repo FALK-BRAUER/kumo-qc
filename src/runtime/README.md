@@ -10,6 +10,9 @@ tag schema, and pure runtime helpers such as `watchlist_carry.py`, `security_pro
 `george_attention.py`. Does not go here: offline/runner mechanics (those live in `sweeps/` +
 `scripts/`, NOT bundled), phase implementations (`src/phases/`), or the engine core (`src/engine/`).
 
+`security_profiles.py` accepts `proxy_etf` plus optional semicolon/comma-separated `proxy_etfs` so
+one ticker can carry a primary sector ETF and multiple industry/theme proxies.
+
 Bundling rule (#358): runtime-READ code lives here (dist-bundled); offline-WRITE/build code lives in
 `scripts/`/`sweeps/`; a shared key formula lives here so write==read from one source.
 

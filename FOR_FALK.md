@@ -1,5 +1,18 @@
 # FOR_FALK - BCT/George scanner-alignment implementation pass, 2026-06-09
 
+## #442 sector/industry breadth substrate follow-up
+
+Added a deployable sector/industry breadth substrate for scanner ranking:
+- `src/phases/shared/sector_breadth.py` computes same-day breadth from the live pre-score candidate
+  denominator without George/OCR/watchlist evidence.
+- `sweeps/archive/george_learned_ranker.py` and `george_lambdamart_ranker.py` now compute breadth before
+  the BCT>=6 score gate, then carry the fields into the ranking panel.
+- Missing taxonomy receives zero breadth; it is not grouped into a fake `unknown` sector.
+- `src/runtime/security_profiles.py` now accepts multiple ETF proxies via `proxy_etfs`, matching the IBKR
+  ETF-watchlist idea better than one proxy per sector.
+- Rerun result: raw QC-safe clean_top2000 LambdaMART stays `88/306` recall@10; raw + deployable sector
+  breadth reaches `101/306` recall@10. Useful, but still below the promotion target of about `117/306`.
+
 Implemented the first QC-safe scanner-alignment slice from the kumo-lab #23 handoff.
 
 What changed:

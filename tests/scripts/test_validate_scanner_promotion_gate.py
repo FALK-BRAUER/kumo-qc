@@ -41,11 +41,11 @@ def _minimal_rows() -> list[dict[str, str]]:
         ),
         _row(
             feature="sector_bct7_pct",
-            qc_status="blocked_tc2000_mapping",
-            deployability_class="tc2000_mapping_required",
-            safe_for_qc_handoff="False",
-            used_in_feature_sets="offline_oof_research",
-            handoff_note="needs a TC2000-compatible sector/industry mapping before QC handoff",
+            qc_status="qc_ranker_feature",
+            deployability_class="qc_cloud_deployable",
+            safe_for_qc_handoff="True",
+            used_in_feature_sets="qc_cloud_deployable",
+            handoff_note="computed from live pre-score candidate denominator and SECURITY_PROFILE_SOURCE",
         ),
         _row(
             feature="george_included",

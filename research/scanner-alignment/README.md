@@ -6,5 +6,5 @@ Scanner-alignment experiment ledger and reports for BCT/George reverse-engineeri
 as the explicit feature-level allow/deny list.
 Companion reports: `feature_parity_audit.md`, `denominator_rank_experiment.md`, `sector_breadth_experiment.md`,
 `lambdamart_experiment.md`, `pu_two_stage_experiment.md`, `clean_subset_experiment.md`,
-`feature_source_ablation.md`.
+`feature_source_ablation.md`, `sector_breadth_substrate.md`.
 Does not hold runtime code, generated panels, George raw evidence, or backtest result ledgers.

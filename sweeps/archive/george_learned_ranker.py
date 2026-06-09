@@ -20,6 +20,7 @@ import pandas as pd
 from sweeps.archive import first_hour_confirmation as first_hour
 from sweeps.archive import george_sector_context_audit as sector_context
 from sweeps.archive import george_topk_audit as topk
+from phases.shared.sector_breadth import BreadthCandidate, sector_industry_breadth_rows
 
 DEFAULT_PROMOTION_INVENTORY = Path("research/scanner-alignment/feature_parity_columns.csv")
 
@@ -125,6 +126,7 @@ SECTOR_BREADTH_NUMERIC_FEATURES: tuple[str, ...] = (
     "industry_bct7_pct",
     "industry_positive_return_pct",
 )
+SECTOR_BREADTH_COLUMNS: tuple[str, ...] = ("sector_key", "industry_key", *SECTOR_BREADTH_NUMERIC_FEATURES)
 
 LEARNED_USECOLS: tuple[str, ...] = tuple(
     dict.fromkeys(
@@ -349,6 +351,83 @@ def add_denominator_rank_features(panel: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def _first_text_value(row: pd.Series, columns: tuple[str, ...]) -> str | None:
+    for column in columns:
+        if column not in row.index:
+            continue
+        value = row[column]
+        if pd.isna(value):
+            continue
+        text = str(value).strip()
+        if text:
+            if column == "industry_key" and "|" in text:
+                text = text.split("|", 1)[1].strip()
+            return text or None
+    return None
+
+
+def add_sector_breadth_features(panel: pd.DataFrame) -> pd.DataFrame:
+    """Add deployable same-day candidate-panel sector/industry breadth columns."""
+    out = panel.copy()
+    if out.empty:
+        for column in ("sector_key", "industry_key", *SECTOR_BREADTH_NUMERIC_FEATURES):
+            out[column] = []
+        return out
+
+    groups: list[tuple[pd.Index, pd.DataFrame]] = []
+    if "date" in out.columns:
+        groups = [(group.index, group) for _date, group in out.groupby("date", sort=False)]
+    else:
+        groups = [(out.index, out)]
+
+    feature_frames: list[pd.DataFrame] = []
+    for index, group in groups:
+        candidates = [
+            BreadthCandidate(
+                ticker=str(row.get("symbol", "")),
+                bct_score=row.get("bct_score"),
+                day_return_pct=row.get("day_return_pct"),
+                rel_volume20=row.get("rel_volume20", row.get("d_rel_volume50")),
+                sector=_first_text_value(row, ("resolved_sector", "profile_sector", "cache_sector", "sector_key")),
+                industry=_first_text_value(row, ("resolved_industry", "profile_industry", "cache_industry", "industry_key")),
+            )
+            for _row_index, row in group.iterrows()
+        ]
+        feature_frames.append(pd.DataFrame(sector_industry_breadth_rows(candidates), index=index))
+
+    features = pd.concat(feature_frames).reindex(out.index)
+    for column in features.columns:
+        out[column] = features[column]
+    return out
+
+
+def add_live_denominator_sector_breadth(
+    denominator: pd.DataFrame,
+    *,
+    covered_dates: set[str],
+    top_n: int,
+) -> pd.DataFrame:
+    """Compute breadth on the live candidate denominator before score-gating."""
+    out = topk._normalize_denominator(denominator)
+    for column in SECTOR_BREADTH_COLUMNS:
+        if column not in out.columns:
+            out[column] = np.nan if column.endswith("_median_rel_volume20") else 0.0
+    out["sector_key"] = ""
+    out["industry_key"] = ""
+
+    mask = (
+        topk._bool_col(out, "in_candidate_denominator")
+        & out["date"].isin(covered_dates)
+        & (topk._num_col(out, "adv20_rank_price10") <= top_n)
+    )
+    if not bool(mask.any()):
+        return out
+    enriched = add_sector_breadth_features(out.loc[mask].copy())
+    for column in SECTOR_BREADTH_COLUMNS:
+        out.loc[mask, column] = enriched[column]
+    return out
+
+
 def load_qc_cloud_safe_feature_names(path: Path = DEFAULT_PROMOTION_INVENTORY) -> set[str]:
     """Load feature names explicitly allowed by the scanner runtime-promotion gate."""
     if not path.exists():
@@ -406,6 +485,8 @@ def build_feature_matrix(
     allowed_features: set[str] | None = None,
 ) -> tuple[np.ndarray, list[str]]:
     """Build a numeric feature matrix from QC-safe denominator columns."""
+    if include_sector_breadth and any(column not in panel.columns for column in SECTOR_BREADTH_NUMERIC_FEATURES):
+        panel = add_sector_breadth_features(panel)
     columns: list[np.ndarray] = []
     names: list[str] = []
     numeric_features = (
@@ -623,7 +704,16 @@ def run_learned_ranker(
 ) -> LearnedRankerResult:
     """Run date-grouped OOF learned-ranker validation."""
     topk_config = topk.AuditConfig(top_n=config.top_n, min_score=config.min_score, ks=config.ks)
-    panel = topk.build_score6_panel(denominator, labels, covered_dates=covered_dates, config=topk_config)
+    denominator_for_panel = (
+        add_live_denominator_sector_breadth(
+            denominator,
+            covered_dates=covered_dates,
+            top_n=config.top_n,
+        )
+        if config.use_sector_breadth
+        else denominator
+    )
+    panel = topk.build_score6_panel(denominator_for_panel, labels, covered_dates=covered_dates, config=topk_config)
     if config.use_sector_context:
         panel = sector_context.add_stock_context_features(panel)
         panel, _sectors, _industries = sector_context.add_sector_industry_context(panel)

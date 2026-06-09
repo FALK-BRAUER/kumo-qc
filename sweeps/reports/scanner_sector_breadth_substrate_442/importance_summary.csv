@@ -1,0 +1,688 @@
+cell_id,cell_label,deployability_class,allowed_sources,feature_count,feature,importance_mean,importance_std
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,day_return_pct,271.8,13.673332
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_tenkan_extension_pct,235.4,10.537552
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_return_10d_pct,138.2,18.026647
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_cloud_distance_pct,120.2,2.993326
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,w_cloud_distance_pct,107.2,18.829764
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_minus_di,101.8,11.33843
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_upper_wick_pct_range,88.8,11.634432
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,rel_volume20,87.2,8.975522
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,gap_pct,84.6,8.68562
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_return_20d_pct,68.4,14.430523
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_plus_di,67.2,12.073111
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_return_5d_pct,65.4,16.230835
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_adx,64.0,23.638951
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_body_pct_range,58.0,15.582041
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_lower_wick_pct_range,57.2,11.51347
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_kijun_extension_pct,54.4,8.428523
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,w_tenkan_extension_pct,49.4,15.679286
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_tk_spread_pct,47.2,9.826495
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_tenkan_gt_kijun,40.2,10.851728
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_recent_resistance_rejection_count20,38.4,13.646978
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,bct_score,28.6,14.150618
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,daily_structure_score,26.0,9.81835
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_cloud_green,9.2,7.984986
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,daily_breakout_quality_score,9.0,6.928203
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_chikou_open_space,8.6,9.89141
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,bct_c7_adx_confirmed,7.2,7.332121
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_chikou_ok,7.0,2.19089
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,bct_c4_weekly_cloud_green,4.6,3.261901
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_no_chase_risk,2.8,3.429286
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,bct_c2_weekly_tenkan_gt_kijun,2.6,2.6533
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_adx_rising_3,2.4,1.019804
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_price_up_volume_down,2.4,1.854724
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_shooting_star_like,1.6,2.727636
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_volume_spike_150,1.0,1.549193
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_bearish_reversal_candle,0.6,0.489898
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_volume_above_ma50,0.6,0.8
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_price_up_volume_below50,0.4,0.489898
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_price_above_tenkan,0.2,0.4
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_extension_reversal_warning,0.2,0.4
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,bct_c8_daily_price_above_ma200,0.0,0.0
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,w_price_above_cloud,0.0,0.0
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,bct_c6_daily_price_above_tenkan,0.0,0.0
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,bct_c5_daily_price_above_cloud,0.0,0.0
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,w_cloud_green,0.0,0.0
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,bct_c3_weekly_chikou_ok,0.0,0.0
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,w_tenkan_gt_kijun,0.0,0.0
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,bct_c1_weekly_price_above_cloud,0.0,0.0
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_breakout20_volume_confirmed,0.0,0.0
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_rapid_run_20d_30,0.0,0.0
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_rapid_run_10d_15,0.0,0.0
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_overextended_tenkan_10,0.0,0.0
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_overextended_tenkan_5,0.0,0.0
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_overextended_tenkan_3,0.0,0.0
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_doji_or_spinning_top,0.0,0.0
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_breakout252_volume_confirmed,0.0,0.0
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_breakout50_volume_confirmed,0.0,0.0
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_price_above_ma200,0.0,0.0
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_price_above_kijun,0.0,0.0
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,d_price_above_cloud,0.0,0.0
+raw_qc_safe,Raw QC-safe chart features only,qc_cloud_deployable,raw_qc_safe,60,w_chikou_ok,0.0,0.0
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_tenkan_extension_pct,187.6,12.043255
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,day_return_pct,146.0,20.327322
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_return_10d_pct,116.0,20.366639
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,day_return_pct_rank_in_panel,94.0,40.531469
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,day_dollar_vol_pctile_in_panel,93.2,17.825824
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_minus_di,87.6,12.354756
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,day_return_pct_pctile_in_panel,74.0,24.058263
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,w_cloud_distance_pct,71.4,9.478396
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_upper_wick_pct_range,67.8,14.878172
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_cloud_distance_pct,58.4,17.188368
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_return_5d_pct,56.0,12.42578
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,daily_structure_score_pctile_in_panel,51.6,26.963679
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_tenkan_gt_kijun,45.8,6.112283
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,daily_cloud_distance_pct_rank_in_panel,40.0,6.164414
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_plus_di,39.2,6.939741
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,daily_cloud_distance_pct_pctile_in_panel,38.4,11.1463
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,day_dollar_vol_rank_in_panel,38.0,3.847077
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,gap_pct,36.6,11.516944
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_kijun_extension_pct,35.2,9.495262
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_body_pct_range,35.0,3.898718
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,adv20_pctile_in_panel,34.8,6.013319
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,daily_breakout_quality_score_pctile_in_panel,33.8,5.74108
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,adv20_rank_in_panel,33.2,8.518216
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_recent_resistance_rejection_count20,32.6,12.354756
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,rel_volume50_pctile_in_panel,32.0,3.794733
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_adx,32.0,16.346253
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,gap_pct_pctile_in_panel,28.6,9.436101
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,bct_score_pctile_in_panel,28.2,9.6
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_lower_wick_pct_range,26.8,6.645299
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_return_20d_pct,26.6,10.248902
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,daily_structure_score_rank_in_panel,25.8,12.936769
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_tk_spread_pct,24.6,4.127953
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,rel_volume50_rank_in_panel,24.4,8.260751
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,gap_pct_rank_in_panel,20.8,5.564171
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,rel_volume20_rank_in_panel,19.4,6.374951
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,bct_score_rank_in_panel,18.4,6.118823
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,daily_breakout_quality_score_rank_in_panel,17.6,5.607138
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,rel_volume20,17.0,3.34664
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,w_tenkan_extension_pct,16.8,3.487119
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,rel_volume20_pctile_in_panel,14.8,7.704544
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,bct_c7_adx_confirmed,7.6,6.08605
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_chikou_open_space,6.2,6.523803
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_cloud_green,4.4,4.079216
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,daily_structure_score,4.0,4.147288
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_price_up_volume_down,3.8,5.114685
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_no_chase_risk,3.2,3.709447
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_adx_rising_3,2.8,2.039608
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,daily_breakout_quality_score,2.8,1.939072
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,bct_c2_weekly_tenkan_gt_kijun,2.0,3.098387
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,bct_c4_weekly_cloud_green,1.4,1.019804
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_shooting_star_like,1.4,1.019804
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_chikou_ok,0.2,0.4
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_volume_above_ma50,0.2,0.4
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,bct_c1_weekly_price_above_cloud,0.0,0.0
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_extension_reversal_warning,0.0,0.0
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,bct_c3_weekly_chikou_ok,0.0,0.0
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,bct_c8_daily_price_above_ma200,0.0,0.0
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,bct_c5_daily_price_above_cloud,0.0,0.0
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,bct_c6_daily_price_above_tenkan,0.0,0.0
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_rapid_run_10d_15,0.0,0.0
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,w_price_above_cloud,0.0,0.0
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,w_cloud_green,0.0,0.0
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,w_tenkan_gt_kijun,0.0,0.0
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_rapid_run_20d_30,0.0,0.0
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,bct_score,0.0,0.0
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_overextended_tenkan_10,0.0,0.0
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_overextended_tenkan_5,0.0,0.0
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_overextended_tenkan_3,0.0,0.0
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_doji_or_spinning_top,0.0,0.0
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_price_up_volume_below50,0.0,0.0
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_volume_spike_150,0.0,0.0
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_bearish_reversal_candle,0.0,0.0
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_breakout252_volume_confirmed,0.0,0.0
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_breakout50_volume_confirmed,0.0,0.0
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_breakout20_volume_confirmed,0.0,0.0
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_price_above_ma200,0.0,0.0
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_price_above_kijun,0.0,0.0
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_price_above_tenkan,0.0,0.0
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,d_price_above_cloud,0.0,0.0
+raw_plus_denominator_ranks,Raw QC-safe plus denominator-relative ranks,local_massive_only,raw_qc_safe+denominator_ranks,80,w_chikou_ok,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,day_return_pct,246.4,20.441135
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_tenkan_extension_pct,209.2,15.866947
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_return_10d_pct,112.4,12.306096
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_cloud_distance_pct,100.0,14.872794
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_minus_di,88.8,14.702381
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,w_cloud_distance_pct,77.6,5.607138
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_upper_wick_pct_range,74.0,15.086418
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,rel_volume20,72.6,8.822698
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,gap_pct,64.6,10.229369
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_adx,56.8,19.415458
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_return_5d_pct,54.6,3.006659
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_return_20d_pct,46.6,7.761443
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_lower_wick_pct_range,46.0,9.919677
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,sector_weekly_good_pct,44.6,7.605261
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_tenkan_gt_kijun,43.8,3.059412
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_plus_di,43.6,4.079216
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_kijun_extension_pct,36.0,11.575837
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,w_tenkan_extension_pct,35.6,6.945502
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,base_stock_rank,34.4,3.826225
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_tk_spread_pct,34.2,6.554388
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,stock_rank_in_sector_base,31.8,6.764614
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_recent_resistance_rejection_count20,30.4,11.164229
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_body_pct_range,29.6,3.498571
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,hierarchy_stage_score,27.2,6.144917
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,sector_proxy_score,22.2,4.915282
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,sector_context_score,22.2,7.44043
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,stock_rank_in_industry_base,18.0,5.059644
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,industry_daily_good_pct,17.8,8.034924
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,stock_chart_score,16.2,7.44043
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,sector_bct7_count_proxy,15.6,2.059126
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,industry_rank_hierarchy,14.4,7.683749
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,industry_rows_proxy,14.2,1.939072
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,daily_structure_score,14.2,2.712932
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,sector_daily_good_pct,13.4,3.878144
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,base_stock_score,13.0,4.049691
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,sector_rows_proxy,12.8,8.840814
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,industry_weekly_good_pct,11.4,3.826225
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_chikou_open_space,10.8,6.112283
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,industry_rank_global,10.4,2.244994
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,sector_rank,10.4,4.8
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,daily_breakout_quality_score,10.2,5.344156
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,industry_proxy_score,9.6,3.006659
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,daily_breakout,9.2,4.261455
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,industry_hierarchy_score,8.6,4.317407
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,industry_rank_in_sector,7.8,4.445222
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,industry_bct7_count_proxy,6.8,2.785678
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,daily_good,6.4,6.406247
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,bct_c7_adx_confirmed,5.6,4.543127
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_chikou_ok,3.4,1.496663
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_shooting_star_like,2.8,2.481935
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_cloud_green,2.2,1.469694
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_adx_rising_3,2.2,2.039608
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_price_up_volume_down,1.2,1.16619
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,daily_support_hold,1.0,1.095445
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,hierarchy_all_stage_pass,0.8,1.16619
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,bct_c4_weekly_cloud_green,0.8,0.748331
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,strong_industry_exception,0.8,0.748331
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_volume_spike_150,0.6,0.8
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,bct_c2_weekly_tenkan_gt_kijun,0.6,1.2
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_bearish_reversal_candle,0.4,0.8
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_volume_above_ma50,0.2,0.4
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_price_up_volume_below50,0.2,0.4
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,industry_pass_hierarchy,0.2,0.4
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,no_chase_pass,0.2,0.4
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_extension_reversal_warning,0.2,0.4
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,daily_strong,0.2,0.4
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_price_above_tenkan,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,weekly_good,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,weekly_strong,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,weekly_recovering,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_price_above_ma200,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_price_above_kijun,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,positive_day,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,volume_confirmed,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,has_sector_profile,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,bad_reversal,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,sector_pass_top7,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,stock_pass_in_industry,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,trigger_pass_proxy,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_price_above_cloud,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,has_industry_profile,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,w_cloud_green,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,w_chikou_ok,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_breakout252_volume_confirmed,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_no_chase_risk,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_doji_or_spinning_top,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_overextended_tenkan_3,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_overextended_tenkan_5,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_overextended_tenkan_10,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_rapid_run_10d_15,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_rapid_run_20d_30,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,bct_c1_weekly_price_above_cloud,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,w_tenkan_gt_kijun,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,bct_c3_weekly_chikou_ok,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_breakout50_volume_confirmed,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,bct_c5_daily_price_above_cloud,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,bct_c6_daily_price_above_tenkan,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,d_breakout20_volume_confirmed,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,bct_c8_daily_price_above_ma200,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,w_price_above_cloud,0.0,0.0
+raw_plus_sector_context,Raw QC-safe plus sector/industry context,tc2000_mapping_required,raw_qc_safe+sector_context,101,bct_score,0.0,0.0
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,day_return_pct,252.6,16.58433
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_tenkan_extension_pct,228.6,23.009563
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_return_10d_pct,129.8,17.092688
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_cloud_distance_pct,110.2,18.126224
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_minus_di,92.2,16.809521
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,w_cloud_distance_pct,83.8,7.652451
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,rel_volume20,82.0,8.049845
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_upper_wick_pct_range,76.4,8.890444
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,gap_pct,70.0,12.696456
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_adx,68.8,31.964981
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_return_5d_pct,63.2,10.684568
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_return_20d_pct,53.6,4.8
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_plus_di,50.6,3.611094
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_kijun_extension_pct,47.6,15.027974
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,sector_median_rel_volume20,47.2,12.828094
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,industry_median_rel_volume20,46.2,8.231646
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_tenkan_gt_kijun,43.4,7.002857
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_lower_wick_pct_range,43.0,6.449806
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,w_tenkan_extension_pct,35.6,9.931767
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_body_pct_range,34.2,6.493073
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_tk_spread_pct,32.8,10.533755
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_recent_resistance_rejection_count20,30.0,11.489125
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,industry_positive_return_pct,22.6,9.728309
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,daily_structure_score,21.0,7.211103
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,industry_median_day_return_pct,17.6,5.314132
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,sector_median_day_return_pct,14.2,6.615134
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,bct_score,12.6,3.97995
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,industry_bct7_pct,12.4,3.555278
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,sector_positive_return_count,12.2,2.925748
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,sector_positive_return_pct,10.2,5.114685
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,industry_positive_return_count,9.6,4.543127
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_chikou_open_space,9.0,5.215362
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,industry_denominator_count,8.8,5.153639
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,daily_breakout_quality_score,8.0,4.195235
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,industry_bct6_pct,7.6,1.854724
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,sector_bct7_pct,7.6,5.678028
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,sector_bct7_count,7.6,3.261901
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,sector_bct6_count,7.0,5.25357
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,sector_denominator_count,6.4,1.854724
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,industry_bct7_count,6.4,2.059126
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,sector_bct6_pct,6.0,3.098387
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,industry_bct6_count,5.6,2.244994
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_cloud_green,4.6,2.727636
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,bct_c2_weekly_tenkan_gt_kijun,3.4,3.44093
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_adx_rising_3,3.0,2.828427
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,bct_c4_weekly_cloud_green,2.4,1.74356
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_price_up_volume_below50,2.2,2.039608
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_chikou_ok,2.0,1.67332
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,bct_c7_adx_confirmed,1.8,1.939072
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_shooting_star_like,1.6,2.244994
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_price_up_volume_down,1.2,1.16619
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_no_chase_risk,1.2,1.16619
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_volume_spike_150,0.8,1.16619
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_volume_above_ma50,0.6,0.8
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_doji_or_spinning_top,0.4,0.489898
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_bearish_reversal_candle,0.4,0.489898
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_price_above_tenkan,0.2,0.4
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_breakout252_volume_confirmed,0.0,0.0
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_breakout50_volume_confirmed,0.0,0.0
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,w_tenkan_gt_kijun,0.0,0.0
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,w_cloud_green,0.0,0.0
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,w_price_above_cloud,0.0,0.0
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,bct_c8_daily_price_above_ma200,0.0,0.0
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_price_above_cloud,0.0,0.0
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,bct_c6_daily_price_above_tenkan,0.0,0.0
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,bct_c5_daily_price_above_cloud,0.0,0.0
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,bct_c3_weekly_chikou_ok,0.0,0.0
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_price_above_kijun,0.0,0.0
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,bct_c1_weekly_price_above_cloud,0.0,0.0
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_price_above_ma200,0.0,0.0
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_extension_reversal_warning,0.0,0.0
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_rapid_run_20d_30,0.0,0.0
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_rapid_run_10d_15,0.0,0.0
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_overextended_tenkan_10,0.0,0.0
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_overextended_tenkan_5,0.0,0.0
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_overextended_tenkan_3,0.0,0.0
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,d_breakout20_volume_confirmed,0.0,0.0
+raw_plus_sector_breadth,Raw QC-safe plus sector/industry breadth,qc_cloud_deployable,raw_qc_safe+sector_breadth,78,w_chikou_ok,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_tenkan_extension_pct,177.4,12.986146
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,day_return_pct,126.2,17.747112
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_return_10d_pct,98.2,16.117072
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,day_return_pct_rank_in_panel,93.4,44.960427
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,day_dollar_vol_pctile_in_panel,82.2,17.679367
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_minus_di,70.4,6.829348
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_upper_wick_pct_range,70.4,19.022092
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,w_cloud_distance_pct,62.8,11.214277
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_return_5d_pct,55.4,10.499524
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,day_return_pct_pctile_in_panel,52.0,24.673873
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_cloud_distance_pct,50.2,12.796875
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_tenkan_gt_kijun,43.0,7.924645
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,daily_structure_score_rank_in_panel,38.4,33.535653
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,daily_structure_score_pctile_in_panel,37.0,15.658863
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_adx,35.8,13.090455
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_kijun_extension_pct,35.2,5.979967
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_plus_di,32.4,7.605261
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,day_dollar_vol_rank_in_panel,32.4,10.051865
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,rel_volume50_pctile_in_panel,32.0,8.532292
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,gap_pct,30.8,8.657944
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,daily_cloud_distance_pct_rank_in_panel,30.8,7.858753
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,daily_cloud_distance_pct_pctile_in_panel,30.6,12.142487
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,adv20_rank_in_panel,29.0,13.94274
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_body_pct_range,27.6,5.083306
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,adv20_pctile_in_panel,27.4,2.727636
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_recent_resistance_rejection_count20,26.6,11.706409
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,daily_breakout_quality_score_pctile_in_panel,26.2,12.592061
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_return_20d_pct,24.2,4.707441
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_lower_wick_pct_range,23.8,10.979982
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,rel_volume50_rank_in_panel,23.6,4.630335
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,sector_weekly_good_pct,23.0,7.293833
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,gap_pct_pctile_in_panel,22.4,2.87054
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,hierarchy_stage_score,21.8,7.025667
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_tk_spread_pct,21.4,4.630335
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,stock_rank_in_sector_base,20.8,7.138627
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,rel_volume20,20.2,7.222188
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,daily_breakout_quality_score_rank_in_panel,17.0,4.242641
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,sector_context_score,15.2,6.910861
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,rel_volume20_rank_in_panel,14.8,2.481935
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,sector_proxy_score,14.4,6.651316
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,stock_rank_in_industry_base,14.0,5.176872
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,rel_volume20_pctile_in_panel,13.8,4.707441
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,gap_pct_rank_in_panel,13.6,2.8
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,base_stock_rank,13.0,3.162278
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,sector_rows_proxy,12.6,5.885576
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,w_tenkan_extension_pct,12.4,3.878144
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,sector_daily_good_pct,12.0,1.67332
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,industry_rows_proxy,11.8,3.310589
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,sector_bct7_count_proxy,10.6,4.317407
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,daily_breakout,10.2,2.481935
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,industry_daily_good_pct,10.0,4.690416
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,base_stock_score,8.6,2.727636
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,bct_score_pctile_in_panel,7.8,2.481935
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,industry_rank_global,7.4,3.826225
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,bct_score_rank_in_panel,7.4,3.006659
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,industry_weekly_good_pct,7.2,2.315167
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,industry_rank_hierarchy,7.2,1.6
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,stock_chart_score,6.6,3.878144
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_chikou_open_space,6.6,6.8
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,sector_rank,6.4,1.854724
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,industry_proxy_score,6.2,6.305553
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,bct_c7_adx_confirmed,5.2,3.487119
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,industry_rank_in_sector,4.0,1.414214
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,industry_hierarchy_score,4.0,1.897367
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,daily_breakout_quality_score,3.8,2.227106
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,industry_bct7_count_proxy,3.4,1.854724
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,daily_structure_score,3.2,1.6
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_price_up_volume_down,2.8,4.621688
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_cloud_green,1.8,1.16619
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_adx_rising_3,1.6,3.2
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_shooting_star_like,1.2,1.16619
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,daily_good,1.0,0.894427
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_chikou_ok,1.0,1.549193
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,strong_industry_exception,0.8,1.16619
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_no_chase_risk,0.6,0.8
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,bct_c4_weekly_cloud_green,0.6,0.8
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,bct_c2_weekly_tenkan_gt_kijun,0.6,1.2
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,daily_support_hold,0.6,0.8
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_bearish_reversal_candle,0.4,0.489898
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_price_up_volume_below50,0.4,0.489898
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,no_chase_pass,0.4,0.8
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,bad_reversal,0.4,0.489898
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,daily_strong,0.2,0.4
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_doji_or_spinning_top,0.2,0.4
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_breakout252_volume_confirmed,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,has_industry_profile,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,weekly_good,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,weekly_strong,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,weekly_recovering,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_price_above_tenkan,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,volume_confirmed,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_price_above_cloud,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,w_chikou_ok,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,positive_day,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,sector_pass_top7,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,industry_pass_hierarchy,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,stock_pass_in_industry,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,trigger_pass_proxy,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,hierarchy_all_stage_pass,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,has_sector_profile,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,bct_c8_daily_price_above_ma200,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,w_tenkan_gt_kijun,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,w_cloud_green,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_breakout50_volume_confirmed,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_volume_above_ma50,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_volume_spike_150,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_breakout20_volume_confirmed,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_overextended_tenkan_3,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_overextended_tenkan_5,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_overextended_tenkan_10,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_rapid_run_10d_15,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_rapid_run_20d_30,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_extension_reversal_warning,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_price_above_ma200,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,bct_c1_weekly_price_above_cloud,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,bct_c3_weekly_chikou_ok,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,bct_c5_daily_price_above_cloud,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,bct_c6_daily_price_above_tenkan,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,d_price_above_kijun,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,w_price_above_cloud,0.0,0.0
+raw_plus_denominator_ranks_sector_context,Raw QC-safe plus denominator ranks plus sector context,local_plus_tc2000_blocked,raw_qc_safe+denominator_ranks+sector_context,121,bct_score,0.0,0.0
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_tenkan_extension_pct,186.2,16.22837
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,day_return_pct,118.8,31.48587
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,day_return_pct_rank_in_panel,103.6,45.666618
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_return_10d_pct,91.4,10.947146
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_minus_di,83.8,6.852737
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,day_dollar_vol_pctile_in_panel,80.8,12.95222
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,day_return_pct_pctile_in_panel,73.0,33.099849
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,w_cloud_distance_pct,68.0,11.558547
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_upper_wick_pct_range,57.8,8.818163
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_return_5d_pct,54.0,14.79189
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_cloud_distance_pct,53.4,14.277255
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,daily_structure_score_pctile_in_panel,46.2,19.53868
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_tenkan_gt_kijun,43.2,11.33843
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_plus_di,38.4,6.18385
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_kijun_extension_pct,37.2,6.794115
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,gap_pct,36.2,6.273755
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,daily_cloud_distance_pct_pctile_in_panel,34.6,12.043255
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,day_dollar_vol_rank_in_panel,34.2,10.703271
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,adv20_pctile_in_panel,33.8,12.936769
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,rel_volume50_pctile_in_panel,33.0,6.228965
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,bct_score_pctile_in_panel,32.8,15.663971
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_adx,32.4,5.607138
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,daily_cloud_distance_pct_rank_in_panel,29.0,7.668116
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_lower_wick_pct_range,27.8,8.565045
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,daily_breakout_quality_score_pctile_in_panel,27.6,3.32265
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,adv20_rank_in_panel,27.0,8.740709
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_recent_resistance_rejection_count20,25.8,10.186265
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_return_20d_pct,25.6,1.356466
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_body_pct_range,25.2,6.523803
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,rel_volume50_rank_in_panel,25.2,5.635601
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,industry_median_rel_volume20,23.0,6.0663
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,gap_pct_pctile_in_panel,22.8,8.084553
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,daily_structure_score_rank_in_panel,22.8,9.368031
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,sector_median_rel_volume20,20.8,3.187475
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_tk_spread_pct,20.6,4.673329
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,rel_volume20_rank_in_panel,18.0,8.246211
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,bct_score_rank_in_panel,17.4,6.08605
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,daily_breakout_quality_score_rank_in_panel,16.6,5.607138
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,gap_pct_rank_in_panel,16.4,3.773592
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,rel_volume20,15.8,5.418487
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,w_tenkan_extension_pct,15.0,8.485281
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,industry_median_day_return_pct,14.4,5.23832
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,rel_volume20_pctile_in_panel,12.4,4.409082
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,industry_positive_return_pct,11.8,4.791659
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,bct_c7_adx_confirmed,11.8,9.019978
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,industry_bct7_pct,10.8,7.386474
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,sector_positive_return_count,10.6,3.382307
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,industry_positive_return_count,10.0,4.857983
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,sector_median_day_return_pct,10.0,4.774935
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,sector_positive_return_pct,6.6,3.261901
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,industry_bct6_pct,6.0,1.897367
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,industry_bct7_count,5.6,3.611094
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,sector_bct7_count,5.4,3.006659
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,sector_bct7_pct,5.2,2.4
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,sector_denominator_count,4.8,1.469694
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_chikou_open_space,4.6,4.758151
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,industry_denominator_count,4.6,1.624808
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,sector_bct6_count,4.2,1.16619
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,daily_structure_score,3.4,5.351635
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_adx_rising_3,3.2,3.249615
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_no_chase_risk,2.8,4.621688
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,sector_bct6_pct,2.4,1.624808
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,bct_c2_weekly_tenkan_gt_kijun,2.2,2.638181
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_price_up_volume_down,2.2,4.4
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,daily_breakout_quality_score,2.2,2.638181
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_shooting_star_like,2.0,2.097618
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,industry_bct6_count,2.0,1.095445
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_cloud_green,1.6,2.244994
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_bearish_reversal_candle,0.6,1.2
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_chikou_ok,0.4,0.489898
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,bct_c4_weekly_cloud_green,0.4,0.489898
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_price_above_tenkan,0.2,0.4
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_price_up_volume_below50,0.2,0.4
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_doji_or_spinning_top,0.2,0.4
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,w_price_above_cloud,0.0,0.0
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,bct_c6_daily_price_above_tenkan,0.0,0.0
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,w_cloud_green,0.0,0.0
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,bct_c5_daily_price_above_cloud,0.0,0.0
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,w_tenkan_gt_kijun,0.0,0.0
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,bct_c3_weekly_chikou_ok,0.0,0.0
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_extension_reversal_warning,0.0,0.0
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,bct_c1_weekly_price_above_cloud,0.0,0.0
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,bct_c8_daily_price_above_ma200,0.0,0.0
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,bct_score,0.0,0.0
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_rapid_run_20d_30,0.0,0.0
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_rapid_run_10d_15,0.0,0.0
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_overextended_tenkan_10,0.0,0.0
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_overextended_tenkan_5,0.0,0.0
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_overextended_tenkan_3,0.0,0.0
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_volume_spike_150,0.0,0.0
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_volume_above_ma50,0.0,0.0
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_breakout252_volume_confirmed,0.0,0.0
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_breakout50_volume_confirmed,0.0,0.0
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_breakout20_volume_confirmed,0.0,0.0
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_price_above_ma200,0.0,0.0
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_price_above_kijun,0.0,0.0
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,d_price_above_cloud,0.0,0.0
+raw_plus_denominator_ranks_sector_breadth,Raw QC-safe plus denominator ranks plus sector breadth,local_massive_denominator_ranks,raw_qc_safe+denominator_ranks+sector_breadth,98,w_chikou_ok,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_tenkan_extension_pct,165.2,11.720068
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,day_return_pct,110.6,37.334167
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_return_10d_pct,94.4,9.687105
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,day_return_pct_rank_in_panel,93.8,40.206467
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_minus_di,72.4,8.639444
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,day_return_pct_pctile_in_panel,72.0,39.562609
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,w_cloud_distance_pct,53.6,9.931767
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_distance_to_prior_high20_pct,49.4,11.359577
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_upper_wick_pct_range,48.2,7.62627
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_distance_to_prior_high252_pct,45.2,5.635601
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_return_5d_pct,44.8,11.461239
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_tenkan_gt_kijun,44.0,8.485281
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_cloud_distance_pct,42.4,9.76934
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,daily_structure_score_pctile_in_panel,42.2,13.585286
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,day_dollar_vol_pctile_in_panel,38.4,17.533967
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,gap_pct,37.0,11.865918
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,day_dv_rank_price10,35.4,19.126944
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_adx,29.8,4.874423
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,daily_cloud_distance_pct_pctile_in_panel,29.0,9.715966
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,rel_volume50_pctile_in_panel,29.0,5.366563
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,day_dollar_vol_rank_in_panel,28.2,13.526271
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_plus_di,27.6,2.332381
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,sector_weekly_good_pct,26.6,5.122499
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_recent_resistance_rejection_count20,26.4,11.253444
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_kijun_extension_pct,26.4,3.498571
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,daily_cloud_distance_pct_rank_in_panel,26.2,6.645299
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,adv20_rank_in_panel,23.4,11.774549
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,range_pct,22.2,5.844656
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_body_pct_range,21.0,4.898979
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,daily_breakout_quality_score_pctile_in_panel,20.8,8.657944
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,daily_structure_score_rank_in_panel,20.8,6.794115
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_lower_wick_pct_range,20.6,5.571355
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,rel_volume20_rank_in_panel,20.0,7.668116
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,intraday_return_pct,20.0,6.26099
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,gap_pct_pctile_in_panel,19.8,4.166533
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_return_20d_pct,19.6,6.343501
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,hierarchy_stage_score,19.2,3.969887
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,rel_volume20_pctile_in_panel,15.8,2.638181
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,rel_volume50_rank_in_panel,15.0,4.195235
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,stock_rank_in_sector_base,15.0,8.5557
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_tk_spread_pct,14.8,4.354308
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,gap_pct_rank_in_panel,14.0,5.09902
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,sector_median_rel_volume20,14.0,8.809086
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,sector_proxy_score,13.8,6.584831
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,industry_median_rel_volume20,13.8,9.703608
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,adv20_rank_price10,13.4,3.878144
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,adv20_pctile_in_panel,12.6,4.454211
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,base_stock_rank,12.6,3.136877
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,rel_volume20,12.0,2.19089
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,industry_median_day_return_pct,11.8,5.38145
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,daily_breakout_quality_score_rank_in_panel,11.0,3.162278
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,industry_positive_return_pct,10.2,5.670979
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,sector_context_score,9.6,5.535341
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,stock_rank_in_industry_base,9.4,3.32265
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,w_tenkan_extension_pct,9.2,4.833218
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,bct_score_rank_in_panel,9.0,2.898275
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,sector_bct7_count_proxy,7.4,6.280127
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,sector_positive_return_count,7.2,2.039608
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,industry_daily_good_pct,6.8,4.214262
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,industry_bct7_pct,6.8,2.638181
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,bct_score_pctile_in_panel,6.6,3.498571
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_distance_to_prior_high50_pct,6.2,4.166533
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,sector_median_day_return_pct,6.2,3.059412
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,industry_weekly_good_pct,6.0,3.521363
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,stock_chart_score,6.0,2.607681
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,base_stock_score,6.0,4.335897
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,sector_rows_proxy,6.0,2.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,industry_rows_proxy,5.8,2.56125
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,industry_positive_return_count,5.8,3.187475
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,industry_bct6_pct,5.4,1.624808
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,industry_proxy_score,5.2,2.993326
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,sector_daily_good_pct,5.0,2.280351
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,sector_positive_return_pct,5.0,2.097618
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,industry_rank_global,4.8,2.481935
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,bct_c7_adx_confirmed,4.8,3.709447
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,industry_rank_in_sector,4.6,2.059126
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,sector_denominator_count,4.0,2.75681
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,industry_rank_hierarchy,3.8,1.6
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,industry_denominator_count,3.6,1.959592
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,sector_rank,3.2,2.925748
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,industry_hierarchy_score,3.2,1.720465
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,daily_structure_score,2.6,1.74356
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,daily_breakout,2.4,1.496663
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,industry_bct7_count_proxy,2.2,1.6
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_adx_rising_3,2.2,2.638181
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,sector_bct6_pct,1.8,0.748331
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,sector_bct7_pct,1.8,0.748331
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_near_prior20_high_within3,1.2,2.4
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_price_up_volume_down,1.2,1.939072
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,daily_support_hold,1.0,0.894427
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_shooting_star_like,0.8,1.16619
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,no_chase_pass,0.8,1.6
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,daily_good,0.6,0.8
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,bad_reversal,0.6,0.8
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_chikou_ok,0.6,1.2
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_price_up_volume_below50,0.4,0.489898
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_no_chase_risk,0.4,0.8
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,strong_industry_exception,0.2,0.4
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_near_prior252_high_within5,0.2,0.4
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,hierarchy_all_stage_pass,0.2,0.4
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_near_prior50_high_within5,0.2,0.4
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_cloud_green,0.2,0.4
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_volume_spike_150,0.2,0.4
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,weekly_strong,0.2,0.4
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,daily_strong,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,w_cloud_green,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,w_tenkan_gt_kijun,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,w_chikou_ok,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,has_sector_profile,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,has_industry_profile,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,weekly_good,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,weekly_recovering,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,daily_breakout_quality_score,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,industry_bct6_count,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,industry_bct7_count,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,bct_c8_daily_price_above_ma200,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,volume_confirmed,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,positive_day,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,sector_bct7_count,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,sector_bct6_count,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,sector_pass_top7,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,industry_pass_hierarchy,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,stock_pass_in_industry,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,trigger_pass_proxy,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,w_price_above_cloud,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_chikou_open_space,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_price_above_cloud,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_overextended_tenkan_3,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_breakout20_volume_confirmed,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_breakout50_volume_confirmed,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_breakout252_volume_confirmed,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_price_above_ma200,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_bearish_reversal_candle,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_volume_above_ma50,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,bct_score,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_price_above_kijun,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_doji_or_spinning_top,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_overextended_tenkan_5,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,bct_c5_daily_price_above_cloud,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_overextended_tenkan_10,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_rapid_run_10d_15,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_rapid_run_20d_30,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_extension_reversal_warning,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,d_price_above_tenkan,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,bct_c1_weekly_price_above_cloud,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,bct_c2_weekly_tenkan_gt_kijun,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,bct_c3_weekly_chikou_ok,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,bct_c4_weekly_cloud_green,0.0,0.0
+full_research_reference,Full current research feature set,research_only_reference,all_research,149,bct_c6_daily_price_above_tenkan,0.0,0.0
