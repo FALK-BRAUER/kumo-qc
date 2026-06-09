@@ -33,8 +33,9 @@ macOS keychain at runtime.
   reads completed #416 LEAN result JSONs and writes per-variant, per-symbol, and baseline-delta
   trade diagnostics for the George-context 30-pack.
 - **Scanner research hygiene:** `validate_scanner_experiment_log.py` validates the BCT/George scanner
-  experiment ledger schema and required provenance fields. `audit_scanner_feature_parity.py` separates
-  QC-deployable scanner features from lab-only or George-derived lift before new ranker tuning.
+  experiment ledger schema and required provenance fields. `validate_scanner_promotion_gate.py` validates
+  the runtime-promotion allow/deny gate. `audit_scanner_feature_parity.py` separates QC-deployable scanner
+  features from lab-only or George-derived lift before new ranker tuning.
 - **Deploy / live keepers** (`kumo deploy`): `qc_v2_cloud.py`, `gate.py`, `deploy.py`.
 - **Held for cutover:** `qc_pe_cloud.py` (KEEP till #216), `build_ticker_sector_map.py`.
 

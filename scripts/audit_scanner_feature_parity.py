@@ -28,6 +28,16 @@ DEFAULT_OUTPUT_CSV = Path("research/scanner-alignment/feature_parity_columns.csv
 
 NON_DEPLOYABLE_CLASSES = {"offline_research_only", "george_bct_derived"}
 BLOCKED_CLASSES = {"local_massive_only", "tc2000_mapping_required"}
+DENY_HANDOFF_NOTE = {
+    "non_deployable_george_evidence": "denied: George/OCR/video evidence is label provenance, not a live scanner input",
+    "non_deployable_model_score": "denied: offline model score would leak out-of-fold or in-sample research state",
+    "non_deployable_research_only": "denied: research-only feature needs a clean runtime source before handoff",
+}
+DENY_DEPLOYABILITY_CLASS = {
+    "non_deployable_george_evidence": "george_bct_derived",
+    "non_deployable_model_score": "offline_research_only",
+    "non_deployable_research_only": "offline_research_only",
+}
 LEAKAGE_TOKENS = (
     "george",
     "ocr",
@@ -104,6 +114,23 @@ def classify_feature(feature: str, *, inventory_class: str = "", qc_features: se
     return "unclassified_or_unused"
 
 
+def handoff_fields(
+    *,
+    qc_status: str,
+    deployability_class: str,
+    safe_for_qc_handoff: str,
+    handoff_note: str,
+) -> tuple[str, str, str]:
+    """Normalize explicit deny metadata for generated feature-parity inventories."""
+    if qc_status in DENY_HANDOFF_NOTE:
+        return (
+            deployability_class or DENY_DEPLOYABILITY_CLASS[qc_status],
+            safe_for_qc_handoff or "False",
+            handoff_note or DENY_HANDOFF_NOTE[qc_status],
+        )
+    return deployability_class, safe_for_qc_handoff, handoff_note
+
+
 def build_column_inventory(
     denominator_columns: Iterable[str],
     *,
@@ -115,14 +142,21 @@ def build_column_inventory(
     for feature in denominator_columns:
         inv = inventory.get(feature, {})
         deployability_class = inv.get("deployability_class", "")
+        qc_status = classify_feature(feature, inventory_class=deployability_class, qc_features=qc_features)
+        deployability_class, safe_for_qc_handoff, handoff_note = handoff_fields(
+            qc_status=qc_status,
+            deployability_class=deployability_class,
+            safe_for_qc_handoff=inv.get("safe_for_qc_handoff", ""),
+            handoff_note=inv.get("handoff_note", ""),
+        )
         rows.append(
             {
                 "feature": feature,
-                "qc_status": classify_feature(feature, inventory_class=deployability_class, qc_features=qc_features),
+                "qc_status": qc_status,
                 "deployability_class": deployability_class,
-                "safe_for_qc_handoff": inv.get("safe_for_qc_handoff", ""),
+                "safe_for_qc_handoff": safe_for_qc_handoff,
                 "used_in_feature_sets": inv.get("used_in_feature_sets", ""),
-                "handoff_note": inv.get("handoff_note", ""),
+                "handoff_note": handoff_note,
             }
         )
     return rows

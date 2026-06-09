@@ -2,19 +2,19 @@ feature,qc_status,deployability_class,safe_for_qc_handoff,used_in_feature_sets,h
 list_id,unclassified_or_unused,,,,
 date,unclassified_or_unused,,,,
 symbol,unclassified_or_unused,,,,
-george_included,non_deployable_george_evidence,,,,
-scanner_rank,non_deployable_george_evidence,,,,
-george_rank_pct,non_deployable_george_evidence,,,,
-george_list_size,non_deployable_george_evidence,,,,
-george_max_rank,non_deployable_george_evidence,,,,
-is_george_top5,non_deployable_george_evidence,,,,
-is_george_last_row,non_deployable_george_evidence,,,,
-is_george_action,non_deployable_george_evidence,,,,
-is_george_bought,non_deployable_george_evidence,,,,
-is_george_sold,non_deployable_george_evidence,,,,
-decision_label,non_deployable_george_evidence,,,,
+george_included,non_deployable_george_evidence,george_bct_derived,False,,"denied: George/OCR/video evidence is label provenance, not a live scanner input"
+scanner_rank,non_deployable_george_evidence,george_bct_derived,False,,"denied: George/OCR/video evidence is label provenance, not a live scanner input"
+george_rank_pct,non_deployable_george_evidence,george_bct_derived,False,,"denied: George/OCR/video evidence is label provenance, not a live scanner input"
+george_list_size,non_deployable_george_evidence,george_bct_derived,False,,"denied: George/OCR/video evidence is label provenance, not a live scanner input"
+george_max_rank,non_deployable_george_evidence,george_bct_derived,False,,"denied: George/OCR/video evidence is label provenance, not a live scanner input"
+is_george_top5,non_deployable_george_evidence,george_bct_derived,False,,"denied: George/OCR/video evidence is label provenance, not a live scanner input"
+is_george_last_row,non_deployable_george_evidence,george_bct_derived,False,,"denied: George/OCR/video evidence is label provenance, not a live scanner input"
+is_george_action,non_deployable_george_evidence,george_bct_derived,False,,"denied: George/OCR/video evidence is label provenance, not a live scanner input"
+is_george_bought,non_deployable_george_evidence,george_bct_derived,False,,"denied: George/OCR/video evidence is label provenance, not a live scanner input"
+is_george_sold,non_deployable_george_evidence,george_bct_derived,False,,"denied: George/OCR/video evidence is label provenance, not a live scanner input"
+decision_label,non_deployable_george_evidence,george_bct_derived,False,,"denied: George/OCR/video evidence is label provenance, not a live scanner input"
 in_candidate_denominator,unclassified_or_unused,,,,
-forced_george_outside_denominator,non_deployable_george_evidence,,,,
+forced_george_outside_denominator,non_deployable_george_evidence,george_bct_derived,False,,"denied: George/OCR/video evidence is label provenance, not a live scanner input"
 denominator_top_n,unclassified_or_unused,,,,
 open,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
 high,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
@@ -130,16 +130,16 @@ w_price_inside_cloud,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud
 w_price_below_cloud,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
 w_cloud_distance_pct,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
 w_tenkan_extension_pct,qc_ranker_feature,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
-candidate_source,non_deployable_george_evidence,,,,
-source_kind,non_deployable_george_evidence,,,,
-source_confidence,non_deployable_george_evidence,,,,
-pct_change_text,non_deployable_george_evidence,,,,
-george_notes,non_deployable_george_evidence,,,,
-ocr_confidence_avg,non_deployable_george_evidence,,,,
-ocr_observation_index,non_deployable_george_evidence,,,,
-ocr_text_path,non_deployable_george_evidence,,,,
-post_id,non_deployable_george_evidence,,,,
-source_path,non_deployable_george_evidence,,,,
+candidate_source,non_deployable_george_evidence,george_bct_derived,False,,"denied: George/OCR/video evidence is label provenance, not a live scanner input"
+source_kind,non_deployable_george_evidence,george_bct_derived,False,,"denied: George/OCR/video evidence is label provenance, not a live scanner input"
+source_confidence,non_deployable_george_evidence,george_bct_derived,False,,"denied: George/OCR/video evidence is label provenance, not a live scanner input"
+pct_change_text,non_deployable_george_evidence,george_bct_derived,False,,"denied: George/OCR/video evidence is label provenance, not a live scanner input"
+george_notes,non_deployable_george_evidence,george_bct_derived,False,,"denied: George/OCR/video evidence is label provenance, not a live scanner input"
+ocr_confidence_avg,non_deployable_george_evidence,george_bct_derived,False,,"denied: George/OCR/video evidence is label provenance, not a live scanner input"
+ocr_observation_index,non_deployable_george_evidence,george_bct_derived,False,,"denied: George/OCR/video evidence is label provenance, not a live scanner input"
+ocr_text_path,non_deployable_george_evidence,george_bct_derived,False,,"denied: George/OCR/video evidence is label provenance, not a live scanner input"
+post_id,non_deployable_george_evidence,george_bct_derived,False,,"denied: George/OCR/video evidence is label provenance, not a live scanner input"
+source_path,non_deployable_george_evidence,george_bct_derived,False,,"denied: George/OCR/video evidence is label provenance, not a live scanner input"
 day_dv_rank_all,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
 adv20_rank_all,clean_available_not_used,qc_cloud_deployable,True,"qc_cloud_deployable,local_real_data,offline_oof_research,research_with_bct_attention",safe to hand to kumo-qc after normal QC data-availability checks
 price_floor,blocked_local_massive_only,local_massive_only,False,"local_real_data,offline_oof_research,research_with_bct_attention",review before QC handoff
