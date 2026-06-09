@@ -1,3 +1,232 @@
+# FOR_FALK - BCT/George scanner-alignment implementation pass, 2026-06-09
+
+Implemented the first QC-safe scanner-alignment slice from the kumo-lab #23 handoff.
+
+What changed:
+- Added `src/phases/shared/chart_features.py`: pure chart-curation formulas for close-location,
+  wick ratios, prior-high breakout/retest, constructive resistance, failed rejection, bad resistance,
+  reclaim-after-touch, and no-chase penalties.
+- Refactored `GeorgeStyleRanking` into a QC-safe ranking phase. It now ranks already-qualified
+  `BctScoreFull` candidates by fixed chart-curation score, trailing dollar volume, then ticker.
+- Removed the old research-score behavior from the George-style ranking concept: no `_george_style_score`,
+  learned George score, OCR label, transcript attention, generated CSV, or external BCT evidence is read.
+- Extended `TBounceTracker` with prior-high 20/50/252 windows and prior-20 relative volume from
+  completed daily bars. Existing `update()` callers remain backward-compatible; live/seed paths now
+  pass volume.
+- Kept the strategy opt-in only via `src/strategies/bct_george_alignment.py`; active `CHAMPION` and
+  `dist/` are unchanged.
+
+Verification:
+- `.venv/bin/python -m pytest tests/phases/shared tests/phases/ranking tests/runtime/test_indicators.py tests/runtime/test_register_warmup_gating.py tests/strategies/test_bct_george_alignment.py tests/sweeps/test_candidates.py`
+  -> 123 passed, 9 skipped.
+- `.venv/bin/python -m mypy src/phases/shared/chart_features.py src/phases/ranking/george_style_ranking/george_style_ranking.py src/runtime/indicators.py sweeps/archive/candidates.py`
+  -> clean.
+
+Interpretation: this is an implementation hook and local validation substrate, not a proven George
+clone. The corrected research benchmark remains high-30s recall@10 for QC-safe features and mid-40s
+for research-only OOF features.
+
+Follow-up bridge pass:
+- Extended `sweeps/archive/candidates.py` schema v2 with `bct_signal_rank`, `george_style_rank`,
+  `george_style_score`, and key George-style curation flags.
+- The exporter reuses the same `chart_features.py` scorer as the live opt-in ranking phase, so local
+  candidate rows and runtime ranking do not drift into separate formulas.
+- One read-only 2026 covered-subset smoke against the kumo-lab `george_oof_stage1_scores.csv` label:
+  46 covered dates through 2026-04-30, 5,086 QC local candidate rows, 306 George rows covered by
+  local data. QC score>=7 candidate coverage was only 73/306 (23.86%). Within that limited seen set,
+  George-style rank improved recall@10 from 2.29% to 3.92% and median seen rank from 44 to 38.
+- Read: current live QC qualification/universe coverage is the immediate blocker; the rerank helps
+  mildly on seen candidates but cannot recover George names that never pass `BctScoreFull` score>=7.
+
+Coverage-stage audit:
+- Added `sweeps/archive/george_coverage_audit.py` to classify George labels against the local QC
+  live scanner funnel: coarse feed, DV/price floors, daily frame, BCT prefilter, BCT score,
+  parabolic block, then candidate/rank.
+- Added `build_local_universe_with_metrics()` beside the existing local-daily universe builder so
+  offline audits can classify local-daily source rows by prefilter/floor failures instead of only
+  testing final ranked membership. Existing `build_local_universe()` behavior is unchanged.
+- Exact-date audit on the same 306 covered George positives:
+  `qc_candidate=58` (18.95%), `not_in_coarse_feed=176` (57.52%),
+  `bct_score_below_min=52` (16.99%), `parabolic_block=15` (4.90%),
+  `fails_trailing_dv_floor=5` (1.63%).
+- All 176 `not_in_coarse_feed` rows have local LEAN daily zip files, but none appears in the 2026
+  QC coarse CSVs. Follow-up exact-bar checks showed the broad non-equity-200 zip files usually stop
+  at 2025-12-31, so zip existence alone was a weak test.
+- BCT prefilter (`close >= sma200` and `close >= daily_cloud_top`) lost zero labels in this slice.
+  The practical next step is not more top-10 tuning yet: first test a broader locally computable
+  universe substrate, then rerank within that broader set.
+- After testing the broader local-daily helper, the local-daily broad audit is identical to the QC
+  coarse audit on 2026 George dates. The 176-row bucket is better described as "not in the available
+  2026 QC local substrate" until the broad Massive data is converted or overlaid.
+- Massive-backed lab denominator (`george_ranking_denominator.csv`) covers all 306 of these same
+  date-symbol George positives. On that substrate: top3000 ADV20 price>=10 captures 304/306
+  (99.35%), top2000 captures 286/306 (93.46%), current liquidity-style gate captures 239/306
+  (78.10%), BCT>=7 captures 182/306 (59.48%), and BCT>=6 captures 283/306 (92.48%).
+- Combined read: broad Massive universe + BCT>=7 captures 181/306 (59.15%); broad Massive universe
+  + BCT>=6 captures 281/306 (91.83%). George appears to select many "almost BCT" score-6 names with
+  constructive structure, so the next research/implementation fork is a score-6 candidate lane plus
+  stricter ranking/confirmation, not a blind top-3000 live scanner.
+
+Score-6 lane implementation/check:
+- Added `bct_candidate_lane` to the offline candidate export schema (`schema_version=3`):
+  `bct_score_ge7`, `almost_bct_score6`, or `below_bct_score6`.
+- Added opt-in `src/strategies/bct_george_alignment_score6.py`, identical to the score-7 George
+  alignment config except `BctScoreFull.Params(min_score=6, parabolic_threshold=0.25)`. `CHAMPION`
+  remains unchanged.
+- Massive denominator check on the same 306 labels:
+  top3000+BCT>=7 => 25,080 rows, median 484.5/day, 181/306 George recall.
+  top3000+BCT>=6 => 47,493 rows, median 1,094/day, 281/306 George recall
+  (+22,411 rows, +100 George positives versus top3000+BCT>=7).
+  top2000+BCT>=6 => 32,198 rows, median 735.5/day, 263/306 recall.
+  current-liquidity-gate+BCT>=6 => 21,467 rows, median 491.5/day, 223/306 recall.
+- A lightweight proxy of the fixed QC-safe ranker on top3000+BCT>=6 is not sharp enough:
+  recall@10 2/306, recall@50 36/306, recall@100 63/306, recall@200 109/306, median George rank 277.
+- Read: score 6 is a real George coverage lane, but not ready as a live top-list without a sharper
+  selector/confirmation layer. Do not promote the score-6 config beyond opt-in experiment yet.
+
+Score-6 selector audit:
+- Reran the score-6 pool audit directly against
+  `/Users/falk/projects/kumo-lab/data/bluecloudtrading/scanner_compare/george_ranking_denominator.csv`
+  using the populated main QC coarse cache at `/Users/falk/projects/kumo-qc/data`, not the skeletal
+  worktree `data/`.
+- Base panel reproduced the prior denominator check: top3000 ADV20 price>=10 + BCT>=6 has 47,493
+  rows, 46 covered dates, median 1,094 rows/day, and 281/306 George labels.
+- The best clean pool reducer found was `clean_top2000`: daily cloud/Tenkan/Kijun clean, no chase,
+  ADV top2000. It keeps 216/306 labels (70.59%) while cutting to 15,517 rows, median 286.5/day.
+- Other useful-but-still-large gates: `clean_daily_base` keeps 231/306 at median 437/day,
+  `pullback_top2000` keeps 185/306 at median 263/day, and `score6_clean_all` keeps only 58/306
+  at median 89.5/day.
+- Simple hand-ranked QC-safe formulas did not solve top10. The reusable harness' best simple top10
+  variant was `clean_top2000__daily_structure_rank`: 26/306 recall@10 (8.50%), recall@50 84/306,
+  recall@100 138/306.
+- Interpretation: hard filters can create a review lane, but the George top-list problem is still
+  ranking/selection. No runtime ranker tweak is justified from these hand rules. The next serious
+  path is a date-grouped learned ranker/selector plus sector/industry context, with strict separation
+  between clean deployable features and research-only George/OCR/transcript features.
+
+Score-6 top-K harness:
+- Added offline-only `sweeps/archive/george_topk_audit.py` and
+  `tests/sweeps/test_george_topk_audit.py` for #422.
+- The harness takes explicit label, denominator, and QC coarse-cache paths; it fails loudly if the
+  coarse cache has zero covered dates, which protects against accidentally using the empty worktree
+  `data/` folder.
+- Real-data reproduction command confirmed the expected base panel:
+  `PYTHONPATH=src:. .venv/bin/python -m sweeps.archive.george_topk_audit --labels-csv /Users/falk/projects/kumo-lab/data/bluecloudtrading/scanner_compare/george_oof_stage1_scores.csv --denominator-csv /Users/falk/projects/kumo-lab/data/bluecloudtrading/scanner_compare/george_ranking_denominator.csv --coarse-dir /Users/falk/projects/kumo-qc/data/equity/usa/fundamental/coarse --year 2026`
+  -> 47,493 rows, 46 dates, median 1,094/day, 281/306 labels.
+
+Learned ranker v1:
+- Added offline-only `sweeps/archive/george_learned_ranker.py` and
+  `tests/sweeps/test_george_learned_ranker.py` for #423.
+- This is a dependency-free NumPy logistic/ridge ranker with chronological date-group folds. It uses
+  QC-safe denominator features only; no George/OCR/transcript/generated research score enters runtime.
+- Real-data OOF command:
+  `PYTHONPATH=src:. .venv/bin/python -m sweeps.archive.george_learned_ranker --labels-csv /Users/falk/projects/kumo-lab/data/bluecloudtrading/scanner_compare/george_oof_stage1_scores.csv --denominator-csv /Users/falk/projects/kumo-lab/data/bluecloudtrading/scanner_compare/george_ranking_denominator.csv --coarse-dir /Users/falk/projects/kumo-qc/data/equity/usa/fundamental/coarse --year 2026`
+  reproduced the same 47,493-row base panel.
+- Best learned OOF variant: `learned_oof_clean_top2000` at 60/306 recall@10 (19.61%),
+  recall@20 104/306, recall@50 147/306, recall@100 181/306. That beats the simple hand-rank
+  baseline (`clean_top2000__daily_structure_rank` = 26/306 recall@10) but is still below the
+  lab-reported clean GBM benchmark (~38% recall@10).
+- Top stable coefficients in this first pass: daily Tenkan>Kijun, intraday/day return, price above
+  Kijun/cloud, daily structure score, and liquidity rank. Negative weights include worse DV rank,
+  ADX flag interactions, overextension, and lower-wick-heavy shape.
+- Read: the learned harness is now useful for #423 experiments, but this v1 model is not a promotion
+  candidate. The next #423 work is richer feature parity with the lab `qc_cloud_deployable` set and
+  stronger date-grouped model classes, not runtime integration.
+- Added an opt-in sector-context feature path to `george_learned_ranker.py` using the profiled
+  Massive denominator. Default no-context behavior remains unchanged.
+- Controlled profiled-denominator comparison:
+  no-context `learned_oof_clean_top2000` = 59/306 recall@10, 104/306 recall@20, 147/306 recall@50;
+  `--use-sector-context` `learned_oof_sector_context_clean_top2000` = 65/306 recall@10,
+  107/306 recall@20, 154/306 recall@50, 182/306 recall@100.
+- Read: sector/industry context gives a small but real OOF lift (+6 labels at top10 versus the
+  profiled no-context run, +5 versus the earlier unprofiled run). It belongs in the selector
+  feature set, but still does not get near the 60-70% top10 target.
+- Added a dependency-free pairwise linear ranker (`--model-type pairwise`) that trains on same-date
+  George-positive vs non-George candidate pairs. This is still offline-only and labels remain
+  scoring/training input only for the research harness.
+- Small deterministic pairwise sweep over sector-context runs found the best current setting at
+  `--pairwise-negatives-per-positive 80 --learning-rate 0.08`.
+  `learned_oof_pairwise_sector_context_clean_top2000` reaches 46/306 recall@5, 72/306 recall@10
+  (23.53%), 109/306 recall@20, 160/306 recall@50, and 187/306 recall@100.
+- Read: pairwise+sector context is the best QC-side offline harness result so far, improving top10
+  over logistic+sector context by +7 labels and over the original logistic baseline by +12 labels.
+  It is still not a live promotion candidate; it strengthens the case for a richer selector model
+  and exact feature parity with the lab GBM.
+- Added opt-in first-hour feature enrichment to the learned ranker (`--use-first-hour --minute-dir`),
+  reusing `first_hour_confirmation.py` instead of duplicating minute-zip parsing.
+- Controlled pairwise runs at the best current pairwise setting (`lr=0.08`, 80 negatives/positive):
+  pairwise+sector = 72/306 recall@10; pairwise+first-hour = 70/306 recall@10; pairwise+sector+
+  first-hour = 66/306 recall@10. The first-hour feature family did not improve top10 selection in
+  this model, likely because local minute coverage is partial and the strongest intraday facts are
+  confirmation/reducer signals rather than pre-rank discriminators.
+- Read: keep first-hour as a separate post-rank confirmation/audit layer for now. Do not merge it
+  into the selector feature set unless minute coverage and validation improve.
+
+Massive/QC substrate bridge:
+- Added offline-only `sweeps/archive/massive_qc_bridge.py` and
+  `tests/sweeps/test_massive_qc_bridge.py` for #424.
+- The bridge turns the Massive-backed denominator into a QC-style local candidate panel with date,
+  symbol, price/ADV ranks, BCT score/lane, gap/return/liquidity, and chart/Ichimoku flags. Optional
+  George label coverage is reported separately; labels are not embedded into the exported panel.
+- Broad top3000 reproduction:
+  `PYTHONPATH=src:. .venv/bin/python -m sweeps.archive.massive_qc_bridge --denominator-csv /Users/falk/projects/kumo-lab/data/bluecloudtrading/scanner_compare/george_ranking_denominator.csv --labels-csv /Users/falk/projects/kumo-lab/data/bluecloudtrading/scanner_compare/george_oof_stage1_scores.csv --coarse-dir /Users/falk/projects/kumo-qc/data/equity/usa/fundamental/coarse --year 2026 --top-n 3000 --no-min-score`
+  -> 138,000 rows, 46 dates, median 3,000/day, 304/306 label coverage.
+- Score-6 lane reproduction:
+  `PYTHONPATH=src:. .venv/bin/python -m sweeps.archive.massive_qc_bridge --denominator-csv /Users/falk/projects/kumo-lab/data/bluecloudtrading/scanner_compare/george_ranking_denominator.csv --labels-csv /Users/falk/projects/kumo-lab/data/bluecloudtrading/scanner_compare/george_oof_stage1_scores.csv --coarse-dir /Users/falk/projects/kumo-qc/data/equity/usa/fundamental/coarse --year 2026 --top-n 3000 --min-score 6`
+  -> 47,493 rows, 46 dates, median 1,094/day, 281/306 label coverage.
+- Important caveat: this is the local/offline substrate bridge from the Massive denominator into
+  audit artifacts. It does not implement QC cloud broad-universe selection.
+
+Score-6 first-hour confirmation:
+- Added offline-only `sweeps/archive/first_hour_confirmation.py` and
+  `tests/sweeps/test_first_hour_confirmation.py` for #425.
+- The harness reads local LEAN 5-minute trade zips (`minute/<symbol>/<YYYYMMDD>_trade.zip`) and
+  computes first-hour facts: first-hour return/range/drawdown/volume, hold above prior close,
+  no open flush, first-bar-high reclaim, volume threshold, and combined confirmation flags.
+- Real-data label-only smoke:
+  `PYTHONPATH=src:. .venv/bin/python -m sweeps.archive.first_hour_confirmation --denominator-csv /Users/falk/projects/kumo-lab/data/bluecloudtrading/scanner_compare/george_ranking_denominator.csv --labels-csv /Users/falk/projects/kumo-lab/data/bluecloudtrading/scanner_compare/george_oof_stage1_scores.csv --coarse-dir /Users/falk/projects/kumo-qc/data/equity/usa/fundamental/coarse --minute-dir /Users/falk/projects/kumo-qc/data/equity/usa/minute --year 2026 --top-n 3000 --min-score 6 --labels-only`
+  -> 281 George rows in top3000+BCT>=6, 122 with local intraday files, 91/306 pass
+  `fh_confirm_basic`, 75/306 pass `fh_confirm_breakout`, 77/306 pass `fh_confirm_volume`,
+  and 62/306 pass `fh_confirm_breakout_volume`.
+- Full-pool run on the same top3000+BCT>=6 panel:
+  47,493 rows, 46 dates, 9,422 rows with local intraday files, 281/306 George rows in panel, and
+  122 George rows with intraday files. Base panel label precision is only 0.592%.
+  `fh_confirm_basic` keeps 4,313 rows at 91/306 recall and 2.110% label precision (3.57x lift);
+  `fh_confirm_breakout` keeps 3,028 rows at 75/306 recall and 2.477% precision (4.19x lift);
+  `fh_confirm_volume` keeps 3,591 rows at 77/306 recall and 2.144% precision (3.62x lift);
+  `fh_confirm_breakout_volume` keeps 2,529 rows at 62/306 recall and 2.452% precision (4.14x lift).
+- Read: first-hour confirmation is a useful enrichment/false-positive reducer, not a standalone
+  top10 solver. Current local minute coverage remains a separate blocker, and the selector still
+  needs stronger pre-open/sector/ranking features before runtime promotion.
+
+Sector/industry hierarchy context:
+- Added offline-only `sweeps/archive/george_sector_context_audit.py` and
+  `tests/sweeps/test_george_sector_context_audit.py` for #409 follow-up.
+- The harness reads the profiled Massive denominator
+  (`george_ranking_denominator_profiled.csv`), derives dynamic sector and industry strength from
+  same-day stock-level weekly/daily chart features, and measures stage recall plus top-K rank
+  variants. George labels are used only for scoring, not for group scores.
+- Real-data run on the same top3000+BCT>=6 panel reproduced 47,493 rows, 46 dates, median
+  1,094/day, and 281/306 George labels in-panel.
+- Profile coverage is still the first constraint: 187/281 in-panel George labels have sector and
+  industry profiles (66.55%).
+- Within profiled in-panel labels, hierarchy stage recall is strong:
+  sector top7 = 159/187 (85.03%), sector top10 = 182/187 (97.33%);
+  industry-in-sector top5 = 142/187 (75.94%), top10 = 176/187 (94.12%);
+  stock-in-industry top10 = 176/187 (94.12%).
+- But simple context ranking is not enough: `sector_context_score` improved base stock-score
+  recall@10 from 4/306 to 13/306, still far below the learned-ranker 60/306 benchmark.
+- Read: sector/industry mapping is clearly worth implementing as a feature substrate and diagnostic
+  layer. It is not a standalone top-list selector; the next model needs to consume hierarchy
+  features together with OOF stage-1 scores, richer chart curation, and first-hour/pre-open signals.
+
+GitHub backlog created:
+- #422 `[SCANNER] BCT/George top-K validation harness for score-6 lane`
+- #423 `[SCANNER] QC-safe learned George top-list ranker v1`
+- #424 `[DATA] Broad Massive/QC scanner substrate bridge for local BCT alignment`
+- #425 `[STRATEGY] Score-6 BCT candidate lane with first-hour confirmation`
+- Added scanner-specific TC2000/industry hierarchy acceptance criteria to existing #409.
+
 # FOR_FALK - #412/#414 exit diagnostics + combo sweep, 2026-06-08
 
 Implemented #412 per-symbol exit diagnostics and created the second 30-pack combo sweep runner.
