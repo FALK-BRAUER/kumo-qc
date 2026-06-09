@@ -102,8 +102,36 @@ DENOMINATOR_RANK_FEATURES: tuple[str, ...] = tuple(
     )
 )
 
+SECTOR_BREADTH_NUMERIC_FEATURES: tuple[str, ...] = (
+    "sector_denominator_count",
+    "sector_bct6_count",
+    "sector_bct7_count",
+    "sector_positive_return_count",
+    "sector_median_day_return_pct",
+    "sector_median_rel_volume20",
+    "sector_bct6_pct",
+    "sector_bct7_pct",
+    "sector_positive_return_pct",
+    "industry_denominator_count",
+    "industry_bct6_count",
+    "industry_bct7_count",
+    "industry_positive_return_count",
+    "industry_median_day_return_pct",
+    "industry_median_rel_volume20",
+    "industry_bct6_pct",
+    "industry_bct7_pct",
+    "industry_positive_return_pct",
+)
+
 LEARNED_USECOLS: tuple[str, ...] = tuple(
-    dict.fromkeys((*topk.DENOMINATOR_USECOLS, *EXTRA_USECOLS, *sector_context.PROFILE_USECOLS))
+    dict.fromkeys(
+        (
+            *topk.DENOMINATOR_USECOLS,
+            *EXTRA_USECOLS,
+            *sector_context.PROFILE_USECOLS,
+            *SECTOR_BREADTH_NUMERIC_FEATURES,
+        )
+    )
 )
 
 NUMERIC_FEATURES: tuple[str, ...] = (
@@ -261,6 +289,7 @@ class LearnedRankerConfig:
     use_sector_context: bool = False
     use_first_hour: bool = False
     use_denominator_ranks: bool = False
+    use_sector_breadth: bool = False
     first_hour_minute_dir: Path | None = None
     ks: tuple[int, ...] = topk.DEFAULT_KS
 
@@ -330,6 +359,7 @@ def build_feature_matrix(
     include_sector_context: bool = False,
     include_first_hour: bool = False,
     include_denominator_ranks: bool = False,
+    include_sector_breadth: bool = False,
 ) -> tuple[np.ndarray, list[str]]:
     """Build a numeric feature matrix from QC-safe denominator columns."""
     columns: list[np.ndarray] = []
@@ -339,6 +369,7 @@ def build_feature_matrix(
         + (SECTOR_NUMERIC_FEATURES if include_sector_context else ())
         + (FIRST_HOUR_NUMERIC_FEATURES if include_first_hour else ())
         + (DENOMINATOR_RANK_FEATURES if include_denominator_ranks else ())
+        + (SECTOR_BREADTH_NUMERIC_FEATURES if include_sector_breadth else ())
     )
     boolean_features = (
         BOOLEAN_FEATURES
@@ -347,7 +378,12 @@ def build_feature_matrix(
     )
     for col in numeric_features:
         values = topk._num_col(panel, col).to_numpy(dtype=float)
-        if col.endswith("_rank_price10") or col.endswith("_rank_in_panel"):
+        if (
+            col.endswith("_rank_price10")
+            or col.endswith("_rank_in_panel")
+            or col.endswith("_count")
+            or col.endswith("_denominator_count")
+        ):
             values = np.log1p(values)
         columns.append(values)
         names.append(col)
@@ -559,6 +595,7 @@ def run_learned_ranker(
         include_sector_context=config.use_sector_context,
         include_first_hour=config.use_first_hour,
         include_denominator_ranks=config.use_denominator_ranks,
+        include_sector_breadth=config.use_sector_breadth,
     )
     y = topk._bool_col(panel, "is_george").astype(float).to_numpy(dtype=float)
     folds = make_date_folds(panel["date"].astype(str).tolist(), n_folds=config.n_folds)
@@ -608,6 +645,8 @@ def run_learned_ranker(
         prefix_parts.append("first_hour")
     if config.use_denominator_ranks:
         prefix_parts.append("denominator_ranks")
+    if config.use_sector_breadth:
+        prefix_parts.append("sector_breadth")
     prefix = "_".join(prefix_parts)
     variants = {
         f"{prefix}_all": (all_rows, oof_scores),
@@ -662,6 +701,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--use-sector-context", action="store_true")
     parser.add_argument("--use-first-hour", action="store_true")
     parser.add_argument("--use-denominator-ranks", action="store_true")
+    parser.add_argument("--use-sector-breadth", action="store_true")
     parser.add_argument("--minute-dir", type=Path)
     parser.add_argument("--output-dir", type=Path)
     args = parser.parse_args(argv)
@@ -686,6 +726,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             use_sector_context=args.use_sector_context,
             use_first_hour=args.use_first_hour,
             use_denominator_ranks=args.use_denominator_ranks,
+            use_sector_breadth=args.use_sector_breadth,
             first_hour_minute_dir=args.minute_dir,
         ),
     )

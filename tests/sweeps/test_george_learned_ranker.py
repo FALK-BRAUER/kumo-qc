@@ -95,6 +95,24 @@ def _row(date: str, symbol: str, *, george_like: bool) -> dict[str, object]:
         "w_tenkan_extension_pct": 2.0,
         "resolved_sector": "Technology" if george_like else "Energy",
         "resolved_industry": "Software" if george_like else "Oil & Gas",
+        "sector_denominator_count": 20 if george_like else 8,
+        "sector_bct6_count": 18 if george_like else 4,
+        "sector_bct7_count": 10 if george_like else 1,
+        "sector_positive_return_count": 14 if george_like else 2,
+        "sector_median_day_return_pct": 2.0 if george_like else -1.0,
+        "sector_median_rel_volume20": 1.3 if george_like else 0.8,
+        "sector_bct6_pct": 90.0 if george_like else 50.0,
+        "sector_bct7_pct": 50.0 if george_like else 12.5,
+        "sector_positive_return_pct": 70.0 if george_like else 25.0,
+        "industry_denominator_count": 8 if george_like else 4,
+        "industry_bct6_count": 7 if george_like else 2,
+        "industry_bct7_count": 4 if george_like else 0,
+        "industry_positive_return_count": 6 if george_like else 1,
+        "industry_median_day_return_pct": 2.5 if george_like else -1.5,
+        "industry_median_rel_volume20": 1.4 if george_like else 0.7,
+        "industry_bct6_pct": 87.5 if george_like else 50.0,
+        "industry_bct7_pct": 50.0 if george_like else 0.0,
+        "industry_positive_return_pct": 75.0 if george_like else 25.0,
     }
 
 
@@ -173,6 +191,15 @@ def test_feature_matrix_can_include_denominator_rank_features() -> None:
     assert "gap_pct_rank_in_panel" in names
     assert "daily_structure_score_pctile_in_panel" in names
     assert "day_dollar_vol_rank_in_panel" in names
+
+
+def test_feature_matrix_can_include_sector_breadth_features() -> None:
+    x, names = L.build_feature_matrix(_denominator(), include_sector_breadth=True)
+
+    assert x.shape[0] == len(_denominator())
+    assert "sector_positive_return_count" in names
+    assert "sector_bct7_pct" in names
+    assert "industry_positive_return_pct" in names
 
 
 def test_logistic_ridge_learns_separable_signal() -> None:
@@ -324,3 +351,28 @@ def test_run_learned_ranker_can_include_denominator_rank_features() -> None:
     assert learned["hits1"] == 4
     assert "gap_pct_rank_in_panel" in features
     assert "bct_score_pctile_in_panel" in features
+
+
+def test_run_learned_ranker_can_include_sector_breadth_features() -> None:
+    labels = [(date, f"P{i}") for i, date in enumerate(("2026-02-12", "2026-02-13", "2026-02-17", "2026-02-18"))]
+    result = L.run_learned_ranker(
+        _denominator(),
+        labels,
+        covered_dates={date for date, _symbol in labels},
+        config=L.LearnedRankerConfig(
+            n_folds=2,
+            model_type="pairwise",
+            max_iter=250,
+            learning_rate=0.1,
+            l2=0.001,
+            pairwise_negatives_per_positive=2,
+            use_sector_breadth=True,
+            ks=(1, 2),
+        ),
+    )
+    learned = result.rank_summary.set_index("variant").loc["learned_oof_pairwise_sector_breadth_all"]
+    features = set(result.coefficient_summary["feature"])
+
+    assert learned["hits1"] == 4
+    assert "sector_positive_return_count" in features
+    assert "industry_bct7_pct" in features

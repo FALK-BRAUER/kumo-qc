@@ -164,6 +164,26 @@ This moved the pairwise+sector clean-top2000 benchmark from 72/306 to 87/306 rec
 median George rank from 19.0 to 14.5. Keep it research-only until the runtime handoff gate proves a
 matching live denominator.
 
+Pairwise ranker with live-panel denominator ranks plus profiled sector/industry breadth:
+
+```bash
+PYTHONPATH=src:. .venv/bin/python -m sweeps.archive.george_learned_ranker \
+  --labels-csv /Users/falk/projects/kumo-lab/data/bluecloudtrading/scanner_compare/george_oof_stage1_scores.csv \
+  --denominator-csv /Users/falk/projects/kumo-lab/data/bluecloudtrading/scanner_compare/george_ranking_denominator_profiled.csv \
+  --coarse-dir /Users/falk/projects/kumo-qc/data/equity/usa/fundamental/coarse \
+  --year 2026 \
+  --model-type pairwise \
+  --use-sector-context \
+  --use-denominator-ranks \
+  --use-sector-breadth \
+  --learning-rate 0.08 \
+  --pairwise-negatives-per-positive 80
+```
+
+Profiled breadth moved the clean-top2000 benchmark only modestly, from 87/306 to 88/306 recall@10,
+but the broader score7-or-clean6 gate improved from 77/306 to 82/306 recall@10. Treat it as useful
+research input for the next grouped ranker, not a standalone promotion.
+
 Pairwise ranker with first-hour features:
 
 ```bash
