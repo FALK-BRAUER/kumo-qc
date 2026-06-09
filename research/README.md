@@ -8,6 +8,7 @@ research/
   catalog/          experiment_catalog.csv — master enumeration of every experiment + verdict
   experiments/      per-experiment writeups: hypothesis · setup · result · verdict,
                     each pinned to (commit + data-fingerprint + bt-id) so it's traceable
+  scanner-alignment/ BCT/George scanner reverse-engineering ledger and protocol
   trade-analysis/   trade-behavior studies (winners/losers, hold times, payoff) — the #174 mandate
   parity/           cloud-local + engine-oracle parity diagnostics (first-divergence walks)
   methodology/      DSR/PBO, validation-gate methodology, audit plans, sizing/model studies
