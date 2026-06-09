@@ -146,6 +146,35 @@ def test_feature_matrix_is_finite_with_missing_columns() -> None:
     assert np.isfinite(L.apply_standardizer(x, L.fit_standardizer(x))).all()
 
 
+def test_denominator_rank_features_are_computed_by_date() -> None:
+    panel = pd.DataFrame(
+        [
+            {"date": "2026-02-12", "symbol": "A", "gap_pct": 3.0, "bct_score": 7},
+            {"date": "2026-02-12", "symbol": "B", "gap_pct": 1.0, "bct_score": 6},
+            {"date": "2026-02-13", "symbol": "C", "gap_pct": 2.0, "bct_score": 8},
+        ]
+    )
+
+    ranked = L.add_denominator_rank_features(panel)
+
+    by_symbol = ranked.set_index("symbol")
+    assert by_symbol.loc["A", "gap_pct_rank_in_panel"] == 1.0
+    assert by_symbol.loc["B", "gap_pct_rank_in_panel"] == 2.0
+    assert by_symbol.loc["A", "gap_pct_pctile_in_panel"] == 1.0
+    assert by_symbol.loc["B", "gap_pct_pctile_in_panel"] == 0.5
+    assert by_symbol.loc["C", "gap_pct_rank_in_panel"] == 1.0
+
+
+def test_feature_matrix_can_include_denominator_rank_features() -> None:
+    ranked = L.add_denominator_rank_features(_denominator())
+    x, names = L.build_feature_matrix(ranked, include_denominator_ranks=True)
+
+    assert x.shape[0] == len(ranked)
+    assert "gap_pct_rank_in_panel" in names
+    assert "daily_structure_score_pctile_in_panel" in names
+    assert "day_dollar_vol_rank_in_panel" in names
+
+
 def test_logistic_ridge_learns_separable_signal() -> None:
     x = np.array([[3.0], [2.0], [-2.0], [-3.0]])
     y = np.array([1.0, 1.0, 0.0, 0.0])
@@ -270,3 +299,28 @@ def test_run_learned_ranker_can_include_sector_context_features() -> None:
     assert "sector_rank" in features
     assert "industry_rank_in_sector" in features
     assert "hierarchy_all_stage_pass" in features
+
+
+def test_run_learned_ranker_can_include_denominator_rank_features() -> None:
+    labels = [(date, f"P{i}") for i, date in enumerate(("2026-02-12", "2026-02-13", "2026-02-17", "2026-02-18"))]
+    result = L.run_learned_ranker(
+        _denominator(),
+        labels,
+        covered_dates={date for date, _symbol in labels},
+        config=L.LearnedRankerConfig(
+            n_folds=2,
+            model_type="pairwise",
+            max_iter=250,
+            learning_rate=0.1,
+            l2=0.001,
+            pairwise_negatives_per_positive=2,
+            use_denominator_ranks=True,
+            ks=(1, 2),
+        ),
+    )
+    learned = result.rank_summary.set_index("variant").loc["learned_oof_pairwise_denominator_ranks_all"]
+    features = set(result.coefficient_summary["feature"])
+
+    assert learned["hits1"] == 4
+    assert "gap_pct_rank_in_panel" in features
+    assert "bct_score_pctile_in_panel" in features
