@@ -7,6 +7,7 @@ the generated project ObjectStore path.
 Usage:
   python3 scripts/run_scanner_ranker_sweep.py --window jan --workers 1 --only scanner_lambdamart_top10
   python3 scripts/run_scanner_ranker_sweep.py --window fy --workers 1
+  python3 scripts/run_scanner_ranker_sweep.py --pack top_x_expansion --window fy --workers 1
   KUMO_QC_DATA_FOLDER=~/projects/kumo-qc/data python3 scripts/run_scanner_ranker_sweep.py --window fy
 """
 from __future__ import annotations
@@ -38,8 +39,8 @@ from sweeps.adapters.qc_local_prod import _link_repo_storage  # noqa: E402
 from sweeps.grids.scanner_ranker import (  # noqa: E402
     BASE_MODULE,
     DEFAULT_MODEL_KEY,
+    PACKS,
     ScannerRankerVariant,
-    first_pack,
 )
 from sweeps.types import ResultMetrics, SweepConfig, Window  # noqa: E402
 from sweeps.warmup_cache.ensure import ensure_weekly_cache  # noqa: E402
@@ -83,6 +84,7 @@ SUMMARY_COLUMNS = [
 
 def _args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--pack", choices=sorted(PACKS), default="first")
     parser.add_argument("--window", choices=sorted(WINDOWS), default="jan")
     parser.add_argument("--workers", type=int, default=1)
     parser.add_argument("--limit", type=int, default=None)
@@ -198,7 +200,7 @@ def _dist_builder(window: Window, data_fp: str, data_folder: Path) -> Any:
 
 
 def _variants(args: argparse.Namespace) -> tuple[ScannerRankerVariant, ...]:
-    variants = tuple(first_pack())
+    variants = tuple(PACKS[args.pack]())
     if args.only:
         wanted = {part.strip() for part in args.only.split(",") if part.strip()}
         found = {v.variant_id for v in variants}
@@ -351,7 +353,7 @@ def main() -> None:
         raise SystemExit(f"--workers must be between 1 and {len(variants)}, got {args.workers}")
     artifact_path, artifact_sha256 = _validate_artifact(args, variants)
     window = WINDOWS[args.window]
-    sweep_id = args.sweep_id or f"scanner_ranker_first_pack_{window.name}"
+    sweep_id = args.sweep_id or f"scanner_ranker_{args.pack}_{window.name}"
     runs_root, report_dir = _report_dirs(sweep_id)
     data_folder = args.data_folder.expanduser().resolve()
     if not data_folder.exists():
@@ -377,7 +379,7 @@ def main() -> None:
     )
 
     print(
-        f"=== scanner-ranker sweep | variants={len(variants)} workers={args.workers} "
+        f"=== scanner-ranker sweep | pack={args.pack} variants={len(variants)} workers={args.workers} "
         f"window={window.name} ===",
         flush=True,
     )

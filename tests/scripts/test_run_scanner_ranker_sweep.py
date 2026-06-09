@@ -8,11 +8,15 @@ import pytest
 
 from runtime.scanner_ranker import ARTIFACT_SCHEMA_VERSION, feature_contract_hash
 from scripts import run_scanner_ranker_sweep as M
-from sweeps.grids.scanner_ranker import first_pack
+from sweeps.grids.scanner_ranker import first_pack, top_x_expansion_pack
 
 
 def test_variants_filters_named_subset_in_pack_order() -> None:
-    args = SimpleNamespace(only="scanner_lambdamart_top20,scanner_champion_baseline", limit=None)
+    args = SimpleNamespace(
+        pack="first",
+        only="scanner_lambdamart_top20,scanner_champion_baseline",
+        limit=None,
+    )
 
     variants = M._variants(args)
 
@@ -23,10 +27,20 @@ def test_variants_filters_named_subset_in_pack_order() -> None:
 
 
 def test_variants_rejects_unknown_id() -> None:
-    args = SimpleNamespace(only="missing_variant", limit=None)
+    args = SimpleNamespace(pack="first", only="missing_variant", limit=None)
 
     with pytest.raises(SystemExit, match="missing_variant"):
         M._variants(args)
+
+
+def test_variants_selects_top_x_expansion_pack() -> None:
+    args = SimpleNamespace(pack="top_x_expansion", only="", limit=None)
+
+    variants = M._variants(args)
+
+    assert [variant.variant_id for variant in variants] == [
+        variant.variant_id for variant in top_x_expansion_pack()
+    ]
 
 
 def test_default_artifact_required_only_for_default_model_variants(tmp_path) -> None:
