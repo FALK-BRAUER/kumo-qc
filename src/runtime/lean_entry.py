@@ -735,7 +735,8 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             t = d_ichi.tenkan.current.value if d_ichi.is_ready else 0.0
             # Feed the FULL daily OHLC bar (HQ #253-P1: C2 reads the daily LOW + candle body/wick).
             tbounce.update(
-                float(bar.open), float(bar.high), float(bar.low), float(bar.close), float(t)
+                float(bar.open), float(bar.high), float(bar.low), float(bar.close), float(t),
+                float(bar.volume),
             )
 
         daily_consolidator.data_consolidated += _on_daily
@@ -1126,7 +1127,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             vol_sma20.update(et, v)
             # T-Bounce tracker: replay the live _on_daily feed (OHLC + live daily Tenkan).
             tk = d_ichi.tenkan.current.value if d_ichi.is_ready else 0.0
-            tbounce.update(o, h, lo, c, float(tk))
+            tbounce.update(o, h, lo, c, float(tk), v)
 
     def on_data(self, data: Any) -> None:
         """The INTRADAY execution clock ONLY (#313). on_data feeds the 5-min ("minute") bars to the
