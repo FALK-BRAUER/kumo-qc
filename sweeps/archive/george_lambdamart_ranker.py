@@ -40,6 +40,7 @@ class LambdaMARTConfig:
     use_sector_breadth: bool = True
     use_qc_cloud_safe_features: bool = False
     promotion_inventory_path: Path = learned.DEFAULT_PROMOTION_INVENTORY
+    feature_allowlist: frozenset[str] | None = None
     ks: tuple[int, ...] = topk.DEFAULT_KS
 
 
@@ -168,11 +169,11 @@ def run_lambdamart_ranker(
         panel = learned.add_denominator_rank_features(panel)
 
     gates = topk.default_gates(panel)
-    allowed_features = (
-        learned.load_qc_cloud_safe_feature_names(config.promotion_inventory_path)
-        if config.use_qc_cloud_safe_features
-        else None
-    )
+    allowed_features = None
+    if config.feature_allowlist is not None:
+        allowed_features = set(config.feature_allowlist)
+    elif config.use_qc_cloud_safe_features:
+        allowed_features = learned.load_qc_cloud_safe_feature_names(config.promotion_inventory_path)
     x_raw, feature_names = learned.build_feature_matrix(
         panel,
         include_sector_context=config.use_sector_context,

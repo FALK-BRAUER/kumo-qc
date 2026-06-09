@@ -72,7 +72,8 @@ These features can remain in research reports as labels, diagnostics, or leakage
 
 ## Current Decision
 
-After #431, #434, #435, #433, and #423 clean-subset testing, there is no runtime scanner promotion yet.
+After #431, #434, #435, #433, #423 clean-subset testing, and the feature-source ablation, there is no
+runtime scanner promotion yet.
 
 - #431 denominator ranks improved clean_top2000 recall@10 from `72/306` to `87/306`, but those ranks are
   local denominator-relative and need a live QC denominator before cloud promotion.
@@ -83,6 +84,10 @@ After #431, #434, #435, #433, and #423 clean-subset testing, there is no runtime
 - #433 PU weighting and two-stage reranking did not beat #435, so it is not a runtime candidate.
 - #423 QC-cloud-safe feature filtering dropped LambdaMART clean_top2000 recall@10 to `88/306` and all-rows
   recall@10 to `72/306`, below the promotion threshold.
+- The #423 feature-source ablation showed sector/industry breadth is the best clean_top2000 lift
+  (`88/306` to `101/306` recall@10), while denominator-relative ranks are the best broad-pool lift
+  (`72/306` to `100/306` all-row recall@10). Both remain blocked for cloud promotion.
 
-The next promotable path is to make denominator-relative ranks reproducible in QC cloud, or to train a
-clean_top2000 model constrained to raw chart features that beats the `88/306` QC-safe subset benchmark.
+The next promotable path is #442: build a QC-cloud-reproducible sector/industry breadth substrate, then
+rerun the clean_top2000 LambdaMART subset against that deployable feature source. Denominator-relative ranks
+remain the second path once a matching live candidate-panel denominator exists in cloud.
