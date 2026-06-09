@@ -71,6 +71,7 @@ class TopKAuditResult:
     base_summary: pd.DataFrame
     gate_summary: pd.DataFrame
     rank_summary: pd.DataFrame
+    failure_examples: pd.DataFrame
 
 
 def _bool_col(df: pd.DataFrame, col: str, *, default: bool = False) -> pd.Series:
@@ -316,6 +317,65 @@ def default_rank_variants(panel: pd.DataFrame, gates: Mapping[str, pd.Series]) -
     return variants
 
 
+def _average_precision(relevance: Sequence[bool]) -> float:
+    relevant_total = int(sum(1 for item in relevance if item))
+    if relevant_total == 0:
+        return math.nan
+    hits = 0
+    precision_sum = 0.0
+    for rank, relevant in enumerate(relevance, start=1):
+        if not relevant:
+            continue
+        hits += 1
+        precision_sum += hits / rank
+    return precision_sum / relevant_total
+
+
+def _ndcg_at_k(relevance: Sequence[bool], *, k: int) -> float:
+    relevant_total = int(sum(1 for item in relevance if item))
+    if relevant_total == 0:
+        return math.nan
+    discounts = [1.0 / math.log2(rank + 1) for rank in range(1, min(k, len(relevance)) + 1)]
+    dcg = sum(discount for discount, relevant in zip(discounts, relevance[:k]) if relevant)
+    ideal_len = min(k, relevant_total)
+    ideal = sum(1.0 / math.log2(rank + 1) for rank in range(1, ideal_len + 1))
+    return dcg / ideal if ideal else math.nan
+
+
+def _mean_ranking_metric(
+    selected: pd.DataFrame,
+    *,
+    metric: str,
+    k: int | None = None,
+) -> float:
+    values: list[float] = []
+    for _date, group in selected.groupby("date", sort=False):
+        relevance = group["_is_george"].astype(bool).tolist()
+        value = _average_precision(relevance) if metric == "ap" else _ndcg_at_k(relevance, k=k or 10)
+        if not math.isnan(value):
+            values.append(value)
+    return round(100.0 * sum(values) / len(values), 2) if values else 0.0
+
+
+def _ranked_variant_frame(
+    panel: pd.DataFrame,
+    gate: pd.Series,
+    score: pd.Series,
+) -> pd.DataFrame:
+    is_george = _bool_col(panel, "is_george")
+    adv_rank = _num_col(panel, "adv20_rank_price10", default=math.inf)
+    selected = panel.loc[gate.fillna(False).astype(bool), ["date", "symbol"]].copy()
+    selected["_score"] = score.loc[selected.index].fillna(float("-inf"))
+    selected["_adv_rank"] = adv_rank.loc[selected.index].fillna(math.inf)
+    selected["_is_george"] = is_george.loc[selected.index]
+    selected = selected.sort_values(
+        ["date", "_score", "_adv_rank", "symbol"],
+        ascending=[True, False, True, True],
+    )
+    selected["rank"] = selected.groupby("date").cumcount() + 1
+    return selected
+
+
 def evaluate_rank_variants(
     panel: pd.DataFrame,
     variants: Mapping[str, tuple[pd.Series, pd.Series]],
@@ -325,18 +385,8 @@ def evaluate_rank_variants(
 ) -> pd.DataFrame:
     """Evaluate rank@K for each deterministic variant."""
     rows: list[dict[str, Any]] = []
-    is_george = _bool_col(panel, "is_george")
-    adv_rank = _num_col(panel, "adv20_rank_price10", default=math.inf)
     for name, (gate, score) in variants.items():
-        selected = panel.loc[gate.fillna(False).astype(bool), ["date", "symbol"]].copy()
-        selected["_score"] = score.loc[selected.index].fillna(float("-inf"))
-        selected["_adv_rank"] = adv_rank.loc[selected.index].fillna(math.inf)
-        selected["_is_george"] = is_george.loc[selected.index]
-        selected = selected.sort_values(
-            ["date", "_score", "_adv_rank", "symbol"],
-            ascending=[True, False, True, True],
-        )
-        selected["rank"] = selected.groupby("date").cumcount() + 1
+        selected = _ranked_variant_frame(panel, gate, score)
         george_rows = selected[selected["_is_george"]]
         row: dict[str, Any] = {
             "variant": name,
@@ -349,6 +399,7 @@ def evaluate_rank_variants(
             "median_george_rank": (
                 round(float(george_rows["rank"].median()), 2) if len(george_rows) else math.nan
             ),
+            "map_seen_pct": _mean_ranking_metric(selected, metric="ap"),
         }
         for k in ks:
             top = selected[selected["rank"] <= k]
@@ -356,9 +407,57 @@ def evaluate_rank_variants(
             row[f"hits{k}"] = hits
             row[f"recall{k}_pct"] = round(100.0 * hits / label_count, 2) if label_count else 0.0
             row[f"precision{k}_pct"] = round(100.0 * hits / len(top), 2) if len(top) else 0.0
+            row[f"ndcg{k}_seen_pct"] = _mean_ranking_metric(selected, metric="ndcg", k=k)
         rows.append(row)
     sort_cols = [f"recall{ks[1] if len(ks) > 1 else ks[0]}_pct", f"recall{ks[0]}_pct"]
     return pd.DataFrame(rows).sort_values(sort_cols, ascending=False).reset_index(drop=True)
+
+
+def rank_failure_examples(
+    panel: pd.DataFrame,
+    variants: Mapping[str, tuple[pd.Series, pd.Series]],
+    *,
+    k: int = 10,
+    limit_per_variant: int = 5,
+) -> pd.DataFrame:
+    """Return per-date examples where seen George rows miss the top-K list."""
+    rows: list[dict[str, Any]] = []
+    for name, (gate, score) in variants.items():
+        selected = _ranked_variant_frame(panel, gate, score)
+        variant_rows: list[dict[str, Any]] = []
+        for date, group in selected.groupby("date", sort=False):
+            george_rows = group[group["_is_george"]]
+            if george_rows.empty:
+                continue
+            top = group[group["rank"] <= k]
+            if bool(top["_is_george"].any()):
+                continue
+            variant_rows.append(
+                {
+                    "variant": name,
+                    "date": str(date),
+                    "k": int(k),
+                    "seen_george_count": int(len(george_rows)),
+                    "best_george_rank": int(george_rows["rank"].min()),
+                    "george_symbols": ";".join(
+                        f"{row.symbol}@{int(row.rank)}" for row in george_rows.itertuples()
+                    ),
+                    "top_symbols": ";".join(str(symbol) for symbol in top["symbol"].tolist()),
+                }
+            )
+        rows.extend(sorted(variant_rows, key=lambda row: row["best_george_rank"], reverse=True)[:limit_per_variant])
+    return pd.DataFrame(
+        rows,
+        columns=[
+            "variant",
+            "date",
+            "k",
+            "seen_george_count",
+            "best_george_rank",
+            "george_symbols",
+            "top_symbols",
+        ],
+    )
 
 
 def run_topk_audit(
@@ -371,15 +470,17 @@ def run_topk_audit(
     """Run the reusable in-memory score-6 top-K audit."""
     panel = build_score6_panel(denominator, labels, covered_dates=covered_dates, config=config)
     gates = default_gates(panel)
+    variants = default_rank_variants(panel, gates)
     return TopKAuditResult(
         base_summary=summarize_base_panel(panel, label_count=len(labels)),
         gate_summary=summarize_gates(panel, gates, label_count=len(labels)),
         rank_summary=evaluate_rank_variants(
             panel,
-            default_rank_variants(panel, gates),
+            variants,
             label_count=len(labels),
             ks=config.ks,
         ),
+        failure_examples=rank_failure_examples(panel, variants, k=10),
     )
 
 
@@ -389,6 +490,7 @@ def write_result(result: TopKAuditResult, output_dir: Path) -> None:
     result.base_summary.to_csv(output_dir / "base_summary.csv", index=False)
     result.gate_summary.to_csv(output_dir / "gate_summary.csv", index=False)
     result.rank_summary.to_csv(output_dir / "rank_summary.csv", index=False)
+    result.failure_examples.to_csv(output_dir / "failure_examples.csv", index=False)
 
 
 def _print_result(result: TopKAuditResult) -> None:
@@ -398,6 +500,8 @@ def _print_result(result: TopKAuditResult) -> None:
     print(result.gate_summary.head(20).to_string(index=False))
     print("\nRANK VARIANTS")
     print(result.rank_summary.head(20).to_string(index=False))
+    print("\nFAILURE EXAMPLES")
+    print(result.failure_examples.head(20).to_string(index=False))
 
 
 def main(argv: Sequence[str] | None = None) -> int:

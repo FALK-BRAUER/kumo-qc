@@ -72,7 +72,7 @@ These features can remain in research reports as labels, diagnostics, or leakage
 
 ## Current Decision
 
-After #431, #434, #435, and #433, there is no runtime scanner promotion yet.
+After #431, #434, #435, #433, and #423 clean-subset testing, there is no runtime scanner promotion yet.
 
 - #431 denominator ranks improved clean_top2000 recall@10 from `72/306` to `87/306`, but those ranks are
   local denominator-relative and need a live QC denominator before cloud promotion.
@@ -81,6 +81,8 @@ After #431, #434, #435, and #433, there is no runtime scanner promotion yet.
 - #435 plain LambdaMART is the current best research selector at `107/306` recall@10 on the broad score-6
   panel, but it is an optional research harness and uses features that are not all cloud-ready.
 - #433 PU weighting and two-stage reranking did not beat #435, so it is not a runtime candidate.
+- #423 QC-cloud-safe feature filtering dropped LambdaMART clean_top2000 recall@10 to `88/306` and all-rows
+  recall@10 to `72/306`, below the promotion threshold.
 
-The next promotable path is a clean subset experiment: train/evaluate with only
-`safe_for_qc_handoff=True` columns, then add runtime tests only if that subset has reproducible top10 lift.
+The next promotable path is to make denominator-relative ranks reproducible in QC cloud, or to train a
+clean_top2000 model constrained to raw chart features that beats the `88/306` QC-safe subset benchmark.

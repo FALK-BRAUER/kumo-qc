@@ -1,6 +1,8 @@
 """Tests for the optional LightGBM LambdaMART scanner benchmark."""
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 import numpy as np
 import pandas as pd
@@ -42,6 +44,21 @@ def _denominator() -> pd.DataFrame:
         rows.append(_row(date, f"P{i}", george_like=True))
         rows.append(_row(date, f"N{i}", george_like=False))
     return pd.DataFrame(rows)
+
+
+def _write_promotion_inventory(path: Path) -> None:
+    path.write_text(
+        "\n".join(
+            [
+                "feature,qc_status,deployability_class,safe_for_qc_handoff,used_in_feature_sets,handoff_note",
+                "gap_pct,qc_ranker_feature,qc_cloud_deployable,True,,",
+                "daily_structure_score,qc_ranker_feature,qc_cloud_deployable,True,,",
+                "gap_pct_rank_in_panel,blocked_local_massive_only,local_massive_only,False,,",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
 
 def test_sort_by_date_groups_returns_group_sizes() -> None:
@@ -141,3 +158,37 @@ def test_run_lambdamart_ranker_two_stage_smoke_when_lightgbm_available() -> None
     variant = "lambdamart_pu_pos100_neg050_two_stage2_denominator_ranks_all"
     learned = result.rank_summary.set_index("variant").loc[variant]
     assert learned["seen_hits"] == 4
+
+
+def test_run_lambdamart_ranker_can_use_qc_cloud_safe_feature_subset(tmp_path: Path) -> None:
+    try:
+        M._import_lightgbm()
+    except RuntimeError as exc:
+        pytest.skip(str(exc))
+    inventory = tmp_path / "features.csv"
+    _write_promotion_inventory(inventory)
+    labels = [(date, f"P{i}") for i, date in enumerate(("2026-02-12", "2026-02-13", "2026-02-17", "2026-02-18"))]
+
+    result = M.run_lambdamart_ranker(
+        _denominator(),
+        labels,
+        covered_dates={date for date, _symbol in labels},
+        config=M.LambdaMARTConfig(
+            n_folds=2,
+            n_estimators=10,
+            num_leaves=7,
+            min_child_samples=1,
+            use_denominator_ranks=True,
+            use_qc_cloud_safe_features=True,
+            promotion_inventory_path=inventory,
+            use_sector_context=False,
+            use_sector_breadth=False,
+            ks=(1, 2),
+        ),
+    )
+
+    variant = "lambdamart_qc_cloud_safe_denominator_ranks_all"
+    learned = result.rank_summary.set_index("variant").loc[variant]
+    features = set(result.importance_summary["feature"])
+    assert learned["seen_hits"] == 4
+    assert features == {"gap_pct", "daily_structure_score"}
