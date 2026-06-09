@@ -44,10 +44,12 @@ def test_build_column_inventory_uses_inventory_and_qc_feature_sets() -> None:
         },
     )
 
-    by_feature = {row["feature"]: row["qc_status"] for row in rows}
-    assert by_feature["bct_score"] == "qc_ranker_feature"
-    assert by_feature["d_ma200_overhead_pct"] == "clean_available_not_used"
-    assert by_feature["oof_model_score"] == "non_deployable_model_score"
+    by_feature = {row["feature"]: row for row in rows}
+    assert by_feature["bct_score"]["qc_status"] == "qc_ranker_feature"
+    assert by_feature["d_ma200_overhead_pct"]["qc_status"] == "clean_available_not_used"
+    assert by_feature["oof_model_score"]["qc_status"] == "non_deployable_model_score"
+    assert by_feature["oof_model_score"]["safe_for_qc_handoff"] == "False"
+    assert by_feature["oof_model_score"]["deployability_class"] == "offline_research_only"
 
 
 def test_write_outputs_creates_report_and_column_csv(tmp_path: Path) -> None:
