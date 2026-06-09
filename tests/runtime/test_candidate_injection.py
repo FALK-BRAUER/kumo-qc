@@ -96,6 +96,15 @@ def test_injects_all_eligible_candidates_as_zero_qty_stubs() -> None:
     stubs = ictx.bar_state.sized_orders
     assert [s.ticker for s in stubs] == ["AAPL", "TSLA"]
     assert all(s.qty == 0 for s in stubs), "injected stubs are qty=0 — FIRE_ENTRIES's qty<=0 guard blocks them"
+    assert qc.logged == ["INTRADAY_INJECT|2025-02-04|candidates=2"]
+
+
+def test_intraday_inject_log_flag_suppresses_heartbeat_only() -> None:
+    qc = _qc(["AAPL", "TSLA"])
+    qc.LOG_INTRADAY_INJECT_EVENTS = False
+
+    assert _inject(qc) == ["AAPL", "TSLA"]
+    assert qc.logged == []
 
 
 def test_held_overnight_invested_blocks_reinjection() -> None:

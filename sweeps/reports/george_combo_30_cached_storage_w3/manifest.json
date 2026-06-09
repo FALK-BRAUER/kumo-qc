@@ -1,0 +1,770 @@
+{
+  "ok_count": 30,
+  "reports": {
+    "exit_events_all_csv": "/Users/falk/projects/kumo-qc-412-exit-diagnostics/sweeps/reports/george_combo_30_cached_storage_w3/exit_events_all.csv",
+    "orders_all_csv": "/Users/falk/projects/kumo-qc-412-exit-diagnostics/sweeps/reports/george_combo_30_cached_storage_w3/orders_all.csv",
+    "summary_csv": "/Users/falk/projects/kumo-qc-412-exit-diagnostics/sweeps/reports/george_combo_30_cached_storage_w3/summary.csv",
+    "trades_all_csv": "/Users/falk/projects/kumo-qc-412-exit-diagnostics/sweeps/reports/george_combo_30_cached_storage_w3/trades_all.csv"
+  },
+  "sweep_id": "george_combo_30_cached_storage_w3",
+  "variant_count": 30,
+  "variants": [
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.005
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.015,
+      "hypothesis": "Best exit plus 0.5% buy-stop offset.",
+      "min_peak_pct": 0.04,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 0,
+      "require_still_bullish": false,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "combo_gb_buy005"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.01
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.015,
+      "hypothesis": "Best exit plus 1.0% buy-stop offset.",
+      "min_peak_pct": 0.04,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 0,
+      "require_still_bullish": false,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "combo_gb_buy010"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.005
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.015,
+      "hypothesis": "Best exit, 0.5% buy-stop, defer proactive exits for 7 days.",
+      "min_peak_pct": 0.04,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 7,
+      "require_still_bullish": false,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "combo_gb_buy005_min7"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.005
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.015,
+      "hypothesis": "Best exit, 0.5% buy-stop, defer proactive exits for 14 days.",
+      "min_peak_pct": 0.04,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 14,
+      "require_still_bullish": false,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "combo_gb_buy005_min14"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.005
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "8% target runner plus 0.5% buy-stop.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 0,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.08,
+      "variant_id": "combo_t08_buy005"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.01
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "8% target runner plus 1.0% buy-stop.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 0,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.08,
+      "variant_id": "combo_t08_buy010"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.005
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Low min-peak giveback plus 0.5% buy-stop.",
+      "min_peak_pct": 0.03,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 0,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "combo_minp03_buy005"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.01
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Low min-peak giveback plus 1.0% buy-stop.",
+      "min_peak_pct": 0.03,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 0,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "combo_minp03_buy010"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.005
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.015,
+      "hypothesis": "Best exit/buy-stop with 3% flat sizing.",
+      "min_peak_pct": 0.04,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 0,
+      "require_still_bullish": false,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.03
+      },
+      "target_pct": 0.06,
+      "variant_id": "combo_gb_buy005_pos03"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.005
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.015,
+      "hypothesis": "Best exit/buy-stop with 3.5% flat sizing.",
+      "min_peak_pct": 0.04,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 0,
+      "require_still_bullish": false,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.035
+      },
+      "target_pct": 0.06,
+      "variant_id": "combo_gb_buy005_pos035"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.005
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.015,
+      "hypothesis": "Best exit/buy-stop with 4.5% flat sizing.",
+      "min_peak_pct": 0.04,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 0,
+      "require_still_bullish": false,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.045
+      },
+      "target_pct": 0.06,
+      "variant_id": "combo_gb_buy005_pos045"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.005
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "8% target/buy-stop with 3% sizing.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 0,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.03
+      },
+      "target_pct": 0.08,
+      "variant_id": "combo_t08_buy005_pos03"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.005
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Low min-peak/buy-stop with 3% sizing.",
+      "min_peak_pct": 0.03,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 0,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.03
+      },
+      "target_pct": 0.06,
+      "variant_id": "combo_minp03_buy005_pos03"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.01
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.015,
+      "hypothesis": "Best exit, 1% buy-stop, 3% sizing.",
+      "min_peak_pct": 0.04,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 0,
+      "require_still_bullish": false,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.03
+      },
+      "target_pct": 0.06,
+      "variant_id": "combo_gb_buy010_pos03"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.005
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.015,
+      "hypothesis": "Best exit/buy-stop with tight scratch rescue.",
+      "min_peak_pct": 0.04,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 0,
+      "require_still_bullish": false,
+      "resistance_buffer_pct": 0.02,
+      "scratch": {
+        "max_loss_after_mfe_pct": 0.01,
+        "min_mfe_pct": 0.02,
+        "no_progress_days": 3,
+        "scratch_band_pct": 0.003
+      },
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "combo_gb_buy005_scratch_tight"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.005
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.015,
+      "hypothesis": "Best exit/buy-stop with aggressive 1d low-MFE scratch.",
+      "min_peak_pct": 0.04,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 0,
+      "require_still_bullish": false,
+      "resistance_buffer_pct": 0.02,
+      "scratch": {
+        "max_loss_after_mfe_pct": 0.01,
+        "min_mfe_pct": 0.01,
+        "no_progress_days": 1,
+        "scratch_band_pct": 0.003
+      },
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "combo_gb_buy005_scratch_1d"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.005
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.015,
+      "hypothesis": "Best exit/buy-stop with patient scratch.",
+      "min_peak_pct": 0.04,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 0,
+      "require_still_bullish": false,
+      "resistance_buffer_pct": 0.02,
+      "scratch": {
+        "max_loss_after_mfe_pct": 0.025,
+        "min_mfe_pct": 0.03,
+        "no_progress_days": 5,
+        "scratch_band_pct": 0.0075
+      },
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "combo_gb_buy005_scratch_pat"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.005
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "8% target/buy-stop with tight scratch.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 0,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": {
+        "max_loss_after_mfe_pct": 0.01,
+        "min_mfe_pct": 0.02,
+        "no_progress_days": 3,
+        "scratch_band_pct": 0.003
+      },
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.08,
+      "variant_id": "combo_t08_buy005_scratch_tight"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.005
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Low min-peak/buy-stop with tight scratch.",
+      "min_peak_pct": 0.03,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 0,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": {
+        "max_loss_after_mfe_pct": 0.01,
+        "min_mfe_pct": 0.02,
+        "no_progress_days": 3,
+        "scratch_band_pct": 0.003
+      },
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "combo_minp03_buy005_scratch_tight"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.005
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.015,
+      "hypothesis": "Best exit/buy-stop, min-hold 7d, 3% sizing.",
+      "min_peak_pct": 0.04,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 7,
+      "require_still_bullish": false,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.03
+      },
+      "target_pct": 0.06,
+      "variant_id": "combo_gb_buy005_min7_pos03"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.01
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.015,
+      "hypothesis": "Best exit, 1% buy-stop, min-hold 7d, 3% sizing.",
+      "min_peak_pct": 0.04,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 7,
+      "require_still_bullish": false,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.03
+      },
+      "target_pct": 0.06,
+      "variant_id": "combo_gb_buy010_min7_pos03"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.005
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "8% target/buy-stop with 7d proactive min-hold.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 7,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.08,
+      "variant_id": "combo_t08_buy005_min7"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.005
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "Low min-peak/buy-stop with 7d proactive min-hold.",
+      "min_peak_pct": 0.03,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 7,
+      "require_still_bullish": true,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "combo_minp03_buy005_min7"
+    },
+    {
+      "atr_mult": 0.75,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.005
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.015,
+      "hypothesis": "Best exit/buy-stop with 3% sizing and 0.75 ATR cushion.",
+      "min_peak_pct": 0.04,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 0,
+      "require_still_bullish": false,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.03
+      },
+      "target_pct": 0.06,
+      "variant_id": "combo_gb_buy005_atr075_pos03"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.005
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.015,
+      "hypothesis": "Conservative vol-risk cap with best exit/buy-stop.",
+      "min_peak_pct": 0.04,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 0,
+      "require_still_bullish": false,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "vol_risk",
+      "sizer_params": {
+        "fallback_stop_pct": 0.06,
+        "max_position_pct": 0.04,
+        "min_scale": 0.4,
+        "risk_pct": 0.005,
+        "vix_baseline": 20.0,
+        "vix_slope": 0.02
+      },
+      "target_pct": 0.06,
+      "variant_id": "combo_gb_buy005_vol050_cap04"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.005
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.015,
+      "hypothesis": "0.75% vol-risk capped at 4% with best exit/buy-stop.",
+      "min_peak_pct": 0.04,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 0,
+      "require_still_bullish": false,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "vol_risk",
+      "sizer_params": {
+        "fallback_stop_pct": 0.06,
+        "max_position_pct": 0.04,
+        "min_scale": 0.4,
+        "risk_pct": 0.0075,
+        "vix_baseline": 20.0,
+        "vix_slope": 0.02
+      },
+      "target_pct": 0.06,
+      "variant_id": "combo_gb_buy005_vol075_cap04"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.005
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.025,
+      "hypothesis": "8% target with capped vol-risk and buy-stop.",
+      "min_peak_pct": 0.05,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 0,
+      "require_still_bullish": false,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "vol_risk",
+      "sizer_params": {
+        "fallback_stop_pct": 0.06,
+        "max_position_pct": 0.04,
+        "min_scale": 0.4,
+        "risk_pct": 0.0075,
+        "vix_baseline": 20.0,
+        "vix_slope": 0.02
+      },
+      "target_pct": 0.08,
+      "variant_id": "combo_t08_buy005_vol075_cap04"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.4,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.005
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.015,
+      "hypothesis": "Best exit/buy-stop with looser 1% resistance buffer.",
+      "min_peak_pct": 0.04,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 0,
+      "require_still_bullish": false,
+      "resistance_buffer_pct": 0.01,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "combo_gb_buy005_res010"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.5,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.005
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.015,
+      "hypothesis": "Best exit/buy-stop with stricter 50% breadth gate.",
+      "min_peak_pct": 0.04,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 0,
+      "require_still_bullish": false,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.04
+      },
+      "target_pct": 0.06,
+      "variant_id": "combo_gb_buy005_breadth050"
+    },
+    {
+      "atr_mult": 0.5,
+      "breadth_threshold": 0.5,
+      "entry_trigger": "buy_stop",
+      "entry_trigger_params": {
+        "breakout_pct": 0.005
+      },
+      "family": "combo",
+      "giveback_from_peak_pct": 0.015,
+      "hypothesis": "Best exit/buy-stop with 3% sizing and stricter breadth.",
+      "min_peak_pct": 0.04,
+      "missing_breadth_blocks": false,
+      "proactive_min_hold_days": 0,
+      "require_still_bullish": false,
+      "resistance_buffer_pct": 0.02,
+      "scratch": null,
+      "sizer": "flat",
+      "sizer_params": {
+        "max_gross_pct": 1.0,
+        "position_pct": 0.03
+      },
+      "target_pct": 0.06,
+      "variant_id": "combo_gb_buy005_pos03_breadth050"
+    }
+  ]
+}

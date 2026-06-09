@@ -31,7 +31,7 @@ import importlib
 from pathlib import Path
 from typing import Any, cast
 
-from engine.config import Slot, StrategyConfig
+from engine.config import RuntimeConfig, Slot, StrategyConfig
 
 BASE_MODULE = "strategies.champion_intraday_gapvol"
 
@@ -90,6 +90,13 @@ def _base_slot(base: StrategyConfig, kind: str) -> Slot[object]:
     return slot
 
 
+def _optional_base_slot(base: StrategyConfig, kind: str) -> Slot[object] | None:
+    slot = base.phases.get(kind)
+    if isinstance(slot, list):  # list-kinds handled by their dedicated branches
+        raise ValueError(f"_optional_base_slot called on list-kind {kind!r}")
+    return slot
+
+
 def _apply_params(kind: str, impl_name: str, swept: dict[str, Any], base_params: Any) -> Any:
     """Remap logical names, fail loud on unsupported hooks / unknown fields, then either
     dataclasses.replace the base params (same impl) or build fresh (impl swap)."""
@@ -123,10 +130,11 @@ def _override_slot(kind: str, ch: Any, base_slot: Slot[object] | None) -> Slot[o
     """The swept Slot: same impl as the base → dataclasses.replace its params; an impl SWAP →
     a fresh impl with its default Params, then override the swept fields."""
     swept = ch.param_dict()
+    enabled = bool(getattr(ch, "enabled", True))
     base_snake = base_slot.impl.__module__.rsplit(".", 1)[-1] if base_slot is not None else None
     if base_slot is not None and ch.impl_name == base_snake:
         params = _apply_params(kind, ch.impl_name, swept, base_slot.params)
-        return Slot(impl=base_slot.impl, params=params, enabled=True)
+        return Slot(impl=base_slot.impl, params=params, enabled=enabled)
     impl = _resolve_impl(kind, ch.impl_name)
     fresh = impl.Params()  # type: ignore[attr-defined]  # phases declare Params by convention
     # On an impl SWAP, carry the base slot's STRUCTURAL (_HASH_EXCLUDE) fields onto the fresh params —
@@ -142,7 +150,43 @@ def _override_slot(kind: str, ch: Any, base_slot: Slot[object] | None) -> Slot[o
         if carry:
             fresh = dataclasses.replace(fresh, **carry)
     params = _apply_params(kind, ch.impl_name, swept, fresh)
-    return Slot(impl=impl, params=params, enabled=True)
+    return Slot(impl=impl, params=params, enabled=enabled)
+
+
+def _runtime_updates(sweep_config: Any) -> dict[str, Any]:
+    """Runtime overrides carried by SweepConfig, validated against RuntimeConfig fields.
+
+    The legacy SweepConfig identity fields (`continuous_weekly`, `warmup_days`) still drive
+    the local cache path and therefore remain authoritative when non-default. Generic
+    `runtime_overrides` handles newer knobs such as watchlist carry and George source files.
+    """
+    updates = dict(getattr(sweep_config, "runtime_overrides", ()) or ())
+
+    if getattr(sweep_config, "continuous_weekly", False):
+        existing = updates.get("continuous_weekly")
+        if existing not in (None, True):
+            raise UnsupportedSweepAxisError(
+                "runtime_overrides.continuous_weekly conflicts with SweepConfig.continuous_weekly"
+            )
+        updates["continuous_weekly"] = True
+
+    warmup_days = int(getattr(sweep_config, "warmup_days", 560))
+    if warmup_days != 560:
+        existing = updates.get("warmup_days")
+        if existing not in (None, warmup_days):
+            raise UnsupportedSweepAxisError(
+                "runtime_overrides.warmup_days conflicts with SweepConfig.warmup_days"
+            )
+        updates["warmup_days"] = warmup_days
+
+    valid = {f.name for f in dataclasses.fields(RuntimeConfig)}
+    bad = sorted(set(updates) - valid)
+    if bad:
+        raise UnsupportedSweepAxisError(
+            f"runtime override keys {bad} are not RuntimeConfig fields "
+            f"(valid: {sorted(valid)})"
+        )
+    return updates
 
 
 def sweep_to_strategy_config(sweep_config: Any, *, base_module: str = BASE_MODULE) -> StrategyConfig:
@@ -158,13 +202,16 @@ def sweep_to_strategy_config(sweep_config: Any, *, base_module: str = BASE_MODUL
 
     choices = {c.kind: c for c in sweep_config.choices}
 
-    # --- signal / sizing / protective_stop (single-slot kinds) — #339 adds protective_stop so the
-    # STOP LEVEL is sweepable (Kijun floor vs cloud-bottom floor); it's the champion's BINDING exit. ---
-    for kind in ("signal", "sizing", "protective_stop"):
+    # --- single-slot kinds. #416 adds rebalance/ranking so George context can be switched and
+    # weighted by the sweep instead of hardcoded in one champion scenario.
+    # #339 adds protective_stop so the STOP LEVEL is sweepable (Kijun floor vs cloud-bottom floor).
+    for kind in (
+        "rebalance", "universe", "signal", "ranking", "sizing", "protective_stop", "trail",
+    ):
         ch = choices.get(kind)
         if ch is None:
             continue
-        phases[kind] = _override_slot(kind, ch, _base_slot(base, kind))
+        phases[kind] = _override_slot(kind, ch, _optional_base_slot(base, kind))
 
     # --- entry_selection (list-kind): PRESERVE guard sub-phases (PreFlightStaleness — the
     # snapshot-staleness tripwire), REPLACE only the ALGORITHM slot with the swept impl. ---
@@ -243,11 +290,14 @@ def sweep_to_strategy_config(sweep_config: Any, *, base_module: str = BASE_MODUL
     if roch is not None:
         phases["exit_rotation"] = [_override_slot("exit_rotation", roch, None)]
 
+    runtime = dataclasses.replace(base.runtime, **_runtime_updates(sweep_config))
+
     return StrategyConfig(
         name=f"sweep-{sweep_config.config_hash}",
         version=base.version,
         phases=phases,
         is_fixture=False,
+        runtime=runtime,
     )
 
 

@@ -1,0 +1,25 @@
+{
+  "sweep_id": "george_context_30_fy2025_stable4",
+  "window": "fy2025_full",
+  "valid_rows": 30,
+  "source_reports": [
+    "george_context_30_w1_fy2025_stable4",
+    "george_context_30_w2_fy2025_stable4",
+    "george_context_30_w3_fy2025_stable4",
+    "george_context_30_w4_fy2025_stable4",
+    "george_context_30_w5_fy2025_stable4"
+  ],
+  "best_ret_pct": "27.813",
+  "best_variants": [
+    "entry_gapvol_base",
+    "entry_gapvol_vol125",
+    "entry_gapvol_vol150",
+    "exit_kijun_phase3_base",
+    "exit_cloud_adherence",
+    "exit_weekly_kijun",
+    "exit_proactive_target_06",
+    "exit_proactive_giveback_tight",
+    "exit_scratch_flat_3d"
+  ],
+  "created_from": "local aggregate of per-wave summary.csv files"
+}

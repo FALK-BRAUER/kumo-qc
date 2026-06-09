@@ -66,8 +66,10 @@ from engine.engine import StrategyEngine
 from engine.symbol_key import canonical_symbol_key
 from phases.shared.oracle_helpers import score_symbol_native
 from runtime.cost_model import wire_cost_models
+from runtime.george_attention import load_george_attention_maps
 from runtime.tag_schema import encode_entry_tag
 from runtime.indicators import INDICATOR_KEYS, TBounceTracker, weekly_aggregate
+from runtime.security_profiles import load_security_profile_maps
 # #336/#338 continuous-weekly fix: WeeklyIchimokuAsOf is imported LAZILY inside
 # _continuous_weekly_scalars (the flag-ON path only) so the default flag-OFF load path adds NO new
 # import dependency — keeps the cloud bundle byte-untouched until the cloud leg is taken (deferred).
@@ -78,6 +80,7 @@ from runtime.universe_select import (
     rolling_dv_mean,
     update_dv_windows,
 )
+from runtime.watchlist_carry import select_watchlist_carry
 
 
 def coarse_to_dollar_volume(coarse: Iterable[Any]) -> dict[str, float]:
@@ -380,6 +383,15 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
     # find the real truncation/reject point, set this to <90% of it + a CI assert). #archive-followup.
     ENTRY_TAG_MAX: int = 200
 
+    # George-context runtime hooks (#416 PR2 foundation). Default OFF/None and deliberately inert
+    # in this PR: the selection-gate carry behavior lands in the next PR after these knobs are
+    # typed, hashable, and emitted by the build.
+    WATCHLIST_CARRY_MAX: int = 0
+    WATCHLIST_CARRY_MIN_PRICE: float = 10.0
+    WATCHLIST_CARRY_MIN_AVG_DOLLAR_VOLUME: float = 100_000_000.0
+    SECURITY_PROFILE_SOURCE: str | None = None
+    GEORGE_ATTENTION_SOURCE: str | None = None
+
     def initialize(self) -> None:
         self.set_start_date(*self.START_DATE)
         self.set_end_date(*self.END_DATE)
@@ -431,6 +443,14 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         self._active: set[Any] = set()
         self._indicators: dict[Any, dict[str, Any]] = {}
         self._position_meta: dict[Any, Any] = {}
+        self._security_profiles: dict[str, dict[str, Any]] = {}
+        self._industry_by_ticker: dict[str, str] = {}
+        self._sector_by_ticker: dict[str, str] = {}
+        self._proxy_by_ticker: dict[str, str] = {}
+        self._george_attention_ticker: dict[str, float] = {}
+        self._george_attention_industry: dict[str, float] = {}
+        self._george_source_role_counts: dict[str, int] = {}
+        self._load_optional_george_context()
 
         # #275b INTRADAY state — SEPARATE from _indicators (which carries the strict daily
         # INDICATOR_KEYS contract). _intraday[sym] = {intraday_tenkan, vol_window, last_close,
@@ -543,6 +563,43 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             f"(prefilter -> floors -> rank+cap at selection; subscribe only qualifying)"
         )
 
+    def _load_optional_george_context(self) -> None:
+        if self.SECURITY_PROFILE_SOURCE:
+            try:
+                maps = load_security_profile_maps(self.SECURITY_PROFILE_SOURCE)
+            except Exception as exc:
+                self.log(
+                    f"GEORGE_PROFILE_LOAD|source={self.SECURITY_PROFILE_SOURCE}|"
+                    f"loaded=0|error={type(exc).__name__}:{exc}"
+                )
+            else:
+                self._security_profiles = maps["security_profiles"]
+                self._industry_by_ticker = maps["industry_by_ticker"]
+                self._sector_by_ticker = maps["sector_by_ticker"]
+                self._proxy_by_ticker = maps["proxy_by_ticker"]
+                self.log(
+                    f"GEORGE_PROFILE_LOAD|source={self.SECURITY_PROFILE_SOURCE}|"
+                    f"loaded={len(self._security_profiles)}|error="
+                )
+
+        if self.GEORGE_ATTENTION_SOURCE:
+            try:
+                maps = load_george_attention_maps(self.GEORGE_ATTENTION_SOURCE)
+            except Exception as exc:
+                self.log(
+                    f"GEORGE_ATTENTION_LOAD|source={self.GEORGE_ATTENTION_SOURCE}|"
+                    f"loaded=0|error={type(exc).__name__}:{exc}"
+                )
+            else:
+                self._george_attention_ticker = maps["ticker_attention"]
+                self._george_attention_industry = maps["industry_attention"]
+                self._george_source_role_counts = maps["source_role_counts"]
+                self.log(
+                    f"GEORGE_ATTENTION_LOAD|source={self.GEORGE_ATTENTION_SOURCE}|"
+                    f"ticker={len(self._george_attention_ticker)}|"
+                    f"industry={len(self._george_attention_industry)}|error="
+                )
+
     def _coarse_selection(self, coarse: Any) -> Any:
         """Once-daily LIVE SELECTION GATE (#238 / Y, Falk): coarse feed → MAINTAIN rolling DV →
         build metrics → FLOORS → RANK+CAP. The floors live HERE (Falk's Y: "filter selects
@@ -642,6 +699,38 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                 f"an EMPTY universe (degraded data: DV/price column corrupted, every name below "
                 f"the floor?). A non-empty feed yielding zero selection must fail loud, never a "
                 f"silent empty universe (the −0.616 empty-universe mirage) (#261-6)"
+            )
+
+        watchlist = getattr(self, "_george_watchlist", {})
+        carry, carry_rejected = select_watchlist_carry(
+            watchlist if isinstance(watchlist, dict) else {},
+            bar_metrics,
+            ranked,
+            max_names=self.WATCHLIST_CARRY_MAX,
+            min_price=self.WATCHLIST_CARRY_MIN_PRICE,
+            min_avg_dollar_volume=self.WATCHLIST_CARRY_MIN_AVG_DOLLAR_VOLUME,
+        )
+        normal_ranked = list(ranked)
+        if carry:
+            ranked = normal_ranked + [c.ticker for c in carry]
+
+        self._watchlist_carry_today = {
+            c.ticker: {
+                "score": c.score,
+                "age_days": c.age_days,
+                "price": c.price,
+                "trailing_dv": c.trailing_dv,
+                "reason": c.reason,
+            }
+            for c in carry
+        }
+        self._watchlist_carry_rejected = carry_rejected
+        self._selection_sources = {t: "ranked" for t in normal_ranked}
+        self._selection_sources.update({c.ticker: "watchlist_carry" for c in carry})
+        for c in carry:
+            self.log(
+                f"WATCHLIST_CARRY|{date_str}|{c.ticker}|reason={c.reason}|price={c.price}|"
+                f"trailing_dv={c.trailing_dv}|score={c.score}"
             )
 
         # Store the selected+ranked+capped set + the dv view (signal tiebreak) + the full
@@ -1557,7 +1646,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
             injected += 1
         if injected:
             log = getattr(self, "log", None)
-            if callable(log):
+            if callable(log) and getattr(self, "LOG_INTRADAY_INJECT_EVENTS", True):
                 log(f"INTRADAY_INJECT|{self.time.date()}|candidates={injected}")
 
     def _mark_entry_pending(self, sym: Any) -> None:

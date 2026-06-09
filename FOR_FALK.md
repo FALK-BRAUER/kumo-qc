@@ -227,6 +227,54 @@ GitHub backlog created:
 - #425 `[STRATEGY] Score-6 BCT candidate lane with first-hour confirmation`
 - Added scanner-specific TC2000/industry hierarchy acceptance criteria to existing #409.
 
+# George Context Sweep Protocol
+
+This branch makes the George-context architecture runnable as a proper sweep protocol.
+`SweepConfig` can now carry runtime overrides (`WATCHLIST_CARRY_MAX`, profile/attention sources, etc.) and disabled phase choices, and `build/sweep_build.py` maps those into `StrategyConfig.runtime` plus real phase slots before building a dist.
+
+The named protocol lives in `sweeps/grids/george_context.py`:
+- `six_pack()` = baseline, industry-only, attention-only, watchlist-carry-only, industry+watchlist, full George context.
+- `thirty_pack()` = five waves of six: industry warm-up, watchlist carry, George attention, entry confirmation, and exit management.
+
+All George variants default to corrected weekly (`continuous_weekly=True`) and trimmed warmup (`warmup_days=320`) so local sweeps can use the weekly cache path instead of re-deriving the whole weekly stack.
+
+# George Profile And Attention Loaders
+
+This branch adds optional runtime loaders for George-context profile and attention data.
+`security_profiles.py` reads ticker -> sector/industry/subindustry/proxy/source/confidence maps; `george_attention.py` reads confidence-weighted ticker and industry attention priors while preserving source-role counts.
+
+`BctEngineAlgorithm` now initializes the phase-facing maps (`_industry_by_ticker`, `_george_attention_ticker`, `_george_attention_industry`, etc.) and fail-soft logs missing/bad optional source files.
+Default behavior is unchanged when `SECURITY_PROFILE_SOURCE` and `GEORGE_ATTENTION_SOURCE` are unset.
+
+# George Watchlist Carry
+
+This branch adds default-off George watchlist carry at the LEAN selection gate.
+When `WATCHLIST_CARRY_MAX > 0`, `_coarse_selection` can append bounded watchlist tickers that appear in today's coarse-derived raw metrics, pass carry price/liquidity floors, and are not already normally ranked.
+
+The helper is pure (`runtime.watchlist_carry`) and deterministic; the LEAN hook publishes `_selection_sources`, `_watchlist_carry_today`, `_watchlist_carry_rejected`, and logs `WATCHLIST_CARRY|...` rows.
+Default behavior stays unchanged because `WATCHLIST_CARRY_MAX` is `0`.
+
+Verified with focused runtime/build tests plus the broader runtime/data selection subset.
+
+# George RuntimeConfig Foundation
+
+This branch adds the typed runtime contract needed before selection-gate watchlist carry.
+`RuntimeConfig` now owns LEAN runtime knobs, build codegen emits non-default values as `BCTAlgorithm` class attributes, and manifest/metadata record runtime overrides for provenance.
+
+Existing configs remain compatible: default runtime settings do not move legacy hashes, and the old top-level `continuous_weekly=True` flag still round-trips as the same identity dimension.
+This PR intentionally does not implement watchlist carry behavior yet; it only makes the runtime knobs typed, hashable, and deployable.
+
+# George Context Baseline
+
+This branch adds the first George-context architecture slice without changing existing champion behavior.
+It introduces a daily `rebalance` phase for industry warm-up context and a `ranking` phase that reorders current candidates using industry heat, ticker attention, and lightweight watchlist memory.
+
+What is intentionally not here yet: selection-gate watchlist carry, profile/attention file loaders, runtime config/codegen knobs, and the FY2025 6-pack/30-pack backtest sweep. Those are tracked in GitHub issue #416 and the Codex plan.
+
+Verified:
+- `pytest -q tests/phases/test_george_context_phases.py tests/phases/test_catalog_sweep_guard.py tests/strategies/test_champion_george_context.py`
+- `PYTHONPATH=build:src /Users/falk/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3` build smoke for `strategies.champion_george_context`
+
 # FOR_FALK - #412/#414 exit diagnostics + combo sweep, 2026-06-08
 
 Implemented #412 per-symbol exit diagnostics and created the second 30-pack combo sweep runner.

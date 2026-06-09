@@ -1,0 +1,34 @@
+# George Range 30 Local BT Summary
+
+| variant | family | net | dd | orders | sharpe | ok |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| combo_gb_buy005 | combo | 10.932% | 17.700% | 260 | 0.567 | True |
+| combo_gb_buy010 | combo | 10.429% | 17.900% | 243 | 0.54 | True |
+| combo_gb_buy005_min7 | combo | 10.303% | 17.200% | 260 | 0.531 | True |
+| combo_gb_buy005_min14 | combo | 10.356% | 18.000% | 279 | 0.527 | True |
+| combo_t08_buy005 | combo | 10.097% | 17.900% | 205 | 0.518 | True |
+| combo_t08_buy010 | combo | 10.096% | 17.600% | 203 | 0.52 | True |
+| combo_minp03_buy005 | combo | 10.628% | 17.400% | 295 | 0.55 | True |
+| combo_minp03_buy010 | combo | 10.069% | 17.600% | 245 | 0.52 | True |
+| combo_gb_buy005_pos03 | combo | 8.234% | 13.300% | 260 | 0.541 | True |
+| combo_gb_buy005_pos035 | combo | 9.972% | 15.800% | 260 | 0.575 | True |
+| combo_gb_buy005_pos045 | combo | 12.838% | 20.100% | 260 | 0.602 | True |
+| combo_t08_buy005_pos03 | combo | 7.858% | 13.300% | 205 | 0.511 | True |
+| combo_minp03_buy005_pos03 | combo | 8.214% | 13.200% | 295 | 0.535 | True |
+| combo_gb_buy010_pos03 | combo | 7.691% | 13.500% | 243 | 0.499 | True |
+| combo_gb_buy005_scratch_tight | combo | 8.702% | 17.000% | 1062 | 0.452 | True |
+| combo_gb_buy005_scratch_1d | combo | 7.661% | 15.600% | 1815 | 0.402 | True |
+| combo_gb_buy005_scratch_pat | combo | 9.318% | 16.700% | 1204 | 0.487 | True |
+| combo_t08_buy005_scratch_tight | combo | 8.096% | 17.500% | 906 | 0.407 | True |
+| combo_minp03_buy005_scratch_tight | combo | 7.770% | 16.800% | 997 | 0.393 | True |
+| combo_gb_buy005_min7_pos03 | combo | 7.959% | 12.900% | 260 | 0.518 | True |
+| combo_gb_buy010_min7_pos03 | combo | 8.200% | 12.800% | 261 | 0.535 | True |
+| combo_t08_buy005_min7 | combo | 10.082% | 17.900% | 225 | 0.518 | True |
+| combo_minp03_buy005_min7 | combo | 10.785% | 17.800% | 303 | 0.554 | True |
+| combo_gb_buy005_atr075_pos03 | combo | 8.234% | 13.300% | 260 | 0.541 | True |
+| combo_gb_buy005_vol050_cap04 | combo | 10.932% | 17.700% | 260 | 0.567 | True |
+| combo_gb_buy005_vol075_cap04 | combo | 10.932% | 17.700% | 260 | 0.567 | True |
+| combo_t08_buy005_vol075_cap04 | combo | 9.856% | 17.800% | 221 | 0.509 | True |
+| combo_gb_buy005_res010 | combo | 10.932% | 17.700% | 260 | 0.567 | True |
+| combo_gb_buy005_breadth050 | combo | 10.932% | 17.700% | 260 | 0.567 | True |
+| combo_gb_buy005_pos03_breadth050 | combo | 8.234% | 13.300% | 260 | 0.541 | True |

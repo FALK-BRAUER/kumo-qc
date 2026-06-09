@@ -7,7 +7,9 @@ the direct local BT path, and preserve order/trade artifacts for later analysis.
 Usage:
   python3 scripts/run_408_george_range_30.py --workers 6
   python3 scripts/run_408_george_range_30.py --window jan --limit 1 --workers 1 --sweep-id george_range_30_smoke
-  python3 scripts/run_408_george_range_30.py --data-folder /Users/falk/projects/kumo-qc/data --full-warmup --workers 6
+  python3 scripts/run_408_george_range_30.py --data-folder /Users/falk/projects/kumo-qc/data --workers 6
+  python3 scripts/run_408_george_range_30.py --data-folder /Users/falk/projects/kumo-qc/data --workers 3
+  python3 scripts/run_408_george_range_30.py --full-warmup --allow-full-warmup-sweep --workers 1
   WARMUP_GATE_CAPACITY=2 python3 scripts/run_408_george_range_30.py --workers 6
   python3 scripts/run_408_george_range_30.py --symlink-data --workers 6
   python3 scripts/run_408_george_range_30.py --rebuild-artifacts
@@ -508,6 +510,24 @@ def _ensure_readme(path: Path, title: str, body: str) -> None:
         readme.write_text(f"# {title}\n\n{body.strip()}\n", encoding="utf-8")
 
 
+def _link_repo_storage(run: Path) -> None:
+    """Expose repo-level LocalObjectStore keys to the generated LEAN project."""
+    target = _ROOT / "storage"
+    target.mkdir(parents=True, exist_ok=True)
+    storage = run / "storage"
+    if storage.is_symlink():
+        if storage.resolve() == target.resolve():
+            return
+        storage.unlink()
+    elif storage.exists():
+        if any(storage.iterdir()):
+            raise RuntimeError(
+                f"{storage} exists and is not empty; refuse to replace object-store contents"
+            )
+        storage.rmdir()
+    storage.symlink_to(target)
+
+
 def _prepare(
     spec: VariantSpec,
     *,
@@ -582,6 +602,7 @@ def _prepare(
             data.unlink()
         else:
             shutil.rmtree(data)
+    _link_repo_storage(run)
     (run / "variant.json").write_text(
         json.dumps(
             {
@@ -629,6 +650,56 @@ def _result_status(doc: Mapping[str, Any]) -> str:
 def _statistics(doc: Mapping[str, Any]) -> Mapping[str, Any]:
     stats = doc.get("statistics") or doc.get("Statistics") or {}
     return stats if isinstance(stats, Mapping) else {}
+
+
+def _docker_mem_total_bytes() -> int | None:
+    try:
+        proc = subprocess.run(
+            ["docker", "info", "--format", "{{.MemTotal}}"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except Exception:
+        return None
+    if proc.returncode != 0:
+        return None
+    text = proc.stdout.strip()
+    return int(text) if text.isdigit() else None
+
+
+def _format_gib(value: int | None) -> str:
+    if value is None:
+        return "unknown"
+    return f"{value / (1024**3):.1f}GiB"
+
+
+def _recent_lean_cli_137() -> str | None:
+    try:
+        proc = subprocess.run(
+            [
+                "docker",
+                "ps",
+                "-a",
+                "--filter",
+                "name=lean_cli_",
+                "--format",
+                "{{.Status}}\t{{.Names}}",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except Exception:
+        return None
+    if proc.returncode != 0:
+        return None
+    for line in proc.stdout.splitlines():
+        if "Exited (137)" in line:
+            return line.strip()
+    return None
 
 
 def _csv_write(path: Path, rows: list[dict[str, Any]], fieldnames: list[str]) -> None:
@@ -1087,10 +1158,23 @@ def _summarize(prepared: PreparedRun, *, rc: int) -> RunOutcome:
         trades_csv, orders_csv, exit_events_csv, artifact_error = _export_artifacts(prepared, result_path)
 
     stats = _statistics(doc)
+    status = _result_status(doc)
     state = doc.get("state") or doc.get("State") or {}
     runtime_error = state.get("RuntimeError") if isinstance(state, Mapping) else None
     stacktrace = state.get("StackTrace") if isinstance(state, Mapping) else None
     error = runtime_error or stacktrace or doc.get("error") or doc.get("Error")
+    if rc != 0 and status == "Running" and not error:
+        stdout = prepared.run_dir / "lean-stdout.txt"
+        stdout_text = stdout.read_text(encoding="utf-8", errors="ignore") if stdout.exists() else ""
+        if "Error: Something went wrong while running" in stdout_text:
+            docker_137 = _recent_lean_cli_137()
+            if docker_137:
+                error = (
+                    "LEAN CLI returned a partial Status=Running result; Docker shows "
+                    f"{docker_137}. This is consistent with container OOM/memory kill."
+                )
+            else:
+                error = "LEAN CLI returned a partial Status=Running result before final statistics."
     return RunOutcome(
         variant_id=prepared.spec.variant_id,
         family=prepared.spec.family,
@@ -1099,7 +1183,7 @@ def _summarize(prepared: PreparedRun, *, rc: int) -> RunOutcome:
         run_dir=prepared.run_dir,
         result_path=result_path,
         rc=rc,
-        status=_result_status(doc),
+        status=status,
         net_profit=str(stats.get("Net Profit")) if stats.get("Net Profit") is not None else None,
         drawdown=str(stats.get("Drawdown")) if stats.get("Drawdown") is not None else None,
         total_orders=str(stats.get("Total Orders")) if stats.get("Total Orders") is not None else None,
@@ -1285,6 +1369,19 @@ def _args() -> argparse.Namespace:
         action="store_true",
         help="Refresh per-run and aggregate CSV artifacts from existing completed local BT JSONs.",
     )
+    parser.add_argument(
+        "--allow-full-warmup-sweep",
+        action="store_true",
+        help=(
+            "Allow --full-warmup on a multi-variant FY sweep. Intended only for deliberate "
+            "parity/control runs because --full-warmup disables WARMUP_WEEKLY_CACHE_FP."
+        ),
+    )
+    parser.add_argument(
+        "--allow-docker-memory-risk",
+        action="store_true",
+        help="Allow a FY six-worker sweep even when Docker's memory cap is below the observed safe threshold.",
+    )
     return parser.parse_args()
 
 
@@ -1312,12 +1409,43 @@ def main() -> None:
         raise SystemExit("--symlink-data and --data-folder are mutually exclusive")
     if not args.rebuild_artifacts and not 1 <= args.workers <= len(variants):
         raise SystemExit(f"--workers must be between 1 and {len(variants)}, got {args.workers}")
+    if (
+        args.full_warmup
+        and not args.allow_full_warmup_sweep
+        and args.window == "fy"
+        and len(variants) > 1
+    ):
+        raise SystemExit(
+            "--full-warmup disables WARMUP_WEEKLY_CACHE_FP; multi-variant FY sweeps must use "
+            "cache-backed mode. Drop --full-warmup, or pass --allow-full-warmup-sweep for a "
+            "deliberate parity/control run."
+        )
+    docker_mem = _docker_mem_total_bytes()
+    if (
+        not args.prepare_only
+        and not args.rebuild_artifacts
+        and args.window == "fy"
+        and args.workers >= 6
+        and docker_mem is not None
+        and docker_mem < 24 * 1024**3
+        and not args.allow_docker_memory_risk
+    ):
+        raise SystemExit(
+            f"--workers {args.workers} on FY intraday needs more Docker memory. "
+            f"Docker MemTotal is {_format_gib(docker_mem)}; six-lane runs here have produced "
+            "lean_cli Exited (137) container kills. Use --workers 3, increase Docker Desktop "
+            "memory, or pass --allow-docker-memory-risk for a deliberate stress run."
+        )
+
+    cache_mode = "full_live_rederive" if args.full_warmup else "weekly_cache_armed"
 
     print(
         "=== #408 GEORGE RANGE LOCAL BT | "
         f"sweep_id={args.sweep_id} | window={window.name} {window.start}->{window.end} | "
         f"variants={len(variants)} | workers={args.workers} | warmup_days={args.warmup_days} | "
-        f"full_warmup={args.full_warmup} | gate_capacity={os.environ.get('WARMUP_GATE_CAPACITY', '1')} ===",
+        f"full_warmup={args.full_warmup} | cache_mode={cache_mode} | "
+        f"gate_capacity={os.environ.get('WARMUP_GATE_CAPACITY', '1')} | "
+        f"docker_mem={_format_gib(docker_mem)} ===",
         flush=True,
     )
 

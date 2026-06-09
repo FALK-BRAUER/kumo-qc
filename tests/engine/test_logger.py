@@ -166,6 +166,73 @@ def test_log_only_active_phases_keeps_active_phase() -> None:
     assert rec["facts"] == {"exit_count": 2}
 
 
+def test_log_only_active_phases_keeps_blocked_phase() -> None:
+    qc = FakeQC()
+    qc.LOG_ONLY_ACTIVE_PHASES = True
+    logger = ComponentLogger(qc)
+
+    logger.log_phase(
+        "regime",
+        FakePhase("spy_200ma_v1"),
+        PhaseResult(
+            decision=None,
+            blocked=True,
+            reason="below MA200",
+            facts={"spy": 556.12},
+            metrics={},
+        ),
+    )
+
+    phase_rec, block_rec = _records(qc)
+    assert phase_rec["evt"] == "PHASE"
+    assert phase_rec["blocked"] is True
+    assert block_rec["evt"] == "BLOCK"
+
+
+def test_log_phase_decisions_active_false_suppresses_intermediate_decision() -> None:
+    qc = FakeQC()
+    qc.LOG_ONLY_ACTIVE_PHASES = True
+    qc.LOG_PHASE_DECISIONS_ACTIVE = False
+    logger = ComponentLogger(qc)
+
+    logger.log_phase(
+        "entry_selection",
+        FakePhase("preflight_staleness_v1"),
+        PhaseResult(
+            decision=["NVDA"],
+            blocked=False,
+            reason="kept 1",
+            facts={"kept": 1},
+            metrics={},
+        ),
+    )
+
+    assert qc.logged == []
+
+
+def test_log_phase_metrics_false_keeps_facts_and_omits_metrics() -> None:
+    qc = FakeQC()
+    qc.LOG_PHASE_METRICS = False
+    logger = ComponentLogger(qc)
+
+    logger.log_phase(
+        "rebalance",
+        FakePhase("industry_warmup_v1"),
+        PhaseResult(
+            decision=["NVDA"],
+            blocked=False,
+            reason="1 ranked",
+            facts={"top_industries": ["semiconductors"]},
+            metrics={"industry_scores": {"semiconductors": 619.88}},
+        ),
+    )
+
+    (rec,) = _records(qc)
+    assert rec["evt"] == "PHASE"
+    assert rec["facts"] == {"top_industries": ["semiconductors"]}
+    assert rec["metrics"] == {}
+
+
 def test_log_tick_events_false_suppresses_noop_tick_but_keeps_active_tick() -> None:
     qc = FakeQC()
     qc.LOG_TICK_EVENTS = False

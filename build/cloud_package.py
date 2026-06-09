@@ -29,6 +29,34 @@ BUILD_SCRIPT_VERSION = "1.0.0"
 ENGINE_CORE = ("base", "config", "context", "engine", "logger")
 PROJECT_ROOTS = ("engine", "phases", "strategies", "runtime")
 
+RUNTIME_CLASS_ATTRS: dict[str, str] = {
+    "start_date": "START_DATE",
+    "end_date": "END_DATE",
+    "cash": "CASH",
+    "prefilter_dv": "PREFILTER_DV",
+    "min_price": "MIN_PRICE",
+    "min_avg_dollar_volume": "MIN_AVG_DOLLAR_VOLUME",
+    "coarse_max": "COARSE_MAX",
+    "adv_window": "ADV_WINDOW",
+    "broken_zero_min_feed": "BROKEN_ZERO_MIN_FEED",
+    "warmup_days": "WARMUP_DAYS",
+    "weekly_floor_days": "WEEKLY_FLOOR_DAYS",
+    "continuous_weekly": "CONTINUOUS_WEEKLY",
+    "warmup_weekly_cache_fp": "WARMUP_WEEKLY_CACHE_FP",
+    "decision_trace": "DECISION_TRACE",
+    "after_close_min": "AFTER_CLOSE_MIN",
+    "intraday_subscribe_cap": "INTRADAY_SUBSCRIBE_CAP",
+    "intraday_tenkan": "INTRADAY_TENKAN",
+    "intraday_vol_window": "INTRADAY_VOL_WINDOW",
+    "slippage_percent": "SLIPPAGE_PERCENT",
+    "entry_tag_max": "ENTRY_TAG_MAX",
+    "watchlist_carry_max": "WATCHLIST_CARRY_MAX",
+    "watchlist_carry_min_price": "WATCHLIST_CARRY_MIN_PRICE",
+    "watchlist_carry_min_avg_dollar_volume": "WATCHLIST_CARRY_MIN_AVG_DOLLAR_VOLUME",
+    "security_profile_source": "SECURITY_PROFILE_SOURCE",
+    "george_attention_source": "GEORGE_ATTENTION_SOURCE",
+}
+
 
 @dataclass(slots=True)
 class BuildResult:
@@ -246,11 +274,34 @@ def _params_canonical(params: Any) -> str:
     return f"{type(params).__qualname__}({inner})"
 
 
+def _effective_runtime(config: Any) -> Any:
+    runtime = getattr(config, "runtime", None)
+    if runtime is None:
+        return None
+    if getattr(config, "continuous_weekly", False) and not getattr(runtime, "continuous_weekly", False):
+        return dataclasses.replace(runtime, continuous_weekly=True)
+    return runtime
+
+
+def _runtime_overrides(runtime: Any) -> dict[str, Any]:
+    if runtime is None:
+        return {}
+    default = type(runtime)()
+    return {
+        f.name: getattr(runtime, f.name)
+        for f in dataclasses.fields(runtime)
+        if getattr(runtime, f.name) != getattr(default, f.name)
+    }
+
+
 def _config_hash(config: Any) -> str:
     parts = [config.name, config.version]
-    # #339: fold continuous_weekly ONLY when True → flag-OFF dists hash exactly as before.
-    if getattr(config, "continuous_weekly", False):
+    overrides = _runtime_overrides(_effective_runtime(config))
+    # #339 compatibility: keep the existing identity token for the continuous-weekly flag.
+    if overrides.pop("continuous_weekly", False):
         parts.append("continuous_weekly:1")
+    for key in sorted(overrides):
+        parts.append(f"runtime.{key}:{overrides[key]!r}")
     for kind in sorted(config.phases):
         value = config.phases[kind]
         slots = value if isinstance(value, list) else [value]
@@ -321,8 +372,12 @@ def _build_core(
         included=sorted(included + ["main.py", "_manifest.json", "_metadata.py"]),
         phase_markers=phase_markers,
     )
-    _emit_manifest(result, dist, is_fixture=getattr(config, "is_fixture", False))
-    _emit_metadata(result, dist)
+    runtime_overrides = _runtime_overrides(_effective_runtime(config))
+    _emit_manifest(
+        result, dist, is_fixture=getattr(config, "is_fixture", False),
+        runtime_overrides=runtime_overrides,
+    )
+    _emit_metadata(result, dist, runtime_overrides=runtime_overrides)
 
     # audits
     for item in dist.iterdir():
@@ -348,7 +403,7 @@ def _emit_main(
     markers: dict[str, str] = {}
     # engine __init__ is dropped in flat dist; import the flat modules directly instead
     imports = [
-        "from config import Slot, StrategyConfig",
+        "from config import RuntimeConfig, Slot, StrategyConfig",
         "from engine import StrategyEngine",
     ]
     # Group enabled slots by kind, preserving first-seen order. A kind may carry MULTIPLE
@@ -423,7 +478,7 @@ def _emit_main(
     # field silently changes the deployed config (the exact bug class that lost is_fixture and
     # would have crashed the fail-loud gate at cloud init). Keep _EMITTED in lockstep with the
     # dataclass; an unhandled new field fails the BUILD, not silently at deploy.
-    _EMITTED = {"name", "version", "phases", "is_fixture", "continuous_weekly"}
+    _EMITTED = {"name", "version", "phases", "is_fixture", "runtime", "continuous_weekly"}
     _actual = {f.name for f in dataclasses.fields(config)}
     if _actual != _EMITTED:
         raise ValueError(
@@ -437,8 +492,13 @@ def _emit_main(
     # lose the flag and CRASH the fail-loud entry+exit gate at cloud init (DegradedConfigError).
     if getattr(config, "is_fixture", False):
         body += "    is_fixture=True,\n"
-    # #339: carry continuous_weekly into the deployed config (provenance + config_hash parity);
-    # the runtime switch is the BCTAlgorithm.CONTINUOUS_WEEKLY class-attr emitted below.
+    runtime = getattr(config, "runtime", None)
+    runtime_src_overrides = _runtime_overrides(runtime)
+    if runtime_src_overrides:
+        kwargs = ", ".join(f"{k}={runtime_src_overrides[k]!r}" for k in sorted(runtime_src_overrides))
+        body += f"    runtime=RuntimeConfig({kwargs}),\n"
+    # Legacy shim: carry top-level continuous_weekly only when the source config used it. New
+    # RuntimeConfig users emit runtime=RuntimeConfig(continuous_weekly=True) instead.
     if getattr(config, "continuous_weekly", False):
         body += "    continuous_weekly=True,\n"
     body += "    phases={\n"
@@ -452,18 +512,26 @@ def _emit_main(
             "\nclass BCTAlgorithm(BctEngineAlgorithm):\n"
             "    STRATEGY_CONFIG = STRATEGY_CONFIG\n"
         )
-        # #336/#339: the CONTINUOUS_WEEKLY runtime switch. The engine reads this class-attr
-        # (default False on BctEngineAlgorithm) to re-derive the weekly Ichimoku from continuous
-        # self.history. Emitted ONLY when the champion opts in → flag-OFF dist byte-unchanged.
-        if getattr(config, "continuous_weekly", False):
-            body += "    CONTINUOUS_WEEKLY = True\n"
+        effective_runtime = _effective_runtime(config)
+        for field_name, value in _runtime_overrides(effective_runtime).items():
+            attr = RUNTIME_CLASS_ATTRS.get(field_name)
+            if attr is None:
+                raise ValueError(
+                    f"runtime field {field_name!r} has no BCTAlgorithm class-attr mapping"
+                )
+            body += f"    {attr} = {value!r}\n"
     else:
         body += "# Not LEAN-deployable — config-only build (sample/example); no LEAN entry emitted.\n"
     (dist / "main.py").write_text(body)
     return markers
 
 
-def _emit_manifest(result: BuildResult, dist: Path, is_fixture: bool = False) -> None:
+def _emit_manifest(
+    result: BuildResult,
+    dist: Path,
+    is_fixture: bool = False,
+    runtime_overrides: dict[str, Any] | None = None,
+) -> None:
     (dist / "_manifest.json").write_text(json.dumps({
         "config_hash": result.config_hash,
         "data_fingerprint": result.data_fingerprint,
@@ -471,17 +539,23 @@ def _emit_manifest(result: BuildResult, dist: Path, is_fixture: bool = False) ->
         "build_script_version": BUILD_SCRIPT_VERSION,
         "phase_markers": result.phase_markers,
         "is_fixture": is_fixture,
+        "runtime_overrides": runtime_overrides or {},
         "files": result.included,
     }, indent=2, sort_keys=True))
 
 
-def _emit_metadata(result: BuildResult, dist: Path) -> None:
+def _emit_metadata(
+    result: BuildResult,
+    dist: Path,
+    runtime_overrides: dict[str, Any] | None = None,
+) -> None:
     (dist / "_metadata.py").write_text(
         '"""Generated build metadata — logged on LEAN startup. Do not edit."""\n'
         f'GIT_COMMIT = {result.git_commit!r}\n'
         f'CONFIG_HASH = {result.config_hash!r}\n'
         f'DATA_FINGERPRINT = {result.data_fingerprint!r}\n'
         f'BUILD_SCRIPT_VERSION = {BUILD_SCRIPT_VERSION!r}\n'
+        f'RUNTIME_OVERRIDES = {repr(runtime_overrides or {})}\n'
     )
 
 

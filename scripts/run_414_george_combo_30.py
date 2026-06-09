@@ -10,7 +10,8 @@ one-axis families. This runner recombines the best observed pieces:
 
 Usage:
   python3 scripts/run_414_george_combo_30.py --workers 6
-  python3 scripts/run_414_george_combo_30.py --data-folder /Users/falk/projects/kumo-qc/data --full-warmup --workers 6
+  python3 scripts/run_414_george_combo_30.py --data-folder /Users/falk/projects/kumo-qc/data --workers 6
+  python3 scripts/run_414_george_combo_30.py --data-folder /Users/falk/projects/kumo-qc/data --workers 3
   python3 scripts/run_414_george_combo_30.py --window jan --limit 1 --workers 1 --sweep-id george_combo_30_smoke
 """
 from __future__ import annotations
