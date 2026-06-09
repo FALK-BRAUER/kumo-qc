@@ -12,6 +12,7 @@ populates exactly these; the phases (bct_score_full pre-filter, kijun_g3_exits) 
 """
 from __future__ import annotations
 
+from collections import deque
 from typing import Any
 
 import pandas as pd
@@ -60,11 +61,15 @@ class TBounceTracker:
     update(open_, high, low, close, tenkan) is called once per completed daily bar (the daily
     consolidator in lean_entry feeds it). Pure float state — golden-masterable, no QC types.
     `last_*` are None until the first bar (the phase declines a candidate with no daily bar yet).
+    The George-style ranking experiment also reads prior-high and relative-volume state from the
+    same completed daily bars; these values are optional and fail conservative until populated.
     """
 
     __slots__ = (
         "sessions_below_tenkan", "gap_up_frac", "prev_close",
-        "last_open", "last_high", "last_low", "last_close",
+        "last_open", "last_high", "last_low", "last_close", "last_volume",
+        "prior_high20", "prior_high50", "prior_high252", "rel_volume20",
+        "_high20", "_high50", "_high252", "_vol20",
     )
 
     def __init__(self) -> None:
@@ -75,14 +80,33 @@ class TBounceTracker:
         self.last_high: float | None = None
         self.last_low: float | None = None
         self.last_close: float | None = None
+        self.last_volume: float | None = None
+        self.prior_high20: float | None = None
+        self.prior_high50: float | None = None
+        self.prior_high252: float | None = None
+        self.rel_volume20: float | None = None
+        self._high20: deque[float] = deque(maxlen=20)
+        self._high50: deque[float] = deque(maxlen=50)
+        self._high252: deque[float] = deque(maxlen=252)
+        self._vol20: deque[float] = deque(maxlen=20)
 
-    def update(self, open_: float, high: float, low: float, close: float, tenkan: float) -> None:
+    def update(
+        self,
+        open_: float,
+        high: float,
+        low: float,
+        close: float,
+        tenkan: float,
+        volume: float | None = None,
+    ) -> None:
         """Fold one completed daily bar into the maintained T-Bounce state.
 
         Stores the bar as `last_open/high/low/close` (C2 reads these), then updates:
         sessions_below_tenkan: increment while close < Tenkan, reset to 0 the day close >= Tenkan.
         gap_up_frac: (open - prev_close)/prev_close, clamped at >= 0 (only UP gaps matter; a
           gap-down is 0.0). First bar (no prior close) -> 0.0. Uses the PRIOR close (set last bar).
+        prior_high20/50/252: max high in each completed-bar window BEFORE the current bar.
+        rel_volume20: current completed-bar volume versus the PRIOR 20-bar average.
         """
         # gap uses the PRIOR bar's close — compute BEFORE overwriting prev_close.
         if self.prev_close is not None and self.prev_close > 0.0:
@@ -96,11 +120,26 @@ class TBounceTracker:
         else:
             self.sessions_below_tenkan = 0
 
+        self.prior_high20 = max(self._high20) if self._high20 else None
+        self.prior_high50 = max(self._high50) if self._high50 else None
+        self.prior_high252 = max(self._high252) if self._high252 else None
+        if volume is not None and self._vol20:
+            avg_volume = sum(self._vol20) / len(self._vol20)
+            self.rel_volume20 = volume / avg_volume if avg_volume > 0.0 else None
+        else:
+            self.rel_volume20 = None
+
         self.last_open = open_
         self.last_high = high
         self.last_low = low
         self.last_close = close
+        self.last_volume = volume
         self.prev_close = close
+        self._high20.append(high)
+        self._high50.append(high)
+        self._high252.append(high)
+        if volume is not None:
+            self._vol20.append(volume)
 
 
 def weekly_friday(ts: pd.Timestamp) -> pd.Timestamp:

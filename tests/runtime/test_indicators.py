@@ -106,6 +106,26 @@ def test_tbounce_stores_last_daily_ohlc():
     assert (t.last_open, t.last_high, t.last_low, t.last_close) == (99.6, 100.2, 99.5, 100.0)
 
 
+def test_tbounce_prior_high_windows_exclude_current_bar():
+    from runtime.indicators import TBounceTracker
+    t = TBounceTracker()
+    t.update(open_=99.0, high=100.0, low=98.0, close=99.5, tenkan=95.0)
+    assert t.prior_high20 is None
+    t.update(open_=100.0, high=105.0, low=99.0, close=104.0, tenkan=95.0)
+    assert t.prior_high20 == 100.0
+    t.update(open_=104.0, high=103.0, low=101.0, close=102.0, tenkan=95.0)
+    assert t.prior_high20 == 105.0
+
+
+def test_tbounce_relative_volume_uses_prior_volume_average():
+    from runtime.indicators import TBounceTracker
+    t = TBounceTracker()
+    t.update(open_=99.0, high=100.0, low=98.0, close=99.5, tenkan=95.0, volume=1000.0)
+    assert t.rel_volume20 is None
+    t.update(open_=100.0, high=101.0, low=99.0, close=100.5, tenkan=95.0, volume=1500.0)
+    assert t.rel_volume20 == 1.5
+
+
 def test_tbounce_gap_up_fraction():
     from runtime.indicators import TBounceTracker
     t = TBounceTracker()
