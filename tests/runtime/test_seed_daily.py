@@ -183,11 +183,11 @@ class _RecWindow:
 
 class _RecTBounce:
     def __init__(self) -> None:
-        self.calls: list[tuple[float, float, float, float, float]] = []
+        self.calls: list[tuple[float, float, float, float, float, float | None]] = []
         self.last_close = None
 
-    def update(self, o, h, lo, c, tenkan) -> None:
-        self.calls.append((o, h, lo, c, tenkan))
+    def update(self, o, h, lo, c, tenkan, volume=None) -> None:
+        self.calls.append((o, h, lo, c, tenkan, volume))
         self.last_close = c
 
 
