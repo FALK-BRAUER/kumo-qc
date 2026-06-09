@@ -199,6 +199,22 @@ OOF protocol and, by default, enables sector context, denominator ranks, and pro
 The first local run moved the best top10 benchmark to 107/306 on the all-rows score-6 panel; the
 clean-top2000 LambdaMART variant reached 100/306.
 
+Optional PU weighting and two-stage LambdaMART rerank:
+
+```bash
+PYTHONPATH=src:. .venv/bin/python -m sweeps.archive.george_lambdamart_ranker \
+  --labels-csv /Users/falk/projects/kumo-lab/data/bluecloudtrading/scanner_compare/george_oof_stage1_scores.csv \
+  --denominator-csv /Users/falk/projects/kumo-lab/data/bluecloudtrading/scanner_compare/george_ranking_denominator_profiled.csv \
+  --coarse-dir /Users/falk/projects/kumo-qc/data/equity/usa/fundamental/coarse \
+  --year 2026 \
+  --negative-weight 0.25 \
+  --two-stage-top-n 100
+```
+
+The first #433 pass did not beat plain LambdaMART. PU-only reached 100/306 recall@10 on the
+all-rows score-6 panel, two-stage top100 reached 99/306, and PU+two-stage reached 90/306 versus
+the #435 all-rows LambdaMART baseline at 107/306.
+
 Pairwise ranker with first-hour features:
 
 ```bash

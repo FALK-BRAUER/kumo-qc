@@ -32,6 +32,9 @@ class LambdaMARTConfig:
     num_leaves: int = 15
     min_child_samples: int = 24
     random_state: int = 17
+    positive_weight: float = 1.0
+    negative_weight: float = 1.0
+    two_stage_top_n: int | None = None
     use_sector_context: bool = True
     use_denominator_ranks: bool = True
     use_sector_breadth: bool = True
@@ -60,17 +63,44 @@ def _import_lightgbm() -> Any:
         ) from exc
 
 
+def date_group_order(dates: Sequence[str]) -> tuple[np.ndarray, list[int]]:
+    """Return a stable date sort order plus LightGBM group sizes."""
+    date_values = np.asarray([str(date) for date in dates], dtype=object)
+    order = np.argsort(date_values, kind="stable")
+    sorted_dates = date_values[order]
+    groups = [int((sorted_dates == date).sum()) for date in pd.unique(sorted_dates)]
+    return order, groups
+
+
 def sort_by_date_groups(
     x: np.ndarray,
     y: np.ndarray,
     dates: Sequence[str],
 ) -> tuple[np.ndarray, np.ndarray, list[int]]:
     """Sort rows by date and return LightGBM group sizes."""
-    date_values = np.asarray([str(date) for date in dates], dtype=object)
-    order = np.argsort(date_values, kind="stable")
-    sorted_dates = date_values[order]
-    groups = [int((sorted_dates == date).sum()) for date in pd.unique(sorted_dates)]
+    order, groups = date_group_order(dates)
     return x[order], y[order], groups
+
+
+def sample_weights(y: np.ndarray, *, config: LambdaMARTConfig) -> np.ndarray | None:
+    """Return PU-style sample weights or None when weighting is disabled."""
+    if config.positive_weight == 1.0 and config.negative_weight == 1.0:
+        return None
+    weights = np.where(y >= 0.5, config.positive_weight, config.negative_weight)
+    return np.asarray(weights, dtype=float)
+
+
+def top_n_mask_by_date(panel: pd.DataFrame, scores: pd.Series, *, top_n: int) -> pd.Series:
+    """Return a mask selecting the top-N scored rows per date."""
+    if top_n <= 0:
+        return pd.Series(False, index=panel.index, dtype=bool)
+    ranked = panel[["date", "symbol"]].copy()
+    ranked["_score"] = scores.reindex(panel.index).fillna(float("-inf"))
+    ranked = ranked.sort_values(["date", "_score", "symbol"], ascending=[True, False, True])
+    keep_index = ranked.groupby("date", sort=False).head(top_n).index
+    out = pd.Series(False, index=panel.index, dtype=bool)
+    out.loc[keep_index] = True
+    return out
 
 
 def _fit_lambdamart(
@@ -79,10 +109,14 @@ def _fit_lambdamart(
     train_dates: Sequence[str],
     *,
     feature_names: list[str],
+    weights: np.ndarray | None = None,
     config: LambdaMARTConfig,
 ) -> Any:
     lgb = _import_lightgbm()
-    x_sorted, y_sorted, groups = sort_by_date_groups(x_train, y_train, train_dates)
+    order, groups = date_group_order(train_dates)
+    x_sorted = x_train[order]
+    y_sorted = y_train[order]
+    sorted_weights = weights[order] if weights is not None else None
     train_frame = pd.DataFrame(x_sorted, columns=feature_names)
     model = lgb.LGBMRanker(
         objective="lambdarank",
@@ -95,7 +129,7 @@ def _fit_lambdamart(
         n_jobs=1,
         verbose=-1,
     )
-    model.fit(train_frame, y_sorted, group=groups, eval_at=list(config.ks))
+    model.fit(train_frame, y_sorted, group=groups, sample_weight=sorted_weights, eval_at=list(config.ks))
     return model
 
 
@@ -146,17 +180,64 @@ def run_lambdamart_ranker(
     for idx, valid_dates in enumerate(folds, start=1):
         valid_mask = panel["date"].isin(valid_dates).to_numpy(dtype=bool)
         train_mask = ~valid_mask
+        train_indices = np.flatnonzero(train_mask)
+        valid_indices = np.flatnonzero(valid_mask)
         train_dates = panel.loc[panel.index[train_mask], "date"].astype(str).tolist()
-        model = _fit_lambdamart(
-            x_raw[train_mask],
-            y[train_mask],
-            train_dates,
-            feature_names=feature_names,
-            config=config,
-        )
-        models.append(model)
-        valid_frame = pd.DataFrame(x_raw[valid_mask], columns=feature_names)
-        oof_scores.loc[panel.index[valid_mask]] = model.predict(valid_frame)
+        train_weights = sample_weights(y[train_mask], config=config)
+        if config.two_stage_top_n is None:
+            model = _fit_lambdamart(
+                x_raw[train_mask],
+                y[train_mask],
+                train_dates,
+                feature_names=feature_names,
+                weights=train_weights,
+                config=config,
+            )
+            models.append(model)
+            valid_frame = pd.DataFrame(x_raw[valid_mask], columns=feature_names)
+            oof_scores.loc[panel.index[valid_mask]] = model.predict(valid_frame)
+        else:
+            stage1 = _fit_lambdamart(
+                x_raw[train_mask],
+                y[train_mask],
+                train_dates,
+                feature_names=feature_names,
+                weights=train_weights,
+                config=config,
+            )
+            train_panel = panel.loc[panel.index[train_mask]]
+            train_frame = pd.DataFrame(x_raw[train_mask], columns=feature_names)
+            stage1_train_scores = pd.Series(stage1.predict(train_frame), index=train_panel.index, dtype=float)
+            train_top_mask = top_n_mask_by_date(
+                train_panel,
+                stage1_train_scores,
+                top_n=config.two_stage_top_n,
+            )
+            selected_train_indices = train_indices[train_top_mask.to_numpy(dtype=bool)]
+            selected_dates = panel.loc[panel.index[selected_train_indices], "date"].astype(str).tolist()
+            selected_weights = sample_weights(y[selected_train_indices], config=config)
+            stage2 = _fit_lambdamart(
+                x_raw[selected_train_indices],
+                y[selected_train_indices],
+                selected_dates,
+                feature_names=feature_names,
+                weights=selected_weights,
+                config=config,
+            )
+            models.append(stage2)
+            valid_panel = panel.loc[panel.index[valid_mask]]
+            valid_frame = pd.DataFrame(x_raw[valid_mask], columns=feature_names)
+            stage1_valid_scores = pd.Series(stage1.predict(valid_frame), index=valid_panel.index, dtype=float)
+            valid_top_mask = top_n_mask_by_date(
+                valid_panel,
+                stage1_valid_scores,
+                top_n=config.two_stage_top_n,
+            )
+            fold_scores = pd.Series(float("-inf"), index=valid_panel.index, dtype=float)
+            selected_valid_indices = valid_indices[valid_top_mask.to_numpy(dtype=bool)]
+            selected_valid_frame = pd.DataFrame(x_raw[selected_valid_indices], columns=feature_names)
+            fold_scores.loc[panel.index[selected_valid_indices]] = stage2.predict(selected_valid_frame)
+            oof_scores.loc[valid_panel.index] = fold_scores
         fold_rows.append(
             {
                 "fold": idx,
@@ -171,6 +252,12 @@ def run_lambdamart_ranker(
 
     all_rows = pd.Series(True, index=panel.index, dtype=bool)
     prefix_parts = ["lambdamart"]
+    if config.positive_weight != 1.0 or config.negative_weight != 1.0:
+        prefix_parts.append(
+            f"pu_pos{int(round(config.positive_weight * 100)):03d}_neg{int(round(config.negative_weight * 100)):03d}"
+        )
+    if config.two_stage_top_n is not None:
+        prefix_parts.append(f"two_stage{config.two_stage_top_n}")
     if config.use_sector_context:
         prefix_parts.append("sector_context")
     if config.use_denominator_ranks:
@@ -227,6 +314,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--learning-rate", default=0.045, type=float)
     parser.add_argument("--num-leaves", default=15, type=int)
     parser.add_argument("--min-child-samples", default=24, type=int)
+    parser.add_argument("--positive-weight", default=1.0, type=float)
+    parser.add_argument("--negative-weight", default=1.0, type=float)
+    parser.add_argument("--two-stage-top-n", type=int)
     parser.add_argument("--no-sector-context", action="store_true")
     parser.add_argument("--no-denominator-ranks", action="store_true")
     parser.add_argument("--no-sector-breadth", action="store_true")
@@ -249,6 +339,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             learning_rate=args.learning_rate,
             num_leaves=args.num_leaves,
             min_child_samples=args.min_child_samples,
+            positive_weight=args.positive_weight,
+            negative_weight=args.negative_weight,
+            two_stage_top_n=args.two_stage_top_n,
             use_sector_context=not args.no_sector_context,
             use_denominator_ranks=not args.no_denominator_ranks,
             use_sector_breadth=not args.no_sector_breadth,
