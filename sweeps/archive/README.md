@@ -184,6 +184,21 @@ Profiled breadth moved the clean-top2000 benchmark only modestly, from 87/306 to
 but the broader score7-or-clean6 gate improved from 77/306 to 82/306 recall@10. Treat it as useful
 research input for the next grouped ranker, not a standalone promotion.
 
+Optional LightGBM LambdaMART grouped ranker:
+
+```bash
+PYTHONPATH=src:. .venv/bin/python -m sweeps.archive.george_lambdamart_ranker \
+  --labels-csv /Users/falk/projects/kumo-lab/data/bluecloudtrading/scanner_compare/george_oof_stage1_scores.csv \
+  --denominator-csv /Users/falk/projects/kumo-lab/data/bluecloudtrading/scanner_compare/george_ranking_denominator_profiled.csv \
+  --coarse-dir /Users/falk/projects/kumo-qc/data/equity/usa/fundamental/coarse \
+  --year 2026
+```
+
+This harness imports LightGBM lazily and is optional research code. It reuses the same date-grouped
+OOF protocol and, by default, enables sector context, denominator ranks, and profiled breadth.
+The first local run moved the best top10 benchmark to 107/306 on the all-rows score-6 panel; the
+clean-top2000 LambdaMART variant reached 100/306.
+
 Pairwise ranker with first-hour features:
 
 ```bash

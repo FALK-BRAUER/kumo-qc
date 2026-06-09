@@ -1,8 +1,6 @@
 # research/scanner-alignment/
 
-Scanner-alignment experiment ledger for BCT/George reverse-engineering work.
-`experiment_log.csv` compares denominators, filters, rankers, and confirmation layers under pinned provenance.
-`feature_parity_audit.md` separates QC-deployable scanner features from lab-only or George-derived lift.
-`denominator_rank_experiment.md` tracks the live-panel rank feature lift from #431.
-`sector_breadth_experiment.md` tracks the profiled sector/industry breadth lift from #434.
+Scanner-alignment experiment ledger and reports for BCT/George reverse-engineering work.
+`experiment_log.csv` pins denominators, labels, feature sets, commands, commits, and verdicts.
+Companion reports: `feature_parity_audit.md`, `denominator_rank_experiment.md`, `sector_breadth_experiment.md`, `lambdamart_experiment.md`.
 Does not hold runtime code, generated panels, George raw evidence, or backtest result ledgers.
