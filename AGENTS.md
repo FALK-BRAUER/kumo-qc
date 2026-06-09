@@ -9,3 +9,4 @@
 - Sweep configs may carry runtime overrides and disabled phase choices; these are behavioral identity and must enter the sweep hash before any result reaches a leaderboard.
 - Intraday `trail.position_path_tracker` owns the `position_path` contract for MFE/MAE, giveback, bars-held, and session path; MFE exits consume that contract and never recalculate path ownership locally.
 - Multiple `exit_hard` choices in a `SweepConfig` are deliberate list composition for combo sweeps; duplicate choices for single-slot kinds must fail loud.
+- Learned scanner rankers are opt-in ranking phases. Runtime scoring must use exported deployable artifacts plus `RuntimeConfig` flags, never live George/OCR/watchlist evidence or hidden local paths.

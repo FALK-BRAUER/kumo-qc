@@ -391,6 +391,11 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
     WATCHLIST_CARRY_MIN_AVG_DOLLAR_VOLUME: float = 100_000_000.0
     SECURITY_PROFILE_SOURCE: str | None = None
     GEORGE_ATTENTION_SOURCE: str | None = None
+    SCANNER_RANKER_ENABLED: bool = False
+    SCANNER_RANKER_MODEL_PATH: str | None = None
+    SCANNER_RANKER_TOP_X: int = 0
+    SCANNER_RANKER_MIN_SCORE: float | None = None
+    SCANNER_RANKER_FALLBACK: str = "raise"
 
     def initialize(self) -> None:
         self.set_start_date(*self.START_DATE)

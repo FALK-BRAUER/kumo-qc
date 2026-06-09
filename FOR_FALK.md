@@ -1,5 +1,51 @@
 # FOR_FALK - BCT/George scanner-alignment implementation pass, 2026-06-09
 
+## #446 opt-in LambdaMART scanner runtime integration
+
+Implemented an opt-in deployable scanner ranker path. The production champion remains unchanged:
+`strategies.champion_intraday_gapvol` is still the default/current champion. The new path is
+`strategies.bct_lambdamart_scanner` and the sweep pack in `sweeps/grids/scanner_ranker.py`.
+
+What landed:
+- `src/runtime/scanner_ranker.py`: dependency-free runtime scorer for exported JSON LambdaMART tree
+  artifacts. It loads from local paths or QC ObjectStore, validates a deployable feature allowlist,
+  rejects George/OCR/watchlist/future-label features, scores candidate panels, and emits deterministic
+  cache keys.
+- `src/phases/ranking/lambdamart_scanner_ranker/`: ranking phase that ranks/Top-X trims signal
+  candidates. It is controlled by `RuntimeConfig`/`BCTAlgorithm` flags:
+  `scanner_ranker_enabled`, `scanner_ranker_model_path`, `scanner_ranker_top_x`,
+  `scanner_ranker_min_score`, and `scanner_ranker_fallback`.
+- Live feature substrate: raw daily OHLC/volume, signed gap and day return from prior close,
+  relative volume, BCT condition flags, chart-curation features, daily/weekly Ichimoku facts,
+  live denominator ranks/percentiles, and sector/industry breadth from runtime profile maps.
+- `TBounceTracker` now keeps signed `gap_pct` and `last_prior_close` while preserving existing
+  `gap_up_frac` behavior for entry-confirm logic.
+- `sweeps/grids/scanner_ranker.py`: six-cell first pack: champion baseline, phase-off control,
+  missing-model fallback control, and LambdaMART top10/top20/top50.
+
+How to build/run:
+- Build the opt-in strategy locally/cloud-style:
+  `PYTHONPATH=src:. <python> -m build.cloud_package strategies.bct_lambdamart_scanner`
+- Local sweep path uses the existing adapter; pass a real model artifact via
+  `scanner_ranker_model_path` as either a relative/local path in the generated run dir or an
+  ObjectStore key available through local storage.
+- QC cloud path: upload the exported JSON model to ObjectStore key
+  `bct_lambdamart_qc_safe_v1.json` or override `scanner_ranker_model_path`, then deploy the built
+  dist. No local absolute path is hardcoded into runtime code.
+
+Still experimental / not promoted:
+- No trained LambdaMART booster artifact is committed in this branch. The runtime path is ready for
+  the exported model, but backtest performance still depends on dropping in the trained artifact from
+  the research pipeline.
+- Sector/industry breadth works with runtime profile maps; if `security_profile_source` is absent or
+  incomplete, those features safely degrade to zero/unknown.
+- The first integration ranks the live signal candidate panel. It does not yet create a broader
+  pre-score denominator in QC cloud; that remains the larger scanner/universe expansion work.
+
+Verification:
+- `/Users/falk/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 -m pytest tests/runtime/test_scanner_ranker.py tests/phases/ranking/test_lambdamart_scanner_ranker.py tests/runtime/test_indicators.py tests/build/test_cloud_package.py tests/sweeps/test_scanner_ranker_grid.py tests/phases/test_catalog_sweep_guard.py`
+  -> 76 passed.
+
 ## #442 sector/industry breadth substrate follow-up
 
 Added a deployable sector/industry breadth substrate for scanner ranking:

@@ -6,3 +6,4 @@ Strategy configurations — wiring phases into runnable configs.
 - **What goes in:** New strategy variants (different phase combinations or param overrides), champion-as-is configurations, sweep candidate configs.
 - **What does NOT go here:** Phase implementation (use `src/phases/`), engine mechanics (use `src/engine/`), backtest execution (use `scripts/local_backtest.py`).
 - **Pattern:** A strategy config = name + version + phases dict keyed by PHASE_ORDER kind strings, with explicit Slot wiring.
+- **Scanner experiments:** `bct_lambdamart_scanner.py` is an opt-in learned scanner gate and is not the production champion.

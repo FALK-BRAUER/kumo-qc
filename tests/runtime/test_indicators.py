@@ -131,16 +131,20 @@ def test_tbounce_gap_up_fraction():
     t = TBounceTracker()
     t.update(open_=100.0, high=101.0, low=99.0, close=100.0, tenkan=90.0)  # first bar -> gap 0
     assert t.gap_up_frac == 0.0
+    assert t.gap_pct == 0.0
     t.update(open_=106.0, high=108.0, low=105.0, close=107.0, tenkan=90.0)  # open 106 vs prev 100 -> +6%
     assert abs(t.gap_up_frac - 0.06) < 1e-9
+    assert abs(t.gap_pct - 6.0) < 1e-9
+    assert t.last_prior_close == 100.0
 
 
-def test_tbounce_gap_down_is_zero():
+def test_tbounce_gap_down_up_fraction_is_zero_but_signed_gap_is_kept():
     from runtime.indicators import TBounceTracker
     t = TBounceTracker()
     t.update(open_=100.0, high=101.0, low=99.0, close=100.0, tenkan=90.0)
     t.update(open_=95.0, high=97.0, low=94.0, close=96.0, tenkan=90.0)     # gap DOWN -> 0.0
     assert t.gap_up_frac == 0.0
+    assert t.gap_pct == -5.0
 
 
 def test_tbounce_deterministic_replay():

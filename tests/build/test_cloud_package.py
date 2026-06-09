@@ -158,6 +158,10 @@ def test_runtime_config_emits_class_attrs_and_provenance(tmp_path: Path) -> None
             warmup_days=320,
             watchlist_carry_max=6,
             security_profile_source="profiles.csv",
+            scanner_ranker_enabled=True,
+            scanner_ranker_model_path="objectstore://scanner.json",
+            scanner_ranker_top_x=20,
+            scanner_ranker_fallback="bct_order",
         ),
     )
 
@@ -168,24 +172,36 @@ def test_runtime_config_emits_class_attrs_and_provenance(tmp_path: Path) -> None
     assert "warmup_days=320" in main_txt
     assert "watchlist_carry_max=6" in main_txt
     assert "security_profile_source='profiles.csv'" in main_txt
+    assert "scanner_ranker_enabled=True" in main_txt
+    assert "scanner_ranker_model_path='objectstore://scanner.json'" in main_txt
+    assert "scanner_ranker_top_x=20" in main_txt
     assert "WARMUP_DAYS = 320" in main_txt
     assert "WATCHLIST_CARRY_MAX = 6" in main_txt
     assert "SECURITY_PROFILE_SOURCE = 'profiles.csv'" in main_txt
+    assert "SCANNER_RANKER_ENABLED = True" in main_txt
+    assert "SCANNER_RANKER_MODEL_PATH = 'objectstore://scanner.json'" in main_txt
+    assert "SCANNER_RANKER_TOP_X = 20" in main_txt
+    assert "SCANNER_RANKER_FALLBACK = 'bct_order'" in main_txt
 
     out = subprocess.run(
         [sys.executable, "-c",
          "import main; "
          "print(main.STRATEGY_CONFIG.runtime.warmup_days, "
          "main.BCTAlgorithm.WATCHLIST_CARRY_MAX, "
-         "main.BCTAlgorithm.SECURITY_PROFILE_SOURCE)"],
+         "main.BCTAlgorithm.SECURITY_PROFILE_SOURCE, "
+         "main.BCTAlgorithm.SCANNER_RANKER_TOP_X)"],
         cwd=str(dist), capture_output=True, text=True,
     )
     assert out.returncode == 0, out.stderr
-    assert out.stdout.strip() == "320 6 profiles.csv"
+    assert out.stdout.strip() == "320 6 profiles.csv 20"
 
     manifest = json.loads((dist / "_manifest.json").read_text())
     assert manifest["config_hash"] == result.config_hash
     assert manifest["runtime_overrides"] == {
+        "scanner_ranker_enabled": True,
+        "scanner_ranker_fallback": "bct_order",
+        "scanner_ranker_model_path": "objectstore://scanner.json",
+        "scanner_ranker_top_x": 20,
         "security_profile_source": "profiles.csv",
         "warmup_days": 320,
         "watchlist_carry_max": 6,

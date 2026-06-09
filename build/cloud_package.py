@@ -55,6 +55,11 @@ RUNTIME_CLASS_ATTRS: dict[str, str] = {
     "watchlist_carry_min_avg_dollar_volume": "WATCHLIST_CARRY_MIN_AVG_DOLLAR_VOLUME",
     "security_profile_source": "SECURITY_PROFILE_SOURCE",
     "george_attention_source": "GEORGE_ATTENTION_SOURCE",
+    "scanner_ranker_enabled": "SCANNER_RANKER_ENABLED",
+    "scanner_ranker_model_path": "SCANNER_RANKER_MODEL_PATH",
+    "scanner_ranker_top_x": "SCANNER_RANKER_TOP_X",
+    "scanner_ranker_min_score": "SCANNER_RANKER_MIN_SCORE",
+    "scanner_ranker_fallback": "SCANNER_RANKER_FALLBACK",
 }
 
 
