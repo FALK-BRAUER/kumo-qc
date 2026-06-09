@@ -11,6 +11,7 @@ Two lanes:
 from __future__ import annotations
 
 import json
+import zipfile
 
 import numpy as np
 import pandas as pd
@@ -111,10 +112,15 @@ def test_row_schema_has_expanded_conditions_and_all_fields() -> None:
     for i in range(8):
         assert f"cond_{i}" in j and isinstance(j[f"cond_{i}"], bool)
     for fld in (
-        "date", "symbol", "score", "rating", "close", "daily_tenkan", "daily_kijun", "sma200",
+        "date", "symbol", "score", "rating", "bct_candidate_lane",
+        "close", "daily_tenkan", "daily_kijun", "sma200",
         "daily_cloud_a", "daily_cloud_b", "daily_cloud_top", "weekly_cloud_a", "weekly_cloud_b",
         "weekly_cloud_top", "weekly_tenkan", "weekly_kijun", "adx", "plus_di", "minus_di",
         "roc13", "single_day_dv", "trailing_dv", "scanner_rank",
+        "bct_signal_rank", "george_style_rank", "george_style_score",
+        "george_constructive_resistance", "george_bad_resistance", "george_no_chase_risk",
+        "george_retest_prior_as_support", "george_reclaim_after_touch",
+        "george_breakout_volume_confirmed",
         "passed_prefilter", "passed_floors", "passed_parabolic",
     ):
         assert fld in j, f"missing field {fld}"
@@ -152,6 +158,17 @@ def test_artifact_header_stamps_provenance() -> None:
     assert h["universe_source"] == "local-daily:2024"
     assert h["first_date"] == "2024-01-02" and h["last_date"] == "2024-12-31"
     assert h["authoritative"] is True  # default
+    assert h["schema_version"] == 3
+    assert "bct_candidate_lane" in h["fields"]
+    assert "george_style_rank" in h["fields"]
+
+
+def test_candidate_lane_labels_score6_almost_bct() -> None:
+    assert C._candidate_lane(8) == "bct_score_ge7"
+    assert C._candidate_lane(7) == "bct_score_ge7"
+    assert C._candidate_lane(6) == "almost_bct_score6"
+    assert C._candidate_lane(5) == "below_bct_score6"
+    assert _row("2024-06-03", "ABC", 6).to_json()["bct_candidate_lane"] == "almost_bct_score6"
 
 
 def test_artifact_header_authoritative_flag() -> None:
@@ -163,6 +180,45 @@ def test_artifact_header_authoritative_flag() -> None:
     )
     assert h["authoritative"] is False
     assert h["universe_membership_uncertainty"]["instrumented"] == 7007
+
+
+def test_features_include_prior_high_and_relative_volume_without_lookahead() -> None:
+    df = _ramp_frame(700)
+    # Make the current bar's high extreme. prior_high20 must still exclude it.
+    df.iloc[-1, df.columns.get_loc("high")] = 10_000.0
+    df.iloc[-1, df.columns.get_loc("volume")] = 3_000_000.0
+    feats = C._features_from_daily(df)
+    assert feats is not None
+    assert feats["prior_high20"] == pytest.approx(float(df["high"].iloc[:-1].tail(20).max()))
+    assert feats["prior_high20"] < 10_000.0
+    assert feats["rel_volume20"] == pytest.approx(3.0)
+
+
+def test_george_style_bridge_assigns_distinct_base_and_george_ranks() -> None:
+    base_first = _row("2024-06-03", "BASE", 8)
+    george_first = _row("2024-06-03", "GEORGE", 7)
+    rows = [base_first, george_first]
+    features = {
+        "BASE": {
+            "open": 120.0, "high": 125.0, "low": 119.0, "close": 124.0,
+            "daily_tenkan": 100.0, "daily_kijun": 92.0, "daily_cloud_top": 91.0,
+            "roc13": 0.30, "rel_volume20": 1.0, "prior_high20": 100.0,
+        },
+        "GEORGE": {
+            "open": 101.0, "high": 106.0, "low": 99.5, "close": 104.0,
+            "daily_tenkan": 101.0, "daily_kijun": 96.0, "daily_cloud_top": 95.0,
+            "roc13": 0.05, "rel_volume20": 1.3, "prior_high20": 100.0,
+        },
+    }
+
+    C._apply_george_style_bridge(rows, features)
+
+    assert base_first.bct_signal_rank == 1
+    assert george_first.bct_signal_rank == 2
+    assert george_first.george_style_rank == 1
+    assert base_first.george_style_rank == 2
+    assert george_first.george_constructive_resistance is True
+    assert base_first.george_no_chase_risk is True
 
 
 # --------------------------------------------------------------------------------------
@@ -177,6 +233,41 @@ def _write_coarse_csv(coarse_dir, ymd: str, rows: list[tuple[str, float, int, fl
     for ticker, close, volume, dv in rows:
         lines.append(f"{ticker} XSID,{ticker},{close},{volume},{dv},True,1,1")
     (coarse_dir / f"{ymd}.csv").write_text("\n".join(lines) + "\n")
+
+
+def _write_daily_zip(daily_dir, ticker: str, rows: list[tuple[str, float, float]]) -> None:
+    """Write a tiny LEAN daily zip: (YYYYMMDD, close, volume), OHLC stored scaled."""
+    daily_dir.mkdir(parents=True, exist_ok=True)
+    lines = []
+    for ymd, close, volume in rows:
+        scaled = int(close * C._PRICE_SCALE)
+        lines.append(f"{ymd},{scaled},{scaled},{scaled},{scaled},{volume}")
+    with zipfile.ZipFile(daily_dir / f"{ticker.lower()}.zip", "w") as zf:
+        zf.writestr(f"{ticker.lower()}.csv", "\n".join(lines) + "\n")
+
+
+def test_build_local_universe_with_metrics_keeps_stage_audit_inputs(tmp_path) -> None:
+    """Local-daily metrics include all observed bars, while the universe only contains floor passers."""
+    dd = tmp_path / "daily"
+    _write_daily_zip(dd, "AAA", [("20240102", 50.0, 3_000_000.0), ("20240103", 51.0, 3_000_000.0)])
+    _write_daily_zip(dd, "LOW", [("20240102", 5.0, 100_000_000.0)])     # price floor fail
+    _write_daily_zip(dd, "THIN", [("20240102", 50.0, 100_000.0)])       # prefilter fail
+    _write_daily_zip(dd, "COLD", [("20240102", 50.0, 600_000.0)])       # trailing DV fail
+
+    univ, metrics = C.build_local_universe_with_metrics(
+        2024, daily_dir=dd, dates=["2024-01-02"]
+    )
+
+    assert univ == {"2024-01-02": ["AAA"]}
+    assert set(metrics) == {"2024-01-02"}  # date filter stores only requested dates
+    assert set(metrics["2024-01-02"]) == {"aaa", "low", "thin", "cold"}
+    assert metrics["2024-01-02"]["aaa"] == pytest.approx((50.0, 150_000_000.0, 150_000_000.0))
+    assert metrics["2024-01-02"]["thin"][1] == pytest.approx(5_000_000.0)
+    assert metrics["2024-01-02"]["cold"][2] == pytest.approx(30_000_000.0)
+    assert C.build_local_universe(2024, daily_dir=dd) == {
+        "2024-01-02": ["AAA"],
+        "2024-01-03": ["AAA"],
+    }
 
 
 def test_read_coarse_csv_parses_ticker_close_dv(tmp_path) -> None:

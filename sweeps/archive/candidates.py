@@ -71,6 +71,11 @@ from phases.shared.oracle_helpers import (
     _resample_weekly,
     score_from_daily_frame,
 )
+from phases.shared.chart_features import (
+    ChartCurationInputs,
+    build_chart_curation_features,
+    george_qc_candidate_score,
+)
 from runtime.universe_select import apply_floors, rank_and_cap
 
 # Reuse the C1 harness loaders verbatim (the proven local LEAN daily-zip reader + as-of slicer).
@@ -112,7 +117,7 @@ DEFAULT_PARABOLIC_THRESHOLD: float = 0.25  # bct_score_full Params.parabolic_thr
 # Provenance stamped into every artifact header so the population can't drift unnoticed.
 DATA_VENDOR: str = "local-lean-daily-zips"
 DATA_NORMALIZATION: str = "raw"  # RAW/unadjusted; OHLC stored *10000 (load_daily_frame unscales)
-SCHEMA_VERSION: int = 1
+SCHEMA_VERSION: int = 3
 
 # Number of float decimals retained in emitted feature values (determinism — no platform jitter).
 _ROUND: int = 6
@@ -123,6 +128,15 @@ _ROUND: int = 6
 # universe-membership / scoring-vendor uncertainty so the #303 mine knows the residual it carries.
 # (Per-year; only FY2025 has an instrumented baseline — others stamp None.)
 INSTRUMENTED_SIGNAL_WINNERS: dict[int, int] = {2025: 7007}
+
+
+def _candidate_lane(score: int) -> str:
+    """Stable lane label for score-threshold experiments in offline exports."""
+    if score >= 7:
+        return "bct_score_ge7"
+    if score == 6:
+        return "almost_bct_score6"
+    return "below_bct_score6"
 
 
 @dataclass(slots=True)
@@ -163,6 +177,17 @@ class CandidateRow:
     passed_prefilter: bool
     passed_floors: bool
     passed_parabolic: bool
+    bct_candidate_lane: str = ""
+    # QC-safe George-style ranking bridge fields. Filled after per-date row collection.
+    bct_signal_rank: int = -1
+    george_style_rank: int = -1
+    george_style_score: float = 0.0
+    george_constructive_resistance: bool = False
+    george_bad_resistance: bool = False
+    george_no_chase_risk: bool = False
+    george_retest_prior_as_support: bool = False
+    george_reclaim_after_touch: bool = False
+    george_breakout_volume_confirmed: bool = False
 
     def to_json(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -170,6 +195,7 @@ class CandidateRow:
             "symbol": self.symbol,
             "score": self.score,
             "rating": self.rating,
+            "bct_candidate_lane": self.bct_candidate_lane or _candidate_lane(self.score),
         }
         # cond_0..cond_7 expanded for a flat, mine-friendly schema (stable order).
         for i, c in enumerate(self.conditions):
@@ -185,6 +211,15 @@ class CandidateRow:
             v = getattr(self, fld)
             d[fld] = None if v is None or (isinstance(v, float) and not math.isfinite(v)) else round(float(v), _ROUND)
         d["scanner_rank"] = self.scanner_rank
+        d["bct_signal_rank"] = self.bct_signal_rank
+        d["george_style_rank"] = self.george_style_rank
+        d["george_style_score"] = round(float(self.george_style_score), _ROUND)
+        d["george_constructive_resistance"] = self.george_constructive_resistance
+        d["george_bad_resistance"] = self.george_bad_resistance
+        d["george_no_chase_risk"] = self.george_no_chase_risk
+        d["george_retest_prior_as_support"] = self.george_retest_prior_as_support
+        d["george_reclaim_after_touch"] = self.george_reclaim_after_touch
+        d["george_breakout_volume_confirmed"] = self.george_breakout_volume_confirmed
         d["passed_prefilter"] = self.passed_prefilter
         d["passed_floors"] = self.passed_floors
         d["passed_parabolic"] = self.passed_parabolic
@@ -204,6 +239,29 @@ def _roc13(daily: pd.DataFrame) -> float:
     if ref == 0 or pd.isna(ref):
         return float("nan")
     return float((c.iloc[-1] - ref) / ref)
+
+
+def _prior_high(daily: pd.DataFrame, window: int) -> float:
+    """Highest high over the prior `window` completed bars, excluding the current decision bar."""
+    if len(daily) < 2:
+        return float("nan")
+    prior = daily["high"].iloc[:-1].tail(window)
+    if prior.empty:
+        return float("nan")
+    return float(prior.max())
+
+
+def _rel_volume20(daily: pd.DataFrame) -> float:
+    """Current completed-bar volume divided by the prior-20-bar average volume."""
+    if len(daily) < 2:
+        return float("nan")
+    prior = daily["volume"].iloc[:-1].tail(ADV_WINDOW)
+    if prior.empty:
+        return float("nan")
+    avg = float(prior.mean())
+    if avg <= 0.0 or not math.isfinite(avg):
+        return float("nan")
+    return float(daily["volume"].iloc[-1]) / avg
 
 
 def _features_from_daily(daily: pd.DataFrame) -> dict[str, float] | None:
@@ -238,6 +296,9 @@ def _features_from_daily(daily: pd.DataFrame) -> dict[str, float] | None:
     dcb = float(d_cloud_b.iloc[-1])
 
     return {
+        "open": float(daily["open"].iloc[-1]),
+        "high": float(daily["high"].iloc[-1]),
+        "low": float(daily["low"].iloc[-1]),
         "close": float(daily["close"].iloc[-1]),
         "daily_tenkan": float(d_tenkan.iloc[-1]),
         "daily_kijun": float(d_kijun.iloc[-1]),
@@ -254,6 +315,10 @@ def _features_from_daily(daily: pd.DataFrame) -> dict[str, float] | None:
         "plus_di": float(plus_di.iloc[-1]),
         "minus_di": float(minus_di.iloc[-1]),
         "roc13": _roc13(daily),
+        "prior_high20": _prior_high(daily, 20),
+        "prior_high50": _prior_high(daily, 50),
+        "prior_high252": _prior_high(daily, 252),
+        "rel_volume20": _rel_volume20(daily),
     }
 
 
@@ -270,6 +335,45 @@ def _trailing_dv_mean(daily: pd.DataFrame, as_of: pd.Timestamp, window: int = AD
     if len(dv) == 0:
         return 0.0
     return float(dv.mean())
+
+
+def _apply_george_style_bridge(rows: list[CandidateRow], by_symbol_features: dict[str, dict[str, float]]) -> None:
+    """Attach QC-safe George-style score/rank fields to already-built rows for one date."""
+    for row in rows:
+        feats = by_symbol_features[row.symbol]
+        chart = build_chart_curation_features(
+            ChartCurationInputs(
+                bct_score=row.score,
+                open=feats.get("open"),
+                high=feats.get("high"),
+                low=feats.get("low"),
+                close=feats["close"],
+                tenkan=feats.get("daily_tenkan"),
+                kijun=feats.get("daily_kijun"),
+                cloud_top=feats.get("daily_cloud_top"),
+                roc13=feats.get("roc13"),
+                rel_volume20=feats.get("rel_volume20"),
+                prior_high20=feats.get("prior_high20"),
+                prior_high50=feats.get("prior_high50"),
+                prior_high252=feats.get("prior_high252"),
+            )
+        )
+        row.george_style_score = george_qc_candidate_score(chart)
+        row.george_constructive_resistance = chart.constructive_resistance
+        row.george_bad_resistance = chart.bad_resistance
+        row.george_no_chase_risk = chart.no_chase_risk
+        row.george_retest_prior_as_support = chart.retest_prior_as_support
+        row.george_reclaim_after_touch = chart.reclaim_after_touch
+        row.george_breakout_volume_confirmed = chart.breakout_volume_confirmed
+
+    # Existing exported row order stays BCT score desc / ticker asc for compatibility; ranks give
+    # the two comparison orders explicitly.
+    for rank, row in enumerate(sorted(rows, key=lambda r: (-r.score, r.symbol)), start=1):
+        row.bct_signal_rank = rank
+    for rank, row in enumerate(
+        sorted(rows, key=lambda r: (-r.george_style_score, -r.trailing_dv, r.symbol)), start=1
+    ):
+        row.george_style_rank = rank
 
 
 def generate_candidates_for_date(
@@ -368,6 +472,7 @@ def generate_candidates_for_date(
     to_score = [t for t in frames if t.lower() in floors_pass] if apply_funnel_floors else list(frames)
 
     rows: list[CandidateRow] = []
+    row_features: dict[str, dict[str, float]] = {}
     for ticker in to_score:
         daily = slice_as_of(frames[ticker], as_of)
         result = score_from_daily_frame(daily)
@@ -388,40 +493,42 @@ def generate_candidates_for_date(
         )
         parabolic_ok = not (math.isfinite(roc) and roc > parabolic_threshold)
 
-        rows.append(
-            CandidateRow(
-                date=date_str,
-                symbol=ticker.upper(),
-                score=int(result["score"]),
-                rating=str(result["rating"]),
-                conditions=[bool(x) for x in result["conditions"]],
-                close=feats["close"],
-                daily_tenkan=feats["daily_tenkan"],
-                daily_kijun=feats["daily_kijun"],
-                sma200=feats["sma200"],
-                daily_cloud_a=feats["daily_cloud_a"],
-                daily_cloud_b=feats["daily_cloud_b"],
-                daily_cloud_top=feats["daily_cloud_top"],
-                weekly_cloud_a=feats["weekly_cloud_a"],
-                weekly_cloud_b=feats["weekly_cloud_b"],
-                weekly_cloud_top=feats["weekly_cloud_top"],
-                weekly_tenkan=feats["weekly_tenkan"],
-                weekly_kijun=feats["weekly_kijun"],
-                adx=feats["adx"],
-                plus_di=feats["plus_di"],
-                minus_di=feats["minus_di"],
-                roc13=roc,
-                single_day_dv=single_day_dv.get(ticker, 0.0),
-                trailing_dv=trailing_dv.get(ticker, 0.0),
-                scanner_rank=rank_index.get(ticker.lower(), -1),
-                passed_prefilter=ticker in prefilter_pass,
-                passed_floors=ticker.lower() in floors_pass,
-                passed_parabolic=parabolic_ok,
-            )
+        row = CandidateRow(
+            date=date_str,
+            symbol=ticker.upper(),
+            score=int(result["score"]),
+            rating=str(result["rating"]),
+            conditions=[bool(x) for x in result["conditions"]],
+            bct_candidate_lane=_candidate_lane(int(result["score"])),
+            close=feats["close"],
+            daily_tenkan=feats["daily_tenkan"],
+            daily_kijun=feats["daily_kijun"],
+            sma200=feats["sma200"],
+            daily_cloud_a=feats["daily_cloud_a"],
+            daily_cloud_b=feats["daily_cloud_b"],
+            daily_cloud_top=feats["daily_cloud_top"],
+            weekly_cloud_a=feats["weekly_cloud_a"],
+            weekly_cloud_b=feats["weekly_cloud_b"],
+            weekly_cloud_top=feats["weekly_cloud_top"],
+            weekly_tenkan=feats["weekly_tenkan"],
+            weekly_kijun=feats["weekly_kijun"],
+            adx=feats["adx"],
+            plus_di=feats["plus_di"],
+            minus_di=feats["minus_di"],
+            roc13=roc,
+            single_day_dv=single_day_dv.get(ticker, 0.0),
+            trailing_dv=trailing_dv.get(ticker, 0.0),
+            scanner_rank=rank_index.get(ticker.lower(), -1),
+            passed_prefilter=ticker in prefilter_pass,
+            passed_floors=ticker.lower() in floors_pass,
+            passed_parabolic=parabolic_ok,
         )
+        rows.append(row)
+        row_features[row.symbol] = feats
 
     # Deterministic order: score DESC, then ticker ASC (stable, platform-independent).
     rows.sort(key=lambda r: (-r.score, r.symbol))
+    _apply_george_style_bridge(rows, row_features)
     return rows
 
 
@@ -460,9 +567,35 @@ def build_local_universe(
     (the single-day DV from this parse == close*volume from load_daily_frame on a sample ticker),
     so a change to the on-disk format trips a test rather than silently diverging.
     """
+    universe, _metrics = build_local_universe_with_metrics(year, daily_dir=daily_dir)
+    return universe
+
+
+def build_local_universe_with_metrics(
+    year: int,
+    *,
+    daily_dir: Path = _DAILY_DIR,
+    dates: Iterable[str] | None = None,
+) -> tuple[dict[str, list[str]], dict[str, dict[str, tuple[float, float, float]]]]:
+    """Build the local-daily approximation universe plus per-name daily metrics.
+
+    This is the same local-daily substrate as `build_local_universe`, but it also returns:
+
+        metrics = {date -> {ticker_lower: (close, single_day_dv, trailing_dv)}}
+
+    Unlike the ranked `universe`, `metrics` includes EVERY local-daily ticker with an observed bar
+    on the requested date, even if it later fails the prefilter, price floor, or trailing-DV floor.
+    That makes it usable for stage audits: a George label can be classified as "fails prefilter" or
+    "fails floor" instead of being lumped into "not seen".
+
+    `dates` is an optional ISO-date filter. The streaming pass still reads each ticker's full daily
+    history so the trailing-DV window has the same no-look-ahead value, but it only stores metrics
+    for the requested dates. This keeps one-off George-audit comparisons small.
+    """
     ystr = str(year)
-    # date -> {ticker_lower: (close, trailing_dv)} for names passing the single-day prefilter.
-    per_date: dict[str, dict[str, tuple[float, float]]] = {}
+    wanted = set(dates) if dates is not None else None
+    # date -> {ticker_lower: (close, single_day_dv, trailing_dv)} for all local-daily bars.
+    metrics: dict[str, dict[str, tuple[float, float, float]]] = {}
 
     for fname in sorted(os.listdir(daily_dir)):
         if not fname.endswith(".zip"):
@@ -473,7 +606,7 @@ def build_local_universe(
             if not names:
                 continue
             raw = zf.read(names[0]).decode()
-        dates: list[str] = []
+        bar_dates: list[str] = []
         dvs: list[float] = []
         closes: list[float] = []
         for line in raw.strip().split("\n"):
@@ -483,23 +616,28 @@ def build_local_universe(
             ds = p[0][:8]
             c = float(p[4]) / _PRICE_SCALE  # same unscale convention as load_daily_frame
             v = float(p[5])
-            dates.append(ds)
+            bar_dates.append(ds)
             closes.append(c)
             dvs.append(c * v)
-        for i, ds in enumerate(dates):
+        for i, ds in enumerate(bar_dates):
             if ds[:4] != ystr:
                 continue
-            sdv = dvs[i]
-            if sdv < PREFILTER_DV:
+            iso = f"{ds[:4]}-{ds[4:6]}-{ds[6:8]}"
+            if wanted is not None and iso not in wanted:
                 continue
+            sdv = dvs[i]
             close = closes[i]
             window = dvs[max(0, i - (ADV_WINDOW - 1)): i + 1]
             tdv = sum(window) / len(window)
-            iso = f"{ds[:4]}-{ds[4:6]}-{ds[6:8]}"
-            per_date.setdefault(iso, {})[ticker] = (close, tdv)
+            metrics.setdefault(iso, {})[ticker] = (close, sdv, tdv)
 
     universe: dict[str, list[str]] = {}
-    for iso, bar_metrics in per_date.items():
+    for iso, day_metrics in metrics.items():
+        bar_metrics = {
+            ticker: (close, trailing)
+            for ticker, (close, sdv, trailing) in day_metrics.items()
+            if sdv >= PREFILTER_DV
+        }
         eligible = apply_floors(
             bar_metrics, min_price=MIN_PRICE, min_avg_dollar_volume=MIN_AVG_DOLLAR_VOLUME
         )
@@ -507,7 +645,7 @@ def build_local_universe(
         ranked = rank_and_cap(eligible, dv_by_ticker, coarse_max=COARSE_MAX)
         if ranked:
             universe[iso] = [t.upper() for t in ranked]
-    return dict(sorted(universe.items()))
+    return dict(sorted(universe.items())), dict(sorted(metrics.items()))
 
 
 def _coarse_csv_path(date_str: str, coarse_dir: Path = _COARSE_DIR) -> Path:
@@ -675,7 +813,7 @@ def _artifact_header(
         "first_date": dates[0] if dates else None,
         "last_date": dates[-1] if dates else None,
         "fields": [
-            "date", "symbol", "score", "rating",
+            "date", "symbol", "score", "rating", "bct_candidate_lane",
             "cond_0", "cond_1", "cond_2", "cond_3", "cond_4", "cond_5", "cond_6", "cond_7",
             "close", "daily_tenkan", "daily_kijun", "sma200",
             "daily_cloud_a", "daily_cloud_b", "daily_cloud_top",
@@ -683,6 +821,10 @@ def _artifact_header(
             "weekly_tenkan", "weekly_kijun",
             "adx", "plus_di", "minus_di", "roc13",
             "single_day_dv", "trailing_dv", "scanner_rank",
+            "bct_signal_rank", "george_style_rank", "george_style_score",
+            "george_constructive_resistance", "george_bad_resistance", "george_no_chase_risk",
+            "george_retest_prior_as_support", "george_reclaim_after_touch",
+            "george_breakout_volume_confirmed",
             "passed_prefilter", "passed_floors", "passed_parabolic",
         ],
     }
