@@ -7,6 +7,7 @@ import pytest
 import numpy as np
 import pandas as pd
 
+from runtime.scanner_ranker import DEPLOYABLE_SCANNER_FEATURES, load_scanner_model_artifact
 from sweeps.archive import george_lambdamart_ranker as M
 
 
@@ -192,3 +193,37 @@ def test_run_lambdamart_ranker_can_use_qc_cloud_safe_feature_subset(tmp_path: Pa
     features = set(result.importance_summary["feature"])
     assert learned["seen_hits"] == 4
     assert features == {"gap_pct", "daily_structure_score"}
+
+
+def test_export_lambdamart_artifact_uses_runtime_contract_when_lightgbm_available(tmp_path: Path) -> None:
+    try:
+        M._import_lightgbm()
+    except RuntimeError as exc:
+        pytest.skip(str(exc))
+    labels = [(date, f"P{i}") for i, date in enumerate(("2026-02-12", "2026-02-13", "2026-02-17", "2026-02-18"))]
+    output = tmp_path / "bct_lambdamart_qc_safe_v1.json"
+
+    exported = M.export_lambdamart_artifact(
+        _denominator(),
+        labels,
+        covered_dates={date for date, _symbol in labels},
+        output_path=output,
+        config=M.runtime_export_config(
+            M.LambdaMARTConfig(
+                n_estimators=8,
+                num_leaves=7,
+                min_child_samples=1,
+                use_sector_context=True,
+                use_denominator_ranks=True,
+                use_sector_breadth=True,
+                ks=(1, 2),
+            )
+        ),
+    )
+    loaded = load_scanner_model_artifact(str(output))
+
+    assert output.exists()
+    assert exported.positive_count == 4
+    assert exported.feature_count == len(loaded.feature_names)
+    assert set(loaded.feature_names).issubset(set(DEPLOYABLE_SCANNER_FEATURES))
+    assert loaded.metadata["runtime_contract_export"] is True

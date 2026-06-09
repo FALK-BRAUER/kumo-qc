@@ -6,15 +6,25 @@ the dependency unless this benchmark is executed.
 from __future__ import annotations
 
 import argparse
+import json
 import importlib
+import subprocess
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
+from runtime.scanner_ranker import (
+    ARTIFACT_SCHEMA_VERSION,
+    DENOMINATOR_CONTRACT_VERSION,
+    DEPLOYABLE_SCANNER_FEATURES,
+    FEATURE_CONTRACT_VERSION,
+    feature_contract_hash,
+    load_scanner_model_artifact,
+)
 from sweeps.archive import george_learned_ranker as learned
 from sweeps.archive import george_sector_context_audit as sector_context
 from sweeps.archive import george_topk_audit as topk
@@ -56,6 +66,28 @@ class LambdaMARTResult:
     failure_examples: pd.DataFrame
 
 
+@dataclass(frozen=True, slots=True)
+class LambdaMARTTrainingData:
+    """Feature matrix and panel used by both OOF validation and train-all artifact export."""
+
+    panel: pd.DataFrame
+    x: np.ndarray
+    y: np.ndarray
+    feature_names: list[str]
+
+
+@dataclass(frozen=True, slots=True)
+class ExportedLambdaMARTArtifact:
+    """Metadata for a written runtime artifact."""
+
+    path: Path
+    artifact_hash: str
+    feature_list_hash: str
+    feature_count: int
+    row_count: int
+    positive_count: int
+
+
 def _import_lightgbm() -> Any:
     try:
         return importlib.import_module("lightgbm")
@@ -92,6 +124,18 @@ def sample_weights(y: np.ndarray, *, config: LambdaMARTConfig) -> np.ndarray | N
         return None
     weights = np.where(y >= 0.5, config.positive_weight, config.negative_weight)
     return np.asarray(weights, dtype=float)
+
+
+def runtime_export_config(config: LambdaMARTConfig) -> LambdaMARTConfig:
+    """Return the train-all config that matches `runtime.scanner_ranker`'s deployable contract."""
+    return replace(
+        config,
+        use_sector_context=False,
+        use_denominator_ranks=True,
+        use_sector_breadth=True,
+        use_qc_cloud_safe_features=False,
+        feature_allowlist=frozenset(DEPLOYABLE_SCANNER_FEATURES),
+    )
 
 
 def top_n_mask_by_date(panel: pd.DataFrame, scores: pd.Series, *, top_n: int) -> pd.Series:
@@ -137,6 +181,47 @@ def _fit_lambdamart(
     return model
 
 
+def build_lambdamart_training_data(
+    denominator: pd.DataFrame,
+    labels: Sequence[tuple[str, str]],
+    *,
+    covered_dates: set[str],
+    config: LambdaMARTConfig = LambdaMARTConfig(),
+) -> LambdaMARTTrainingData:
+    """Build the grouped LambdaMART training panel and deployability-filtered feature matrix."""
+    topk_config = topk.AuditConfig(top_n=config.top_n, min_score=config.min_score, ks=config.ks)
+    denominator_for_panel = (
+        learned.add_live_denominator_sector_breadth(
+            denominator,
+            covered_dates=covered_dates,
+            top_n=config.top_n,
+        )
+        if config.use_sector_breadth
+        else denominator
+    )
+    panel = topk.build_score6_panel(denominator_for_panel, labels, covered_dates=covered_dates, config=topk_config)
+    if config.use_sector_context:
+        panel = sector_context.add_stock_context_features(panel)
+        panel, _sectors, _industries = sector_context.add_sector_industry_context(panel)
+    if config.use_denominator_ranks:
+        panel = learned.add_denominator_rank_features(panel)
+
+    allowed_features = None
+    if config.feature_allowlist is not None:
+        allowed_features = set(config.feature_allowlist)
+    elif config.use_qc_cloud_safe_features:
+        allowed_features = learned.load_qc_cloud_safe_feature_names(config.promotion_inventory_path)
+    x_raw, feature_names = learned.build_feature_matrix(
+        panel,
+        include_sector_context=config.use_sector_context,
+        include_denominator_ranks=config.use_denominator_ranks,
+        include_sector_breadth=config.use_sector_breadth,
+        allowed_features=allowed_features,
+    )
+    y = topk._bool_col(panel, "is_george").astype(float).to_numpy(dtype=float)
+    return LambdaMARTTrainingData(panel=panel, x=x_raw, y=y, feature_names=feature_names)
+
+
 def _importance_rows(models: list[Any], feature_names: list[str]) -> pd.DataFrame:
     if not models:
         return pd.DataFrame(columns=["feature", "importance_mean", "importance_std"])
@@ -160,37 +245,17 @@ def run_lambdamart_ranker(
     config: LambdaMARTConfig = LambdaMARTConfig(),
 ) -> LambdaMARTResult:
     """Run date-grouped OOF LambdaMART validation."""
-    topk_config = topk.AuditConfig(top_n=config.top_n, min_score=config.min_score, ks=config.ks)
-    denominator_for_panel = (
-        learned.add_live_denominator_sector_breadth(
-            denominator,
-            covered_dates=covered_dates,
-            top_n=config.top_n,
-        )
-        if config.use_sector_breadth
-        else denominator
+    training = build_lambdamart_training_data(
+        denominator,
+        labels,
+        covered_dates=covered_dates,
+        config=config,
     )
-    panel = topk.build_score6_panel(denominator_for_panel, labels, covered_dates=covered_dates, config=topk_config)
-    if config.use_sector_context:
-        panel = sector_context.add_stock_context_features(panel)
-        panel, _sectors, _industries = sector_context.add_sector_industry_context(panel)
-    if config.use_denominator_ranks:
-        panel = learned.add_denominator_rank_features(panel)
-
+    panel = training.panel
     gates = topk.default_gates(panel)
-    allowed_features = None
-    if config.feature_allowlist is not None:
-        allowed_features = set(config.feature_allowlist)
-    elif config.use_qc_cloud_safe_features:
-        allowed_features = learned.load_qc_cloud_safe_feature_names(config.promotion_inventory_path)
-    x_raw, feature_names = learned.build_feature_matrix(
-        panel,
-        include_sector_context=config.use_sector_context,
-        include_denominator_ranks=config.use_denominator_ranks,
-        include_sector_breadth=config.use_sector_breadth,
-        allowed_features=allowed_features,
-    )
-    y = topk._bool_col(panel, "is_george").astype(float).to_numpy(dtype=float)
+    x_raw = training.x
+    y = training.y
+    feature_names = training.feature_names
     folds = learned.make_date_folds(panel["date"].astype(str).tolist(), n_folds=config.n_folds)
 
     oof_scores = pd.Series(float("-inf"), index=panel.index, dtype=float)
@@ -302,6 +367,137 @@ def run_lambdamart_ranker(
     )
 
 
+def _repo_git_commit() -> str:
+    root = Path(__file__).resolve().parents[2]
+    try:
+        return subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=root,
+            check=True,
+            text=True,
+            capture_output=True,
+        ).stdout.strip()
+    except Exception:
+        return ""
+
+
+def _model_trees(model: Any) -> list[dict[str, Any]]:
+    booster = getattr(model, "booster_", None)
+    if booster is None:
+        raise ValueError("fitted LightGBM model has no booster_")
+    dump = booster.dump_model()
+    tree_info = dump.get("tree_info")
+    if not isinstance(tree_info, list) or not tree_info:
+        raise ValueError("LightGBM dump_model returned no tree_info")
+    trees: list[dict[str, Any]] = []
+    for tree in tree_info:
+        if not isinstance(tree, dict) or "tree_structure" not in tree:
+            raise ValueError("LightGBM tree_info entry missing tree_structure")
+        trees.append(
+            {
+                key: tree[key]
+                for key in ("tree_index", "num_leaves", "shrinkage", "tree_structure")
+                if key in tree
+            }
+        )
+    return trees
+
+
+def train_lambdamart_model(
+    denominator: pd.DataFrame,
+    labels: Sequence[tuple[str, str]],
+    *,
+    covered_dates: set[str],
+    config: LambdaMARTConfig = LambdaMARTConfig(),
+) -> tuple[Any, LambdaMARTTrainingData]:
+    """Train one final model on all covered dates for runtime artifact export."""
+    training = build_lambdamart_training_data(
+        denominator,
+        labels,
+        covered_dates=covered_dates,
+        config=config,
+    )
+    if len(training.y) == 0:
+        raise ValueError("cannot train LambdaMART artifact on an empty panel")
+    if float(training.y.sum()) <= 0.0:
+        raise ValueError("cannot train LambdaMART artifact without positive George labels")
+    weights = sample_weights(training.y, config=config)
+    model = _fit_lambdamart(
+        training.x,
+        training.y,
+        training.panel["date"].astype(str).tolist(),
+        feature_names=training.feature_names,
+        weights=weights,
+        config=config,
+    )
+    return model, training
+
+
+def export_lambdamart_artifact(
+    denominator: pd.DataFrame,
+    labels: Sequence[tuple[str, str]],
+    *,
+    covered_dates: set[str],
+    output_path: Path,
+    config: LambdaMARTConfig = LambdaMARTConfig(),
+    metadata: dict[str, Any] | None = None,
+) -> ExportedLambdaMARTArtifact:
+    """Train on all labels and write a QC-safe JSON artifact for `runtime.scanner_ranker`."""
+    model, training = train_lambdamart_model(
+        denominator,
+        labels,
+        covered_dates=covered_dates,
+        config=config,
+    )
+    feature_names = tuple(training.feature_names)
+    feature_list_hash = feature_contract_hash(feature_names)
+    dates = sorted(str(date) for date in training.panel["date"].astype(str).unique().tolist())
+    payload = {
+        "schema_version": ARTIFACT_SCHEMA_VERSION,
+        "model_type": "lightgbm_lambdamart_json",
+        "feature_names": list(feature_names),
+        "feature_list_hash": feature_list_hash,
+        "base_score": 0.0,
+        "trees": _model_trees(model),
+        "metadata": {
+            "feature_contract_version": FEATURE_CONTRACT_VERSION,
+            "denominator_contract_version": DENOMINATOR_CONTRACT_VERSION,
+            "git_commit": _repo_git_commit(),
+            "training_rows": int(len(training.panel)),
+            "positive_labels": int(training.y.sum()),
+            "covered_label_count": int(len(labels)),
+            "date_count": int(len(dates)),
+            "first_date": dates[0] if dates else "",
+            "last_date": dates[-1] if dates else "",
+            "top_n": int(config.top_n),
+            "min_score": int(config.min_score),
+            "n_estimators": int(config.n_estimators),
+            "learning_rate": float(config.learning_rate),
+            "num_leaves": int(config.num_leaves),
+            "min_child_samples": int(config.min_child_samples),
+            "positive_weight": float(config.positive_weight),
+            "negative_weight": float(config.negative_weight),
+            "use_sector_context": bool(config.use_sector_context),
+            "use_denominator_ranks": bool(config.use_denominator_ranks),
+            "use_sector_breadth": bool(config.use_sector_breadth),
+            "runtime_contract_export": set(feature_names).issubset(set(DEPLOYABLE_SCANNER_FEATURES)),
+            **(metadata or {}),
+        },
+    }
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    text = json.dumps(payload, indent=2, sort_keys=True, allow_nan=False)
+    output_path.write_text(text + "\n", encoding="utf-8")
+    loaded = load_scanner_model_artifact(str(output_path))
+    return ExportedLambdaMARTArtifact(
+        path=output_path,
+        artifact_hash=loaded.artifact_hash,
+        feature_list_hash=feature_list_hash,
+        feature_count=len(feature_names),
+        row_count=int(len(training.panel)),
+        positive_count=int(training.y.sum()),
+    )
+
+
 def write_result(result: LambdaMARTResult, output_dir: Path) -> None:
     """Write LambdaMART benchmark result tables as CSVs."""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -348,37 +544,74 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--use-qc-cloud-safe-features", action="store_true")
     parser.add_argument("--promotion-inventory", default=learned.DEFAULT_PROMOTION_INVENTORY, type=Path)
     parser.add_argument("--output-dir", type=Path)
+    parser.add_argument(
+        "--skip-oof",
+        action="store_true",
+        help="Skip date-grouped OOF reporting and only run the requested train-all export.",
+    )
+    parser.add_argument(
+        "--export-artifact",
+        type=Path,
+        help=(
+            "Train one final runtime-contract model on all covered labels and write the validated "
+            "JSON artifact. This forces the runtime deployable feature contract."
+        ),
+    )
     args = parser.parse_args(argv)
+    if args.skip_oof and args.export_artifact is None:
+        raise ValueError("--skip-oof requires --export-artifact")
 
     covered_dates = topk.covered_dates_from_coarse(args.year, args.coarse_dir)
     labels = topk.load_covered_labels(args.labels_csv, covered_dates=covered_dates)
     if not labels:
         raise ValueError("no George labels remain after covered-date filtering")
-    result = run_lambdamart_ranker(
-        learned.load_denominator(args.denominator_csv),
-        labels,
-        covered_dates=covered_dates,
-        config=LambdaMARTConfig(
-            top_n=args.top_n,
-            min_score=args.min_score,
-            n_folds=args.n_folds,
-            n_estimators=args.n_estimators,
-            learning_rate=args.learning_rate,
-            num_leaves=args.num_leaves,
-            min_child_samples=args.min_child_samples,
-            positive_weight=args.positive_weight,
-            negative_weight=args.negative_weight,
-            two_stage_top_n=args.two_stage_top_n,
-            use_sector_context=not args.no_sector_context,
-            use_denominator_ranks=not args.no_denominator_ranks,
-            use_sector_breadth=not args.no_sector_breadth,
-            use_qc_cloud_safe_features=args.use_qc_cloud_safe_features,
-            promotion_inventory_path=args.promotion_inventory,
-        ),
+    denominator = learned.load_denominator(args.denominator_csv)
+    config = LambdaMARTConfig(
+        top_n=args.top_n,
+        min_score=args.min_score,
+        n_folds=args.n_folds,
+        n_estimators=args.n_estimators,
+        learning_rate=args.learning_rate,
+        num_leaves=args.num_leaves,
+        min_child_samples=args.min_child_samples,
+        positive_weight=args.positive_weight,
+        negative_weight=args.negative_weight,
+        two_stage_top_n=args.two_stage_top_n,
+        use_sector_context=not args.no_sector_context,
+        use_denominator_ranks=not args.no_denominator_ranks,
+        use_sector_breadth=not args.no_sector_breadth,
+        use_qc_cloud_safe_features=args.use_qc_cloud_safe_features,
+        promotion_inventory_path=args.promotion_inventory,
     )
-    _print_result(result)
-    if args.output_dir is not None:
-        write_result(result, args.output_dir)
+    if not args.skip_oof:
+        result = run_lambdamart_ranker(
+            denominator,
+            labels,
+            covered_dates=covered_dates,
+            config=config,
+        )
+        _print_result(result)
+        if args.output_dir is not None:
+            write_result(result, args.output_dir)
+    if args.export_artifact is not None:
+        artifact = export_lambdamart_artifact(
+            denominator,
+            labels,
+            covered_dates=covered_dates,
+            output_path=args.export_artifact,
+            config=runtime_export_config(config),
+            metadata={
+                "labels_csv": str(args.labels_csv),
+                "denominator_csv": str(args.denominator_csv),
+                "coarse_dir": str(args.coarse_dir),
+                "export_note": "runtime contract export for opt-in scanner ranker",
+            },
+        )
+        print(
+            "\nEXPORTED ARTIFACT "
+            f"path={artifact.path} hash={artifact.artifact_hash[:12]} "
+            f"features={artifact.feature_count} rows={artifact.row_count} positives={artifact.positive_count}"
+        )
     return 0
 
 

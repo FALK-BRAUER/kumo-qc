@@ -1,5 +1,49 @@
 # FOR_FALK - BCT/George scanner-alignment implementation pass, 2026-06-09
 
+## Post-#448 artifact export and scanner-ranker sweep
+
+After #448 merged, added the missing reproducible runtime-artifact/export step and local LEAN
+sweep runner around the merged scanner-ranker grid.
+
+What changed:
+- `sweeps/archive/george_lambdamart_ranker.py` can now train one final LightGBM LambdaMART model
+  over all covered labels and export the runtime JSON schema validated by `src/runtime/scanner_ranker.py`.
+- The export path forces the deployable runtime feature contract: no George/OCR/watchlist/video/source
+  fields, no label/rank leakage, and only `DEPLOYABLE_SCANNER_FEATURES`.
+- Added `--skip-oof` so artifact export can avoid the expensive OOF benchmark when we only need the
+  train-all JSON.
+- Added `scripts/run_scanner_ranker_sweep.py` to run baseline/top-X scanner-ranker cells through the
+  local LEAN Docker adapter, with repo `storage/` linked as local ObjectStore.
+
+Local artifact generated, not committed:
+- Path: `storage/bct_lambdamart_qc_safe_v1.json`
+- ObjectStore key expected by runtime: `objectstore://bct_lambdamart_qc_safe_v1.json`
+- SHA256: `d8908f0ac221025a2415274c1a22bd79ae4e0d3aa68aed24016cb2093b9387e0`
+- Runtime metadata: 82 deployable features, 140 trees, 47,493 rows, 281 positives, 46 dates
+  from 2026-02-12 through 2026-04-30.
+
+Commands run:
+- Export:
+  `PYTHONPATH=src:. /Users/falk/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 -m sweeps.archive.george_lambdamart_ranker --labels-csv /Users/falk/projects/kumo-lab/data/bluecloudtrading/scanner_compare/george_oof_stage1_scores.csv --denominator-csv /Users/falk/projects/kumo-lab/data/bluecloudtrading/scanner_compare/george_ranking_denominator_profiled.csv --coarse-dir /Users/falk/projects/kumo-qc/data/equity/usa/fundamental/coarse --year 2026 --skip-oof --export-artifact storage/bct_lambdamart_qc_safe_v1.json`
+- January smoke:
+  `PYTHONPATH=src:. /Users/falk/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 scripts/run_scanner_ranker_sweep.py --window jan --workers 1 --only scanner_champion_baseline,scanner_lambdamart_top10 --sweep-id scanner_ranker_jan_smoke_448 --data-folder /Users/falk/projects/kumo-qc/data`
+- FY2025 top-X pack:
+  `PYTHONPATH=src:. /Users/falk/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 scripts/run_scanner_ranker_sweep.py --window fy --workers 1 --only scanner_champion_baseline,scanner_lambdamart_top10,scanner_lambdamart_top20,scanner_lambdamart_top50 --sweep-id scanner_ranker_topx_fy2025_448 --data-folder /Users/falk/projects/kumo-qc/data`
+
+FY2025 local LEAN result:
+- Baseline: Sharpe 1.025, return 27.695%, drawdown 19.400%, orders 72.
+- LambdaMART top10: Sharpe 0.074, return 0.981%, drawdown 22.000%, orders 68.
+- LambdaMART top20: Sharpe 1.065, return 29.133%, drawdown 18.800%, orders 78.
+- LambdaMART top50: Sharpe 0.995, return 25.676%, drawdown 19.800%, orders 72.
+
+Read: top20 is the first promising local integration setting. Top10 is too restrictive for the
+current trader, and top50 is not selective enough. This is still a rerank/trim of the existing
+live signal candidate panel; it is not the broader score-6 scanner lane yet.
+
+Verification:
+- `PYTHONPATH=src:. /Users/falk/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 -m pytest tests/sweeps/test_george_lambdamart_ranker.py tests/runtime/test_scanner_ranker.py tests/sweeps/test_scanner_ranker_grid.py tests/scripts/test_run_scanner_ranker_sweep.py`
+  -> 21 passed.
+
 ## #446 opt-in LambdaMART scanner runtime integration
 
 Implemented an opt-in deployable scanner ranker path. The production champion remains unchanged:
