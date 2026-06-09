@@ -52,6 +52,7 @@ class LambdaMARTResult:
     rank_summary: pd.DataFrame
     fold_summary: pd.DataFrame
     importance_summary: pd.DataFrame
+    failure_examples: pd.DataFrame
 
 
 def _import_lightgbm() -> Any:
@@ -287,6 +288,7 @@ def run_lambdamart_ranker(
         rank_summary=topk.evaluate_rank_variants(panel, variants, label_count=len(labels), ks=config.ks),
         fold_summary=pd.DataFrame(fold_rows),
         importance_summary=_importance_rows(models, feature_names),
+        failure_examples=topk.rank_failure_examples(panel, variants, k=10),
     )
 
 
@@ -298,6 +300,7 @@ def write_result(result: LambdaMARTResult, output_dir: Path) -> None:
     result.rank_summary.to_csv(output_dir / "rank_summary.csv", index=False)
     result.fold_summary.to_csv(output_dir / "fold_summary.csv", index=False)
     result.importance_summary.to_csv(output_dir / "importance_summary.csv", index=False)
+    result.failure_examples.to_csv(output_dir / "failure_examples.csv", index=False)
 
 
 def _print_result(result: LambdaMARTResult) -> None:
@@ -309,6 +312,8 @@ def _print_result(result: LambdaMARTResult) -> None:
     print(result.fold_summary.to_string(index=False))
     print("\nTOP IMPORTANCES")
     print(result.importance_summary.head(20).to_string(index=False))
+    print("\nFAILURE EXAMPLES")
+    print(result.failure_examples.head(20).to_string(index=False))
 
 
 def main(argv: Sequence[str] | None = None) -> int:

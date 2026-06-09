@@ -318,6 +318,7 @@ class LearnedRankerResult:
     rank_summary: pd.DataFrame
     fold_summary: pd.DataFrame
     coefficient_summary: pd.DataFrame
+    failure_examples: pd.DataFrame
 
 
 def load_denominator(path: Path) -> pd.DataFrame:
@@ -711,6 +712,7 @@ def run_learned_ranker(
         rank_summary=topk.evaluate_rank_variants(panel, variants, label_count=len(labels), ks=config.ks),
         fold_summary=pd.DataFrame(fold_rows),
         coefficient_summary=_coefficient_rows(models, feature_names),
+        failure_examples=topk.rank_failure_examples(panel, variants, k=10),
     )
 
 
@@ -722,6 +724,7 @@ def write_result(result: LearnedRankerResult, output_dir: Path) -> None:
     result.rank_summary.to_csv(output_dir / "rank_summary.csv", index=False)
     result.fold_summary.to_csv(output_dir / "fold_summary.csv", index=False)
     result.coefficient_summary.to_csv(output_dir / "coefficient_summary.csv", index=False)
+    result.failure_examples.to_csv(output_dir / "failure_examples.csv", index=False)
 
 
 def _print_result(result: LearnedRankerResult) -> None:
@@ -733,6 +736,8 @@ def _print_result(result: LearnedRankerResult) -> None:
     print(result.fold_summary.to_string(index=False))
     print("\nTOP COEFFICIENTS")
     print(result.coefficient_summary.head(20).to_string(index=False))
+    print("\nFAILURE EXAMPLES")
+    print(result.failure_examples.head(20).to_string(index=False))
 
 
 def main(argv: Sequence[str] | None = None) -> int:

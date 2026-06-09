@@ -14,6 +14,8 @@ columns that the promotion gate marks as both `safe_for_qc_handoff=True` and
 - Validation: chronological date-grouped OOF folds.
 - Feature gate: `feature_parity_columns.csv`.
 - Models: LightGBM LambdaMART and dependency-free pairwise linear ranker.
+- Ranking diagnostics: recall@K against all 306 labels, precision@10, median George rank, MAP over seen
+  labels, NDCG@10 over seen labels, and top10 miss examples by date.
 - Runtime status: research-only result. No runtime promotion from this experiment.
 
 The LambdaMART command enabled sector context, denominator ranks, and sector breadth, matching #435, then
@@ -22,13 +24,13 @@ used 60 surviving columns after intersecting with the harness feature set.
 
 ## Result
 
-| Variant | Gate | hits@5 | hits@10 | hits@20 | hits@50 | hits@100 | precision@10 | median George rank |
-| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| LambdaMART QC-safe subset | clean_top2000 | 52 | 88 | 133 | 183 | 204 | 19.13% | 15.0 |
-| LambdaMART QC-safe subset | score7_or_clean6 | 48 | 74 | 120 | 173 | 213 | 16.09% | 21.5 |
-| LambdaMART QC-safe subset | all rows | 47 | 72 | 117 | 178 | 223 | 15.65% | 29.0 |
-| Pairwise QC-safe subset | clean_top2000 | 26 | 54 | 95 | 149 | 184 | 11.74% | 25.5 |
-| Pairwise QC-safe subset | all rows | 15 | 32 | 72 | 130 | 182 | 6.96% | 57.0 |
+| Variant | Gate | hits@5 | hits@10 | hits@20 | hits@50 | hits@100 | precision@10 | MAP seen | NDCG@10 seen | median George rank |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| LambdaMART QC-safe subset | clean_top2000 | 52 | 88 | 133 | 183 | 204 | 19.13% | 31.69% | 37.46% | 15.0 |
+| LambdaMART QC-safe subset | score7_or_clean6 | 48 | 74 | 120 | 173 | 213 | 16.09% | 25.15% | 29.52% | 21.5 |
+| LambdaMART QC-safe subset | all rows | 47 | 72 | 117 | 178 | 223 | 15.65% | 23.49% | 27.57% | 29.0 |
+| Pairwise QC-safe subset | clean_top2000 | 26 | 54 | 95 | 149 | 184 | 11.74% | 17.06% | 18.33% | 25.5 |
+| Pairwise QC-safe subset | all rows | 15 | 32 | 72 | 130 | 182 | 6.96% | 9.12% | 8.12% | 57.0 |
 
 ## Comparison
 
@@ -42,6 +44,22 @@ used 60 surviving columns after intersecting with the harness feature set.
 The clean_top2000 LambdaMART subset is the best deployable-feature result in this pass, but it is still
 only `28.76%` recall@10. The scanner promotion gate target remains `38.11%` recall@10 over the 306 labels,
 so this experiment does not promote a runtime ranker.
+
+## Failure Examples
+
+Examples from `lambdamart_qc_cloud_safe_*_clean_top2000`, where George rows were inside the gate but missed
+the top10:
+
+| Date | George row rank | Top10 selected instead |
+| --- | ---: | --- |
+| 2026-04-30 | `TSEM@160` | ALSN, AEIS, MKSI, MTSI, RBC, DY, FN, QSR, CGNX, XMMO |
+| 2026-03-25 | `PFE@75` | FHI, UTHR, DRS, MRNA, LUNR, TYRA, ERIC, CASY, CGON, PBA |
+| 2026-04-23 | `VRT@71` | AME, PNW, BKR, RBC, LIN, NOK, ALL, WAB, AEIS, IDA |
+| 2026-03-16 | `AHR@28` | CRC, VIAV, UI, PWR, CW, MSGS, VSAT, ECG, VICR, AA |
+| 2026-03-30 | `PFE@18` | UTHR, QSR, DUK, SHEL, SRE, NYT, SO, CENX, ATO, SRTY |
+
+The misses are not random low-quality rows. They cluster around names George could plausibly prefer for
+sector or theme context that the QC-cloud-safe raw feature subset cannot yet represent.
 
 ## Read
 

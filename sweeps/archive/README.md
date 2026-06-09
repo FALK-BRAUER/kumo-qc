@@ -212,7 +212,8 @@ PYTHONPATH=src:. .venv/bin/python -m sweeps.archive.george_lambdamart_ranker \
 
 This filters the final feature matrix through `research/scanner-alignment/feature_parity_columns.csv`,
 keeping only `safe_for_qc_handoff=True` and `deployability_class=qc_cloud_deployable` features. The first
-run reached 88/306 recall@10 in clean_top2000 and 72/306 on all rows, so it is not promoted.
+run reached 88/306 recall@10 in clean_top2000 and 72/306 on all rows, so it is not promoted. Rank summaries
+include MAP and NDCG over seen labels, and `failure_examples.csv` lists per-date top10 misses.
 
 QC-cloud-safe pairwise comparison:
 

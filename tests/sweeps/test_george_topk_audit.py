@@ -124,6 +124,31 @@ def test_rank_variant_reports_hits_at_k() -> None:
     assert ranks["precision1_pct"] == 100.0
     assert ranks["hits2"] == 2
     assert ranks["median_george_rank"] == 1.0
+    assert ranks["map_seen_pct"] == 100.0
+    assert ranks["ndcg1_seen_pct"] == 100.0
+    assert ranks["ndcg2_seen_pct"] == 100.0
+
+
+def test_rank_failure_examples_show_dates_with_topk_miss() -> None:
+    labels = [("2026-02-12", "AAA"), ("2026-02-13", "CCC")]
+    panel = A.build_score6_panel(
+        _denominator(),
+        labels,
+        covered_dates={"2026-02-12", "2026-02-13"},
+    )
+    all_rows = pd.Series(True, index=panel.index)
+    score = pd.to_numeric(panel["bct_score"])
+
+    failures = A.rank_failure_examples(
+        panel,
+        {"bct_score": (all_rows, score)},
+        k=1,
+        limit_per_variant=2,
+    )
+
+    assert set(failures["date"]) == {"2026-02-12", "2026-02-13"}
+    assert set(failures["george_symbols"]) == {"AAA@2", "CCC@2"}
+    assert set(failures["top_symbols"]) == {"BBB", "DDD"}
 
 
 def test_run_topk_audit_returns_all_tables() -> None:
@@ -138,6 +163,15 @@ def test_run_topk_audit_returns_all_tables() -> None:
     assert not result.base_summary.empty
     assert "clean_top2000" in set(result.gate_summary["name"])
     assert "base__daily_structure_rank" in set(result.rank_summary["variant"])
+    assert set(result.failure_examples.columns) == {
+        "variant",
+        "date",
+        "k",
+        "seen_george_count",
+        "best_george_rank",
+        "george_symbols",
+        "top_symbols",
+    }
 
 
 def test_covered_dates_from_coarse_fails_loudly_on_empty_cache(tmp_path: Path) -> None:
