@@ -21,7 +21,17 @@ from sweeps.archive import george_sector_context_audit as sector_context
 from sweeps.archive import george_topk_audit as topk
 
 
+@dataclass(frozen=True, slots=True)
+class DenominatorRankSpec:
+    """A raw daily-panel column to turn into rank and percentile features."""
+
+    source_col: str
+    output_prefix: str
+
+
 EXTRA_USECOLS: tuple[str, ...] = (
+    "day_dollar_vol",
+    "adv20_incl_today",
     "d_tenkan_gt_kijun",
     "d_cloud_green",
     "d_price_above_ma200",
@@ -39,6 +49,7 @@ EXTRA_USECOLS: tuple[str, ...] = (
     "d_return_5d_pct",
     "d_return_10d_pct",
     "d_return_20d_pct",
+    "d_rel_volume50",
     "d_body_pct_range",
     "d_upper_wick_pct_range",
     "d_lower_wick_pct_range",
@@ -68,6 +79,29 @@ EXTRA_USECOLS: tuple[str, ...] = (
     "w_cloud_distance_pct",
     "w_tenkan_extension_pct",
 )
+
+DENOMINATOR_RANK_SPECS: tuple[DenominatorRankSpec, ...] = (
+    DenominatorRankSpec("gap_pct", "gap_pct"),
+    DenominatorRankSpec("day_return_pct", "day_return_pct"),
+    DenominatorRankSpec("rel_volume20", "rel_volume20"),
+    DenominatorRankSpec("d_rel_volume50", "rel_volume50"),
+    DenominatorRankSpec("bct_score", "bct_score"),
+    DenominatorRankSpec("daily_structure_score", "daily_structure_score"),
+    DenominatorRankSpec("d_cloud_distance_pct", "daily_cloud_distance_pct"),
+    DenominatorRankSpec("daily_breakout_quality_score", "daily_breakout_quality_score"),
+    DenominatorRankSpec("day_dollar_vol", "day_dollar_vol"),
+    DenominatorRankSpec("adv20_incl_today", "adv20"),
+)
+
+DENOMINATOR_RANK_FEATURES: tuple[str, ...] = tuple(
+    feature
+    for spec in DENOMINATOR_RANK_SPECS
+    for feature in (
+        f"{spec.output_prefix}_rank_in_panel",
+        f"{spec.output_prefix}_pctile_in_panel",
+    )
+)
+
 LEARNED_USECOLS: tuple[str, ...] = tuple(
     dict.fromkeys((*topk.DENOMINATOR_USECOLS, *EXTRA_USECOLS, *sector_context.PROFILE_USECOLS))
 )
@@ -226,6 +260,7 @@ class LearnedRankerConfig:
     pairwise_negatives_per_positive: int = 80
     use_sector_context: bool = False
     use_first_hour: bool = False
+    use_denominator_ranks: bool = False
     first_hour_minute_dir: Path | None = None
     ks: tuple[int, ...] = topk.DEFAULT_KS
 
@@ -261,6 +296,24 @@ def load_denominator(path: Path) -> pd.DataFrame:
     return pd.read_csv(path, usecols=usecols, low_memory=False)
 
 
+def add_denominator_rank_features(panel: pd.DataFrame) -> pd.DataFrame:
+    """Add per-date live-panel ranks and percentiles from raw denominator columns."""
+    out = panel.copy()
+    if "date" not in out:
+        for feature in DENOMINATOR_RANK_FEATURES:
+            out[feature] = np.nan
+        return out
+
+    group = out["date"].astype(str)
+    for spec in DENOMINATOR_RANK_SPECS:
+        rank_col = f"{spec.output_prefix}_rank_in_panel"
+        pctile_col = f"{spec.output_prefix}_pctile_in_panel"
+        values = topk._num_col(out, spec.source_col)
+        out[rank_col] = values.groupby(group).rank(method="average", ascending=False)
+        out[pctile_col] = values.groupby(group).rank(pct=True, ascending=True)
+    return out
+
+
 def make_date_folds(dates: Sequence[str], *, n_folds: int) -> list[set[str]]:
     """Create chronological date-group validation folds."""
     unique_dates = sorted(set(dates))
@@ -276,6 +329,7 @@ def build_feature_matrix(
     *,
     include_sector_context: bool = False,
     include_first_hour: bool = False,
+    include_denominator_ranks: bool = False,
 ) -> tuple[np.ndarray, list[str]]:
     """Build a numeric feature matrix from QC-safe denominator columns."""
     columns: list[np.ndarray] = []
@@ -284,6 +338,7 @@ def build_feature_matrix(
         NUMERIC_FEATURES
         + (SECTOR_NUMERIC_FEATURES if include_sector_context else ())
         + (FIRST_HOUR_NUMERIC_FEATURES if include_first_hour else ())
+        + (DENOMINATOR_RANK_FEATURES if include_denominator_ranks else ())
     )
     boolean_features = (
         BOOLEAN_FEATURES
@@ -292,7 +347,7 @@ def build_feature_matrix(
     )
     for col in numeric_features:
         values = topk._num_col(panel, col).to_numpy(dtype=float)
-        if col.endswith("_rank_price10"):
+        if col.endswith("_rank_price10") or col.endswith("_rank_in_panel"):
             values = np.log1p(values)
         columns.append(values)
         names.append(col)
@@ -492,6 +547,8 @@ def run_learned_ranker(
     if config.use_sector_context:
         panel = sector_context.add_stock_context_features(panel)
         panel, _sectors, _industries = sector_context.add_sector_industry_context(panel)
+    if config.use_denominator_ranks:
+        panel = add_denominator_rank_features(panel)
     if config.use_first_hour:
         if config.first_hour_minute_dir is None:
             raise ValueError("first_hour_minute_dir is required when use_first_hour=True")
@@ -501,6 +558,7 @@ def run_learned_ranker(
         panel,
         include_sector_context=config.use_sector_context,
         include_first_hour=config.use_first_hour,
+        include_denominator_ranks=config.use_denominator_ranks,
     )
     y = topk._bool_col(panel, "is_george").astype(float).to_numpy(dtype=float)
     folds = make_date_folds(panel["date"].astype(str).tolist(), n_folds=config.n_folds)
@@ -548,6 +606,8 @@ def run_learned_ranker(
         prefix_parts.append("sector_context")
     if config.use_first_hour:
         prefix_parts.append("first_hour")
+    if config.use_denominator_ranks:
+        prefix_parts.append("denominator_ranks")
     prefix = "_".join(prefix_parts)
     variants = {
         f"{prefix}_all": (all_rows, oof_scores),
@@ -601,6 +661,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--pairwise-negatives-per-positive", default=80, type=int)
     parser.add_argument("--use-sector-context", action="store_true")
     parser.add_argument("--use-first-hour", action="store_true")
+    parser.add_argument("--use-denominator-ranks", action="store_true")
     parser.add_argument("--minute-dir", type=Path)
     parser.add_argument("--output-dir", type=Path)
     args = parser.parse_args(argv)
@@ -624,6 +685,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             pairwise_negatives_per_positive=args.pairwise_negatives_per_positive,
             use_sector_context=args.use_sector_context,
             use_first_hour=args.use_first_hour,
+            use_denominator_ranks=args.use_denominator_ranks,
             first_hour_minute_dir=args.minute_dir,
         ),
     )

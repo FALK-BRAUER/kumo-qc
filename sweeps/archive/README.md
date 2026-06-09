@@ -143,6 +143,27 @@ The best current dependency-free learned result is
 `learned_oof_pairwise_sector_context_clean_top2000`: 46/306 recall@5, 72/306 recall@10,
 109/306 recall@20, and 160/306 recall@50. It is an offline selector benchmark, not runtime logic.
 
+Pairwise ranker with live-panel denominator rank features:
+
+```bash
+PYTHONPATH=src:. .venv/bin/python -m sweeps.archive.george_learned_ranker \
+  --labels-csv /Users/falk/projects/kumo-lab/data/bluecloudtrading/scanner_compare/george_oof_stage1_scores.csv \
+  --denominator-csv /Users/falk/projects/kumo-lab/data/bluecloudtrading/scanner_compare/george_ranking_denominator_profiled.csv \
+  --coarse-dir /Users/falk/projects/kumo-qc/data/equity/usa/fundamental/coarse \
+  --year 2026 \
+  --model-type pairwise \
+  --use-sector-context \
+  --use-denominator-ranks \
+  --learning-rate 0.08 \
+  --pairwise-negatives-per-positive 80
+```
+
+The denominator-rank features are recomputed per date over the live score-6 candidate panel; they
+do not read George rank, OCR rows, transcripts, or lab model scores.
+This moved the pairwise+sector clean-top2000 benchmark from 72/306 to 87/306 recall@10 and improved
+median George rank from 19.0 to 14.5. Keep it research-only until the runtime handoff gate proves a
+matching live denominator.
+
 Pairwise ranker with first-hour features:
 
 ```bash
