@@ -32,6 +32,8 @@ macOS keychain at runtime.
   ranges, and Markdown analysis from the George-range aggregate CSVs. `analyze_416_george_context_trades.py`
   reads completed #416 LEAN result JSONs and writes per-variant, per-symbol, and baseline-delta
   trade diagnostics for the George-context 30-pack.
+- **Scanner research hygiene:** `validate_scanner_experiment_log.py` validates the BCT/George scanner
+  experiment ledger schema and required provenance fields.
 - **Deploy / live keepers** (`kumo deploy`): `qc_v2_cloud.py`, `gate.py`, `deploy.py`.
 - **Held for cutover:** `qc_pe_cloud.py` (KEEP till #216), `build_ticker_sector_map.py`.
 
