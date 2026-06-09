@@ -7,7 +7,7 @@ the generated project ObjectStore path.
 Usage:
   python3 scripts/run_scanner_ranker_sweep.py --window jan --workers 1 --only scanner_lambdamart_top10
   python3 scripts/run_scanner_ranker_sweep.py --window fy --workers 1
-  python3 scripts/run_scanner_ranker_sweep.py --window fy --data-folder /Users/falk/projects/kumo-qc/data
+  KUMO_QC_DATA_FOLDER=~/projects/kumo-qc/data python3 scripts/run_scanner_ranker_sweep.py --window fy
 """
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / "src"), str(ROOT / "scripts")]
-os.environ.setdefault("DOCKER_HOST", "unix:///Users/falk/.docker/run/docker.sock")
+os.environ.setdefault("DOCKER_HOST", f"unix://{Path.home() / '.docker' / 'run' / 'docker.sock'}")
 
 from build.sweep_build import build_sweep_dist  # noqa: E402
 from scripts.run_408_george_range_30 import (  # noqa: E402
@@ -43,6 +43,12 @@ from sweeps.grids.scanner_ranker import (  # noqa: E402
 )
 from sweeps.types import ResultMetrics, SweepConfig, Window  # noqa: E402
 from sweeps.warmup_cache.ensure import ensure_weekly_cache  # noqa: E402
+from runtime.scanner_ranker import (  # noqa: E402
+    ScannerCandidateRow,
+    ScannerRankerError,
+    load_scanner_model_artifact,
+    rank_scanner_panel,
+)
 
 WINDOWS = {
     "fy": Window(name="fy2025_full", start="2025-01-01", end="2025-12-31"),
@@ -50,7 +56,9 @@ WINDOWS = {
     "jan": Window(name="jan2025_proof", start="2025-01-13", end="2025-01-31"),
 }
 
-DEFAULT_MARKET_DATA = Path("/Users/falk/projects/kumo-qc/data")
+DEFAULT_MARKET_DATA = Path(
+    os.environ.get("KUMO_QC_DATA_FOLDER", str(Path.home() / "projects" / "kumo-qc" / "data"))
+)
 DEFAULT_ARTIFACT_PATH = ROOT / "storage" / "bct_lambdamart_qc_safe_v1.json"
 
 SUMMARY_COLUMNS = [
@@ -109,8 +117,16 @@ def _args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _data_fingerprint() -> str:
-    manifest = ROOT / "data" / "MANIFEST.json"
+def _repo_ref(path: Path | str) -> str:
+    resolved = Path(path).expanduser().resolve()
+    try:
+        return str(resolved.relative_to(ROOT))
+    except ValueError:
+        return str(resolved)
+
+
+def _data_fingerprint(data_folder: Path) -> str:
+    manifest = data_folder.expanduser().resolve() / "MANIFEST.json"
     if not manifest.exists():
         return ""
     return str(json.loads(manifest.read_text(encoding="utf-8")).get("fingerprint") or "")
@@ -151,8 +167,11 @@ def _dist_builder(window: Window, data_fp: str, data_folder: Path) -> Any:
         source = main.read_text(encoding="utf-8")
         tail = source.split("class BCTAlgorithm")[-1]
         if "START_DATE" not in tail:
+            anchor = "    STRATEGY_CONFIG = STRATEGY_CONFIG\n"
+            if anchor not in source:
+                raise RuntimeError(f"window injection anchor missing in {main}")
             source = source.replace(
-                "    STRATEGY_CONFIG = STRATEGY_CONFIG\n",
+                anchor,
                 _window_attrs(window),
                 1,
             )
@@ -202,8 +221,11 @@ def _needs_default_artifact(variant: ScannerRankerVariant) -> bool:
 
 def _validate_artifact(args: argparse.Namespace, variants: Sequence[ScannerRankerVariant]) -> tuple[Path, str]:
     artifact = args.artifact.expanduser().resolve()
-    if not args.allow_missing_artifact and any(_needs_default_artifact(variant) for variant in variants):
+    needs_default = any(_needs_default_artifact(variant) for variant in variants)
+    if needs_default:
         if not artifact.exists():
+            if args.allow_missing_artifact:
+                return artifact, ""
             raise SystemExit(
                 f"scanner ranker artifact missing: {artifact}. "
                 "Export it first or pass --allow-missing-artifact for a fallback-only smoke."
@@ -213,6 +235,16 @@ def _validate_artifact(args: argparse.Namespace, variants: Sequence[ScannerRanke
             raise SystemExit(
                 f"artifact must live at {expected} for {DEFAULT_MODEL_KEY}; got {artifact}"
             )
+        try:
+            model = load_scanner_model_artifact(str(artifact))
+            zero_features = {name: 0.0 for name in model.feature_names}
+            rank_scanner_panel(
+                [ScannerCandidateRow(ticker="ARTIFACT_PRECHECK", features=zero_features)],
+                model,
+                top_x=1,
+            )
+        except ScannerRankerError as exc:
+            raise SystemExit(f"scanner ranker artifact invalid: {exc}") from exc
     return artifact, _file_sha256(artifact)
 
 
@@ -242,6 +274,7 @@ def _run_variant(
     artifact_path: Path,
     artifact_sha256: str,
 ) -> dict[str, Any]:
+    uses_default_artifact = _needs_default_artifact(variant)
     run_dir = adapter._run_dir(variant.config, window)
     result_path = ""
     error = ""
@@ -263,10 +296,10 @@ def _run_variant(
         "ret_pct": metrics.ret_pct,
         "dd_pct": metrics.dd_pct,
         "orders": metrics.orders,
-        "artifact_path": str(artifact_path),
-        "artifact_sha256": artifact_sha256,
-        "run_dir": str(run_dir),
-        "result_path": result_path,
+        "artifact_path": _repo_ref(artifact_path) if uses_default_artifact else "",
+        "artifact_sha256": artifact_sha256 if uses_default_artifact else "",
+        "run_dir": _repo_ref(run_dir),
+        "result_path": _repo_ref(result_path) if result_path else "",
         "error": error,
     }
 
@@ -299,15 +332,31 @@ def _write_summary(report_dir: Path, rows: Sequence[dict[str, Any]], manifest: d
     )
 
 
+def _raise_on_failures(rows: Sequence[dict[str, Any]]) -> None:
+    failures = [row for row in rows if not row.get("ok")]
+    if not failures:
+        return
+    print("\n=== FAILURES ===", flush=True)
+    for row in failures:
+        print(f"{row['variant_id']}: {row.get('error', '')}", flush=True)
+    raise SystemExit(1)
+
+
 def main() -> None:
     args = _args()
     variants = _variants(args)
+    if not variants:
+        raise SystemExit("no variants selected")
+    if not 1 <= args.workers <= len(variants):
+        raise SystemExit(f"--workers must be between 1 and {len(variants)}, got {args.workers}")
     artifact_path, artifact_sha256 = _validate_artifact(args, variants)
     window = WINDOWS[args.window]
     sweep_id = args.sweep_id or f"scanner_ranker_first_pack_{window.name}"
     runs_root, report_dir = _report_dirs(sweep_id)
-    data_fp = _data_fingerprint()
     data_folder = args.data_folder.expanduser().resolve()
+    if not data_folder.exists():
+        raise SystemExit(f"--data-folder does not exist: {data_folder}")
+    data_fp = _data_fingerprint(data_folder)
 
     if data_fp and not args.no_cache_ensure:
         ensure_weekly_cache(
@@ -368,18 +417,19 @@ def main() -> None:
         "workers": args.workers,
         "variant_count": len(variants),
         "ok_count": sum(1 for row in rows if row["ok"]),
-        "artifact_path": str(artifact_path),
+        "artifact_path": _repo_ref(artifact_path) if any(_needs_default_artifact(v) for v in variants) else "",
         "artifact_sha256": artifact_sha256,
         "default_model_key": DEFAULT_MODEL_KEY,
         "data_fingerprint": data_fp,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "reports": {
-            "summary_csv": str(report_dir / "summary.csv"),
-            "summary_md": str(report_dir / "summary.md"),
+            "summary_csv": _repo_ref(report_dir / "summary.csv"),
+            "summary_md": _repo_ref(report_dir / "summary.md"),
         },
     }
     _write_summary(report_dir, rows, manifest)
     print(f"REPORT {report_dir}", flush=True)
+    _raise_on_failures(rows)
 
 
 if __name__ == "__main__":
