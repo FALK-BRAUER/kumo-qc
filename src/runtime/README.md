@@ -7,7 +7,9 @@ Goes here: `lean_entry.py` (the QCAlgorithm subclass — universe/decision/intra
 lifecycle), `lean_indicators.py` (LEAN-faithful Ichimoku/ADX/SMA/WeeklyIchimokuAsOf ports), the
 warmup-cache READ side (`warmup_weekly_cache.py` — key formula + ObjectStore load, #358), cost model,
 tag schema, and pure runtime helpers such as `watchlist_carry.py`, `security_profiles.py`, and
-`george_attention.py`. Does not go here: offline/runner mechanics (those live in `sweeps/` +
+`george_attention.py`. `scanner_ranker.py` is the deployable learned scanner scorer: artifact loading,
+feature-contract hashing, live candidate-panel features, denominator ranks, and pure tree evaluation.
+Does not go here: offline/runner mechanics (those live in `sweeps/` +
 `scripts/`, NOT bundled), phase implementations (`src/phases/`), or the engine core (`src/engine/`).
 
 `security_profiles.py` accepts `proxy_etf` plus optional semicolon/comma-separated `proxy_etfs` so

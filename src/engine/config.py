@@ -60,6 +60,11 @@ class RuntimeConfig:
     watchlist_carry_min_avg_dollar_volume: float = 100_000_000.0
     security_profile_source: str | None = None
     george_attention_source: str | None = None
+    scanner_ranker_enabled: bool = False
+    scanner_ranker_model_path: str | None = None
+    scanner_ranker_top_x: int = 0
+    scanner_ranker_min_score: float | None = None
+    scanner_ranker_fallback: str = "raise"
 
 
 @dataclass(slots=True)

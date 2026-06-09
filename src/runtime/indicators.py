@@ -57,6 +57,7 @@ class TBounceTracker:
       - `sessions_below_tenkan` (consecutive daily closes below daily Tenkan; degrade C2 when >3).
       - `gap_up_frac` = today's open vs the PRIOR daily close (degrade C2 when > gap_up_threshold,
         the Rule #10 first-test-after-gap-up guard; HQ default 1%).
+      - `gap_pct` / `last_prior_close` = signed open-vs-prior-close context for scanner ranking.
 
     update(open_, high, low, close, tenkan) is called once per completed daily bar (the daily
     consolidator in lean_entry feeds it). Pure float state — golden-masterable, no QC types.
@@ -66,7 +67,7 @@ class TBounceTracker:
     """
 
     __slots__ = (
-        "sessions_below_tenkan", "gap_up_frac", "prev_close",
+        "sessions_below_tenkan", "gap_up_frac", "gap_pct", "last_prior_close", "prev_close",
         "last_open", "last_high", "last_low", "last_close", "last_volume",
         "prior_high20", "prior_high50", "prior_high252", "rel_volume20",
         "_high20", "_high50", "_high252", "_vol20",
@@ -75,6 +76,8 @@ class TBounceTracker:
     def __init__(self) -> None:
         self.sessions_below_tenkan: int = 0
         self.gap_up_frac: float = 0.0
+        self.gap_pct: float = 0.0
+        self.last_prior_close: float | None = None
         self.prev_close: float | None = None
         self.last_open: float | None = None
         self.last_high: float | None = None
@@ -105,14 +108,18 @@ class TBounceTracker:
         sessions_below_tenkan: increment while close < Tenkan, reset to 0 the day close >= Tenkan.
         gap_up_frac: (open - prev_close)/prev_close, clamped at >= 0 (only UP gaps matter; a
           gap-down is 0.0). First bar (no prior close) -> 0.0. Uses the PRIOR close (set last bar).
+        gap_pct: signed 100 * (open - prev_close)/prev_close for scanner ranking.
         prior_high20/50/252: max high in each completed-bar window BEFORE the current bar.
         rel_volume20: current completed-bar volume versus the PRIOR 20-bar average.
         """
         # gap uses the PRIOR bar's close — compute BEFORE overwriting prev_close.
-        if self.prev_close is not None and self.prev_close > 0.0:
-            frac = (open_ - self.prev_close) / self.prev_close
+        self.last_prior_close = self.prev_close
+        if self.last_prior_close is not None and self.last_prior_close > 0.0:
+            frac = (open_ - self.last_prior_close) / self.last_prior_close
+            self.gap_pct = 100.0 * frac
             self.gap_up_frac = frac if frac > 0.0 else 0.0
         else:
+            self.gap_pct = 0.0
             self.gap_up_frac = 0.0
 
         if tenkan > 0.0 and close < tenkan:
