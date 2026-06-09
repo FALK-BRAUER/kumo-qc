@@ -234,6 +234,21 @@ PYTHONPATH=src:. .venv/bin/python -m sweeps.archive.george_learned_ranker \
 
 The pairwise QC-safe subset underperformed LambdaMART, with 54/306 recall@10 in clean_top2000.
 
+Feature-source LambdaMART ablation:
+
+```bash
+PYTHONPATH=src:. .venv/bin/python -m sweeps.archive.george_feature_source_ablation \
+  --labels-csv /Users/falk/projects/kumo-lab/data/bluecloudtrading/scanner_compare/george_oof_stage1_scores.csv \
+  --denominator-csv /Users/falk/projects/kumo-lab/data/bluecloudtrading/scanner_compare/george_ranking_denominator_profiled.csv \
+  --coarse-dir /Users/falk/projects/kumo-qc/data/equity/usa/fundamental/coarse \
+  --year 2026
+```
+
+This runs the seven controlled LambdaMART feature-source cells from the scanner-alignment goal. The first
+run found sector/industry breadth is the best clean_top2000 lift at 101/306 recall@10, while denominator
+ranks are the best all-row lift at 100/306 recall@10. Both remain research-only until the feature source is
+reproducible in QC cloud.
+
 Optional PU weighting and two-stage LambdaMART rerank:
 
 ```bash
