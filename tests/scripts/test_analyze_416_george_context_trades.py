@@ -7,6 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
 
 from analyze_416_george_context_trades import (  # noqa: E402
+    _load_summary,
     _compare_to_baseline,
     extract_trades,
     parse_decision_tag,
@@ -143,3 +144,18 @@ def test_compare_to_baseline_counts_added_and_missed_entries(tmp_path: Path) -> 
     assert row["missed_entry_count"] == "1"
     assert row["added_symbols"] == "NEW"
     assert row["missed_symbols"] == "BASE"
+
+
+def test_load_summary_skips_failed_rows_without_result_path(tmp_path: Path) -> None:
+    report = tmp_path / "report"
+    report.mkdir()
+    (report / "summary.csv").write_text(
+        "variant_id,family,ok,result_path\n"
+        "good,fam,True,/tmp/result.json\n"
+        "bad,fam,False,\n",
+        encoding="utf-8",
+    )
+
+    rows = _load_summary(report)
+
+    assert [row["variant_id"] for row in rows] == ["good"]

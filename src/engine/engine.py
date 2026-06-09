@@ -488,6 +488,7 @@ class StrategyEngine:
         # #276b-1 FIX3: key active symbols by the canonical key (single-source normalizer) so the
         # FIRE seam resolves intent.ticker regardless of case — kills the .value-vs-.lower() drift class.
         active_by_key: dict[str, Any] = {canonical_symbol_key(s): s for s in getattr(qc, "_active", set())}
+        held_by_key: dict[str, Any] = self._held_symbols_by_key(qc)
 
         if sentinel is FIRE_ENTRIES:
             for intent in ctx.bar_state.sized_orders:
@@ -566,7 +567,8 @@ class StrategyEngine:
                 qc.log(f"ENTRY|{date_str}|{intent.ticker}|qty={intent.qty}|price~{price:.2f}")
         elif sentinel is FIRE_EXITS:
             for intent in ctx.bar_state.exit_intents:
-                sym = active_by_key.get(canonical_symbol_key(intent.ticker))
+                sym = active_by_key.get(canonical_symbol_key(intent.ticker)) \
+                    or held_by_key.get(canonical_symbol_key(intent.ticker))
                 if sym is None:
                     continue
                 self._cancel_protective_stop(qc, sym, date_str)  # BEFORE the exit — no orphan
@@ -587,7 +589,8 @@ class StrategyEngine:
                 self._fired_adds += 1
         elif sentinel is FIRE_TRIMS:
             for intent in ctx.bar_state.trim_intents:
-                sym = active_by_key.get(canonical_symbol_key(intent.ticker))
+                sym = active_by_key.get(canonical_symbol_key(intent.ticker)) \
+                    or held_by_key.get(canonical_symbol_key(intent.ticker))
                 if sym is None:
                     continue
                 # #276a GUARD-1 (trim + live stop): a partial trim (+10→+6) leaves the resting
@@ -607,6 +610,36 @@ class StrategyEngine:
         for cap in self.phases.get("portfolio_risk", []):
             if getattr(cap, "enabled", True) and hasattr(cap, "bound_adds"):
                 cap.bound_adds(ctx, self._tick_entry_value)
+
+    @classmethod
+    def _held_symbols_by_key(cls, qc: Any) -> dict[str, Any]:
+        """Resolve exit-side intents against invested holdings, not only today's active universe.
+
+        A held position can age out of qc._active when the scanner/universe moves on. Runtime exits
+        still must fire for that position; otherwise an exit phase can emit an intent forever while
+        FIRE_EXITS silently skips the broker order.
+        """
+        portfolio = getattr(qc, "portfolio", {})
+        items = getattr(portfolio, "items", None)
+        if not callable(items):
+            return {}
+        held: dict[str, Any] = {}
+        for symbol, holding in list(items()):
+            if cls._holding_invested(holding):
+                held[canonical_symbol_key(symbol)] = symbol
+        return held
+
+    @staticmethod
+    def _holding_invested(holding: Any) -> bool:
+        invested = getattr(holding, "invested", None)
+        if invested is None:
+            invested = getattr(holding, "Invested", None)
+        if invested is not None:
+            return bool(invested)
+        qty = getattr(holding, "quantity", None)
+        if qty is None:
+            qty = getattr(holding, "Quantity", 0.0)
+        return bool(qty)
 
     def _guard_position_change_vs_protective_stop(self, qc: Any, sym: Any, op: str) -> None:
         """#276a GUARD-1/2: a trim/add on a position with a LIVE protective stop, without the

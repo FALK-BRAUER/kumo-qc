@@ -73,6 +73,7 @@ def test_no_progress_exit_after_wait_window():
 
 def test_requires_position_path_contract():
     assert ScratchFlatExit.REQUIRES_UPSTREAM == ["position_path"]
+    assert ScratchFlatExit.PHASE_RESOLUTION == "intraday"
 
 
 def test_missing_position_path_raises_loud():
@@ -105,6 +106,26 @@ def test_loss_cap_after_mfe_exits():
 
     assert result.facts["capped_loss_count"] == 1
     assert len(ctx.bar_state.exit_intents) == 1
+
+
+def test_uses_position_path_last_price_for_intraday_scratch():
+    sym = _sym("META")
+    qc = FakeQC(sym, close=103.0)
+    qc._position_path = {
+        sym: {
+            "last_price": 100.2,
+            "peak_price": 104.0,
+            "current_return_pct": 0.002,
+            "mfe_pct": 0.04,
+            "giveback_pct": 0.038,
+            "days_held": 5,
+        }
+    }
+
+    result, ctx = _run(qc, min_mfe_pct=0.02, scratch_band_pct=0.005)
+
+    assert result.facts["roundtrip_count"] == 1
+    assert ctx.bar_state.exit_intents[0].price == 100.2
 
 
 def test_holds_young_trade_with_no_mfe():

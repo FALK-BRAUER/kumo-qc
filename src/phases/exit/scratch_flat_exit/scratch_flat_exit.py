@@ -16,6 +16,7 @@ from engine.context import OrderIntent, PhaseContext
 
 class ScratchFlatExit(BasePhase):
     PHASE_KIND = "exit_hard"
+    PHASE_RESOLUTION = "intraday"
     REQUIRES_UPSTREAM = ["position_path"]
     PROVIDES_DOWNSTREAM = ["exit_intents"]
 
@@ -40,17 +41,16 @@ class ScratchFlatExit(BasePhase):
         capped_loss_count = 0
 
         for symbol, holding in list(qc.portfolio.items()):
-            if not getattr(holding, "invested", False) or qc.transactions.get_open_orders(symbol):
+            if not self._is_invested(holding):
                 continue
             if self._already_exiting(ctx, getattr(symbol, "value", str(symbol))):
                 continue
             meta = getattr(qc, "_position_meta", {}).get(symbol, {})
+            if self._has_blocking_open_orders(qc, symbol, meta):
+                continue
             entry_price = float(meta.get("entry_price", 0.0) or 0.0)
             entry_date = meta.get("entry_date")
             if entry_price <= 0.0 or not isinstance(entry_date, datetime):
-                continue
-            close = self._close(qc, symbol)
-            if close <= 0.0:
                 continue
 
             path = getattr(qc, "_position_path", {}).get(symbol)
@@ -59,10 +59,14 @@ class ScratchFlatExit(BasePhase):
                     f"scratch-flat exit requires PositionPathTracker state: "
                     f"symbol={symbol.value!r} date={date_str} missing qc._position_path entry"
                 )
+            close = float(path.get("last_price", 0.0) or self._close(qc, symbol))
+            if close <= 0.0:
+                continue
             peak = max(float(path.get("peak_price", entry_price)), close, entry_price)
-            pnl_pct = close / entry_price - 1.0
+            pnl_pct = float(path.get("current_return_pct", close / entry_price - 1.0))
             peak_pct = float(path.get("mfe_pct", peak / entry_price - 1.0))
             mae_pct = float(path.get("mae_pct", min(close, entry_price) / entry_price - 1.0))
+            giveback_pct = float(path.get("giveback_pct", peak_pct - pnl_pct))
             days_held = int(path.get("days_held", max((ctx.time - entry_date).days, 0)))
 
             reason = ""
@@ -89,11 +93,11 @@ class ScratchFlatExit(BasePhase):
                 continue
 
             ctx.bar_state.exit_intents.append(
-                OrderIntent(
-                    ticker=symbol.value,
-                    qty=-holding.quantity,
-                    price=close,
-                    stop=entry_price,
+                    OrderIntent(
+                        ticker=symbol.value,
+                        qty=-self._quantity(holding),
+                        price=close,
+                        stop=entry_price,
                     module="exit.scratch_flat_exit",
                     risk_dollars=0.0,
                     order_type="market",
@@ -107,14 +111,14 @@ class ScratchFlatExit(BasePhase):
                     symbol=symbol,
                     module="exit.scratch_flat_exit",
                     reason=reason,
-                    quantity=float(holding.quantity),
+                    quantity=self._quantity(holding),
                     entry_price=entry_price,
                     exit_price=close,
                     days_held=days_held,
                     mfe_pct=peak_pct,
                     mae_pct=mae_pct,
                     peak_return_pct=peak_pct,
-                    giveback_from_peak_pct=peak_pct - pnl_pct,
+                    giveback_from_peak_pct=giveback_pct,
                 )
             )
 
@@ -140,9 +144,38 @@ class ScratchFlatExit(BasePhase):
     def _already_exiting(ctx: PhaseContext, ticker: str) -> bool:
         return any(intent.ticker == ticker for intent in ctx.bar_state.exit_intents)
 
+    @staticmethod
+    def _is_invested(holding: Any) -> bool:
+        invested = getattr(holding, "invested", None)
+        if invested is None:
+            invested = getattr(holding, "Invested", False)
+        return bool(invested)
+
+    @staticmethod
+    def _quantity(holding: Any) -> float:
+        return float(getattr(holding, "quantity", getattr(holding, "Quantity", 0.0)) or 0.0)
+
+    @classmethod
+    def _has_blocking_open_orders(cls, qc: Any, symbol: Any, meta: dict[str, Any]) -> bool:
+        orders = list(qc.transactions.get_open_orders(symbol))
+        if not orders:
+            return False
+        protective_stop_id = cls._ticket_id(meta.get("protective_stop_ticket"))
+        if protective_stop_id is None:
+            return True
+        return any(cls._order_id(order) != protective_stop_id for order in orders)
+
+    @staticmethod
+    def _ticket_id(ticket: Any) -> Any:
+        return getattr(ticket, "order_id", getattr(ticket, "OrderId", None))
+
+    @staticmethod
+    def _order_id(order: Any) -> Any:
+        return getattr(order, "id", getattr(order, "Id", getattr(order, "order_id", getattr(order, "OrderId", None))))
+
     @property
     def version_marker(self) -> str:
-        return "scratch_flat_exit_v1"
+        return "scratch_flat_exit_v2"
 
 
 def log_exit_event(
