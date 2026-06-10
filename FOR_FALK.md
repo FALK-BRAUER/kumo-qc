@@ -610,6 +610,23 @@ gap/open/morning timing.
 Falk — what shipped while you slept, why, and what's waiting on you. All committed + pushed
 (branch tip below). Nothing merged to main; champion still NOT merged (your call).
 
+## #451 Realized giveback candidate
+
+This branch starts the post-scanner pivot: use an actual realized strategy candidate instead of the
+headline-good scanner/baseline path whose FY2025 return was mostly unrealized open PnL.
+
+Added `strategies.realized_giveback_no_bull`, a non-fixture module reproducing the
+`giveback_tight_no_bull` #408 sweep variant:
+- `target_pct=0.06`
+- `min_peak_pct=0.04`
+- `giveback_from_peak_pct=0.015`
+- `require_still_bullish=False`
+
+Archived FY2025 diagnostic for that candidate: `10.960%` return, `17.6%` DD, 117 closed trades,
+93.2% closed win rate, and `+$24,815.07` closed-trade PnL. This is not champion promotion yet; the
+next run must expose realized net, unrealized PnL, closed win rate, and forced-liquidation behavior
+in the leaderboard before any comparison against scanner/baseline.
+
 ## What shipped (4 clean commits, all pushed)
 
 1. **Run-class protocol** (`6ae4290`) — you caught real slack: the substrate runs were reported
