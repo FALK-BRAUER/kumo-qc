@@ -9,6 +9,7 @@ from sweeps.grids.scanner_ranker import (
     all_variants,
     first_pack,
     rank_aware_intraday_pack,
+    rank_aware_sizing_pack,
     real_strategy_scanner_pack,
     top20_realized_exit_pack,
     top_x_expansion_pack,
@@ -107,6 +108,25 @@ def test_rank_aware_intraday_pack_shape() -> None:
         "rankaware_top50_mid30_tail",
     ]
     assert {variant.wave for variant in variants} == {4}
+    assert {variant.config.runtime_dict()["scanner_ranker_top_x"] for variant in variants} == {20, 50}
+    assert len({variant.variant_id for variant in all_variants()}) == len(all_variants())
+
+
+def test_rank_aware_sizing_pack_shape() -> None:
+    variants = rank_aware_sizing_pack()
+
+    assert len(variants) == 8
+    assert [variant.variant_id for variant in variants] == [
+        "ranksize_top20_flat_control",
+        "ranksize_top20_balanced",
+        "ranksize_top20_concentrated",
+        "ranksize_top20_de_risked",
+        "ranksize_top50_flat_control",
+        "ranksize_top50_balanced",
+        "ranksize_top50_tail_tiny",
+        "ranksize_top50_top_heavy",
+    ]
+    assert {variant.wave for variant in variants} == {5}
     assert {variant.config.runtime_dict()["scanner_ranker_top_x"] for variant in variants} == {20, 50}
     assert len({variant.variant_id for variant in all_variants()}) == len(all_variants())
 
@@ -221,6 +241,43 @@ def test_rank_aware_variant_swaps_entry_algorithm_and_preserves_preflight() -> N
     assert entries[1].params.tail_vol_mult == 1.50
     assert cfg.runtime.scanner_ranker_enabled is True
     assert cfg.runtime.scanner_ranker_top_x == 50
+
+
+def test_rank_aware_sizing_variant_swaps_sizer_only() -> None:
+    variant = next(
+        item
+        for item in rank_aware_sizing_pack()
+        if item.variant_id == "ranksize_top50_tail_tiny"
+    )
+
+    cfg = sweep_to_strategy_config(variant.config, base_module=variant.base_module)
+
+    sizing = cfg.phases["sizing"]
+    assert not isinstance(sizing, list)
+    assert sizing.impl.__name__ == "RankAwareHeatcap"
+    assert sizing.params.top_multiplier == 1.20
+    assert sizing.params.mid_multiplier == 0.80
+    assert sizing.params.tail_multiplier == 0.20
+    entries = cfg.phases["entry_selection"]
+    assert [slot.impl.__name__ for slot in entries] == ["PreFlightStaleness", "BctIntradayGapVolConfirm"]
+    assert cfg.runtime.scanner_ranker_enabled is True
+    assert cfg.runtime.scanner_ranker_top_x == 50
+
+
+def test_rank_aware_sizing_control_keeps_flat_sizer() -> None:
+    variant = next(
+        item
+        for item in rank_aware_sizing_pack()
+        if item.variant_id == "ranksize_top20_flat_control"
+    )
+
+    cfg = sweep_to_strategy_config(variant.config, base_module=variant.base_module)
+
+    sizing = cfg.phases["sizing"]
+    assert not isinstance(sizing, list)
+    assert sizing.impl.__name__ == "FlatPctHeatcap"
+    assert cfg.runtime.scanner_ranker_enabled is True
+    assert cfg.runtime.scanner_ranker_top_x == 20
 
 
 def test_top25_expansion_variant_maps_ranker_runtime_and_phase() -> None:

@@ -5,7 +5,7 @@ entry_selection catalog (#253): every phase KIND exposes a `<KIND>_PHASES` tuple
 CLASS REFERENCES — the canonical, type-checked enumeration a sweep/discovery runner (#214)
 selects from for that kind:
 
-    SIZING_PHASES: tuple[type[BasePhase], ...] = (FlatPctHeatcap, ScoreTierHeatcap)
+    SIZING_PHASES: tuple[type[BasePhase], ...] = (FlatPctHeatcap, ScoreTierHeatcap, RankAwareHeatcap)
 
 Why a typed tuple of class refs (NOT a string registry):
   - Conforms to CONVENTIONS.md "DIRECT CLASS REFERENCES, not strings". A registry may exist
@@ -23,11 +23,14 @@ independent of whether it beats the baseline.
     the X/4 entry-confirm score).
   - ScoreTierHeatcap: the score-aware sizer — the published X/4 BINDS via the methodology tiers
     (4/4 full . 3/4 75% . 2/4 50% . <2 no-entry), COMPOSED WITH the same heat-cap.
+  - RankAwareHeatcap: the opt-in scanner-rank sizer — LambdaMART rank buckets scale the per-name
+    target, COMPOSED WITH the same heat-cap.
 """
 from __future__ import annotations
 
 from engine.base import BasePhase
 from phases.sizing.flat_pct_heatcap.flat_pct_heatcap import FlatPctHeatcap
+from phases.sizing.rank_aware_heatcap.rank_aware_heatcap import RankAwareHeatcap
 from phases.sizing.score_tier_heatcap.score_tier_heatcap import ScoreTierHeatcap
 
-SIZING_PHASES: tuple[type[BasePhase], ...] = (FlatPctHeatcap, ScoreTierHeatcap)
+SIZING_PHASES: tuple[type[BasePhase], ...] = (FlatPctHeatcap, ScoreTierHeatcap, RankAwareHeatcap)

@@ -10,6 +10,7 @@ from engine.base import PhaseInterface
 from phases.shared.param_space import ComplexityDecl, ParamSpace
 from phases.sizing.flat_pct_heatcap.flat_pct_heatcap import FlatPctHeatcap
 from phases.sizing.library import SIZING_PHASES
+from phases.sizing.rank_aware_heatcap.rank_aware_heatcap import RankAwareHeatcap
 from phases.sizing.score_tier_heatcap.score_tier_heatcap import ScoreTierHeatcap
 
 
@@ -22,6 +23,7 @@ def test_catalog_is_a_tuple_of_classes_not_strings() -> None:
 def test_both_sizers_are_catalogued() -> None:
     assert FlatPctHeatcap in SIZING_PHASES
     assert ScoreTierHeatcap in SIZING_PHASES
+    assert RankAwareHeatcap in SIZING_PHASES
 
 
 def test_every_catalogued_phase_declares_sizing_kind() -> None:

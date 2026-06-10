@@ -866,3 +866,20 @@ I pivot to: the cloud-tag cross-check (validator data ready) + the #322 OracleSi
 wiring (deferred as speculative until the mine's output shape is known).
 
 Branch tip: `7b0d967` · suite 1152 passing · worktree kumo-qc-276b1.
+
+## #469 Rank-Aware Sizing/Revalidation Follow-Up
+
+After #474, I tested whether the LambdaMART scanner rank should change capital allocation, not just
+candidate inclusion. Added `RankAwareHeatcap`, an opt-in sizing phase that preserves the flat
+heat-cap contract but scales per-symbol target size by frozen scanner-rank buckets.
+
+FY2025 result: top20 rank sizing is rejected. The flat top20 scanner gate remains best in this
+family at `29.133%` return, `18.800%` DD, Sharpe `1.065`, realized `-17328.77`, unrealized
+`$46,510.78`. Top50 balanced sizing is the only interesting row: `28.646%` return, `20.100%` DD,
+Sharpe `1.002`, realized `-18500.09`, unrealized `$47,193.47`. It improves the top50 flat control
+by `+2.970` return points but does not beat top20 flat, and the gain is still unrealized-heavy.
+
+Important mechanism: shrinking weaker-rank sizes can free cash and allow more entries, which
+increased churn in the tail-tiny/top-heavy variants. Next useful slice is not "smaller tail"
+again; it is top50 balanced plus an entry-count cap, stricter rank>20 revalidation, or realized-exit
+overlay. No champion switch.
