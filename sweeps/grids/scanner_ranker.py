@@ -67,6 +67,15 @@ def _entry(impl_name: str, *, free_params: int | None = None, **params: object) 
     )
 
 
+def _sizing(impl_name: str, *, free_params: int | None = None, **params: object) -> PhaseChoice:
+    return PhaseChoice(
+        kind="sizing",
+        impl_name=impl_name,
+        params=_pairs(**params),
+        free_params=len(params) if free_params is None else free_params,
+    )
+
+
 def _exit(impl_name: str, *, free_params: int | None = None, **params: object) -> PhaseChoice:
     phase_params = dict(params)
     counted_params = len(phase_params) if free_params is None else free_params
@@ -494,12 +503,129 @@ def rank_aware_intraday_pack() -> list[ScannerRankerVariant]:
     ]
 
 
+def _rank_aware_sizing(**params: object) -> PhaseChoice:
+    return _sizing(
+        "rank_aware_heatcap",
+        free_params=3,
+        **params,
+    )
+
+
+def rank_aware_sizing_pack() -> list[ScannerRankerVariant]:
+    """#469 second rank-aware scanner pack.
+
+    Controls keep the current flat 5% intraday sizer and use LambdaMART only as a Top-X gate.
+    Rank-aware variants preserve the existing entry confirm and scale capital by scanner rank.
+    """
+    return [
+        ScannerRankerVariant(
+            variant_id="ranksize_top20_flat_control",
+            family="rank_aware_sizing_control",
+            wave=5,
+            hypothesis="Control: LambdaMART Top-20 gate with current flat 5% heat-cap sizing.",
+            config=_rank_aware_config(20),
+        ),
+        ScannerRankerVariant(
+            variant_id="ranksize_top20_balanced",
+            family="rank_aware_sizing",
+            wave=5,
+            hypothesis="Top20: modestly overweight ranks 1-10 and underweight ranks 11-20.",
+            config=_rank_aware_config(
+                20,
+                _rank_aware_sizing(
+                    top_multiplier=1.15,
+                    mid_multiplier=0.85,
+                    tail_multiplier=0.50,
+                ),
+            ),
+        ),
+        ScannerRankerVariant(
+            variant_id="ranksize_top20_concentrated",
+            family="rank_aware_sizing",
+            wave=5,
+            hypothesis="Top20: concentrate capital into ranks 1-10; ranks 11-20 become small starters.",
+            config=_rank_aware_config(
+                20,
+                _rank_aware_sizing(
+                    top_multiplier=1.35,
+                    mid_multiplier=0.65,
+                    tail_multiplier=0.25,
+                ),
+            ),
+        ),
+        ScannerRankerVariant(
+            variant_id="ranksize_top20_de_risked",
+            family="rank_aware_sizing",
+            wave=5,
+            hypothesis="Top20: keep top ranks at base size and reduce ranks 11-20 to cut loser exposure.",
+            config=_rank_aware_config(
+                20,
+                _rank_aware_sizing(
+                    top_multiplier=1.00,
+                    mid_multiplier=0.70,
+                    tail_multiplier=0.25,
+                ),
+            ),
+        ),
+        ScannerRankerVariant(
+            variant_id="ranksize_top50_flat_control",
+            family="rank_aware_sizing_control",
+            wave=5,
+            hypothesis="Control: LambdaMART Top-50 gate with current flat 5% heat-cap sizing.",
+            config=_rank_aware_config(50),
+        ),
+        ScannerRankerVariant(
+            variant_id="ranksize_top50_balanced",
+            family="rank_aware_sizing",
+            wave=5,
+            hypothesis="Top50: overweight top ranks, keep ranks 11-20 near base, make ranks 21-50 small.",
+            config=_rank_aware_config(
+                50,
+                _rank_aware_sizing(
+                    top_multiplier=1.25,
+                    mid_multiplier=0.85,
+                    tail_multiplier=0.45,
+                ),
+            ),
+        ),
+        ScannerRankerVariant(
+            variant_id="ranksize_top50_tail_tiny",
+            family="rank_aware_sizing",
+            wave=5,
+            hypothesis="Top50: let tail candidates through only as tiny probes, preserving breadth with less drag.",
+            config=_rank_aware_config(
+                50,
+                _rank_aware_sizing(
+                    top_multiplier=1.20,
+                    mid_multiplier=0.80,
+                    tail_multiplier=0.20,
+                ),
+            ),
+        ),
+        ScannerRankerVariant(
+            variant_id="ranksize_top50_top_heavy",
+            family="rank_aware_sizing",
+            wave=5,
+            hypothesis="Top50: aggressively concentrate into top ranks while retaining small tail optionality.",
+            config=_rank_aware_config(
+                50,
+                _rank_aware_sizing(
+                    top_multiplier=1.50,
+                    mid_multiplier=0.70,
+                    tail_multiplier=0.25,
+                ),
+            ),
+        ),
+    ]
+
+
 PACKS = {
     "first": first_pack,
     "top_x_expansion": top_x_expansion_pack,
     "real_strategy_scanner": real_strategy_scanner_pack,
     "top20_realized_exit": top20_realized_exit_pack,
     "rank_aware_intraday": rank_aware_intraday_pack,
+    "rank_aware_sizing": rank_aware_sizing_pack,
 }
 
 
