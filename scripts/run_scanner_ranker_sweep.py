@@ -66,6 +66,7 @@ SUMMARY_COLUMNS = [
     "variant_id",
     "family",
     "wave",
+    "base_module",
     "hypothesis",
     "sweep_config_hash",
     "window",
@@ -74,6 +75,12 @@ SUMMARY_COLUMNS = [
     "ret_pct",
     "dd_pct",
     "orders",
+    "realized_net",
+    "unrealized",
+    "closed_trades",
+    "closed_wins",
+    "closed_losses",
+    "closed_win_rate",
     "artifact_path",
     "artifact_sha256",
     "run_dir",
@@ -159,12 +166,17 @@ def _window_attrs(window: Window) -> str:
     )
 
 
-def _dist_builder(window: Window, data_fp: str, data_folder: Path) -> Any:
+def _dist_builder(
+    window: Window,
+    data_fp: str,
+    data_folder: Path,
+    base_module: str = BASE_MODULE,
+) -> Any:
     def build(config: SweepConfig, cell_window: Window, run_dir: Path) -> str:
         if cell_window != window:
             raise ValueError(f"unexpected window {cell_window}; runner is pinned to {window}")
-        build_sweep_dist(config, dist_dir=run_dir, base_module=BASE_MODULE)
-        marker = f"SCANNER_RANKER_SWEEP_MARKER {config.config_hash}"
+        build_sweep_dist(config, dist_dir=run_dir, base_module=base_module)
+        marker = f"SCANNER_RANKER_SWEEP_MARKER {config.config_hash} {base_module}"
         main = run_dir / "main.py"
         source = main.read_text(encoding="utf-8")
         tail = source.split("class BCTAlgorithm")[-1]
@@ -250,6 +262,37 @@ def _validate_artifact(args: argparse.Namespace, variants: Sequence[ScannerRanke
     return artifact, _file_sha256(artifact)
 
 
+def _safe_path_part(value: str) -> str:
+    return "".join(char if char.isalnum() or char in ("-", "_") else "_" for char in value)
+
+
+def _needs_variant_run_roots(variants: Sequence[ScannerRankerVariant]) -> bool:
+    config_hashes = [variant.config_hash for variant in variants]
+    return (
+        len({variant.base_module for variant in variants}) > 1
+        or len(set(config_hashes)) != len(config_hashes)
+    )
+
+
+def _variant_runs_root(
+    runs_root: Path,
+    variant: ScannerRankerVariant,
+    *,
+    isolate_run_dirs: bool,
+) -> Path:
+    if not isolate_run_dirs:
+        return runs_root
+    variant_root = runs_root / _safe_path_part(variant.variant_id)
+    variant_root.mkdir(parents=True, exist_ok=True)
+    readme = variant_root / "README.md"
+    if not readme.exists():
+        readme.write_text(
+            f"# {variant.variant_id}\n\nGenerated isolated LEAN run artifacts for this scanner sweep cell.\n",
+            encoding="utf-8",
+        )
+    return variant_root
+
+
 def _report_dirs(sweep_id: str) -> tuple[Path, Path]:
     runs_root = ROOT / "sweeps" / "runs" / sweep_id
     report_dir = ROOT / "sweeps" / "reports" / sweep_id
@@ -268,28 +311,154 @@ def _report_dirs(sweep_id: str) -> tuple[Path, Path]:
     return runs_root, report_dir
 
 
+def _lookup_path(doc: dict[str, Any], *path: str) -> Any:
+    current: Any = doc
+    for part in path:
+        if not isinstance(current, dict):
+            return None
+        current = current.get(part)
+    return current
+
+
+def _first_value(doc: dict[str, Any], paths: Sequence[tuple[str, ...]]) -> Any:
+    for path in paths:
+        value = _lookup_path(doc, *path)
+        if value not in (None, ""):
+            return value
+    return ""
+
+
+def _as_int(value: Any) -> int | str:
+    if value in (None, ""):
+        return ""
+    try:
+        return int(float(str(value).replace(",", "")))
+    except (TypeError, ValueError):
+        return ""
+
+
+def _closed_win_rate(wins: int | str, trades: int | str) -> float | str:
+    if not isinstance(wins, int) or not isinstance(trades, int) or trades <= 0:
+        return ""
+    return wins / trades * 100.0
+
+
+def _empty_diagnostics() -> dict[str, Any]:
+    return {
+        "realized_net": "",
+        "unrealized": "",
+        "closed_trades": "",
+        "closed_wins": "",
+        "closed_losses": "",
+        "closed_win_rate": "",
+    }
+
+
+def _result_diagnostics(result_path: Path | str) -> dict[str, Any]:
+    if not result_path:
+        return _empty_diagnostics()
+    path = Path(result_path)
+    if not path.exists():
+        return _empty_diagnostics()
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return _empty_diagnostics()
+    closed_trades = _as_int(
+        _first_value(
+            doc,
+            (
+                ("totalPerformance", "tradeStatistics", "totalNumberOfTrades"),
+                ("totalPerformance", "tradeStatistics", "TotalNumberOfTrades"),
+                ("n_closed_trades",),
+            ),
+        )
+    )
+    closed_wins = _as_int(
+        _first_value(
+            doc,
+            (
+                ("totalPerformance", "tradeStatistics", "numberOfWinningTrades"),
+                ("totalPerformance", "tradeStatistics", "NumberOfWinningTrades"),
+                ("totalPerformance", "tradeStatistics", "winningTrades"),
+            ),
+        )
+    )
+    closed_losses = _as_int(
+        _first_value(
+            doc,
+            (
+                ("totalPerformance", "tradeStatistics", "numberOfLosingTrades"),
+                ("totalPerformance", "tradeStatistics", "NumberOfLosingTrades"),
+                ("totalPerformance", "tradeStatistics", "losingTrades"),
+            ),
+        )
+    )
+    return {
+        "realized_net": _first_value(
+            doc,
+            (
+                ("totalPerformance", "tradeStatistics", "totalNetProfit"),
+                ("totalPerformance", "tradeStatistics", "TotalNetProfit"),
+                ("totalPerformance", "tradeStatistics", "totalProfitLoss"),
+                ("totalPerformance", "tradeStatistics", "netProfit"),
+            ),
+        ),
+        "unrealized": _first_value(
+            doc,
+            (
+                ("runtimeStatistics", "Unrealized"),
+                ("runtime_statistics", "Unrealized"),
+                ("statistics", "Unrealized"),
+            ),
+        ),
+        "closed_trades": closed_trades,
+        "closed_wins": closed_wins,
+        "closed_losses": closed_losses,
+        "closed_win_rate": _closed_win_rate(closed_wins, closed_trades),
+    }
+
+
 def _run_variant(
     variant: ScannerRankerVariant,
     *,
-    adapter: LocalLeanRun,
     window: Window,
     artifact_path: Path,
     artifact_sha256: str,
+    data_fp: str,
+    data_folder: Path,
+    runs_root: Path,
+    run_lean: Any,
+    isolate_run_dirs: bool,
 ) -> dict[str, Any]:
     uses_default_artifact = _needs_default_artifact(variant)
+    variant_runs_root = _variant_runs_root(runs_root, variant, isolate_run_dirs=isolate_run_dirs)
+    adapter = LocalLeanRun(
+        dist_builder=_dist_builder(window, data_fp, data_folder, variant.base_module),
+        data_root=data_folder,
+        runs_root=variant_runs_root,
+        marker_check=True,
+        run_lean=run_lean,
+        find_result=_default_find_result,
+        persist=None,
+    )
     run_dir = adapter._run_dir(variant.config, window)
     result_path = ""
     error = ""
     metrics = ResultMetrics(sharpe=0.0, ret_pct=0.0, dd_pct=0.0, orders=0)
+    diagnostics: dict[str, Any] = _empty_diagnostics()
     try:
         metrics = adapter(variant.config, window)
-        result_path = str(_default_find_result(run_dir))
+        found_result = _default_find_result(run_dir)
+        result_path = str(found_result)
+        diagnostics = _result_diagnostics(found_result)
     except Exception as exc:
         error = f"{type(exc).__name__}: {exc}"
     return {
         "variant_id": variant.variant_id,
         "family": variant.family,
         "wave": variant.wave,
+        "base_module": variant.base_module,
         "hypothesis": variant.hypothesis,
         "sweep_config_hash": variant.config_hash,
         "window": window.name,
@@ -298,6 +467,7 @@ def _run_variant(
         "ret_pct": metrics.ret_pct,
         "dd_pct": metrics.dd_pct,
         "orders": metrics.orders,
+        **diagnostics,
         "artifact_path": _repo_ref(artifact_path) if uses_default_artifact else "",
         "artifact_sha256": artifact_sha256 if uses_default_artifact else "",
         "run_dir": _repo_ref(run_dir),
@@ -319,12 +489,20 @@ def _write_summary(report_dir: Path, rows: Sequence[dict[str, Any]], manifest: d
         writer.writerows(rows)
 
     lines = ["# Scanner Ranker Sweep Summary", ""]
-    lines.append("| variant | ok | ret_pct | dd_pct | orders | sharpe |")
-    lines.append("| --- | --- | ---: | ---: | ---: | ---: |")
+    lines.append(
+        "| variant | base | ok | ret_pct | dd_pct | orders | realized_net | unrealized | "
+        "closed_win_rate | closed_trades | sharpe |"
+    )
+    lines.append("| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
     for row in rows:
+        display_row = dict(row)
+        if isinstance(row.get("closed_win_rate"), float):
+            display_row["closed_win_rate"] = f"{row['closed_win_rate']:.1f}"
         lines.append(
-            "| {variant_id} | {ok} | {ret_pct:.3f} | {dd_pct:.3f} | {orders} | {sharpe:.3f} |".format(
-                **row
+            "| {variant_id} | {base_module} | {ok} | {ret_pct:.3f} | {dd_pct:.3f} | {orders} | "
+            "{realized_net} | {unrealized} | {closed_win_rate} | {closed_trades} | "
+            "{sharpe:.3f} |".format(
+                **display_row
             )
         )
     (report_dir / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -368,15 +546,8 @@ def main() -> None:
         )
 
     gate = _LeanCliWarmupGate()
-    adapter = LocalLeanRun(
-        dist_builder=_dist_builder(window, data_fp, data_folder),
-        data_root=data_folder,
-        runs_root=runs_root,
-        marker_check=True,
-        run_lean=_make_logged_gated_run_lean(gate, use_project_lean_config=True),
-        find_result=_default_find_result,
-        persist=None,
-    )
+    run_lean = _make_logged_gated_run_lean(gate, use_project_lean_config=True)
+    isolate_run_dirs = _needs_variant_run_roots(variants)
 
     print(
         f"=== scanner-ranker sweep | pack={args.pack} variants={len(variants)} workers={args.workers} "
@@ -386,8 +557,9 @@ def main() -> None:
     print(f"artifact={artifact_path} sha256={artifact_sha256[:12] or 'missing'}", flush=True)
     print(f"data_fingerprint={data_fp or 'unknown'}", flush=True)
     print(f"data_folder={data_folder}", flush=True)
+    print(f"isolate_run_dirs={isolate_run_dirs}", flush=True)
     for variant in variants:
-        print(f"  {variant.variant_id}: {variant.config_hash}", flush=True)
+        print(f"  {variant.variant_id}: {variant.config_hash} base={variant.base_module}", flush=True)
 
     rows: list[dict[str, Any]] = []
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
@@ -395,10 +567,14 @@ def main() -> None:
             pool.submit(
                 _run_variant,
                 variant,
-                adapter=adapter,
                 window=window,
                 artifact_path=artifact_path,
                 artifact_sha256=artifact_sha256,
+                data_fp=data_fp,
+                data_folder=data_folder,
+                runs_root=runs_root,
+                run_lean=run_lean,
+                isolate_run_dirs=isolate_run_dirs,
             ): variant
             for variant in variants
         }

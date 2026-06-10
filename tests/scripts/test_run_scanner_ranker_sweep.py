@@ -8,7 +8,7 @@ import pytest
 
 from runtime.scanner_ranker import ARTIFACT_SCHEMA_VERSION, feature_contract_hash
 from scripts import run_scanner_ranker_sweep as M
-from sweeps.grids.scanner_ranker import first_pack, top_x_expansion_pack
+from sweeps.grids.scanner_ranker import first_pack, real_strategy_scanner_pack, top_x_expansion_pack
 
 
 def test_variants_filters_named_subset_in_pack_order() -> None:
@@ -40,6 +40,16 @@ def test_variants_selects_top_x_expansion_pack() -> None:
 
     assert [variant.variant_id for variant in variants] == [
         variant.variant_id for variant in top_x_expansion_pack()
+    ]
+
+
+def test_variants_selects_real_strategy_scanner_pack() -> None:
+    args = SimpleNamespace(pack="real_strategy_scanner", only="", limit=None)
+
+    variants = M._variants(args)
+
+    assert [variant.variant_id for variant in variants] == [
+        variant.variant_id for variant in real_strategy_scanner_pack()
     ]
 
 
@@ -134,7 +144,10 @@ def test_data_fingerprint_uses_requested_data_folder(tmp_path: Path) -> None:
 
 
 def test_dist_builder_injects_window_cache_and_data_folder(tmp_path: Path, monkeypatch) -> None:
+    calls = []
+
     def fake_build_sweep_dist(config, dist_dir, base_module) -> None:  # type: ignore[no-untyped-def]
+        calls.append(base_module)
         dist_dir.mkdir(parents=True, exist_ok=True)
         (dist_dir / "main.py").write_text(
             "class BCTAlgorithm:\n"
@@ -150,11 +163,18 @@ def test_dist_builder_injects_window_cache_and_data_folder(tmp_path: Path, monke
     window = M.WINDOWS["jan"]
     config = first_pack()[0].config
 
-    marker = M._dist_builder(window, "fp-123", data_folder)(config, window, run_dir)
+    marker = M._dist_builder(
+        window,
+        "fp-123",
+        data_folder,
+        "strategies.realized_giveback_no_bull",
+    )(config, window, run_dir)
 
     main = (run_dir / "main.py").read_text(encoding="utf-8")
     lean_config = json.loads((run_dir / "lean.json").read_text(encoding="utf-8"))
+    assert calls == ["strategies.realized_giveback_no_bull"]
     assert marker in main
+    assert "strategies.realized_giveback_no_bull" in marker
     assert "START_DATE = (2025, 1, 13)" in main
     assert "END_DATE = (2025, 1, 31)" in main
     assert "BCTAlgorithm.WARMUP_WEEKLY_CACHE_FP = 'fp-123'" in main
@@ -175,6 +195,70 @@ def test_dist_builder_fails_when_window_injection_anchor_missing(
 
     with pytest.raises(RuntimeError, match="window injection anchor missing"):
         M._dist_builder(window, "", tmp_path / "data")(config, window, tmp_path / "run")
+
+
+def test_needs_variant_run_roots_for_multi_base_duplicate_hash_pack() -> None:
+    assert M._needs_variant_run_roots(real_strategy_scanner_pack()) is True
+    assert M._needs_variant_run_roots(first_pack()) is False
+
+
+def test_variant_runs_root_isolates_by_variant_id(tmp_path: Path) -> None:
+    variant = real_strategy_scanner_pack()[0]
+
+    root = M._variant_runs_root(tmp_path, variant, isolate_run_dirs=True)
+
+    assert root == tmp_path / variant.variant_id
+    assert (root / "README.md").exists()
+
+
+def test_variant_runs_root_can_reuse_pack_root(tmp_path: Path) -> None:
+    variant = first_pack()[0]
+
+    root = M._variant_runs_root(tmp_path, variant, isolate_run_dirs=False)
+
+    assert root == tmp_path
+
+
+def test_result_diagnostics_parses_lean_trade_and_runtime_stats(tmp_path: Path) -> None:
+    result_path = tmp_path / "result.json"
+    result_path.write_text(
+        json.dumps(
+            {
+                "runtimeStatistics": {"Unrealized": "$1,234.56"},
+                "totalPerformance": {
+                    "tradeStatistics": {
+                        "totalNumberOfTrades": 12,
+                        "numberOfWinningTrades": 9,
+                        "numberOfLosingTrades": 3,
+                        "totalProfitLoss": "$2,500.00",
+                    }
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    diagnostics = M._result_diagnostics(result_path)
+
+    assert diagnostics == {
+        "realized_net": "$2,500.00",
+        "unrealized": "$1,234.56",
+        "closed_trades": 12,
+        "closed_wins": 9,
+        "closed_losses": 3,
+        "closed_win_rate": 75.0,
+    }
+
+
+def test_result_diagnostics_falls_back_to_archive_closed_trade_count(tmp_path: Path) -> None:
+    result_path = tmp_path / "archive-result.json"
+    result_path.write_text(json.dumps({"n_closed_trades": 7}) + "\n", encoding="utf-8")
+
+    diagnostics = M._result_diagnostics(result_path)
+
+    assert diagnostics["closed_trades"] == 7
+    assert diagnostics["closed_win_rate"] == ""
 
 
 def test_repo_ref_relativizes_repo_paths() -> None:

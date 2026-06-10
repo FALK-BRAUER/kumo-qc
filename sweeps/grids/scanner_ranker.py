@@ -11,6 +11,23 @@ from sweeps.types import PhaseChoice, SweepConfig
 
 BASE_MODULE = "strategies.champion_intraday_gapvol"
 DEFAULT_MODEL_KEY = "objectstore://bct_lambdamart_qc_safe_v1.json"
+REAL_STRATEGY_BASES = (
+    (
+        "giveback_no_bull",
+        "strategies.realized_giveback_no_bull",
+        "Best return/DD realized candidate from #408: tight giveback without bullish-structure veto.",
+    ),
+    (
+        "target04_fast_take",
+        "strategies.realized_target_04_fast_take",
+        "Highest closed win rate/profit-factor realized candidate from #408.",
+    ),
+    (
+        "target08_let_run",
+        "strategies.realized_target_08_let_run",
+        "Patient realized candidate from #408: fewer trades and higher average closed return.",
+    ),
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -169,9 +186,60 @@ def top_x_expansion_pack() -> list[ScannerRankerVariant]:
     ]
 
 
+def _real_strategy_variant(
+    *,
+    strategy_id: str,
+    base_module: str,
+    base_hypothesis: str,
+    top_x: int | None,
+) -> ScannerRankerVariant:
+    if top_x is None:
+        return ScannerRankerVariant(
+            variant_id=f"{strategy_id}_scanner_off",
+            family="real_strategy_control",
+            wave=2,
+            base_module=base_module,
+            hypothesis=f"{base_hypothesis} Scanner disabled control.",
+            config=_config(runtime_overrides=_pairs(scanner_ranker_enabled=False)),
+        )
+    return ScannerRankerVariant(
+        variant_id=f"{strategy_id}_scanner_top{top_x}",
+        family="real_strategy_scanner",
+        wave=2,
+        base_module=base_module,
+        hypothesis=f"{base_hypothesis} LambdaMART scanner gate keeps daily Top-{top_x}.",
+        config=_config(_ranking(free_params=1), runtime_overrides=_ranker_runtime(top_x=top_x)),
+    )
+
+
+def real_strategy_scanner_pack() -> list[ScannerRankerVariant]:
+    """Promising #451 realized-strategy cells crossed with scanner-off/top15/top20/top25 gates."""
+    variants: list[ScannerRankerVariant] = []
+    for strategy_id, base_module, base_hypothesis in REAL_STRATEGY_BASES:
+        variants.append(
+            _real_strategy_variant(
+                strategy_id=strategy_id,
+                base_module=base_module,
+                base_hypothesis=base_hypothesis,
+                top_x=None,
+            )
+        )
+        for top_x in (15, 20, 25):
+            variants.append(
+                _real_strategy_variant(
+                    strategy_id=strategy_id,
+                    base_module=base_module,
+                    base_hypothesis=base_hypothesis,
+                    top_x=top_x,
+                )
+            )
+    return variants
+
+
 PACKS = {
     "first": first_pack,
     "top_x_expansion": top_x_expansion_pack,
+    "real_strategy_scanner": real_strategy_scanner_pack,
 }
 
 
