@@ -38,6 +38,9 @@ macOS keychain at runtime.
 - **Scanner opportunity research:** `build_scanner_opportunity_panel.py` builds the #463 label-free
   scanner opportunity surface from Kumo/Falk candidates and George scanner/watchlist/video evidence.
   It keeps source/provenance flags and excludes future path labels for the later #464 replay step.
+- **Scanner path labels:** `build_scanner_opportunity_path_labels.py` consumes the #463 opportunity
+  panel and local raw intraday parquet to write next-open forward path labels for #464, including
+  close returns, MFE/MAE, target/stop ordering, time-to-peak, and source-level outcome summaries.
 - **Sweep analysis:** `analyze_408_george_range_30.py` regenerates confidence tables, indicator
   ranges, and Markdown analysis from the George-range aggregate CSVs. `analyze_416_george_context_trades.py`
   reads completed #416 LEAN result JSONs and writes per-variant, per-symbol, and baseline-delta
