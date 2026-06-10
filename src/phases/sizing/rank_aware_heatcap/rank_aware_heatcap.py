@@ -159,11 +159,17 @@ class RankAwareHeatcap(BasePhase):
     def _snapshot(qc: Any, sym: Any) -> dict[str, Any] | None:
         snapshot_for_entry = getattr(qc, "snapshot_for_entry", None)
         if callable(snapshot_for_entry):
-            return snapshot_for_entry(sym)
+            return RankAwareHeatcap._coerce_snapshot(snapshot_for_entry(sym))
         raw = getattr(qc, "_candidate_snapshot", {})
         if isinstance(raw, dict):
-            return raw.get(sym)
+            return RankAwareHeatcap._coerce_snapshot(raw.get(sym))
         return None
+
+    @staticmethod
+    def _coerce_snapshot(value: Any) -> dict[str, Any] | None:
+        if not isinstance(value, dict):
+            return None
+        return {str(key): item for key, item in value.items()}
 
     @staticmethod
     def _scanner_rank(snap: dict[str, Any] | None) -> int | None:
