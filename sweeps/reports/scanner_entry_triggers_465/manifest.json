@@ -1,0 +1,25 @@
+{
+  "generated_at": "2026-06-10T17:53:12.917307+00:00",
+  "issue": "https://github.com/FALK-BRAUER/kumo-qc/issues/465",
+  "config": {
+    "labels": "/Users/falk/projects/kumo-qc-465-entry-triggers/sweeps/reports/scanner_opportunity_paths_464/opportunity_path_labels.csv.gz",
+    "output_dir": "/Users/falk/projects/kumo-qc-465-entry-triggers/sweeps/reports/scanner_entry_triggers_465"
+  },
+  "recommended_gate": "kumo_top20",
+  "outputs": {
+    "entry_gate_summary.csv": {
+      "rows": 13
+    },
+    "rank_gap_bucket_summary.csv": {
+      "rows": 13
+    },
+    "recommended_gate_best_examples.csv": {
+      "rows": 50
+    },
+    "recommended_gate_worst_examples.csv": {
+      "rows": 50
+    },
+    "entry_trigger_report.md": {}
+  },
+  "scope_note": "next-open entry gates only; alternate first-hour/breakout/pullback entry replay is not included"
+}
