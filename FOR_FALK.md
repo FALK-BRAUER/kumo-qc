@@ -1,5 +1,51 @@
 # FOR_FALK - BCT/George scanner-alignment implementation pass, 2026-06-09
 
+## #455 top20 realization diagnostics, 2026-06-10
+
+Goal: convert the LambdaMART top20 scanner edge into better realized PnL without changing the
+production champion. Worktree: `kumo-qc-455-top20-realized-pnl`, branch
+`codex/455-top20-realized-pnl-diagnostics`.
+
+What changed:
+- Added a diagnostics builder: `scripts/analyze_455_top20_realized_pnl.py`.
+- Added the modular `stale_mfe_exit` phase under `src/phases/exit/stale_mfe_exit/`.
+- Added the `top20_realized_exit` sweep pack: 3 real strategy bases x 6 top20-only exit variants.
+- Added focused tests for the diagnostics script, sweep pack, runner selection, and new exit phase.
+- Generated reports:
+  - `sweeps/reports/top20_realized_pnl_diagnostics_455/`
+  - `sweeps/reports/top20_realized_exit_jan_smoke_455_cache/`
+  - `sweeps/reports/top20_realized_exit_fy2025_455/`
+
+FY2025 sweep result:
+- All 18 cells completed with `workers=3`.
+- Best total/DD rows were all `age60`:
+  - `target08_let_run_top20_age60`: return `15.969%`, DD `13.300%`, orders `487`,
+    realized `20361.48`, unrealized `$-3,924.68`.
+  - `target04_fast_take_top20_age60`: return `13.087%`, DD `13.100%`, orders `548`,
+    realized `17498.75`, unrealized `$-3,883.65`.
+  - `giveback_no_bull_top20_age60`: return `13.062%`, DD `14.600%`, orders `675`,
+    realized `21680.59`, unrealized `$-7,964.47`.
+
+Read:
+- `age60` improves total return and drawdown by reducing negative unrealized marks, but realized
+  net falls versus each family base and order count jumps. Useful risk-control clue, not a clean
+  realized-PnL edge.
+- Stale-MFE exits are rejected: lower win rate, more churn, weaker return/DD.
+- MFE giveback variants do not generalize. `mfe_gb06` helps some realized PnL in giveback/target04
+  but worsens DD/open drag and fails target08.
+- Current top20 ranker use is still too shallow: it gates/sorts candidates, but downstream intraday
+  confirmation, sizing, and exits do not consume `_scanner_ranker_scores` or
+  `_scanner_ranker_features`.
+
+Next architecture step:
+- Persist scanner rank/score/features into the intraday candidate snapshot.
+- Add rank-aware intraday confirmation: high-rank names can enter on simpler gap/hold behavior;
+  marginal names need stronger first-hour/hourly confirmation.
+- Add first-hour/hourly path context: opening range, gap fill, VWAP/close location, hold above
+  intraday Tenkan/VWAP, first-hour MFE/MAE.
+- Use scanner score/rank and sector/industry breadth for sizing and revalidation/rotation exits.
+- Tracking ticket: #469.
+
 ## #453 real-strategy x LambdaMART scanner sweep setup, 2026-06-10
 
 Added the first proper scanner test matrix against real realized strategy candidates, instead of the

@@ -9,6 +9,7 @@ from sweeps.grids.scanner_ranker import (
     all_variants,
     first_pack,
     real_strategy_scanner_pack,
+    top20_realized_exit_pack,
     top_x_expansion_pack,
 )
 
@@ -70,6 +71,26 @@ def test_real_strategy_scanner_pack_shape() -> None:
     assert len({variant.variant_id for variant in all_variants()}) == len(all_variants())
 
 
+def test_top20_realized_exit_pack_shape() -> None:
+    variants = top20_realized_exit_pack()
+
+    assert len(variants) == 18
+    assert [variant.variant_id for variant in variants[:6]] == [
+        "giveback_no_bull_top20_base",
+        "giveback_no_bull_top20_stale20",
+        "giveback_no_bull_top20_stale30",
+        "giveback_no_bull_top20_mfe_gb04",
+        "giveback_no_bull_top20_mfe_gb06",
+        "giveback_no_bull_top20_age60",
+    ]
+    assert {variant.wave for variant in variants} == {3}
+    assert {variant.base_module for variant in variants} == {
+        base_module for _, base_module, _ in REAL_STRATEGY_BASES
+    }
+    assert {variant.config.runtime_dict()["scanner_ranker_top_x"] for variant in variants} == {20}
+    assert len({variant.variant_id for variant in all_variants()}) == len(all_variants())
+
+
 def test_top20_variant_maps_ranker_runtime_and_phase() -> None:
     variant = next(item for item in first_pack() if item.variant_id == "scanner_lambdamart_top20")
 
@@ -113,6 +134,56 @@ def test_real_strategy_scanner_off_variant_keeps_base_ranking() -> None:
     assert not isinstance(ranking, list)
     assert ranking.impl.__name__ == "ScoreDvRanking"
     assert cfg.runtime.scanner_ranker_enabled is False
+
+
+def test_top20_realized_baseline_keeps_base_exit() -> None:
+    variant = next(
+        item
+        for item in top20_realized_exit_pack()
+        if item.variant_id == "target04_fast_take_top20_base"
+    )
+
+    cfg = sweep_to_strategy_config(variant.config, base_module=variant.base_module)
+
+    exits = cfg.phases["exit_hard"]
+    assert [slot.impl.__name__ for slot in exits] == ["ProactiveStrengthExit"]
+    assert exits[0].params.target_pct == 0.04
+    assert cfg.runtime.scanner_ranker_enabled is True
+    assert cfg.runtime.scanner_ranker_top_x == 20
+
+
+def test_top20_realized_stale_variant_composes_base_exit() -> None:
+    variant = next(
+        item
+        for item in top20_realized_exit_pack()
+        if item.variant_id == "giveback_no_bull_top20_stale20"
+    )
+
+    cfg = sweep_to_strategy_config(variant.config, base_module=variant.base_module)
+
+    exits = cfg.phases["exit_hard"]
+    assert [slot.impl.__name__ for slot in exits] == ["ProactiveStrengthExit", "StaleMfeExit"]
+    assert exits[0].params.target_pct == 0.06
+    assert exits[0].params.giveback_from_peak_pct == 0.015
+    assert exits[0].params.require_still_bullish is False
+    assert exits[1].params.stale_sessions == 20
+    assert exits[1].params.min_hold_sessions == 20
+
+
+def test_top20_realized_mfe_variant_composes_base_exit() -> None:
+    variant = next(
+        item
+        for item in top20_realized_exit_pack()
+        if item.variant_id == "target08_let_run_top20_mfe_gb04"
+    )
+
+    cfg = sweep_to_strategy_config(variant.config, base_module=variant.base_module)
+
+    exits = cfg.phases["exit_hard"]
+    assert [slot.impl.__name__ for slot in exits] == ["ProactiveStrengthExit", "MfeIntradayExit"]
+    assert exits[0].params.target_pct == 0.08
+    assert exits[1].params.min_mfe_pct == 0.04
+    assert exits[1].params.diagnostic_log is True
 
 
 def test_top25_expansion_variant_maps_ranker_runtime_and_phase() -> None:

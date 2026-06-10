@@ -58,6 +58,24 @@ def _ranking(*, enabled: bool = True, free_params: int = 0) -> PhaseChoice:
     )
 
 
+def _exit(impl_name: str, *, free_params: int | None = None, **params: object) -> PhaseChoice:
+    phase_params = dict(params)
+    counted_params = len(phase_params) if free_params is None else free_params
+    if impl_name == "mfe_intraday_exit" and "diagnostic_log" not in phase_params:
+        phase_params["diagnostic_log"] = True
+        counted_params = len(phase_params) - 1 if free_params is None else free_params
+    return PhaseChoice(
+        kind="exit_hard",
+        impl_name=impl_name,
+        params=_pairs(**phase_params),
+        free_params=counted_params,
+    )
+
+
+def _base_proactive_exit() -> PhaseChoice:
+    return _exit("proactive_strength_exit", free_params=0)
+
+
 def _config(
     *choices: PhaseChoice,
     runtime_overrides: tuple[tuple[str, object], ...] = (),
@@ -236,10 +254,128 @@ def real_strategy_scanner_pack() -> list[ScannerRankerVariant]:
     return variants
 
 
+def _top20_realization_config(*exits: PhaseChoice) -> SweepConfig:
+    return _config(
+        _ranking(free_params=1),
+        *exits,
+        runtime_overrides=_ranker_runtime(top_x=20),
+    )
+
+
+def top20_realized_exit_pack() -> list[ScannerRankerVariant]:
+    """#455 top20-only realization sweep across the three real strategy bases.
+
+    Exit variants include the base proactive exit explicitly because the sweep bridge treats
+    `exit_hard` choices as the complete composed exit list.
+    """
+    base_exit = _base_proactive_exit()
+    specs: tuple[tuple[str, str, str, tuple[PhaseChoice, ...]], ...] = (
+        (
+            "top20_base",
+            "realization_baseline",
+            "LambdaMART Top-20 gate with the selected real strategy's current exit unchanged.",
+            (),
+        ),
+        (
+            "top20_stale20",
+            "stale_mfe",
+            "Add stale-MFE exit after 20 trading sessions without a fresh peak, once MFE reached 4%.",
+            (
+                base_exit,
+                _exit(
+                    "stale_mfe_exit",
+                    stale_sessions=20,
+                    min_hold_sessions=20,
+                    min_mfe_pct=0.04,
+                    min_giveback_pct=0.015,
+                    max_exit_return_pct=0.12,
+                ),
+            ),
+        ),
+        (
+            "top20_stale30",
+            "stale_mfe",
+            "Add slower stale-MFE exit after 30 trading sessions without a fresh peak.",
+            (
+                base_exit,
+                _exit(
+                    "stale_mfe_exit",
+                    stale_sessions=30,
+                    min_hold_sessions=30,
+                    min_mfe_pct=0.04,
+                    min_giveback_pct=0.02,
+                    max_exit_return_pct=0.15,
+                ),
+            ),
+        ),
+        (
+            "top20_mfe_gb04",
+            "mfe_giveback",
+            "Add tighter intraday giveback realization once MFE reaches 4%.",
+            (
+                base_exit,
+                _exit(
+                    "mfe_intraday_exit",
+                    min_mfe_pct=0.04,
+                    giveback_fraction=0.35,
+                    min_giveback_pct=0.015,
+                    min_exit_return_pct=0.005,
+                    min_hold_bars=2,
+                ),
+            ),
+        ),
+        (
+            "top20_mfe_gb06",
+            "mfe_giveback",
+            "Add tighter intraday giveback realization once MFE reaches 6%.",
+            (
+                base_exit,
+                _exit(
+                    "mfe_intraday_exit",
+                    min_mfe_pct=0.06,
+                    giveback_fraction=0.40,
+                    min_giveback_pct=0.02,
+                    min_exit_return_pct=0.005,
+                    min_hold_bars=2,
+                ),
+            ),
+        ),
+        (
+            "top20_age60",
+            "age_cap",
+            "Add a 60-trading-session age cap for positions that are not strong runners.",
+            (
+                base_exit,
+                _exit(
+                    "stale_mfe_exit",
+                    stale_sessions=0,
+                    max_hold_sessions=60,
+                    max_hold_return_pct=0.12,
+                ),
+            ),
+        ),
+    )
+    variants: list[ScannerRankerVariant] = []
+    for strategy_id, base_module, base_hypothesis in REAL_STRATEGY_BASES:
+        for suffix, family, hypothesis, exits in specs:
+            variants.append(
+                ScannerRankerVariant(
+                    variant_id=f"{strategy_id}_{suffix}",
+                    family=family,
+                    wave=3,
+                    base_module=base_module,
+                    hypothesis=f"{base_hypothesis} {hypothesis}",
+                    config=_top20_realization_config(*exits),
+                )
+            )
+    return variants
+
+
 PACKS = {
     "first": first_pack,
     "top_x_expansion": top_x_expansion_pack,
     "real_strategy_scanner": real_strategy_scanner_pack,
+    "top20_realized_exit": top20_realized_exit_pack,
 }
 
 

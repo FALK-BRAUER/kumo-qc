@@ -1,0 +1,15 @@
+{
+  "report_dir": "/Users/falk/projects/kumo-qc-455-top20-realized-pnl/sweeps/reports/scanner_ranker_real_strategy_fy2025_453_combined",
+  "source_root": "/Users/falk/projects/kumo-qc-realized-giveback",
+  "output_dir": "/Users/falk/projects/kumo-qc-455-top20-realized-pnl/sweeps/reports/top20_realized_pnl_diagnostics_455",
+  "variants": [
+    "giveback_no_bull_scanner_off",
+    "giveback_no_bull_scanner_top20",
+    "target04_fast_take_scanner_off",
+    "target04_fast_take_scanner_top20",
+    "target08_let_run_scanner_off",
+    "target08_let_run_scanner_top20"
+  ],
+  "raw_artifacts_committed": false,
+  "open_pnl_note": "Per-symbol open PnL is allocated from aggregate unrealized by open lot cost."
+}
