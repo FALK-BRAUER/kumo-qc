@@ -47,6 +47,26 @@ Read:
 Full matrix command:
 `PYTHONPATH=src:. /Users/falk/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 scripts/run_scanner_ranker_sweep.py --pack real_strategy_scanner --window fy --workers 6 --sweep-id scanner_ranker_real_strategy_fy2025_453 --data-folder /Users/falk/projects/kumo-qc/data --no-cache-ensure`
 
+Full matrix result:
+- The six-worker run overcommitted Docker memory on this machine. It produced 3 valid rows and
+  9 invalid non-zero LEAN exits, so invalid rows are excluded from interpretation.
+- Retried the 9 failed cells with `--workers 3`; all 9 completed cleanly.
+- Combined report:
+  `sweeps/reports/scanner_ranker_real_strategy_fy2025_453_combined/summary.md`
+
+Combined FY2025 leaderboard read:
+- Best overall: `giveback_no_bull_scanner_top20`, return `12.890%`, DD `17.300%`,
+  Sharpe `0.707`, orders `304`, closed PnL `23404.53`, unrealized `$-10,230.71`.
+- `target04_fast_take_scanner_top20`: return `12.872%`, DD `17.100%`, Sharpe `0.702`,
+  orders `262`, closed PnL `23466.43`, unrealized `$-10,354.65`.
+- `target08_let_run_scanner_top20`: return `12.352%`, DD `17.000%`, Sharpe `0.682`,
+  orders `229`, closed PnL `22095.78`, unrealized `$-9,536.02`.
+- Top20 won inside all three real strategy families versus scanner-off controls.
+- The edge is not higher closed PnL. Top20 usually has slightly lower closed PnL than scanner-off,
+  but meaningfully less negative unrealized mark, which lifts total return and slightly improves DD.
+- Top15 is usually too restrictive. Top25 is not selective enough to beat top20.
+- Practical run protocol for this pack: use `--workers 3` unless Docker memory is increased.
+
 Verification:
 - `uv run --python 3.12 pytest tests/strategies/test_realized_giveback_no_bull.py tests/sweeps/test_scanner_ranker_grid.py tests/scripts/test_run_scanner_ranker_sweep.py`
   -> 31 passed.

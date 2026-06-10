@@ -1,0 +1,20 @@
+{
+  "generated_at": "2026-06-10T03:58:51.503910+00:00",
+  "source_reports": [
+    "sweeps/reports/scanner_ranker_real_strategy_fy2025_453/summary.csv",
+    "sweeps/reports/scanner_ranker_real_strategy_fy2025_453_retry_w3/summary.csv"
+  ],
+  "source_sweeps": [
+    "scanner_ranker_real_strategy_fy2025_453",
+    "scanner_ranker_real_strategy_fy2025_453_retry_w3"
+  ],
+  "ok_count": 12,
+  "variant_count": 12,
+  "excluded_invalid_rows": 9,
+  "artifact_sha256": "8efd413bb3d05a98bc7fbd6fecd04489e1137d6c15bd845cb3bed7b29f58d4ed",
+  "window": {
+    "name": "fy2025_full",
+    "start": "2025-01-01",
+    "end": "2025-12-31"
+  }
+}
