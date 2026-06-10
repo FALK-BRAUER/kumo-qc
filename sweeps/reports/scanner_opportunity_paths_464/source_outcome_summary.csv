@@ -1,0 +1,6 @@
+source_flag,rows,available_rows,runner_pct,normal_winner_pct,bad_trade_pct,extreme_path_pct,avg_ret_20d_close_pct,avg_mfe_20d_pct,avg_mae_20d_pct,t4_s2_target_before_stop_pct,t4_s2_stop_before_target_pct
+kumo_scanner,310389,310263,19.282,50.533,38.781,0.356,2.004,9.4641,-6.7942,31.566,58.746
+kumo_top_n,25500,25492,21.32,50.902,37.529,0.302,2.753,9.6819,-6.4848,31.273,58.862
+george_scanner_positive,511,507,22.091,48.718,45.562,0.197,0.8253,9.3212,-7.7741,29.98,59.369
+george_watchlist,201,200,23.5,53.5,53.0,0.0,0.438,11.1534,-7.7451,32.0,60.0
+george_video_mention,5629,5238,22.661,54.906,39.92,0.325,2.339,10.2756,-7.4283,33.047,62.237

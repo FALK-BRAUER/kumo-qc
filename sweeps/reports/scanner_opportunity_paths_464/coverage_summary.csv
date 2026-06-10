@@ -1,0 +1,7 @@
+path_status,rows,symbols,dates,pct
+available_full_40d,298006,3547,270,95.109
+truncated_calendar,13275,868,48,4.237
+partial_symbol_missing,1512,153,217,0.483
+missing_entry_bar,484,244,115,0.154
+no_entry_date,33,33,1,0.011
+truncated_calendar_and_symbol_missing,22,1,22,0.007
