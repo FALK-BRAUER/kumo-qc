@@ -1,0 +1,79 @@
+{
+  "generated_at": "2026-06-10T17:21:30.701747+00:00",
+  "issue": "https://github.com/FALK-BRAUER/kumo-qc/issues/463",
+  "config": {
+    "george_candidates": "/Users/falk/projects/kumo-lab/data/bluecloudtrading/scanner_compare/george_scanner_candidates_raw.csv",
+    "kumo_candidates": "/Users/falk/projects/kumo-lab/data/bluecloudtrading/scanner_compare/falk_scanner_candidates_enriched.csv",
+    "output_dir": "/Users/falk/projects/kumo-qc-463-opportunity-panel/sweeps/reports/scanner_opportunity_panel_463",
+    "kumo_top_n": 100
+  },
+  "outputs": {
+    "opportunity_panel.csv.gz": {
+      "rows": 313332,
+      "columns": [
+        "scan_date",
+        "symbol",
+        "kumo_scanner",
+        "kumo_top_n",
+        "kumo_full_universe",
+        "kumo_targeted_only",
+        "george_scanner_ocr",
+        "george_scanner_manual",
+        "george_scanner_positive",
+        "george_watchlist",
+        "george_video_mention",
+        "kumo_rank_by_score",
+        "kumo_score",
+        "kumo_close",
+        "kumo_volume",
+        "kumo_dollar_vol",
+        "kumo_gap_pct",
+        "kumo_vol_ratio_20d",
+        "george_rank",
+        "george_watchlist_rank",
+        "company_sector",
+        "company_industry",
+        "sector_category",
+        "sector_etf_proxy",
+        "source_tags",
+        "source_count",
+        "kumo_source_scope",
+        "kumo_source_basis",
+        "kumo_price_adjustment",
+        "kumo_source_path",
+        "kumo_score_df_source",
+        "kumo_score_df_commit",
+        "george_candidate_source",
+        "george_source_kind",
+        "george_source_role",
+        "george_source_confidence",
+        "george_watchlist_type",
+        "george_post_ids",
+        "george_video_ids",
+        "george_source_paths",
+        "george_source_detail"
+      ]
+    },
+    "source_summary.csv": {
+      "rows": 14
+    },
+    "date_summary.csv": {
+      "rows": 321
+    },
+    "opportunity_panel_report.md": {}
+  },
+  "label_free": true,
+  "forbidden_label_tokens": [
+    "fwd_",
+    "mfe",
+    "mae",
+    "pnl",
+    "drawdown",
+    "days_to_peak",
+    "exit_",
+    "sell_",
+    "actual_",
+    "estimated_",
+    "counterfactual_"
+  ]
+}
