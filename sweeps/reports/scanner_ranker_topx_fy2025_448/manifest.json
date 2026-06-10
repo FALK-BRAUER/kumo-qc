@@ -1,0 +1,21 @@
+{
+  "artifact_path": "storage/bct_lambdamart_qc_safe_v1.json",
+  "artifact_sha256": "d8908f0ac221025a2415274c1a22bd79ae4e0d3aa68aed24016cb2093b9387e0",
+  "data_fingerprint": "90f2d7e3fb80d0a4d2eb286f6a43199e1519495a3ce9d787a4d7d0dfc70c535c",
+  "default_model_key": "objectstore://bct_lambdamart_qc_safe_v1.json",
+  "generated_at": "2026-06-09T14:43:09.520982+00:00",
+  "ok_count": 4,
+  "reports": {
+    "summary_csv": "sweeps/reports/scanner_ranker_topx_fy2025_448/summary.csv",
+    "summary_md": "sweeps/reports/scanner_ranker_topx_fy2025_448/summary.md"
+  },
+  "sweep_id": "scanner_ranker_topx_fy2025_448",
+  "variant_count": 4,
+  "window": {
+    "end": "2025-12-31",
+    "name": "fy2025_full",
+    "runnable_locally": true,
+    "start": "2025-01-01"
+  },
+  "workers": 1
+}

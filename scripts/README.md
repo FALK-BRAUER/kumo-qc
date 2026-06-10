@@ -30,6 +30,11 @@ macOS keychain at runtime.
   Generated cells compact phase logs and suppress intraday heartbeat logs so FY runs finish with
   parseable LEAN statistics instead of hitting the local log ceiling. Use `--only <variant_id>`
   to retry a failed cell without rerunning the full wave.
+- **Scanner ranker proof runner:** `run_scanner_ranker_sweep.py` runs the #446/#448
+  scanner-ranker first pack from `sweeps/grids/scanner_ranker.py` with the local LEAN Docker
+  adapter. It expects the runtime-safe LambdaMART JSON at
+  `storage/bct_lambdamart_qc_safe_v1.json`, which is served to LEAN through the repo ObjectStore
+  symlink; pass `--only scanner_lambdamart_top10` or similar for smoke runs.
 - **Sweep analysis:** `analyze_408_george_range_30.py` regenerates confidence tables, indicator
   ranges, and Markdown analysis from the George-range aggregate CSVs. `analyze_416_george_context_trades.py`
   reads completed #416 LEAN result JSONs and writes per-variant, per-symbol, and baseline-delta
