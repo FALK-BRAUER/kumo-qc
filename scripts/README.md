@@ -41,6 +41,9 @@ macOS keychain at runtime.
 - **Scanner path labels:** `build_scanner_opportunity_path_labels.py` consumes the #463 opportunity
   panel and local raw intraday parquet to write next-open forward path labels for #464, including
   close returns, MFE/MAE, target/stop ordering, time-to-peak, and source-level outcome summaries.
+- **Scanner entry research:** `analyze_scanner_entry_triggers.py` consumes the #464 path labels and
+  compares leakage-safe next-open rank/score/gap/source gates for #465. It does not replay alternate
+  first-hour, breakout, or pullback entry prices; that is the next extension once simple gates are measured.
 - **Sweep analysis:** `analyze_408_george_range_30.py` regenerates confidence tables, indicator
   ranges, and Markdown analysis from the George-range aggregate CSVs. `analyze_416_george_context_trades.py`
   reads completed #416 LEAN result JSONs and writes per-variant, per-symbol, and baseline-delta

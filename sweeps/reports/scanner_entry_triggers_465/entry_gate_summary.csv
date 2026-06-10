@@ -1,0 +1,14 @@
+gate_id,description,selected_rows,available_rows,selected_pct_of_available_panel,avg_ret_20d_close_pct,median_ret_20d_close_pct,good_pct,runner_pct,bad_trade_pct,extreme_path_pct,target4_before_stop2_pct,stop2_before_target4_pct,objective_score
+kumo_top20,Kumo full-universe scanner rank <= 20.,5100,5090,1.631,3.4937,1.1339,45.599,24.204,38.782,0.373,32.299,59.194,3.7413
+kumo_top20_gap_minus2_to_5,Kumo top20 plus -2% to +5% next-open gap.,4715,4707,1.508,3.1711,1.03,44.636,21.904,38.793,0.276,32.186,59.698,3.3943
+kumo_top50,Kumo full-universe scanner rank <= 50.,12750,12713,4.074,2.9659,1.0271,44.647,22.489,38.449,0.307,31.543,59.671,3.199
+kumo_top100,Kumo full-universe scanner rank <= 100.,25500,25410,8.142,2.753,1.0872,44.124,21.381,37.54,0.303,31.334,58.949,3.0065
+kumo_top50_gap_minus2_to_5,Kumo top50 plus -2% to +5% next-open gap.,11923,11892,3.811,2.72,0.9542,43.92,20.602,38.303,0.235,31.366,60.225,2.9421
+kumo_top100_gap_minus2_to_5,Kumo top100 plus -2% to +5% next-open gap.,23907,23828,7.635,2.5559,1.0272,43.361,19.511,37.389,0.206,31.19,59.468,2.803
+gap_not_extreme,Next-open gap between -5% and +8%.,309005,308293,98.788,2.0397,0.8617,42.811,19.058,38.651,0.317,31.682,58.961,2.1684
+kumo_score_ge7,Kumo BCT score >= 7.,69592,69282,22.2,1.9917,0.967,41.561,19.478,37.16,0.322,30.027,57.516,2.1313
+next_open_all,Baseline: enter every opportunity at next regular open.,313332,312076,100.0,2.0115,0.8531,42.824,19.362,38.802,0.355,31.597,58.837,2.1238
+gap_minus2_to_5,Next-open gap between -2% and +5%.,296026,295331,94.634,1.9342,0.8555,42.478,18.153,38.396,0.276,31.546,59.061,2.0693
+gap_0_to_5,Next-open gap between 0% and +5%.,171212,170805,54.732,1.913,0.8177,42.201,18.732,38.187,0.299,31.048,58.761,2.039
+george_scanner_or_watchlist,George OCR/manual scanner or explicit watchlist evidence.,712,704,0.226,0.7153,-0.9664,38.92,22.585,47.869,0.142,30.54,59.801,0.2324
+george_scanner_or_watchlist_gap_minus2_to_5,George scanner/watchlist plus -2% to +5% next-open gap.,635,632,0.203,0.5018,-1.0338,37.816,20.57,48.418,0.0,30.38,59.968,-0.0283
