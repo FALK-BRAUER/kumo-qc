@@ -303,7 +303,9 @@ def test_build_entry_tag_emits_decision_context() -> None:
     sym = _Sym("AAPL")
     a = BctEngineAlgorithm()
     a._candidate_snapshot = {sym: {"signal_price": 100.0, "score": 8,
-                                   "conditions": [True, True, True, True, True, True, True, True]}}
+                                   "conditions": [True, True, True, True, True, True, True, True],
+                                   "scanner_rank": 3,
+                                   "scanner_score": 1.23456}}
     a._intraday = {sym: {"last_close": 104.0, "vol_window": _Vol([1000.0, 1000.0]),
                          "last_bar": _Bar(), "intraday_tenkan": _Tk(102.0)}}
     a._ranked_today = ["MSFT", "AAPL"]
@@ -314,6 +316,8 @@ def test_build_entry_tag_emits_decision_context() -> None:
     assert q["decision_vol"] == ["2.000"]              # 2000 / mean(1000,1000)
     assert q["decision_tdist"] == ["0.0192"]           # (104-102)/104
     assert q["decision_rank"] == ["1"]                 # index in _ranked_today
+    assert q["scanner_rank"] == ["3"]                  # LambdaMART rank, distinct from decision_rank
+    assert q["scanner_score"] == ["1.23456"]
 
 
 def test_build_entry_tag_omits_missing_pieces_never_fakes() -> None:
@@ -327,6 +331,7 @@ def test_build_entry_tag_omits_missing_pieces_never_fakes() -> None:
     q = parse_qs(a._build_entry_tag(sym))
     assert q["decision_score"] == ["7"]
     assert "decision_cond" not in q and "decision_gap" not in q and "decision_vol" not in q
+    assert "scanner_rank" not in q and "scanner_score" not in q
 
 
 def test_build_entry_tag_fails_loud_over_cap() -> None:

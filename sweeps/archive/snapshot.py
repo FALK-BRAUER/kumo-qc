@@ -167,7 +167,7 @@ class M2MMark(Protocol):
 # marked-to-market provisionally (`m2m_ret` / `m2m_source`, exit_reason "censored_open"). The mine
 # gates on `schema_version` (v1 artifacts are censored-LESS) and reads `censored` to keep provisional
 # (unrealized) outcomes distinct from realized ones — that weighting is the mine's job, not ours.
-TRADE_SCHEMA_VERSION = 2
+TRADE_SCHEMA_VERSION = 3
 RESULT_SCHEMA_VERSION = 2  # v2 adds run_class (validation | substrate-generation | null); v1 lacks it
 
 _COND_BITS = COND_BITS  # the 8 BCT conditions, stable bit order (cond_0 .. cond_7) — shared source
@@ -198,6 +198,7 @@ TRADE_SCHEMA: dict[str, Any] = {
         # decision_* (from the entry order TAG)
         "decision_score", "decision_cond",
         "decision_gap", "decision_vol", "decision_tdist", "decision_rank",
+        "scanner_rank", "scanner_score",
         # excursion (follow-on emit) — null until the exit-tag path lands
         "mfe", "mae",
         # m2m provenance (v2) — null/"unavailable" on a closed row (it has a real exit).
@@ -230,6 +231,8 @@ TRADE_SCHEMA: dict[str, Any] = {
         "decision_vol": {"type": ["number", "null"]},
         "decision_tdist": {"type": ["number", "null"]},
         "decision_rank": {"type": ["integer", "null"]},
+        "scanner_rank": {"type": ["integer", "null"]},
+        "scanner_score": {"type": ["number", "null"]},
         # --- excursion (null until the strategy exit-tag emit follow-on) ---
         "mfe": {"type": ["number", "null"]},
         "mae": {"type": ["number", "null"]},

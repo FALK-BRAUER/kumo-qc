@@ -1,0 +1,21 @@
+{
+  "artifact_path": "storage/bct_lambdamart_qc_safe_v1.json",
+  "artifact_sha256": "8efd413bb3d05a98bc7fbd6fecd04489e1137d6c15bd845cb3bed7b29f58d4ed",
+  "data_fingerprint": "90f2d7e3fb80d0a4d2eb286f6a43199e1519495a3ce9d787a4d7d0dfc70c535c",
+  "default_model_key": "objectstore://bct_lambdamart_qc_safe_v1.json",
+  "generated_at": "2026-06-10T17:20:15.662484+00:00",
+  "ok_count": 4,
+  "reports": {
+    "summary_csv": "sweeps/reports/rank_aware_intraday_jan_smoke_469/summary.csv",
+    "summary_md": "sweeps/reports/rank_aware_intraday_jan_smoke_469/summary.md"
+  },
+  "sweep_id": "rank_aware_intraday_jan_smoke_469",
+  "variant_count": 4,
+  "window": {
+    "end": "2025-01-31",
+    "name": "jan2025_proof",
+    "runnable_locally": true,
+    "start": "2025-01-13"
+  },
+  "workers": 2
+}

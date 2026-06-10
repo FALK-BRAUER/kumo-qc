@@ -8,6 +8,7 @@ from __future__ import annotations
 from engine.base import PhaseInterface
 from phases.entry_selection.bct_entry_confirm.bct_entry_confirm import BctEntryConfirm
 from phases.entry_selection.library import ENTRY_SELECTION_PHASES
+from phases.entry_selection.rank_aware_gap_confirm.rank_aware_gap_confirm import RankAwareGapConfirm
 from phases.shared.param_space import ComplexityDecl, ParamSpace
 
 
@@ -19,6 +20,10 @@ def test_catalog_is_a_tuple_of_classes_not_strings() -> None:
 
 def test_bct_entry_confirm_is_catalogued() -> None:
     assert BctEntryConfirm in ENTRY_SELECTION_PHASES
+
+
+def test_rank_aware_gap_confirm_is_catalogued() -> None:
+    assert RankAwareGapConfirm in ENTRY_SELECTION_PHASES
 
 
 def test_every_catalogued_phase_declares_entry_selection_kind() -> None:
