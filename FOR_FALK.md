@@ -1,5 +1,58 @@
 # FOR_FALK - BCT/George scanner-alignment implementation pass, 2026-06-09
 
+## #453 real-strategy x LambdaMART scanner sweep setup, 2026-06-10
+
+Added the first proper scanner test matrix against real realized strategy candidates, instead of the
+old champion/baseline path whose headline FY result was too unrealized-heavy.
+
+Tickets:
+- #453 tracks the 12-cell strategy x scanner matrix.
+- #454 tracks the ignored local LambdaMART artifact used for actual scanner cells.
+- #451 remains the realized strategy promotion thread.
+
+What changed:
+- `src/strategies/realized_george_factory.py` centralizes the George-range phase stack as a
+  non-fixture strategy builder.
+- `src/strategies/realized_giveback_no_bull.py` now uses that builder.
+- Added two more real, non-fixture strategy candidates:
+  `strategies.realized_target_04_fast_take` and `strategies.realized_target_08_let_run`.
+- Added `real_strategy_scanner` to `sweeps/grids/scanner_ranker.py`:
+  three strategies crossed with scanner off, LambdaMART top15, top20, and top25.
+- Updated `scripts/run_scanner_ranker_sweep.py` so each variant can carry its own base strategy
+  module, multi-base packs get isolated run roots, and summaries include closed PnL/unrealized
+  diagnostics.
+
+Local artifact regenerated, not committed:
+- Path: `storage/bct_lambdamart_qc_safe_v1.json`
+- SHA256: `8efd413bb3d05a98bc7fbd6fecd04489e1137d6c15bd845cb3bed7b29f58d4ed`
+- Runtime load preflight passed with 82 features and 140 trees.
+
+Smoke command:
+`PYTHONPATH=src:. /Users/falk/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 scripts/run_scanner_ranker_sweep.py --pack real_strategy_scanner --window jan --workers 1 --only giveback_no_bull_scanner_off,giveback_no_bull_scanner_top20 --sweep-id scanner_ranker_real_strategy_jan_smoke_451 --data-folder /Users/falk/projects/kumo-qc/data --no-cache-ensure`
+
+January smoke result:
+- `giveback_no_bull_scanner_off`: return `3.697%`, DD `1.900%`, orders `87`,
+  closed PnL `5549.30`, unrealized `$-1,787.89`, closed win rate `90.6%`, closed trades `32`.
+- `giveback_no_bull_scanner_top20`: return `3.477%`, DD `2.300%`, orders `73`,
+  closed PnL `5040.13`, unrealized `$-1,515.09`, closed win rate `95.8%`, closed trades `24`.
+
+Read:
+- Top20 did what a scanner gate should do mechanically: fewer orders, fewer closed trades, higher
+  closed win rate, and less negative unrealized mark.
+- In this tiny January window it gave up closed PnL and worsened DD slightly, so this is not a
+  promotion result.
+- A previous same smoke run before the diagnostics parser fix produced different order counts, so
+  repeatability/staleness should be watched during the FY matrix. Do not over-read the January pair.
+
+Full matrix command:
+`PYTHONPATH=src:. /Users/falk/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 scripts/run_scanner_ranker_sweep.py --pack real_strategy_scanner --window fy --workers 6 --sweep-id scanner_ranker_real_strategy_fy2025_453 --data-folder /Users/falk/projects/kumo-qc/data --no-cache-ensure`
+
+Verification:
+- `uv run --python 3.12 pytest tests/strategies/test_realized_giveback_no_bull.py tests/sweeps/test_scanner_ranker_grid.py tests/scripts/test_run_scanner_ranker_sweep.py`
+  -> 31 passed.
+- `uv run --python 3.12 ruff ...` could not run locally because `ruff` is not installed in the
+  active environment.
+
 ## Post-#448 artifact export and scanner-ranker sweep
 
 After #448 merged, added the missing reproducible runtime-artifact/export step and local LEAN

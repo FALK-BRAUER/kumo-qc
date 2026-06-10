@@ -3,7 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 
 from build.sweep_build import build_sweep_dist, sweep_to_strategy_config
-from sweeps.grids.scanner_ranker import BASE_MODULE, all_variants, first_pack, top_x_expansion_pack
+from sweeps.grids.scanner_ranker import (
+    BASE_MODULE,
+    REAL_STRATEGY_BASES,
+    all_variants,
+    first_pack,
+    real_strategy_scanner_pack,
+    top_x_expansion_pack,
+)
 
 
 def test_scanner_ranker_first_pack_shape() -> None:
@@ -37,6 +44,32 @@ def test_scanner_ranker_top_x_expansion_pack_shape() -> None:
     assert len({variant.variant_id for variant in all_variants()}) == len(all_variants())
 
 
+def test_real_strategy_scanner_pack_shape() -> None:
+    variants = real_strategy_scanner_pack()
+
+    assert len(variants) == 12
+    assert [variant.variant_id for variant in variants] == [
+        "giveback_no_bull_scanner_off",
+        "giveback_no_bull_scanner_top15",
+        "giveback_no_bull_scanner_top20",
+        "giveback_no_bull_scanner_top25",
+        "target04_fast_take_scanner_off",
+        "target04_fast_take_scanner_top15",
+        "target04_fast_take_scanner_top20",
+        "target04_fast_take_scanner_top25",
+        "target08_let_run_scanner_off",
+        "target08_let_run_scanner_top15",
+        "target08_let_run_scanner_top20",
+        "target08_let_run_scanner_top25",
+    ]
+    assert {variant.wave for variant in variants} == {2}
+    assert {variant.base_module for variant in variants} == {
+        base_module for _, base_module, _ in REAL_STRATEGY_BASES
+    }
+    assert BASE_MODULE not in {variant.base_module for variant in variants}
+    assert len({variant.variant_id for variant in all_variants()}) == len(all_variants())
+
+
 def test_top20_variant_maps_ranker_runtime_and_phase() -> None:
     variant = next(item for item in first_pack() if item.variant_id == "scanner_lambdamart_top20")
 
@@ -48,6 +81,38 @@ def test_top20_variant_maps_ranker_runtime_and_phase() -> None:
     assert cfg.runtime.scanner_ranker_enabled is True
     assert cfg.runtime.scanner_ranker_top_x == 20
     assert cfg.runtime.scanner_ranker_model_path == "objectstore://bct_lambdamart_qc_safe_v1.json"
+
+
+def test_real_strategy_top20_variant_maps_ranker_on_selected_base() -> None:
+    variant = next(
+        item
+        for item in real_strategy_scanner_pack()
+        if item.variant_id == "giveback_no_bull_scanner_top20"
+    )
+
+    cfg = sweep_to_strategy_config(variant.config, base_module=variant.base_module)
+
+    ranking = cfg.phases["ranking"]
+    assert not isinstance(ranking, list)
+    assert ranking.impl.__name__ == "LambdamartScannerRanker"
+    assert cfg.runtime.scanner_ranker_enabled is True
+    assert cfg.runtime.scanner_ranker_top_x == 20
+    assert cfg.name.startswith("sweep-")
+
+
+def test_real_strategy_scanner_off_variant_keeps_base_ranking() -> None:
+    variant = next(
+        item
+        for item in real_strategy_scanner_pack()
+        if item.variant_id == "target04_fast_take_scanner_off"
+    )
+
+    cfg = sweep_to_strategy_config(variant.config, base_module=variant.base_module)
+
+    ranking = cfg.phases["ranking"]
+    assert not isinstance(ranking, list)
+    assert ranking.impl.__name__ == "ScoreDvRanking"
+    assert cfg.runtime.scanner_ranker_enabled is False
 
 
 def test_top25_expansion_variant_maps_ranker_runtime_and_phase() -> None:

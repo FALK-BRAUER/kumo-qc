@@ -5,6 +5,10 @@ from engine.engine import StrategyEngine, _config_hash
 from phases.exit.proactive_strength_exit.proactive_strength_exit import ProactiveStrengthExit
 from strategies.champion_intraday_gapvol import CONFIG as CHAMPION_CONFIG
 from strategies.realized_giveback_no_bull import CONFIG, LEAN_ENTRY
+from strategies.realized_target_04_fast_take import CONFIG as TARGET_04_CONFIG
+from strategies.realized_target_04_fast_take import LEAN_ENTRY as TARGET_04_LEAN_ENTRY
+from strategies.realized_target_08_let_run import CONFIG as TARGET_08_CONFIG
+from strategies.realized_target_08_let_run import LEAN_ENTRY as TARGET_08_LEAN_ENTRY
 
 
 class FakeQC:
@@ -52,3 +56,30 @@ def test_candidate_is_not_current_champion_or_fixture() -> None:
 
 def test_lean_entry_enabled() -> None:
     assert LEAN_ENTRY is True
+
+
+def test_realized_target_candidates_are_non_fixture_strategy_modules() -> None:
+    assert TARGET_04_CONFIG.is_fixture is False
+    assert TARGET_08_CONFIG.is_fixture is False
+    assert TARGET_04_CONFIG.name == "realized-target-04-fast-take"
+    assert TARGET_08_CONFIG.name == "realized-target-08-let-run"
+    assert TARGET_04_LEAN_ENTRY is True
+    assert TARGET_08_LEAN_ENTRY is True
+    assert len(
+        {
+            _config_hash(CHAMPION_CONFIG),
+            _config_hash(CONFIG),
+            _config_hash(TARGET_04_CONFIG),
+            _config_hash(TARGET_08_CONFIG),
+        }
+    ) == 4
+
+
+def test_realized_target_candidates_match_archived_exit_axis() -> None:
+    target_04_exit = TARGET_04_CONFIG.phases["exit_hard"][0]  # type: ignore[index]
+    target_08_exit = TARGET_08_CONFIG.phases["exit_hard"][0]  # type: ignore[index]
+
+    assert target_04_exit.impl is ProactiveStrengthExit
+    assert target_04_exit.params == ProactiveStrengthExit.Params(target_pct=0.04)
+    assert target_08_exit.impl is ProactiveStrengthExit
+    assert target_08_exit.params == ProactiveStrengthExit.Params(target_pct=0.08)
