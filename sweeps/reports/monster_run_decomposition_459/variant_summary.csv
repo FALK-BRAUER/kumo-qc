@@ -1,0 +1,7 @@
+variant_id,source_rows,closed_trades,open_or_censored_trades,closed_pnl,open_or_censored_pnl,win_rate_pct,avg_return_pct,median_return_pct,avg_duration_days,median_duration_days,p90_duration_days,top1_positive_pnl_share_pct,top5_positive_pnl_share_pct,top10_positive_pnl_share_pct,top1_net_pnl_share_pct,top5_net_pnl_share_pct,top10_net_pnl_share_pct,monster_trades,monster_pnl,monster_pnl_share_pct
+giveback_tight_no_bull,140,117,23,24815.075,0.0,93.162,5.313,5.837,46.052,18.979,144.558,5.07,14.651,23.373,5.258,15.194,24.24,12,6818.57,27.478
+target_04_fast_take,134,111,23,24386.274,0.0,98.198,5.516,5.003,47.967,20.0,150.958,4.264,13.312,21.582,4.283,13.371,21.679,11,5644.184,23.145
+combo_gb_buy005,141,119,22,23919.226,0.0,92.437,5.047,5.337,42.354,20.0,121.342,5.375,15.89,24.82,5.582,16.502,25.776,11,6558.778,27.421
+target_08_let_run,123,100,23,23379.544,0.0,89.0,5.893,6.251,51.309,26.021,146.058,4.322,16.748,26.591,4.552,17.641,28.009,18,9804.002,41.934
+p_only_base,133,110,23,23377.371,0.0,85.455,5.389,6.08,47.457,18.5,153.458,4.391,14.959,24.708,4.468,15.221,25.141,12,6676.956,28.562
+combo_t08_buy005,114,91,23,23048.769,0.0,89.011,6.437,7.908,53.93,28.0,130.958,4.37,16.765,27.035,4.618,17.715,28.567,17,9493.581,41.189

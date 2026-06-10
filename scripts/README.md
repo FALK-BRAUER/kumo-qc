@@ -41,6 +41,9 @@ macOS keychain at runtime.
   trade diagnostics for the George-context 30-pack. `aggregate_416_george_context_reports.py`
   combines wave and retry `summary.csv` files into one ranked report folder for leaderboard and
   diagnostics use.
+- **Monster-run diagnostics:** `analyze_monster_runs.py` reads tracked `trades_all.csv` artifacts and
+  writes PnL-concentration, hold-bucket, top-trade, and symbol-concentration summaries for the
+  champion-vs-George short-swing research track.
 - **Scanner research hygiene:** `validate_scanner_experiment_log.py` validates the BCT/George scanner
   experiment ledger schema and required provenance fields. `validate_scanner_promotion_gate.py` validates
   the runtime-promotion allow/deny gate. `audit_scanner_feature_parity.py` separates QC-deployable scanner

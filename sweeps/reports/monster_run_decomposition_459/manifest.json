@@ -1,0 +1,26 @@
+{
+  "config": {
+    "trades_csv": [
+      "/Users/falk/projects/kumo-qc-459-monster-run-decomposition/sweeps/reports/george_range_30/trades_all.csv",
+      "/Users/falk/projects/kumo-qc-459-monster-run-decomposition/sweeps/reports/george_combo_30_cached_storage_w3/trades_all.csv"
+    ],
+    "variants": [
+      "p_only_base",
+      "target_04_fast_take",
+      "target_08_let_run",
+      "giveback_tight_no_bull",
+      "combo_gb_buy005",
+      "combo_t08_buy005"
+    ],
+    "output_dir": "/Users/falk/projects/kumo-qc-459-monster-run-decomposition/sweeps/reports/monster_run_decomposition_459"
+  },
+  "outputs": [
+    "README.md",
+    "hold_bucket_summary.csv",
+    "manifest.json",
+    "monster_run_report.md",
+    "symbol_concentration.csv",
+    "top_trades.csv",
+    "variant_summary.csv"
+  ]
+}
