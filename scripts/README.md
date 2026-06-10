@@ -35,6 +35,9 @@ macOS keychain at runtime.
   adapter. It expects the runtime-safe LambdaMART JSON at
   `storage/bct_lambdamart_qc_safe_v1.json`, which is served to LEAN through the repo ObjectStore
   symlink; pass `--only scanner_lambdamart_top10` or similar for smoke runs.
+- **Scanner opportunity research:** `build_scanner_opportunity_panel.py` builds the #463 label-free
+  scanner opportunity surface from Kumo/Falk candidates and George scanner/watchlist/video evidence.
+  It keeps source/provenance flags and excludes future path labels for the later #464 replay step.
 - **Sweep analysis:** `analyze_408_george_range_30.py` regenerates confidence tables, indicator
   ranges, and Markdown analysis from the George-range aggregate CSVs. `analyze_416_george_context_trades.py`
   reads completed #416 LEAN result JSONs and writes per-variant, per-symbol, and baseline-delta
