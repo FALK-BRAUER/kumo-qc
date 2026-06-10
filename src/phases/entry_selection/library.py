@@ -32,6 +32,7 @@ from phases.entry_selection.bct_intraday_gap_vol_confirm.bct_intraday_gap_vol_co
     BctIntradayGapVolConfirm,
 )
 from phases.entry_selection.preflight_staleness.preflight_staleness import PreFlightStaleness
+from phases.entry_selection.rank_aware_gap_confirm.rank_aware_gap_confirm import RankAwareGapConfirm
 
 # BctEntryConfirm = DAILY (#253) confirm. The two INTRADAY (#270) confirms are MECHANIC VARIANTS:
 # BctIntradayConfirm = tenkan-reclaim CROSS (≤→>); BctIntradayHoldConfirm = above-Tenkan HOLD + vol
@@ -40,5 +41,5 @@ from phases.entry_selection.preflight_staleness.preflight_staleness import PreFl
 # The catalog lists all (discovery/sweep only — wiring picks the clock-consistent subset).
 ENTRY_SELECTION_PHASES: tuple[type[BasePhase], ...] = (
     PreFlightStaleness, BctEntryConfirm, BctIntradayConfirm, BctIntradayHoldConfirm,
-    BctIntradayGapVolConfirm,
+    BctIntradayGapVolConfirm, RankAwareGapConfirm,
 )

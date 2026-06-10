@@ -1,5 +1,47 @@
 # FOR_FALK - BCT/George scanner-alignment implementation pass, 2026-06-09
 
+## #469 rank-aware intraday scanner, 2026-06-11
+
+Goal: use LambdaMART scanner rank as live intraday context beyond a Top-X cutoff, without changing
+the production champion. Worktree: `kumo-qc-469-rank-aware-intraday-scanner`, branch
+`codex/469-rank-aware-intraday-scanner`.
+
+What changed:
+- `LambdamartScannerRanker` now publishes a canonical per-ticker scanner context map.
+- `BctEngineAlgorithm._capture_candidate_snapshot()` freezes scanner rank/score/features into the
+  daily-to-intraday candidate snapshot.
+- Entry tags now include `scanner_rank` and `scanner_score` while preserving the old
+  `decision_rank` field.
+- Results archive trade schema is bumped to v3 so scanner rank/score are durable in trade rows.
+- Added `RankAwareGapConfirm`, an intraday entry-selection phase with rank-bucketed gap/loud-open
+  thresholds.
+- Added the `rank_aware_intraday` sweep pack: top20/top50 gate controls plus rank-aware variants.
+
+FY2025 sweep result:
+- All 8 cells completed with `workers=3`.
+- Best row remains `rankaware_top20_gate_control`: return `29.133%`, DD `18.800%`, orders `78`,
+  realized `-17328.77`, unrealized `$46,510.78`.
+- Best rank-aware row is `rankaware_top50_bucket_default`: return `27.473%`, DD `19.700%`,
+  orders `74`, realized `-16324.99`, unrealized `$43,840.40`.
+- Versus top50 gate-only, rank-aware default improved return by `+1.797` points, DD by `-0.100`,
+  realized net by `$320.33`, and unrealized by `$1,476.81`.
+- Top20 rank-aware variants did not beat the top20 gate-only control.
+
+Read:
+- This is not a champion switch. The top20 gate-only control still wins total return, and this
+  champion-intraday family still carries negative realized net with positive unrealized marks.
+- The useful signal is narrower: rank-aware intraday confirmation can improve the wider top50 gate.
+- `top50_tail_strict` matched default exactly, so stricter tail settings did not bind on actual
+  entrants in this run.
+- `top50_mid30_tail` is rejected: worse return, DD, realized, unrealized, and more orders.
+- Do not blindly apply `RankAwareGapConfirm` to the realized George-range strategies; those use a
+  different `entry_selection -> arm -> entry_trigger -> intraday_sizing` architecture. The next
+  clean set is rank-aware sizing/revalidation or a scanner-aware arm/trigger consumer.
+
+Reports:
+- `sweeps/reports/rank_aware_intraday_jan_smoke_469/`
+- `sweeps/reports/rank_aware_intraday_fy2025_469/`
+
 ## #455 top20 realization diagnostics, 2026-06-10
 
 Goal: convert the LambdaMART top20 scanner edge into better realized PnL without changing the

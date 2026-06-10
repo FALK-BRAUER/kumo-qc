@@ -10,6 +10,7 @@ from runtime.scanner_ranker import ARTIFACT_SCHEMA_VERSION, feature_contract_has
 from scripts import run_scanner_ranker_sweep as M
 from sweeps.grids.scanner_ranker import (
     first_pack,
+    rank_aware_intraday_pack,
     real_strategy_scanner_pack,
     top20_realized_exit_pack,
     top_x_expansion_pack,
@@ -65,6 +66,16 @@ def test_variants_selects_top20_realized_exit_pack() -> None:
 
     assert [variant.variant_id for variant in variants] == [
         variant.variant_id for variant in top20_realized_exit_pack()
+    ]
+
+
+def test_variants_selects_rank_aware_intraday_pack() -> None:
+    args = SimpleNamespace(pack="rank_aware_intraday", only="", limit=None)
+
+    variants = M._variants(args)
+
+    assert [variant.variant_id for variant in variants] == [
+        variant.variant_id for variant in rank_aware_intraday_pack()
     ]
 
 

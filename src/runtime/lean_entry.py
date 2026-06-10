@@ -1456,6 +1456,8 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         tk = ist.get("intraday_tenkan")
         tdist = ((last_close - float(tk.current.value)) / last_close
                  if (tk is not None and getattr(tk, "is_ready", False) and last_close) else None)
+        scanner_rank = snap.get("scanner_rank")
+        scanner_score = snap.get("scanner_score")
         # SCANNER RANK — the candidate's position in today's ranked universe (_ranked_today).
         # #276b-1 FIX3: _ranked_today holds LOWERCASE tickers (coarse-derived) but sym.value is
         # UPPERCASE → the old `val in ranked` was ALWAYS False on cloud (rank omitted for EVERY
@@ -1469,8 +1471,16 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         for i, t in enumerate(ranked):
             ranked_key_to_rank.setdefault(canonical_symbol_key(t), i)
         rank = ranked_key_to_rank.get(canonical_symbol_key(sym)) if val is not None else None
-        tag = encode_entry_tag(score=snap.get("score"), conditions=(snap.get("conditions") or None),
-                               gap=gap, vol=vol, tdist=tdist, rank=rank)
+        tag = encode_entry_tag(
+            score=snap.get("score"),
+            conditions=(snap.get("conditions") or None),
+            gap=gap,
+            vol=vol,
+            tdist=tdist,
+            rank=rank,
+            scanner_rank=int(scanner_rank) if scanner_rank is not None else None,
+            scanner_score=float(scanner_score) if scanner_score is not None else None,
+        )
         if len(tag) > self.ENTRY_TAG_MAX:
             raise DegradedDataError(
                 f"entry tag {len(tag)} > ENTRY_TAG_MAX={self.ENTRY_TAG_MAX} for {val} — would "
@@ -1501,6 +1511,7 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
         # canonical identity, reused — never Symbol.create (the desync killer).
         active_by_key = {canonical_symbol_key(s): s for s in getattr(self, "_active", set())}  # #276b-1 FIX3
         indicators = getattr(self, "_indicators", {})
+        scanner_context = getattr(self, "_scanner_ranker_context", {})
         decision_date = self.time.date()
         snap: dict[Any, dict[str, Any]] = {}
         for ticker in winners:
@@ -1555,7 +1566,8 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                              f"rescore={scored['score']}<min_score={min_score} — booleans suspect, dropped")
                     scored = None
             conditions = [bool(c) for c in scored["conditions"]] if scored else []
-            snap[sym] = {
+            scanner = scanner_context.get(canonical_symbol_key(ticker), {})
+            row = {
                 "signal_price": float(self.securities[sym].price),
                 "daily_kijun": float(d_ichi.kijun.current.value),
                 # #339: cloud bottom (min Senkou A/B) — the structural floor for CloudProtectiveStop
@@ -1566,6 +1578,12 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                 "score": int(scored["score"]) if scored else None,   # the aggregate (back-compat)
                 "conditions": conditions,                            # the 8 booleans (learn-substrate core)
             }
+            if scanner:
+                row["scanner_rank"] = int(scanner["scanner_rank"])
+                row["scanner_score"] = float(scanner["scanner_score"])
+                row["scanner_original_index"] = int(scanner.get("scanner_original_index", -1))
+                row["scanner_features"] = dict(scanner.get("scanner_features", {}))
+            snap[sym] = row
         self._candidate_snapshot = snap
         log = getattr(self, "log", None)
         if callable(log):

@@ -139,6 +139,29 @@ def test_snapshot_reads_signal_features_no_rescore(monkeypatch) -> None:
     assert not any("CONTEXT_GAP" in m for m in a.logged)  # no re-score → no context gap
 
 
+def test_snapshot_captures_scanner_context_from_ranker() -> None:
+    aapl = FakeSym("AAPL")
+    bits = [True] * 8
+    a = _algo([aapl], ["aapl"], {aapl: {"d_ichi": FakeDIchi(140.0)}}, {aapl: 150.0})
+    a._signal_features = {aapl: {"score": 8, "conditions": bits}}
+    a._scanner_ranker_context = {
+        "aapl": {
+            "scanner_rank": 4,
+            "scanner_score": 1.2345,
+            "scanner_original_index": 12,
+            "scanner_features": {"gap_pct": 0.052, "rel_volume20": 1.8},
+        }
+    }
+
+    a._capture_candidate_snapshot(a._ranked_today)
+
+    snap = a._candidate_snapshot[aapl]
+    assert snap["scanner_rank"] == 4
+    assert snap["scanner_score"] == 1.2345
+    assert snap["scanner_original_index"] == 12
+    assert snap["scanner_features"] == {"gap_pct": 0.052, "rel_volume20": 1.8}
+
+
 def test_snapshot_drops_drifted_rescore_below_min_score(monkeypatch) -> None:
     # HQ drift tripwire: a winner re-scoring BELOW min_score (ind desync) must NOT record its
     # (untrustworthy) booleans — flag suspect: score=None, conditions=[], CONTEXT_GAP logged.

@@ -19,7 +19,16 @@ from runtime.tag_schema import (
 
 def test_round_trip_full_context_survives_value_and_type() -> None:
     bits = [True, True, False, True, True, True, False, True]  # 6/8
-    tag = encode_entry_tag(score=7, conditions=bits, gap=0.0340, vol=1.612, tdist=0.0081, rank=12)
+    tag = encode_entry_tag(
+        score=7,
+        conditions=bits,
+        gap=0.0340,
+        vol=1.612,
+        tdist=0.0081,
+        rank=12,
+        scanner_rank=3,
+        scanner_score=1.23456,
+    )
     p = parse_entry_tag(tag)
     assert p["decision_score"] == 7 and isinstance(p["decision_score"], int)
     assert p["decision_cond"] == "11011101"
@@ -27,6 +36,8 @@ def test_round_trip_full_context_survives_value_and_type() -> None:
     assert p["decision_vol"] == 1.612
     assert p["decision_tdist"] == 0.0081
     assert p["decision_rank"] == 12 and isinstance(p["decision_rank"], int)
+    assert p["scanner_rank"] == 3 and isinstance(p["scanner_rank"], int)
+    assert p["scanner_score"] == 1.23456 and isinstance(p["scanner_score"], float)
     # cond expands to the 8 bools in the SAME order it was encoded
     assert expand_cond(p["decision_cond"]) == {f"cond_{i}": bits[i] for i in range(COND_BITS)}
     assert has_core(p) is True
@@ -39,6 +50,7 @@ def test_round_trip_omits_none_never_fakes() -> None:
     assert p["decision_score"] == 8 and p["decision_cond"] == "11111111"
     assert p["decision_gap"] is None and p["decision_vol"] is None
     assert p["decision_tdist"] is None and p["decision_rank"] is None
+    assert p["scanner_rank"] is None and p["scanner_score"] is None
     assert has_core(p) is True  # core present even with optional fields absent
 
 

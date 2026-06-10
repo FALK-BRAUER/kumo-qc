@@ -58,6 +58,15 @@ def _ranking(*, enabled: bool = True, free_params: int = 0) -> PhaseChoice:
     )
 
 
+def _entry(impl_name: str, *, free_params: int | None = None, **params: object) -> PhaseChoice:
+    return PhaseChoice(
+        kind="entry_selection",
+        impl_name=impl_name,
+        params=_pairs(**params),
+        free_params=len(params) if free_params is None else free_params,
+    )
+
+
 def _exit(impl_name: str, *, free_params: int | None = None, **params: object) -> PhaseChoice:
     phase_params = dict(params)
     counted_params = len(phase_params) if free_params is None else free_params
@@ -371,11 +380,126 @@ def top20_realized_exit_pack() -> list[ScannerRankerVariant]:
     return variants
 
 
+def _rank_aware_config(top_x: int, *choices: PhaseChoice) -> SweepConfig:
+    return _config(
+        _ranking(free_params=1),
+        *choices,
+        runtime_overrides=_ranker_runtime(top_x=top_x),
+    )
+
+
+def _rank_aware_entry(**params: object) -> PhaseChoice:
+    return _entry(
+        "rank_aware_gap_confirm",
+        free_params=3,
+        **params,
+    )
+
+
+def rank_aware_intraday_pack() -> list[ScannerRankerVariant]:
+    """#469 first rank-aware scanner pack.
+
+    Controls keep the current `bct_intraday_gap_vol_confirm` entry phase and use LambdaMART only
+    as a Top-X gate. Rank-aware variants swap only the entry-selection algorithm; PreFlightStaleness
+    remains preserved by the sweep bridge.
+    """
+    return [
+        ScannerRankerVariant(
+            variant_id="rankaware_top20_gate_control",
+            family="rank_aware_control",
+            wave=4,
+            hypothesis="Control: LambdaMART Top-20 gate with current gap/loud-open intraday confirm.",
+            config=_rank_aware_config(20),
+        ),
+        ScannerRankerVariant(
+            variant_id="rankaware_top20_bucket_default",
+            family="rank_aware_entry",
+            wave=4,
+            hypothesis="Top20: ranks 1-10 can pass looser gap/open-volume; ranks 11-20 use canonical confirmation.",
+            config=_rank_aware_config(20, _rank_aware_entry()),
+        ),
+        ScannerRankerVariant(
+            variant_id="rankaware_top20_bucket_strict_mid",
+            family="rank_aware_entry",
+            wave=4,
+            hypothesis="Top20: top ranks are only slightly looser; ranks 11-20 require stronger gap and volume.",
+            config=_rank_aware_config(
+                20,
+                _rank_aware_entry(
+                    top_gap_threshold=0.030,
+                    top_vol_mult=0.90,
+                    mid_gap_threshold=0.040,
+                    mid_vol_mult=1.15,
+                ),
+            ),
+        ),
+        ScannerRankerVariant(
+            variant_id="rankaware_top20_top5_only_loose",
+            family="rank_aware_entry",
+            wave=4,
+            hypothesis="Top20: only ranks 1-5 get easier confirmation; ranks 6-20 must prove stronger intraday demand.",
+            config=_rank_aware_config(
+                20,
+                _rank_aware_entry(
+                    top_rank_max=5,
+                    mid_rank_max=20,
+                    top_gap_threshold=0.025,
+                    top_vol_mult=0.80,
+                    mid_gap_threshold=0.040,
+                    mid_vol_mult=1.15,
+                ),
+            ),
+        ),
+        ScannerRankerVariant(
+            variant_id="rankaware_top50_gate_control",
+            family="rank_aware_control",
+            wave=4,
+            hypothesis="Control: LambdaMART Top-50 gate with current gap/loud-open intraday confirm.",
+            config=_rank_aware_config(50),
+        ),
+        ScannerRankerVariant(
+            variant_id="rankaware_top50_bucket_default",
+            family="rank_aware_entry",
+            wave=4,
+            hypothesis="Top50: keep breadth, but ranks beyond 20 need strong gap and volume confirmation.",
+            config=_rank_aware_config(50, _rank_aware_entry()),
+        ),
+        ScannerRankerVariant(
+            variant_id="rankaware_top50_tail_strict",
+            family="rank_aware_entry",
+            wave=4,
+            hypothesis="Top50: lower-ranked names require a very strong gap and louder opening volume.",
+            config=_rank_aware_config(
+                50,
+                _rank_aware_entry(
+                    tail_gap_threshold=0.060,
+                    tail_vol_mult=1.50,
+                ),
+            ),
+        ),
+        ScannerRankerVariant(
+            variant_id="rankaware_top50_mid30_tail",
+            family="rank_aware_entry",
+            wave=4,
+            hypothesis="Top50: ranks 11-30 use canonical confirmation; only ranks 31-50 get the strict tail gate.",
+            config=_rank_aware_config(
+                50,
+                _rank_aware_entry(
+                    mid_rank_max=30,
+                    tail_gap_threshold=0.045,
+                    tail_vol_mult=1.15,
+                ),
+            ),
+        ),
+    ]
+
+
 PACKS = {
     "first": first_pack,
     "top_x_expansion": top_x_expansion_pack,
     "real_strategy_scanner": real_strategy_scanner_pack,
     "top20_realized_exit": top20_realized_exit_pack,
+    "rank_aware_intraday": rank_aware_intraday_pack,
 }
 
 

@@ -13,6 +13,7 @@ from typing import Any
 
 from engine.base import BasePhase, PhaseResult
 from engine.context import OrderIntent, PhaseContext
+from engine.symbol_key import canonical_symbol_key
 from phases.shared.param_space import ComplexityDecl, ParamSpace
 from runtime.scanner_ranker import (
     ScannerModelArtifact,
@@ -60,6 +61,9 @@ class LambdamartScannerRanker(BasePhase):
         intents = list(ctx.bar_state.sized_orders)
         enabled = self._enabled(ctx.qc)
         if not enabled:
+            ctx.qc._scanner_ranker_context = {}
+            ctx.qc._scanner_ranker_features = {}
+            ctx.qc._scanner_ranker_scores = []
             return PhaseResult(
                 decision=[],
                 blocked=False,
@@ -68,6 +72,9 @@ class LambdamartScannerRanker(BasePhase):
                 metrics={},
             )
         if not intents:
+            ctx.qc._scanner_ranker_context = {}
+            ctx.qc._scanner_ranker_features = {}
+            ctx.qc._scanner_ranker_scores = []
             return PhaseResult(
                 decision=[],
                 blocked=False,
@@ -87,6 +94,9 @@ class LambdamartScannerRanker(BasePhase):
             if fallback == "raise":
                 raise
             ctx.qc._scanner_ranker_error = str(exc)
+            ctx.qc._scanner_ranker_context = {}
+            ctx.qc._scanner_ranker_features = {}
+            ctx.qc._scanner_ranker_scores = []
             return PhaseResult(
                 decision=intents,
                 blocked=False,
@@ -113,8 +123,18 @@ class LambdamartScannerRanker(BasePhase):
             }
             for index, row in enumerate(ranked, start=1)
         ]
+        context = {
+            canonical_symbol_key(row.ticker): {
+                "scanner_rank": index,
+                "scanner_score": float(row.score),
+                "scanner_original_index": int(row.original_index),
+                "scanner_features": dict(row.features),
+            }
+            for index, row in enumerate(ranked, start=1)
+        }
         ctx.qc._scanner_ranker_features = {row.ticker: row.features for row in ranked}
         ctx.qc._scanner_ranker_scores = diagnostics
+        ctx.qc._scanner_ranker_context = context
         cache_key = scanner_cache_key(
             artifact_hash=model.artifact_hash,
             panel_date=ctx.time.strftime("%Y-%m-%d"),

@@ -84,6 +84,9 @@ def test_phase_selects_top_x_from_model_scores() -> None:
     assert [intent.ticker for intent in ctx.bar_state.sized_orders] == ["BBB"]
     assert result.facts["selected"] == 1
     assert qc._scanner_ranker_scores[0]["ticker"] == "bbb"
+    assert qc._scanner_ranker_context["bbb"]["scanner_rank"] == 1
+    assert qc._scanner_ranker_context["bbb"]["scanner_score"] == 1.1
+    assert qc._scanner_ranker_context["bbb"]["scanner_features"]["bct_score"] == 8
     assert qc._scanner_ranker_cache_key
 
 
@@ -96,6 +99,7 @@ def test_phase_disabled_by_runtime_is_passthrough() -> None:
 
     assert [intent.ticker for intent in ctx.bar_state.sized_orders] == ["AAA", "BBB"]
     assert result.facts["enabled"] is False
+    assert qc._scanner_ranker_context == {}
 
 
 def test_missing_model_can_fallback_to_bct_order() -> None:
@@ -108,3 +112,4 @@ def test_missing_model_can_fallback_to_bct_order() -> None:
     assert [intent.ticker for intent in ctx.bar_state.sized_orders] == ["AAA", "BBB"]
     assert result.facts["fallback"] == "bct_order"
     assert "missing" in qc._scanner_ranker_error
+    assert qc._scanner_ranker_context == {}

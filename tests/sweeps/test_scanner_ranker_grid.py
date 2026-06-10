@@ -8,6 +8,7 @@ from sweeps.grids.scanner_ranker import (
     REAL_STRATEGY_BASES,
     all_variants,
     first_pack,
+    rank_aware_intraday_pack,
     real_strategy_scanner_pack,
     top20_realized_exit_pack,
     top_x_expansion_pack,
@@ -88,6 +89,25 @@ def test_top20_realized_exit_pack_shape() -> None:
         base_module for _, base_module, _ in REAL_STRATEGY_BASES
     }
     assert {variant.config.runtime_dict()["scanner_ranker_top_x"] for variant in variants} == {20}
+    assert len({variant.variant_id for variant in all_variants()}) == len(all_variants())
+
+
+def test_rank_aware_intraday_pack_shape() -> None:
+    variants = rank_aware_intraday_pack()
+
+    assert len(variants) == 8
+    assert [variant.variant_id for variant in variants] == [
+        "rankaware_top20_gate_control",
+        "rankaware_top20_bucket_default",
+        "rankaware_top20_bucket_strict_mid",
+        "rankaware_top20_top5_only_loose",
+        "rankaware_top50_gate_control",
+        "rankaware_top50_bucket_default",
+        "rankaware_top50_tail_strict",
+        "rankaware_top50_mid30_tail",
+    ]
+    assert {variant.wave for variant in variants} == {4}
+    assert {variant.config.runtime_dict()["scanner_ranker_top_x"] for variant in variants} == {20, 50}
     assert len({variant.variant_id for variant in all_variants()}) == len(all_variants())
 
 
@@ -184,6 +204,23 @@ def test_top20_realized_mfe_variant_composes_base_exit() -> None:
     assert exits[0].params.target_pct == 0.08
     assert exits[1].params.min_mfe_pct == 0.04
     assert exits[1].params.diagnostic_log is True
+
+
+def test_rank_aware_variant_swaps_entry_algorithm_and_preserves_preflight() -> None:
+    variant = next(
+        item
+        for item in rank_aware_intraday_pack()
+        if item.variant_id == "rankaware_top50_tail_strict"
+    )
+
+    cfg = sweep_to_strategy_config(variant.config, base_module=variant.base_module)
+
+    entries = cfg.phases["entry_selection"]
+    assert [slot.impl.__name__ for slot in entries] == ["PreFlightStaleness", "RankAwareGapConfirm"]
+    assert entries[1].params.tail_gap_threshold == 0.060
+    assert entries[1].params.tail_vol_mult == 1.50
+    assert cfg.runtime.scanner_ranker_enabled is True
+    assert cfg.runtime.scanner_ranker_top_x == 50
 
 
 def test_top25_expansion_variant_maps_ranker_runtime_and_phase() -> None:

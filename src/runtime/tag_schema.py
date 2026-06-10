@@ -21,14 +21,25 @@ from urllib.parse import parse_qs, urlencode
 
 COND_BITS = 8  # the 8 BCT conditions (stable bit order == CLAUDE.md BCT stack; a change = schema bump)
 
-# The 6 decision_* tag keys — the SINGLE source. Rename here → both emit + parse move together.
+# The decision/scanner tag keys — the SINGLE source. Rename here → both emit + parse move together.
 KEY_SCORE = "decision_score"
 KEY_COND = "decision_cond"
 KEY_GAP = "decision_gap"
 KEY_VOL = "decision_vol"
 KEY_TDIST = "decision_tdist"
 KEY_RANK = "decision_rank"
-TAG_KEYS: tuple[str, ...] = (KEY_SCORE, KEY_COND, KEY_GAP, KEY_VOL, KEY_TDIST, KEY_RANK)
+KEY_SCANNER_RANK = "scanner_rank"
+KEY_SCANNER_SCORE = "scanner_score"
+TAG_KEYS: tuple[str, ...] = (
+    KEY_SCORE,
+    KEY_COND,
+    KEY_GAP,
+    KEY_VOL,
+    KEY_TDIST,
+    KEY_RANK,
+    KEY_SCANNER_RANK,
+    KEY_SCANNER_SCORE,
+)
 CORE_KEYS: tuple[str, ...] = (KEY_SCORE, KEY_COND)  # the learn-substrate core (else row is suspect)
 
 
@@ -40,6 +51,8 @@ def encode_entry_tag(
     vol: float | None = None,
     tdist: float | None = None,
     rank: int | None = None,
+    scanner_rank: int | None = None,
+    scanner_score: float | None = None,
 ) -> str:
     """Emit the URL-query entry tag from raw values. OMITS a field whose value is None — NEVER
     fakes a missing piece. `conditions` = a length-8 truthy sequence → the 8-bit string. Float
@@ -57,6 +70,10 @@ def encode_entry_tag(
         fields[KEY_TDIST] = f"{float(tdist):.4f}"
     if rank is not None:
         fields[KEY_RANK] = int(rank)
+    if scanner_rank is not None:
+        fields[KEY_SCANNER_RANK] = int(scanner_rank)
+    if scanner_score is not None:
+        fields[KEY_SCANNER_SCORE] = f"{float(scanner_score):.5f}"
     return urlencode(fields)
 
 
@@ -94,6 +111,8 @@ def parse_entry_tag(tag: str | None) -> dict[str, Any]:
     out[KEY_VOL] = _as_float(KEY_VOL)
     out[KEY_TDIST] = _as_float(KEY_TDIST)
     out[KEY_RANK] = _as_int(KEY_RANK)
+    out[KEY_SCANNER_RANK] = _as_int(KEY_SCANNER_RANK)
+    out[KEY_SCANNER_SCORE] = _as_float(KEY_SCANNER_SCORE)
     cond = _first(KEY_COND)
     if cond is not None and len(cond) == COND_BITS and set(cond) <= {"0", "1"}:
         out[KEY_COND] = cond

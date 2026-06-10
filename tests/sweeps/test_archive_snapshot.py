@@ -42,6 +42,8 @@ ENTRY_TAG = urlencode(
         "decision_vol": "1.612",
         "decision_tdist": "0.0081",
         "decision_rank": 12,
+        "scanner_rank": 3,
+        "scanner_score": "1.23456",
     }
 )
 
@@ -178,6 +180,8 @@ def test_clean_run_writes_result_and_trades(tmp_path):
     assert r["decision_vol"] == pytest.approx(1.612)
     assert r["decision_tdist"] == pytest.approx(0.0081)
     assert r["decision_rank"] == 12 and isinstance(r["decision_rank"], int)
+    assert r["scanner_rank"] == 3 and isinstance(r["scanner_rank"], int)
+    assert r["scanner_score"] == pytest.approx(1.23456)
     # cond expanded to 8 bools, stable order
     assert [r[f"cond_{i}"] for i in range(8)] == [True, True, True, True, False, True, True, True]
     # MFE/MAE null (follow-on)
@@ -208,6 +212,8 @@ def test_missing_optional_tag_field_is_null_not_faked(tmp_path):
     assert r["decision_vol"] is None
     assert r["decision_tdist"] is None
     assert r["decision_rank"] is None
+    assert r["scanner_rank"] is None
+    assert r["scanner_score"] is None
     assert r["context_status"] == "OK"  # core present → still OK
     assert r["side"] == "long"
     assert r["pnl"] == pytest.approx(-500.0)  # long 50 @ 200, exit @ 190 → (190-200)*50
@@ -752,8 +758,8 @@ def test_censored_rows_are_deterministic_idempotent(tmp_path):
     assert (d2 / "trades.jsonl.gz").read_bytes() == b1
 
 
-def test_schema_version_bumped_to_2():
-    assert TRADE_SCHEMA_VERSION == 2
+def test_schema_version_bumped_to_3():
+    assert TRADE_SCHEMA_VERSION == 3
 
 
 @pytest.mark.parametrize("bad_price", [0.0, -5.0, float("nan"), float("inf")])
