@@ -1,0 +1,28 @@
+{
+  "generated_at": "2026-06-11T15:37:22.193634+00:00",
+  "issue": "https://github.com/FALK-BRAUER/kumo-qc/issues/482",
+  "config": {
+    "panel": "/Users/falk/projects/kumo-qc-482-scanner-trade-universe/sweeps/reports/scanner_opportunity_panel_463/opportunity_panel.csv.gz",
+    "entry_labels": "/Users/falk/projects/kumo-qc-482-scanner-trade-universe/sweeps/reports/scanner_entry_replay_465/alternate_entry_labels.csv.gz",
+    "exit_labels": "/Users/falk/projects/kumo-qc-482-scanner-trade-universe/sweeps/reports/scanner_exit_policies_466/exit_policy_labels.csv.gz",
+    "ranker_predictions": "/Users/falk/projects/kumo-qc-482-scanner-trade-universe/sweeps/reports/scanner_opportunity_ranker_467/oof_predictions.csv.gz",
+    "output_dir": "/Users/falk/projects/kumo-qc-482-scanner-trade-universe/sweeps/reports/scanner_trade_universe_482",
+    "limit": null,
+    "classification_version": "scanner_trade_universe_v1"
+  },
+  "outputs": {
+    "scanner_trade_universe.csv.gz": {
+      "rows": 26124
+    },
+    "optimal_trades.csv": {
+      "rows": 6238
+    },
+    "bad_trades.csv": {
+      "rows": 15427
+    },
+    "source_summary.csv": {
+      "rows": 4
+    },
+    "scanner_trade_universe_report.md": {}
+  }
+}
