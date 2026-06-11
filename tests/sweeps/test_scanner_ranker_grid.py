@@ -7,8 +7,10 @@ from sweeps.grids.scanner_ranker import (
     BASE_MODULE,
     DEFAULT_OPPORTUNITY_ARTIFACT_PATH,
     DEFAULT_OPPORTUNITY_MODEL_KEY,
+    DYNAMIC_SCORE_THRESHOLDS,
     REAL_STRATEGY_BASES,
     all_variants,
+    dynamic_realized_scanner_pack,
     first_pack,
     opportunity_ranker_pack,
     rank_aware_intraday_pack,
@@ -73,6 +75,38 @@ def test_real_strategy_scanner_pack_shape() -> None:
         base_module for _, base_module, _ in REAL_STRATEGY_BASES
     }
     assert BASE_MODULE not in {variant.base_module for variant in variants}
+    assert len({variant.variant_id for variant in all_variants()}) == len(all_variants())
+
+
+def test_dynamic_realized_scanner_pack_shape() -> None:
+    variants = dynamic_realized_scanner_pack()
+
+    assert len(variants) == 12
+    assert [variant.variant_id for variant in variants] == [
+        "giveback_no_bull_dynamic_off",
+        "giveback_no_bull_dynamic_score_loose",
+        "giveback_no_bull_dynamic_score_medium",
+        "giveback_no_bull_dynamic_score_strict",
+        "target04_fast_take_dynamic_off",
+        "target04_fast_take_dynamic_score_loose",
+        "target04_fast_take_dynamic_score_medium",
+        "target04_fast_take_dynamic_score_strict",
+        "target08_let_run_dynamic_off",
+        "target08_let_run_dynamic_score_loose",
+        "target08_let_run_dynamic_score_medium",
+        "target08_let_run_dynamic_score_strict",
+    ]
+    assert {variant.wave for variant in variants} == {6}
+    assert {variant.base_module for variant in variants} == {
+        base_module for _, base_module, _ in REAL_STRATEGY_BASES
+    }
+    scanner_variants = [variant for variant in variants if variant.family == "dynamic_realized_scanner"]
+    assert len(scanner_variants) == 9
+    assert {variant.config.runtime_dict()["scanner_ranker_top_x"] for variant in scanner_variants} == {0}
+    assert {variant.config.runtime_dict()["scanner_ranker_min_score"] for variant in scanner_variants} == {
+        threshold for _, threshold, _ in DYNAMIC_SCORE_THRESHOLDS
+    }
+    assert "Top-X" in scanner_variants[0].hypothesis
     assert len({variant.variant_id for variant in all_variants()}) == len(all_variants())
 
 
@@ -189,6 +223,38 @@ def test_real_strategy_scanner_off_variant_keeps_base_ranking() -> None:
         item
         for item in real_strategy_scanner_pack()
         if item.variant_id == "target04_fast_take_scanner_off"
+    )
+
+    cfg = sweep_to_strategy_config(variant.config, base_module=variant.base_module)
+
+    ranking = cfg.phases["ranking"]
+    assert not isinstance(ranking, list)
+    assert ranking.impl.__name__ == "ScoreDvRanking"
+    assert cfg.runtime.scanner_ranker_enabled is False
+
+
+def test_dynamic_medium_variant_maps_score_threshold_without_top_x() -> None:
+    variant = next(
+        item
+        for item in dynamic_realized_scanner_pack()
+        if item.variant_id == "giveback_no_bull_dynamic_score_medium"
+    )
+
+    cfg = sweep_to_strategy_config(variant.config, base_module=variant.base_module)
+
+    ranking = cfg.phases["ranking"]
+    assert not isinstance(ranking, list)
+    assert ranking.impl.__name__ == "LambdamartScannerRanker"
+    assert cfg.runtime.scanner_ranker_enabled is True
+    assert cfg.runtime.scanner_ranker_top_x == 0
+    assert cfg.runtime.scanner_ranker_min_score == -0.20
+
+
+def test_dynamic_scanner_off_variant_keeps_base_ranking() -> None:
+    variant = next(
+        item
+        for item in dynamic_realized_scanner_pack()
+        if item.variant_id == "target08_let_run_dynamic_off"
     )
 
     cfg = sweep_to_strategy_config(variant.config, base_module=variant.base_module)
