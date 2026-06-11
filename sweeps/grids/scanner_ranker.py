@@ -55,11 +55,11 @@ def _pairs(**kwargs: object) -> tuple[tuple[str, object], ...]:
     return tuple(sorted(kwargs.items()))
 
 
-def _ranking(*, enabled: bool = True, free_params: int = 0) -> PhaseChoice:
+def _ranking(*, enabled: bool = True, free_params: int = 0, **params: object) -> PhaseChoice:
     return PhaseChoice(
         kind="ranking",
         impl_name="lambdamart_scanner_ranker",
-        params=(),
+        params=_pairs(**params),
         free_params=free_params,
         enabled=enabled,
     )
@@ -77,6 +77,15 @@ def _entry(impl_name: str, *, free_params: int | None = None, **params: object) 
 def _sizing(impl_name: str, *, free_params: int | None = None, **params: object) -> PhaseChoice:
     return PhaseChoice(
         kind="sizing",
+        impl_name=impl_name,
+        params=_pairs(**params),
+        free_params=len(params) if free_params is None else free_params,
+    )
+
+
+def _intraday_sizing(impl_name: str, *, free_params: int | None = None, **params: object) -> PhaseChoice:
+    return PhaseChoice(
+        kind="intraday_sizing",
         impl_name=impl_name,
         params=_pairs(**params),
         free_params=len(params) if free_params is None else free_params,
@@ -330,6 +339,98 @@ def real_strategy_scanner_pack() -> list[ScannerRankerVariant]:
     return variants
 
 
+def _rank_history_ranking() -> PhaseChoice:
+    return _ranking(
+        free_params=5,
+        scanner_rank_history_enabled=True,
+        scanner_rank_history_focus_rank=10,
+        scanner_rank_history_core_rank=50,
+        scanner_rank_history_min_seen_short=2,
+        scanner_rank_history_min_seen_long=3,
+        scanner_rank_history_min_persistence_score=99.0,
+    )
+
+
+def _rank_history_runtime() -> tuple[tuple[str, object], ...]:
+    return _ranker_runtime(top_x=0)
+
+
+def _rank_history_config(*choices: PhaseChoice) -> SweepConfig:
+    return _config(
+        _rank_history_ranking(),
+        *choices,
+        runtime_overrides=_rank_history_runtime(),
+    )
+
+
+def _dynamic_score_medium_config() -> SweepConfig:
+    return _config(
+        _ranking(free_params=1),
+        runtime_overrides=_ranker_runtime(top_x=0, min_score=-0.20),
+    )
+
+
+def rank_history_requalification_pack() -> list[ScannerRankerVariant]:
+    """#487 rank-history requalification pack across the three real strategy bases.
+
+    Rank-history rows deliberately run the LambdaMART ranker with `scanner_ranker_top_x=0`, then use
+    repeated rank evidence to requalify current signal candidates. This avoids a one-day Top-X gate
+    while testing whether scanner rank persistence acts like an implicit George-style watchlist.
+    """
+    variants: list[ScannerRankerVariant] = []
+    specs: tuple[tuple[str, str, str, SweepConfig], ...] = (
+        (
+            "rh_off",
+            "rank_history_control",
+            "Scanner disabled control for the selected real strategy base.",
+            _config(runtime_overrides=_pairs(scanner_ranker_enabled=False)),
+        ),
+        (
+            "rh_dynamic_score_medium",
+            "rank_history_dynamic_control",
+            "Dynamic score-medium control from #479: min_score=-0.20, no fixed Top-X cap.",
+            _dynamic_score_medium_config(),
+        ),
+        (
+            "rh_requal_core50",
+            "rank_history_requalification",
+            "Top-10 current focus plus repeated Top-50 rank-history requalification.",
+            _rank_history_config(),
+        ),
+        (
+            "rh_requal_entry",
+            "rank_history_entry",
+            "Rank-history requalification plus rank-aware intraday confirmation.",
+            _rank_history_config(_rank_aware_entry()),
+        ),
+        (
+            "rh_requal_sizing",
+            "rank_history_sizing",
+            "Rank-history requalification plus rank-aware heat-cap sizing.",
+            _rank_history_config(_rank_aware_intraday_sizing()),
+        ),
+        (
+            "rh_requal_entry_sizing",
+            "rank_history_entry_sizing",
+            "Rank-history requalification plus rank-aware entry and sizing.",
+            _rank_history_config(_rank_aware_entry(), _rank_aware_intraday_sizing()),
+        ),
+    )
+    for strategy_id, base_module, base_hypothesis in REAL_STRATEGY_BASES:
+        for suffix, family, hypothesis, config in specs:
+            variants.append(
+                ScannerRankerVariant(
+                    variant_id=f"{strategy_id}_{suffix}",
+                    family=family,
+                    wave=7,
+                    base_module=base_module,
+                    hypothesis=f"{base_hypothesis} {hypothesis}",
+                    config=config,
+                )
+            )
+    return variants
+
+
 def _top20_realization_config(*exits: PhaseChoice) -> SweepConfig:
     return _config(
         _ranking(free_params=1),
@@ -569,6 +670,14 @@ def _rank_aware_sizing(**params: object) -> PhaseChoice:
     )
 
 
+def _rank_aware_intraday_sizing(**params: object) -> PhaseChoice:
+    return _intraday_sizing(
+        "rank_aware_heatcap",
+        free_params=3,
+        **params,
+    )
+
+
 def rank_aware_sizing_pack() -> list[ScannerRankerVariant]:
     """#469 second rank-aware scanner pack.
 
@@ -741,6 +850,7 @@ PACKS = {
     "first": first_pack,
     "top_x_expansion": top_x_expansion_pack,
     "real_strategy_scanner": real_strategy_scanner_pack,
+    "rank_history_requalification": rank_history_requalification_pack,
     "top20_realized_exit": top20_realized_exit_pack,
     "rank_aware_intraday": rank_aware_intraday_pack,
     "rank_aware_sizing": rank_aware_sizing_pack,

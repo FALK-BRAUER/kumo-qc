@@ -1583,6 +1583,16 @@ class BctEngineAlgorithm(QCAlgorithm):  # pragma: no cover - QC runtime
                 row["scanner_score"] = float(scanner["scanner_score"])
                 row["scanner_original_index"] = int(scanner.get("scanner_original_index", -1))
                 row["scanner_features"] = dict(scanner.get("scanner_features", {}))
+                rank_history = scanner.get("scanner_rank_history", {})
+                if isinstance(rank_history, dict) and rank_history:
+                    row["scanner_rank_history"] = dict(rank_history)
+                    row["scanner_rank_persistence_score"] = float(rank_history.get("rank_persistence_score", 0.0))
+                    row["scanner_rank_requalification_state"] = str(
+                        rank_history.get("rank_requalification_state", "")
+                    )
+                    row["scanner_days_seen_last_5"] = int(rank_history.get("days_seen_last_5", 0))
+                    row["scanner_days_seen_last_20"] = int(rank_history.get("days_seen_last_20", 0))
+                    row["scanner_rank_trend"] = int(rank_history.get("rank_trend", 0))
             snap[sym] = row
         self._candidate_snapshot = snap
         log = getattr(self, "log", None)

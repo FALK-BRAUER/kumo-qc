@@ -217,7 +217,8 @@ def sweep_to_strategy_config(sweep_config: Any, *, base_module: str = BASE_MODUL
     # weighted by the sweep instead of hardcoded in one champion scenario.
     # #339 adds protective_stop so the STOP LEVEL is sweepable (Kijun floor vs cloud-bottom floor).
     for kind in (
-        "rebalance", "universe", "signal", "ranking", "sizing", "protective_stop", "trail",
+        "rebalance", "universe", "signal", "ranking", "sizing", "intraday_sizing",
+        "protective_stop", "trail",
     ):
         ch = _single_choice(kind)
         if ch is None:

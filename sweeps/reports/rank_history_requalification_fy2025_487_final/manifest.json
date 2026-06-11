@@ -1,0 +1,21 @@
+{
+  "generated_at": "2026-06-11T22:30:34.394820+00:00",
+  "notes": [
+    "Combined summary replaces the transient Docker/Lean failure for giveback_no_bull_rh_requal_sizing with the successful workers=1 retry.",
+    "Most FY rows started before scanner_funnel runtime stats were added; retry row verifies scanner_funnel emission on current code."
+  ],
+  "ok_count": 18,
+  "reports": {
+    "funnel_summary_csv": "sweeps/reports/rank_history_requalification_fy2025_487_final/funnel_summary.csv",
+    "funnel_summary_md": "sweeps/reports/rank_history_requalification_fy2025_487_final/funnel_summary.md",
+    "summary_csv": "sweeps/reports/rank_history_requalification_fy2025_487_final/summary.csv",
+    "summary_md": "sweeps/reports/rank_history_requalification_fy2025_487_final/summary.md"
+  },
+  "source_reports": {
+    "main": "sweeps/reports/rank_history_requalification_fy2025_487",
+    "retry": "sweeps/reports/rank_history_requalification_fy2025_487_retries"
+  },
+  "sweep_id": "rank_history_requalification_fy2025_487_final",
+  "variant_count": 18,
+  "window": "fy2025_full"
+}

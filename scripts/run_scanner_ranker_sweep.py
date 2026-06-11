@@ -95,6 +95,48 @@ SUMMARY_COLUMNS = [
     "result_path",
     "error",
 ]
+ENGINE_FUNNEL_STAGES = (
+    "signal_winners",
+    "regime_pass",
+    "regime_blocked_days",
+    "preflight_pass",
+    "gap_eligible",
+    "confirm_fire",
+    "injection_survives",
+    "sized",
+    "cash_ok",
+    "orders",
+)
+SCANNER_FUNNEL_STAGES = (
+    "days",
+    "raw_candidates",
+    "ranked_candidates",
+    "rank_history_eligible",
+    "selected",
+    "top10_observations",
+    "top10_seen_last_1",
+    "top10_seen_last_5",
+    "top10_seen_last_20",
+    "top20_observations",
+    "top20_seen_last_1",
+    "top20_seen_last_5",
+    "top20_seen_last_20",
+    "top50_observations",
+    "top50_seen_last_1",
+    "top50_seen_last_5",
+    "top50_seen_last_20",
+)
+FUNNEL_SUMMARY_COLUMNS = (
+    "variant_id",
+    "family",
+    "base_module",
+    "window",
+    "ok",
+    "orders",
+    *[f"funnel_{stage}" for stage in ENGINE_FUNNEL_STAGES],
+    *[f"scanner_funnel_{stage}" for stage in SCANNER_FUNNEL_STAGES],
+    "result_path",
+)
 
 
 def _args() -> argparse.Namespace:
@@ -494,6 +536,30 @@ def _result_diagnostics(result_path: Path | str) -> dict[str, Any]:
     }
 
 
+def _result_funnel_stats(result_path: Path | str) -> dict[str, Any]:
+    fields = {
+        **{f"funnel_{stage}": "" for stage in ENGINE_FUNNEL_STAGES},
+        **{f"scanner_funnel_{stage}": "" for stage in SCANNER_FUNNEL_STAGES},
+    }
+    if not result_path:
+        return fields
+    path = Path(result_path)
+    if not path.exists():
+        return fields
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return fields
+    runtime_stats = doc.get("runtimeStatistics")
+    if not isinstance(runtime_stats, dict):
+        return fields
+    for stage in ENGINE_FUNNEL_STAGES:
+        fields[f"funnel_{stage}"] = _as_int(runtime_stats.get(f"funnel.{stage}"))
+    for stage in SCANNER_FUNNEL_STAGES:
+        fields[f"scanner_funnel_{stage}"] = _as_int(runtime_stats.get(f"scanner_funnel.{stage}"))
+    return fields
+
+
 def _run_variant(
     variant: ScannerRankerVariant,
     *,
@@ -581,10 +647,57 @@ def _write_summary(report_dir: Path, rows: Sequence[dict[str, Any]], manifest: d
             )
         )
     (report_dir / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    funnel_reports = _write_funnel_summary(report_dir, rows)
+    manifest.setdefault("reports", {}).update(funnel_reports)
     (report_dir / "manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+
+
+def _write_funnel_summary(report_dir: Path, rows: Sequence[dict[str, Any]]) -> dict[str, str]:
+    summary = report_dir / "funnel_summary.csv"
+    funnel_rows = []
+    for row in rows:
+        funnel_rows.append(
+            {
+                "variant_id": row.get("variant_id", ""),
+                "family": row.get("family", ""),
+                "base_module": row.get("base_module", ""),
+                "window": row.get("window", ""),
+                "ok": row.get("ok", ""),
+                "orders": row.get("orders", ""),
+                **_result_funnel_stats(str(row.get("result_path") or "")),
+                "result_path": row.get("result_path", ""),
+            }
+        )
+    with summary.open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.DictWriter(
+            fh,
+            fieldnames=list(FUNNEL_SUMMARY_COLUMNS),
+            extrasaction="ignore",
+            lineterminator="\n",
+        )
+        writer.writeheader()
+        writer.writerows(funnel_rows)
+
+    lines = ["# Scanner Ranker Funnel Summary", ""]
+    lines.append(
+        "| variant | orders | signal | ranked | hist_eligible | selected | top20_seen_20 | cash_ok | fire |"
+    )
+    lines.append("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
+    for row in funnel_rows:
+        lines.append(
+            "| {variant_id} | {orders} | {funnel_signal_winners} | {scanner_funnel_ranked_candidates} | "
+            "{scanner_funnel_rank_history_eligible} | {scanner_funnel_selected} | "
+            "{scanner_funnel_top20_seen_last_20} | {funnel_cash_ok} | {funnel_orders} |".format(**row)
+        )
+    funnel_md = report_dir / "funnel_summary.md"
+    funnel_md.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return {
+        "funnel_summary_csv": _repo_ref(summary),
+        "funnel_summary_md": _repo_ref(funnel_md),
+    }
 
 
 def _raise_on_failures(rows: Sequence[dict[str, Any]]) -> None:

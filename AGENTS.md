@@ -11,3 +11,4 @@
 - Multiple `exit_hard` choices in a `SweepConfig` are deliberate list composition for combo sweeps; duplicate choices for single-slot kinds must fail loud.
 - Learned scanner rankers are opt-in ranking phases. Runtime scoring must use exported deployable artifacts plus `RuntimeConfig` flags, never live George/OCR/watchlist evidence or hidden local paths.
 - Scanner artifacts can be tree/LambdaMART or #467 linear opportunity rankers. Local LEAN runners must stage ObjectStore-backed artifacts into `storage/`; QC Cloud requires the same JSON uploaded under the configured ObjectStore key.
+- Scanner rank-history is opt-in runtime state over deployed scanner ranks/scores only. It may requalify candidates across observed scanner sessions, but it must not read George labels, OCR/watchlists, posts, videos, transcripts, or future returns.
