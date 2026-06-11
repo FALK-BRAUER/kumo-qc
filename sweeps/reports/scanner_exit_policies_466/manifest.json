@@ -1,0 +1,77 @@
+{
+  "generated_at": "2026-06-11T04:19:56.817309+00:00",
+  "issue": "https://github.com/FALK-BRAUER/kumo-qc/issues/466",
+  "config": {
+    "labels": "/Users/falk/projects/kumo-qc-466-exit-policy-research/sweeps/reports/scanner_opportunity_paths_464/opportunity_path_labels.csv.gz",
+    "panel": "/Users/falk/projects/kumo-qc-466-exit-policy-research/sweeps/reports/scanner_opportunity_panel_463/opportunity_panel.csv.gz",
+    "parquet_root": "/Users/falk/projects/kumo-trader/data/intraday",
+    "output_dir": "/Users/falk/projects/kumo-qc-466-exit-policy-research/sweeps/reports/scanner_exit_policies_466",
+    "candidate_filter": "kumo_top100_or_george",
+    "max_horizon": 40,
+    "limit": null
+  },
+  "outputs": {
+    "exit_policy_labels.csv.gz": {
+      "rows": 187640,
+      "columns": [
+        "scan_date",
+        "symbol",
+        "opportunity_id",
+        "policy_id",
+        "policy_description",
+        "deployability",
+        "source_tags",
+        "kumo_scanner",
+        "kumo_top_n",
+        "george_scanner_positive",
+        "george_watchlist",
+        "kumo_rank_by_score",
+        "kumo_score",
+        "company_sector",
+        "company_industry",
+        "sector_etf_proxy",
+        "label_entry_date",
+        "label_entry_price",
+        "label_outcome_20d",
+        "label_runner_candidate_20d",
+        "label_bad_trade_20d",
+        "label_mfe_40d_pct",
+        "label_ret_40d_close_pct",
+        "true_runner_40d",
+        "policy_status",
+        "exit_reason",
+        "exit_day",
+        "exit_session",
+        "realized_ret_pct",
+        "open_mtm_ret_40d_pct",
+        "total_equity_ret_40d_pct",
+        "open_fraction_40d",
+        "closed_fraction_40d",
+        "exposure_sessions",
+        "peak_equity_ret_pct",
+        "max_drawdown_ret_pct",
+        "giveback_from_peak_pct",
+        "partial_taken",
+        "ambiguous_same_day",
+        "runner_preserved_40d",
+        "runner_cut_early_40d"
+      ]
+    },
+    "exit_policy_summary.csv": {
+      "rows": 8
+    },
+    "source_exit_policy_summary.csv": {
+      "rows": 24
+    },
+    "exit_reason_summary.csv": {
+      "rows": 26
+    },
+    "best_exit_policy_examples.csv": {
+      "rows": 50
+    },
+    "worst_exit_policy_examples.csv": {
+      "rows": 50
+    },
+    "exit_policy_report.md": {}
+  }
+}
