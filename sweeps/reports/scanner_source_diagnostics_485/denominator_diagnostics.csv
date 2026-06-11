@@ -1,0 +1,5 @@
+source_bucket,opportunities,missing_kumo_rank_rows,missing_kumo_score_rows,missing_model_score_rows,missing_deployable_exit_rows,strict_entry_rows,missing_kumo_rank_pct,missing_kumo_score_pct,missing_model_score_pct,missing_deployable_exit_pct,strict_entry_pct,diagnostic_note
+kumo_only,24817,0,0,6002,2226,17651,0.0,0.0,24.185,8.97,71.125,Primary Kumo-centered denominator.
+kumo_with_george_video_context,595,0,0,126,33,420,0.0,0.0,21.176,5.546,70.588,Kumo row with video context only; not George scanner/watchlist evidence.
+both_george_and_kumo,366,193,0,217,217,120,52.732,0.0,59.29,59.29,32.787,"Partially comparable, but many rows are targeted/George rows without full Kumo rank fields."
+george_only,346,346,346,193,193,121,100.0,100.0,55.78,55.78,34.971,Not source-comparable: Kumo rank/score/model fields are structurally absent for George-only rows.

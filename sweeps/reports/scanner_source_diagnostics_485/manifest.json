@@ -1,0 +1,30 @@
+{
+  "generated_at": "2026-06-11T18:07:55.554851+00:00",
+  "issue": "https://github.com/FALK-BRAUER/kumo-qc/issues/485",
+  "config": {
+    "universe": "/Users/falk/projects/kumo-qc-485-source-diagnostics/sweeps/reports/scanner_trade_universe_482/scanner_trade_universe.csv.gz",
+    "output_dir": "/Users/falk/projects/kumo-qc-485-source-diagnostics/sweeps/reports/scanner_source_diagnostics_485",
+    "examples_per_type_date": 3
+  },
+  "outputs": {
+    "source_outcome_summary.csv": {
+      "rows": 4
+    },
+    "denominator_diagnostics.csv": {
+      "rows": 4
+    },
+    "reason_code_summary.csv": {
+      "rows": 49
+    },
+    "missed_optimal_trades.csv": {
+      "rows": 6208
+    },
+    "high_risk_false_positives.csv": {
+      "rows": 15427
+    },
+    "daily_source_examples.csv": {
+      "rows": 975
+    },
+    "scanner_source_diagnostics_report.md": {}
+  }
+}
