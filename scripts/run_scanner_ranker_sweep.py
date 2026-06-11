@@ -8,6 +8,7 @@ Usage:
   python3 scripts/run_scanner_ranker_sweep.py --window jan --workers 1 --only scanner_lambdamart_top10
   python3 scripts/run_scanner_ranker_sweep.py --window fy --workers 1
   python3 scripts/run_scanner_ranker_sweep.py --pack top_x_expansion --window fy --workers 1
+  python3 scripts/run_scanner_ranker_sweep.py --pack opportunity_ranker --window jan --workers 1
   KUMO_QC_DATA_FOLDER=~/projects/kumo-qc/data python3 scripts/run_scanner_ranker_sweep.py --window fy
 """
 from __future__ import annotations
@@ -39,6 +40,8 @@ from sweeps.adapters.qc_local_prod import _link_repo_storage  # noqa: E402
 from sweeps.grids.scanner_ranker import (  # noqa: E402
     BASE_MODULE,
     DEFAULT_MODEL_KEY,
+    DEFAULT_OPPORTUNITY_ARTIFACT_PATH,
+    DEFAULT_OPPORTUNITY_MODEL_KEY,
     PACKS,
     ScannerRankerVariant,
 )
@@ -61,6 +64,10 @@ DEFAULT_MARKET_DATA = Path(
     os.environ.get("KUMO_QC_DATA_FOLDER", str(Path.home() / "projects" / "kumo-qc" / "data"))
 )
 DEFAULT_ARTIFACT_PATH = ROOT / "storage" / "bct_lambdamart_qc_safe_v1.json"
+DEFAULT_ARTIFACT_PATHS = {
+    DEFAULT_MODEL_KEY: DEFAULT_ARTIFACT_PATH,
+    DEFAULT_OPPORTUNITY_MODEL_KEY: DEFAULT_OPPORTUNITY_ARTIFACT_PATH,
+}
 
 SUMMARY_COLUMNS = [
     "variant_id",
@@ -81,6 +88,7 @@ SUMMARY_COLUMNS = [
     "closed_wins",
     "closed_losses",
     "closed_win_rate",
+    "artifact_key",
     "artifact_path",
     "artifact_sha256",
     "run_dir",
@@ -106,6 +114,12 @@ def _args() -> argparse.Namespace:
         type=Path,
         default=DEFAULT_ARTIFACT_PATH,
         help="Local JSON artifact path for variants using the default ObjectStore model key.",
+    )
+    parser.add_argument(
+        "--opportunity-artifact",
+        type=Path,
+        default=DEFAULT_OPPORTUNITY_ARTIFACT_PATH,
+        help="Local #467 linear opportunity-ranker JSON artifact path.",
     )
     parser.add_argument(
         "--allow-missing-artifact",
@@ -225,29 +239,77 @@ def _variants(args: argparse.Namespace) -> tuple[ScannerRankerVariant, ...]:
     return variants
 
 
-def _needs_default_artifact(variant: ScannerRankerVariant) -> bool:
+def _model_path_for_variant(variant: ScannerRankerVariant) -> str:
     runtime = variant.config.runtime_dict()
+    return str(runtime.get("scanner_ranker_model_path") or "")
+
+
+def _needs_artifact(variant: ScannerRankerVariant) -> bool:
+    runtime = variant.config.runtime_dict()
+    model_path = _model_path_for_variant(variant)
     return (
         bool(runtime.get("scanner_ranker_enabled"))
-        and str(runtime.get("scanner_ranker_model_path") or "") == DEFAULT_MODEL_KEY
+        and (bool(variant.local_artifact_path) or model_path in DEFAULT_ARTIFACT_PATHS)
     )
 
 
-def _validate_artifact(args: argparse.Namespace, variants: Sequence[ScannerRankerVariant]) -> tuple[Path, str]:
-    artifact = args.artifact.expanduser().resolve()
-    needs_default = any(_needs_default_artifact(variant) for variant in variants)
-    if needs_default:
+def _objectstore_key(model_path: str) -> str:
+    if model_path.startswith("objectstore://"):
+        return model_path.removeprefix("objectstore://")
+    if model_path.startswith("objectstore:"):
+        return model_path.removeprefix("objectstore:")
+    return ""
+
+
+def _artifact_source_for_variant(args: argparse.Namespace, variant: ScannerRankerVariant) -> Path | None:
+    if not _needs_artifact(variant):
+        return None
+    if variant.local_artifact_path:
+        return Path(variant.local_artifact_path).expanduser().resolve()
+    model_path = _model_path_for_variant(variant)
+    if model_path == DEFAULT_MODEL_KEY:
+        return args.artifact.expanduser().resolve()
+    if model_path == DEFAULT_OPPORTUNITY_MODEL_KEY:
+        return args.opportunity_artifact.expanduser().resolve()
+    default = DEFAULT_ARTIFACT_PATHS.get(model_path)
+    return default.expanduser().resolve() if default is not None else None
+
+
+def _stage_objectstore_artifact(*, model_path: str, artifact: Path) -> Path | None:
+    key = _objectstore_key(model_path)
+    if not key:
+        return None
+    target = ROOT / "storage" / key
+    target.parent.mkdir(parents=True, exist_ok=True)
+    source_bytes = artifact.read_bytes()
+    if not target.exists() or target.read_bytes() != source_bytes:
+        target.write_bytes(source_bytes)
+    return target
+
+
+def _validate_artifacts(
+    args: argparse.Namespace,
+    variants: Sequence[ScannerRankerVariant],
+) -> dict[str, dict[str, str]]:
+    bindings: dict[str, dict[str, str]] = {}
+    staged_by_model_path: dict[str, Path] = {}
+    for variant in variants:
+        artifact = _artifact_source_for_variant(args, variant)
+        if artifact is None:
+            continue
+        model_path = _model_path_for_variant(variant)
         if not artifact.exists():
             if args.allow_missing_artifact:
-                return artifact, ""
+                bindings[variant.variant_id] = {
+                    "model_path": model_path,
+                    "artifact_path": str(artifact),
+                    "artifact_sha256": "",
+                    "staged_path": "",
+                }
+                continue
             raise SystemExit(
-                f"scanner ranker artifact missing: {artifact}. "
+                f"scanner ranker artifact missing for {variant.variant_id}: {artifact}. "
                 "Export it first or pass --allow-missing-artifact for a fallback-only smoke."
-            )
-        expected = DEFAULT_ARTIFACT_PATH.resolve()
-        if artifact != expected:
-            raise SystemExit(
-                f"artifact must live at {expected} for {DEFAULT_MODEL_KEY}; got {artifact}"
             )
         try:
             model = load_scanner_model_artifact(str(artifact))
@@ -258,8 +320,21 @@ def _validate_artifact(args: argparse.Namespace, variants: Sequence[ScannerRanke
                 top_x=1,
             )
         except ScannerRankerError as exc:
-            raise SystemExit(f"scanner ranker artifact invalid: {exc}") from exc
-    return artifact, _file_sha256(artifact)
+            raise SystemExit(f"scanner ranker artifact invalid for {variant.variant_id}: {exc}") from exc
+        prior = staged_by_model_path.get(model_path)
+        if prior is not None and prior != artifact:
+            raise SystemExit(
+                f"model path {model_path} maps to multiple artifacts: {prior} and {artifact}"
+            )
+        staged = _stage_objectstore_artifact(model_path=model_path, artifact=artifact)
+        staged_by_model_path[model_path] = artifact
+        bindings[variant.variant_id] = {
+            "model_path": model_path,
+            "artifact_path": str(artifact),
+            "artifact_sha256": _file_sha256(artifact),
+            "staged_path": str(staged or ""),
+        }
+    return bindings
 
 
 def _safe_path_part(value: str) -> str:
@@ -423,15 +498,14 @@ def _run_variant(
     variant: ScannerRankerVariant,
     *,
     window: Window,
-    artifact_path: Path,
-    artifact_sha256: str,
+    artifact_bindings: dict[str, dict[str, str]],
     data_fp: str,
     data_folder: Path,
     runs_root: Path,
     run_lean: Any,
     isolate_run_dirs: bool,
 ) -> dict[str, Any]:
-    uses_default_artifact = _needs_default_artifact(variant)
+    artifact = artifact_bindings.get(variant.variant_id, {})
     variant_runs_root = _variant_runs_root(runs_root, variant, isolate_run_dirs=isolate_run_dirs)
     adapter = LocalLeanRun(
         dist_builder=_dist_builder(window, data_fp, data_folder, variant.base_module),
@@ -468,8 +542,9 @@ def _run_variant(
         "dd_pct": metrics.dd_pct,
         "orders": metrics.orders,
         **diagnostics,
-        "artifact_path": _repo_ref(artifact_path) if uses_default_artifact else "",
-        "artifact_sha256": artifact_sha256 if uses_default_artifact else "",
+        "artifact_key": artifact.get("model_path", ""),
+        "artifact_path": _repo_ref(artifact["artifact_path"]) if artifact.get("artifact_path") else "",
+        "artifact_sha256": artifact.get("artifact_sha256", ""),
         "run_dir": _repo_ref(run_dir),
         "result_path": _repo_ref(result_path) if result_path else "",
         "error": error,
@@ -529,7 +604,7 @@ def main() -> None:
         raise SystemExit("no variants selected")
     if not 1 <= args.workers <= len(variants):
         raise SystemExit(f"--workers must be between 1 and {len(variants)}, got {args.workers}")
-    artifact_path, artifact_sha256 = _validate_artifact(args, variants)
+    artifact_bindings = _validate_artifacts(args, variants)
     window = WINDOWS[args.window]
     sweep_id = args.sweep_id or f"scanner_ranker_{args.pack}_{window.name}"
     runs_root, report_dir = _report_dirs(sweep_id)
@@ -554,7 +629,17 @@ def main() -> None:
         f"window={window.name} ===",
         flush=True,
     )
-    print(f"artifact={artifact_path} sha256={artifact_sha256[:12] or 'missing'}", flush=True)
+    printed_bindings = {
+        value["model_path"]: value
+        for value in artifact_bindings.values()
+        if value.get("model_path")
+    }
+    for model_path, binding in printed_bindings.items():
+        print(
+            f"artifact_key={model_path} path={_repo_ref(binding['artifact_path'])} "
+            f"sha256={binding['artifact_sha256'][:12] or 'missing'}",
+            flush=True,
+        )
     print(f"data_fingerprint={data_fp or 'unknown'}", flush=True)
     print(f"data_folder={data_folder}", flush=True)
     print(f"isolate_run_dirs={isolate_run_dirs}", flush=True)
@@ -568,8 +653,7 @@ def main() -> None:
                 _run_variant,
                 variant,
                 window=window,
-                artifact_path=artifact_path,
-                artifact_sha256=artifact_sha256,
+                artifact_bindings=artifact_bindings,
                 data_fp=data_fp,
                 data_folder=data_folder,
                 runs_root=runs_root,
@@ -595,9 +679,16 @@ def main() -> None:
         "workers": args.workers,
         "variant_count": len(variants),
         "ok_count": sum(1 for row in rows if row["ok"]),
-        "artifact_path": _repo_ref(artifact_path) if any(_needs_default_artifact(v) for v in variants) else "",
-        "artifact_sha256": artifact_sha256,
+        "artifacts": {
+            variant_id: {
+                **binding,
+                "artifact_path": _repo_ref(binding["artifact_path"]) if binding.get("artifact_path") else "",
+                "staged_path": _repo_ref(binding["staged_path"]) if binding.get("staged_path") else "",
+            }
+            for variant_id, binding in artifact_bindings.items()
+        },
         "default_model_key": DEFAULT_MODEL_KEY,
+        "default_opportunity_model_key": DEFAULT_OPPORTUNITY_MODEL_KEY,
         "data_fingerprint": data_fp,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "reports": {

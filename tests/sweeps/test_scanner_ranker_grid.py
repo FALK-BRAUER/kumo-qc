@@ -5,9 +5,12 @@ from pathlib import Path
 from build.sweep_build import build_sweep_dist, sweep_to_strategy_config
 from sweeps.grids.scanner_ranker import (
     BASE_MODULE,
+    DEFAULT_OPPORTUNITY_ARTIFACT_PATH,
+    DEFAULT_OPPORTUNITY_MODEL_KEY,
     REAL_STRATEGY_BASES,
     all_variants,
     first_pack,
+    opportunity_ranker_pack,
     rank_aware_intraday_pack,
     rank_aware_sizing_pack,
     real_strategy_scanner_pack,
@@ -128,6 +131,26 @@ def test_rank_aware_sizing_pack_shape() -> None:
     ]
     assert {variant.wave for variant in variants} == {5}
     assert {variant.config.runtime_dict()["scanner_ranker_top_x"] for variant in variants} == {20, 50}
+    assert len({variant.variant_id for variant in all_variants()}) == len(all_variants())
+
+
+def test_opportunity_ranker_pack_shape() -> None:
+    variants = opportunity_ranker_pack()
+
+    assert len(variants) == 6
+    assert [variant.variant_id for variant in variants] == [
+        "opportunity_champion_baseline",
+        "opportunity_linear_top10",
+        "opportunity_linear_top20",
+        "opportunity_linear_top50",
+        "opportunity_linear_top20_rankaware_entry",
+        "opportunity_linear_top20_giveback35_exit",
+    ]
+    assert {variant.wave for variant in variants} == {6}
+    assert {variant.config.runtime_dict().get("scanner_ranker_model_path") for variant in variants[1:]} == {
+        DEFAULT_OPPORTUNITY_MODEL_KEY
+    }
+    assert {variant.local_artifact_path for variant in variants[1:]} == {str(DEFAULT_OPPORTUNITY_ARTIFACT_PATH)}
     assert len({variant.variant_id for variant in all_variants()}) == len(all_variants())
 
 
@@ -280,6 +303,49 @@ def test_rank_aware_sizing_control_keeps_flat_sizer() -> None:
     assert cfg.runtime.scanner_ranker_top_x == 20
 
 
+def test_opportunity_top20_variant_maps_linear_artifact_runtime() -> None:
+    variant = next(item for item in opportunity_ranker_pack() if item.variant_id == "opportunity_linear_top20")
+
+    cfg = sweep_to_strategy_config(variant.config, base_module=variant.base_module)
+
+    ranking = cfg.phases["ranking"]
+    assert not isinstance(ranking, list)
+    assert ranking.impl.__name__ == "LambdamartScannerRanker"
+    assert cfg.runtime.scanner_ranker_enabled is True
+    assert cfg.runtime.scanner_ranker_top_x == 20
+    assert cfg.runtime.scanner_ranker_model_path == DEFAULT_OPPORTUNITY_MODEL_KEY
+
+
+def test_opportunity_rankaware_variant_preserves_preflight() -> None:
+    variant = next(
+        item for item in opportunity_ranker_pack() if item.variant_id == "opportunity_linear_top20_rankaware_entry"
+    )
+
+    cfg = sweep_to_strategy_config(variant.config, base_module=variant.base_module)
+
+    entries = cfg.phases["entry_selection"]
+    assert [slot.impl.__name__ for slot in entries] == ["PreFlightStaleness", "RankAwareGapConfirm"]
+    assert cfg.runtime.scanner_ranker_model_path == DEFAULT_OPPORTUNITY_MODEL_KEY
+
+
+def test_opportunity_giveback35_variant_composes_trail_and_exit() -> None:
+    variant = next(
+        item for item in opportunity_ranker_pack() if item.variant_id == "opportunity_linear_top20_giveback35_exit"
+    )
+
+    cfg = sweep_to_strategy_config(variant.config, base_module=variant.base_module)
+
+    trail = cfg.phases["trail"]
+    exits = cfg.phases["exit_hard"]
+    assert not isinstance(trail, list)
+    assert trail.impl.__name__ == "PositionPathTracker"
+    assert [slot.impl.__name__ for slot in exits] == ["CloudAdherenceTrail", "MfeIntradayExit"]
+    assert exits[1].params.min_mfe_pct == 0.08
+    assert exits[1].params.giveback_fraction == 0.35
+    assert exits[1].params.min_giveback_pct == 0.0
+    assert exits[1].params.diagnostic_log is True
+
+
 def test_top25_expansion_variant_maps_ranker_runtime_and_phase() -> None:
     variant = next(item for item in top_x_expansion_pack() if item.variant_id == "scanner_lambdamart_top25")
 
@@ -304,3 +370,16 @@ def test_scanner_ranker_dist_build_emits_cloud_attrs(tmp_path: Path) -> None:
     assert "SCANNER_RANKER_ENABLED = True" in main
     assert "SCANNER_RANKER_TOP_X = 10" in main
     assert "SCANNER_RANKER_MODEL_PATH = 'objectstore://bct_lambdamart_qc_safe_v1.json'" in main
+
+
+def test_opportunity_ranker_dist_build_emits_cloud_attrs(tmp_path: Path) -> None:
+    variant = next(item for item in opportunity_ranker_pack() if item.variant_id == "opportunity_linear_top20")
+
+    result = build_sweep_dist(variant.config, dist_dir=tmp_path / "dist", base_module=variant.base_module)
+    main = (tmp_path / "dist" / "main.py").read_text(encoding="utf-8")
+
+    assert result.config_hash
+    assert "LambdamartScannerRanker" in main
+    assert "SCANNER_RANKER_ENABLED = True" in main
+    assert "SCANNER_RANKER_TOP_X = 20" in main
+    assert f"SCANNER_RANKER_MODEL_PATH = '{DEFAULT_OPPORTUNITY_MODEL_KEY}'" in main

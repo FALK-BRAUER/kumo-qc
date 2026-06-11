@@ -9,8 +9,9 @@ Permutation specifications — TRACKED. Each defines a parameter/phase grid the 
   6 FY2025 bi-monthly panel + FY2024 OOS holdout the sweep runs every config across.
   `george_context.py` — the #416/#427 named George-context protocol: first a 6-pack validation,
   then a 30-pack in five six-variant waves, plus a second MFE combo 30-pack.
-  `scanner_ranker.py` — the #446 opt-in LambdaMART scanner first pack: champion baseline,
-  ranker-off/fallback controls, and top10/top20/top50 learned scanner gates.
+  `scanner_ranker.py` — the #446/#468 opt-in scanner packs: champion baseline,
+  ranker-off/fallback controls, top-X learned scanner gates, #467 opportunity-ranker variants,
+  rank-aware entry/sizing cells, and researched exit-policy cells.
 - **Goes here:** declarative sweep definitions (the axes + window panels).
 - **Does NOT:** results (that's `reports/`), generated runs (`runs/`), the objective math
   (that's `../objective/`), or the run-a-config adapter (that's `../adapters/`).

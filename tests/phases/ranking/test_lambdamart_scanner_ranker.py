@@ -2,10 +2,16 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
+from pathlib import Path
 
 from engine.context import OrderIntent, PhaseContext
 from phases.ranking.lambdamart_scanner_ranker.lambdamart_scanner_ranker import LambdamartScannerRanker
-from runtime.scanner_ranker import feature_contract_hash
+from runtime.scanner_ranker import (
+    ScannerRankerError,
+    feature_contract_hash,
+    load_scanner_model_artifact,
+    opportunity_feature_contract_hash,
+)
 
 
 class _Store:
@@ -65,6 +71,26 @@ def _artifact() -> str:
     )
 
 
+def _linear_artifact(feature: str = "kumo_score") -> str:
+    features = [feature]
+    return json.dumps(
+        {
+            "schema_version": 1,
+            "model_type": "linear_pairwise_ranker",
+            "feature_version": "scanner_opportunity_scan_time_v1",
+            "feature_hash": opportunity_feature_contract_hash(tuple(features)),
+            "feature_names": features,
+            "standardizer": {"mean": [0.0], "scale": [1.0]},
+            "models": {
+                "trade_worthy": {"coef": [1.0], "intercept": 0.0},
+                "runner": {"coef": [1.0], "intercept": 0.0},
+            },
+            "combined_score": {"trade_worthy_weight": 0.7, "runner_weight": 0.3},
+        },
+        sort_keys=True,
+    )
+
+
 def _intent(ticker: str) -> OrderIntent:
     return OrderIntent(ticker=ticker, qty=0, price=100.0, stop=0.0, module="test", risk_dollars=0.0)
 
@@ -88,6 +114,42 @@ def test_phase_selects_top_x_from_model_scores() -> None:
     assert qc._scanner_ranker_context["bbb"]["scanner_score"] == 1.1
     assert qc._scanner_ranker_context["bbb"]["scanner_features"]["bct_score"] == 8
     assert qc._scanner_ranker_cache_key
+
+
+def test_phase_selects_top_x_from_linear_opportunity_artifact() -> None:
+    qc = _QC(_linear_artifact())
+    ctx = _ctx(qc)
+
+    result = LambdamartScannerRanker(LambdamartScannerRanker.Params(), logger=None).evaluate(ctx)
+
+    assert [intent.ticker for intent in ctx.bar_state.sized_orders] == ["BBB"]
+    assert result.facts["model_type"] == "linear_pairwise_ranker"
+    assert qc._scanner_ranker_context["bbb"]["scanner_features"]["kumo_score"] == 8
+    assert qc._scanner_ranker_context["bbb"]["scanner_features"]["kumo_rank_by_score"] == 2
+    assert qc._scanner_ranker_cache_key
+
+
+def test_committed_467_opportunity_artifact_loads() -> None:
+    root = Path(__file__).resolve().parents[3]
+    artifact = root / "sweeps" / "reports" / "scanner_opportunity_ranker_467" / "model_artifact.json"
+    model = load_scanner_model_artifact(str(artifact))
+
+    assert model.model_type == "linear_pairwise_ranker"
+    assert model.feature_hash == "96eda175c8439bc9b988e5823e37a4d7c11b46d3f33fb008f70087b0add2896e"
+    assert "kumo_score" in model.feature_names
+
+
+def test_linear_opportunity_artifact_blocks_source_features() -> None:
+    payload = json.loads(_linear_artifact("george_watchlist"))
+    payload["feature_hash"] = opportunity_feature_contract_hash(tuple(payload["feature_names"]))
+    qc = _QC(json.dumps(payload))
+
+    try:
+        LambdamartScannerRanker(LambdamartScannerRanker.Params(), logger=None).evaluate(_ctx(qc))
+    except ScannerRankerError as exc:
+        assert "denied runtime features" in str(exc)
+    else:
+        raise AssertionError("expected denied feature to fail")
 
 
 def test_phase_disabled_by_runtime_is_passthrough() -> None:

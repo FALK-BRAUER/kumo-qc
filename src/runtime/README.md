@@ -8,7 +8,8 @@ lifecycle), `lean_indicators.py` (LEAN-faithful Ichimoku/ADX/SMA/WeeklyIchimokuA
 warmup-cache READ side (`warmup_weekly_cache.py` — key formula + ObjectStore load, #358), cost model,
 tag schema, and pure runtime helpers such as `watchlist_carry.py`, `security_profiles.py`, and
 `george_attention.py`. `scanner_ranker.py` is the deployable learned scanner scorer: artifact loading,
-feature-contract hashing, live candidate-panel features, denominator ranks, and pure tree evaluation.
+feature-contract hashing, live candidate-panel features, denominator ranks, pure tree evaluation,
+and the #467 linear opportunity-ranker scorer.
 Does not go here: offline/runner mechanics (those live in `sweeps/` +
 `scripts/`, NOT bundled), phase implementations (`src/phases/`), or the engine core (`src/engine/`).
 
