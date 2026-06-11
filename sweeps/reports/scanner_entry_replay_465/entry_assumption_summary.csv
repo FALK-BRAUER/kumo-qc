@@ -1,0 +1,5 @@
+entry_assumption,candidate_rows,triggered_rows,trigger_rate_pct,available_20d_rows,avg_ret_20d_close_pct,candidate_weighted_avg_ret_20d_pct,median_ret_20d_close_pct,runner_pct,normal_winner_pct,bad_trade_pct,target4_before_stop2_pct,stop2_before_target4_pct,avg_mfe_20d_pct,avg_mae_20d_pct
+pullback_1pct_reclaim,26124,4708,18.022,4698,4.4367,0.7979,1.8174,37.654,64.772,41.89,32.865,62.431,15.8132,-9.9544
+next_open,26124,26111,99.95,26026,2.6916,2.6815,1.0368,21.382,50.987,37.789,31.315,58.945,9.7017,-6.5293
+prior_session_high_breakout,26124,14949,57.223,14895,2.5252,1.4398,0.842,20.879,49.869,38.342,30.641,59.644,9.4943,-6.5733
+first_hour_confirm,26124,13211,50.57,13169,2.4398,1.2299,0.9423,20.404,50.672,38.522,32.523,58.85,9.2956,-6.3867

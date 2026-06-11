@@ -1,0 +1,13 @@
+entry_assumption,label_trigger_status,label_trigger_reason,rows
+first_hour_confirm,no_entry_trigger,first-hour close did not confirm above open,12899
+first_hour_confirm,missing_entry_intraday,no regular-session intraday bars,9
+first_hour_confirm,no_entry_date,scan date has no following parquet calendar day,4
+first_hour_confirm,no_entry_trigger,no first-hour window,1
+next_open,missing_entry_intraday,no regular-session intraday bars,9
+next_open,no_entry_date,scan date has no following parquet calendar day,4
+prior_session_high_breakout,no_entry_trigger,did not cross prior-session high,11162
+prior_session_high_breakout,missing_entry_intraday,no regular-session intraday bars,9
+prior_session_high_breakout,no_entry_date,scan date has no following parquet calendar day,4
+pullback_1pct_reclaim,no_entry_trigger,no 1pct pullback reclaim,21403
+pullback_1pct_reclaim,missing_entry_intraday,no regular-session intraday bars,9
+pullback_1pct_reclaim,no_entry_date,scan date has no following parquet calendar day,4

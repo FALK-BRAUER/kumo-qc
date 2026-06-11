@@ -1,0 +1,51 @@
+scan_date,symbol,entry_assumption,source_tags,kumo_rank_by_score,kumo_score,label_entry_date,label_entry_time,label_entry_price,label_outcome_20d,label_ret_20d_close_pct,label_mfe_20d_pct,label_mae_20d_pct,label_t4_s2_20d_outcome,label_trigger_reason
+2025-12-09,OCG,prior_session_high_breakout,kumo_scanner;kumo_top_n,100.0,7.0,2025-12-10,2025-12-10 12:40:00,13.0,bad_trade,-99.8369,48.3846,-99.8646,ambiguous_same_day,crossed prior-session high
+2025-12-09,OCG,first_hour_confirm,kumo_scanner;kumo_top_n,100.0,7.0,2025-12-10,2025-12-10 10:25:00,7.69,bad_trade,-99.7243,150.8453,-99.7711,ambiguous_same_day,first-hour close above first-hour open
+2025-12-09,OCG,pullback_1pct_reclaim,kumo_scanner;kumo_top_n,100.0,7.0,2025-12-10,2025-12-10 09:35:00,7.47,bad_trade,-99.7162,158.2329,-99.7644,ambiguous_same_day,1pct pullback reclaimed session open
+2025-12-09,OCG,next_open,kumo_scanner;kumo_top_n,100.0,7.0,2025-12-10,2025-12-10 09:30:00,7.15,bad_trade,-99.7035,169.7902,-99.7538,target_before_stop,first regular bar open
+2025-12-04,SMX,first_hour_confirm,kumo_scanner;kumo_top_n,86.0,7.0,2025-12-05,2025-12-05 10:25:00,322.0,bad_trade,-94.5839,52.1739,-95.3944,ambiguous_same_day,first-hour close above first-hour open
+2025-12-04,SMX,pullback_1pct_reclaim,kumo_scanner;kumo_top_n,86.0,7.0,2025-12-05,2025-12-05 10:00:00,290.24,bad_trade,-93.9912,68.8258,-94.8904,ambiguous_same_day,1pct pullback reclaimed session open
+2025-05-16,ORLY,first_hour_confirm,kumo_scanner;kumo_top_n,100.0,7.0,2025-05-19,2025-05-19 10:25:00,1392.515,bad_trade,-93.6719,0.4355,-93.7053,stop_before_target,first-hour close above first-hour open
+2025-05-16,ORLY,prior_session_high_breakout,kumo_scanner;kumo_top_n,100.0,7.0,2025-05-19,2025-05-19 09:30:00,1382.44,bad_trade,-93.6258,1.1675,-93.6594,stop_before_target,crossed prior-session high
+2025-05-16,ORLY,next_open,kumo_scanner;kumo_top_n,100.0,7.0,2025-05-19,2025-05-19 09:30:00,1379.0,bad_trade,-93.6099,1.4199,-93.6436,stop_before_target,first regular bar open
+2025-05-23,ORLY,prior_session_high_breakout,kumo_scanner;kumo_top_n,72.0,7.0,2025-05-27,2025-05-27 09:30:00,1381.56,bad_trade,-93.545,0.9301,-93.6554,stop_before_target,crossed prior-session high
+2025-05-23,ORLY,first_hour_confirm,kumo_scanner;kumo_top_n,72.0,7.0,2025-05-27,2025-05-27 10:25:00,1377.55,bad_trade,-93.5262,1.2239,-93.6369,stop_before_target,first-hour close above first-hour open
+2025-05-23,ORLY,next_open,kumo_scanner;kumo_top_n,72.0,7.0,2025-05-27,2025-05-27 09:30:00,1375.0,bad_trade,-93.5142,1.4116,-93.6251,stop_before_target,first regular bar open
+2025-05-15,ORLY,first_hour_confirm,kumo_scanner;kumo_top_n,85.0,7.0,2025-05-16,2025-05-16 10:25:00,1375.215,bad_trade,-93.4621,1.699,-93.4992,stop_before_target,first-hour close above first-hour open
+2025-05-15,ORLY,next_open,kumo_scanner;kumo_top_n,85.0,7.0,2025-05-16,2025-05-16 09:30:00,1373.18,bad_trade,-93.4524,1.8497,-93.4896,stop_before_target,first regular bar open
+2025-05-15,ORLY,prior_session_high_breakout,kumo_scanner;kumo_top_n,85.0,7.0,2025-05-16,2025-05-16 09:30:00,1373.18,bad_trade,-93.4524,1.8497,-93.4896,stop_before_target,crossed prior-session high
+2025-12-04,SMX,next_open,kumo_scanner;kumo_top_n,86.0,7.0,2025-12-05,2025-12-05 09:30:00,266.01,bad_trade,-93.4439,84.2036,-94.425,ambiguous_same_day,first regular bar open
+2025-12-04,SMX,prior_session_high_breakout,kumo_scanner;kumo_top_n,86.0,7.0,2025-12-05,2025-12-05 09:30:00,266.01,bad_trade,-93.4439,84.2036,-94.425,ambiguous_same_day,crossed prior-session high
+2025-06-06,ORLY,next_open,kumo_scanner;kumo_top_n,88.0,7.0,2025-06-09,2025-06-09 09:30:00,1375.0,bad_trade,-93.3353,0.0884,-93.6771,stop_before_target,first regular bar open
+2025-12-05,SMX,next_open,kumo_scanner;kumo_top_n,89.0,7.0,2025-12-08,2025-12-08 09:30:00,220.0,bad_trade,-91.2591,23.6364,-93.2591,ambiguous_same_day,first regular bar open
+2025-10-20,NFLX,prior_session_high_breakout,kumo_scanner;kumo_top_n,55.0,7.0,2025-10-21,2025-10-21 09:35:00,1247.76,bad_trade,-91.1594,0.0,-91.2203,stop_before_target,crossed prior-session high
+2025-10-20,NFLX,next_open,kumo_scanner;kumo_top_n,55.0,7.0,2025-10-21,2025-10-21 09:30:00,1242.83,bad_trade,-91.1243,0.4643,-91.1854,stop_before_target,first regular bar open
+2026-03-06,BATL,next_open,george_scanner_ocr,,,2026-03-09,2026-03-09 09:30:00,24.85,bad_trade,-82.9376,2.2133,-85.9155,stop_before_target,first regular bar open
+2025-10-13,ELBM,next_open,kumo_scanner;kumo_top_n,62.0,7.0,2025-10-14,2025-10-14 09:30:00,6.22,bad_trade,-82.6367,1.6077,-85.209,stop_before_target,first regular bar open
+2026-04-10,VO,prior_session_high_breakout,george_scanner_ocr,,,2026-04-13,2026-04-13 14:45:00,298.735,bad_trade,-74.1744,3.292,-74.7033,stop_before_target,crossed prior-session high
+2026-04-10,VO,first_hour_confirm,george_scanner_ocr,,,2026-04-13,2026-04-13 10:25:00,296.955,bad_trade,-74.0196,3.9111,-74.5517,stop_before_target,first-hour close above first-hour open
+2026-04-10,VO,next_open,george_scanner_ocr,,,2026-04-13,2026-04-13 09:30:00,295.85,bad_trade,-73.9226,4.2992,-74.4567,target_before_stop,first regular bar open
+2026-03-24,VO,next_open,george_scanner_ocr,,,2026-03-25,2026-03-25 09:30:00,291.97,bad_trade,-73.7747,5.6853,-73.8501,stop_before_target,first regular bar open
+2026-03-24,VO,prior_session_high_breakout,george_scanner_ocr,,,2026-03-25,2026-03-25 09:30:00,291.97,bad_trade,-73.7747,5.6853,-73.8501,stop_before_target,crossed prior-session high
+2025-11-21,MNDR,pullback_1pct_reclaim,kumo_scanner;kumo_top_n,49.0,7.0,2025-11-24,2025-11-24 10:55:00,4.01,bad_trade,-72.4439,4.4888,-74.813,ambiguous_same_day,1pct pullback reclaimed session open
+2025-11-21,MNDR,next_open,kumo_scanner;kumo_top_n,49.0,7.0,2025-11-24,2025-11-24 09:30:00,3.95,bad_trade,-72.0253,6.0759,-74.4304,ambiguous_same_day,first regular bar open
+2025-10-14,AQMS,next_open,kumo_scanner;kumo_top_n,10.0,8.0,2025-10-15,2025-10-15 09:30:00,23.11,bad_trade,-71.5924,0.0,-72.2631,stop_before_target,first regular bar open
+2025-11-19,SGBX,first_hour_confirm,kumo_scanner;kumo_top_n,38.0,7.0,2025-11-20,2025-11-20 10:25:00,7.75,bad_trade,-68.9677,4.5161,-69.2903,ambiguous_same_day,first-hour close above first-hour open
+2025-10-13,CRML,pullback_1pct_reclaim,kumo_scanner;kumo_top_n,59.0,7.0,2025-10-14,2025-10-14 13:40:00,30.87,bad_trade,-66.4742,4.1464,-69.1286,ambiguous_same_day,1pct pullback reclaimed session open
+2025-11-19,SGBX,prior_session_high_breakout,kumo_scanner;kumo_top_n,38.0,7.0,2025-11-20,2025-11-20 09:30:00,7.17,bad_trade,-66.4575,30.2636,-66.8061,ambiguous_same_day,crossed prior-session high
+2025-10-13,CRML,next_open,kumo_scanner;kumo_top_n,59.0,7.0,2025-10-14,2025-10-14 09:30:00,30.25,bad_trade,-65.7871,6.281,-68.4959,ambiguous_same_day,first regular bar open
+2025-10-13,CRML,prior_session_high_breakout,kumo_scanner;kumo_top_n,59.0,7.0,2025-10-14,2025-10-14 09:30:00,30.25,bad_trade,-65.7871,6.281,-68.4959,ambiguous_same_day,crossed prior-session high
+2025-11-19,SGBX,pullback_1pct_reclaim,kumo_scanner;kumo_top_n,38.0,7.0,2025-11-20,2025-11-20 10:55:00,6.9077,bad_trade,-65.1838,3.0734,-65.5457,stop_before_target,1pct pullback reclaimed session open
+2025-11-19,SGBX,next_open,kumo_scanner;kumo_top_n,38.0,7.0,2025-11-20,2025-11-20 09:30:00,6.86,bad_trade,-64.9417,36.1501,-65.3061,ambiguous_same_day,first regular bar open
+2025-10-10,NTLA,prior_session_high_breakout,kumo_scanner;kumo_top_n,96.0,7.0,2025-10-13,2025-10-13 11:10:00,25.7775,bad_trade,-63.1462,9.5917,-65.241,stop_before_target,crossed prior-session high
+2025-10-14,CRML,next_open,kumo_scanner;kumo_top_n,66.0,7.0,2025-10-15,2025-10-15 09:30:00,26.535,bad_trade,-63.0676,5.521,-64.0852,ambiguous_same_day,first regular bar open
+2025-10-15,CRML,next_open,kumo_scanner;kumo_top_n,97.0,7.0,2025-10-16,2025-10-16 09:30:00,25.92,bad_trade,-62.39,0.2315,-64.24,stop_before_target,first regular bar open
+2025-10-10,NTLA,pullback_1pct_reclaim,kumo_scanner;kumo_top_n,96.0,7.0,2025-10-13,2025-10-13 13:05:00,24.885,bad_trade,-61.8244,13.5222,-63.9944,stop_before_target,1pct pullback reclaimed session open
+2025-10-10,NTLA,next_open,kumo_scanner;kumo_top_n,96.0,7.0,2025-10-13,2025-10-13 09:30:00,24.88,bad_trade,-61.8167,13.545,-63.9871,stop_before_target,first regular bar open
+2025-10-14,TMQ,next_open,kumo_scanner;kumo_top_n,8.0,8.0,2025-10-15,2025-10-15 09:30:00,9.94,bad_trade,-60.7575,0.6036,-62.7767,stop_before_target,first regular bar open
+2025-10-13,UAMY,next_open,kumo_scanner;kumo_top_n,12.0,8.0,2025-10-14,2025-10-14 09:30:00,19.5,bad_trade,-60.7179,1.0769,-68.0,stop_before_target,first regular bar open
+2025-10-13,UAMY,prior_session_high_breakout,kumo_scanner;kumo_top_n,12.0,8.0,2025-10-14,2025-10-14 09:30:00,19.5,bad_trade,-60.7179,0.0,-68.0,stop_before_target,crossed prior-session high
+2025-10-29,QURE,pullback_1pct_reclaim,kumo_scanner;kumo_top_n,40.0,8.0,2025-10-30,2025-10-30 10:40:00,69.14,bad_trade,-60.2979,0.9922,-66.9511,stop_before_target,1pct pullback reclaimed session open
+2025-10-29,QURE,next_open,kumo_scanner;kumo_top_n,40.0,8.0,2025-10-30,2025-10-30 09:30:00,69.01,bad_trade,-60.2232,1.4201,-66.8889,stop_before_target,first regular bar open
+2025-09-16,TURB,pullback_1pct_reclaim,kumo_scanner;kumo_top_n,24.0,8.0,2025-09-17,2025-09-17 11:05:00,9.65,bad_trade,-59.8964,39.5855,-60.6062,ambiguous_same_day,1pct pullback reclaimed session open
+2025-10-13,GWH,next_open,kumo_scanner;kumo_top_n,60.0,7.0,2025-10-14,2025-10-14 09:30:00,10.65,bad_trade,-59.8122,1.1268,-67.1362,stop_before_target,first regular bar open

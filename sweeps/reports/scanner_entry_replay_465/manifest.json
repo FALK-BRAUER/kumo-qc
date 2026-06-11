@@ -1,0 +1,127 @@
+{
+  "generated_at": "2026-06-11T03:12:57.800386+00:00",
+  "issue": "https://github.com/FALK-BRAUER/kumo-qc/issues/465",
+  "config": {
+    "panel": "/Users/falk/projects/kumo-qc-465-alt-entry-replay/sweeps/reports/scanner_opportunity_panel_463/opportunity_panel.csv.gz",
+    "parquet_root": "/Users/falk/projects/kumo-trader/data/intraday",
+    "output_dir": "/Users/falk/projects/kumo-qc-465-alt-entry-replay/sweeps/reports/scanner_entry_replay_465",
+    "candidate_filter": "kumo_top100_or_george",
+    "horizons": [
+      1,
+      2,
+      5,
+      10,
+      20,
+      40
+    ],
+    "assumptions": [
+      "next_open",
+      "first_hour_confirm",
+      "prior_session_high_breakout",
+      "pullback_1pct_reclaim"
+    ],
+    "limit": null
+  },
+  "outputs": {
+    "alternate_entry_labels.csv.gz": {
+      "rows": 104496,
+      "columns": [
+        "scan_date",
+        "symbol",
+        "kumo_scanner",
+        "kumo_top_n",
+        "george_scanner_positive",
+        "george_watchlist",
+        "george_video_mention",
+        "kumo_rank_by_score",
+        "kumo_score",
+        "george_rank",
+        "george_watchlist_rank",
+        "source_tags",
+        "entry_assumption",
+        "label_entry_date",
+        "label_entry_time",
+        "label_entry_price",
+        "label_prior_close",
+        "label_prior_session_high",
+        "label_entry_gap_pct",
+        "label_triggered",
+        "label_trigger_status",
+        "label_trigger_reason",
+        "label_path_status",
+        "label_scheduled_40d_sessions",
+        "label_available_40d_sessions",
+        "label_available_1d_sessions",
+        "label_mfe_1d_pct",
+        "label_mae_1d_pct",
+        "label_ret_1d_close_pct",
+        "label_time_to_peak_1d_sessions",
+        "label_max_giveback_after_peak_1d_pct",
+        "label_t4_s2_1d_outcome",
+        "label_t8_s4_1d_outcome",
+        "label_available_2d_sessions",
+        "label_mfe_2d_pct",
+        "label_mae_2d_pct",
+        "label_ret_2d_close_pct",
+        "label_time_to_peak_2d_sessions",
+        "label_max_giveback_after_peak_2d_pct",
+        "label_t4_s2_2d_outcome",
+        "label_t8_s4_2d_outcome",
+        "label_available_5d_sessions",
+        "label_mfe_5d_pct",
+        "label_mae_5d_pct",
+        "label_ret_5d_close_pct",
+        "label_time_to_peak_5d_sessions",
+        "label_max_giveback_after_peak_5d_pct",
+        "label_t4_s2_5d_outcome",
+        "label_t8_s4_5d_outcome",
+        "label_available_10d_sessions",
+        "label_mfe_10d_pct",
+        "label_mae_10d_pct",
+        "label_ret_10d_close_pct",
+        "label_time_to_peak_10d_sessions",
+        "label_max_giveback_after_peak_10d_pct",
+        "label_t4_s2_10d_outcome",
+        "label_t8_s4_10d_outcome",
+        "label_available_20d_sessions",
+        "label_mfe_20d_pct",
+        "label_mae_20d_pct",
+        "label_ret_20d_close_pct",
+        "label_time_to_peak_20d_sessions",
+        "label_max_giveback_after_peak_20d_pct",
+        "label_t4_s2_20d_outcome",
+        "label_t8_s4_20d_outcome",
+        "label_mfe_40d_pct",
+        "label_mae_40d_pct",
+        "label_ret_40d_close_pct",
+        "label_time_to_peak_40d_sessions",
+        "label_max_giveback_after_peak_40d_pct",
+        "label_t4_s2_40d_outcome",
+        "label_t8_s4_40d_outcome",
+        "label_runner_candidate_20d",
+        "label_normal_winner_20d",
+        "label_bad_trade_20d",
+        "label_extreme_path_flag",
+        "label_extreme_path_reason",
+        "label_outcome_20d",
+        "opportunity_id"
+      ]
+    },
+    "entry_assumption_summary.csv": {
+      "rows": 4
+    },
+    "source_entry_assumption_summary.csv": {
+      "rows": 12
+    },
+    "trigger_failure_summary.csv": {
+      "rows": 12
+    },
+    "best_alternate_entries.csv": {
+      "rows": 50
+    },
+    "worst_alternate_entries.csv": {
+      "rows": 50
+    },
+    "entry_replay_report.md": {}
+  }
+}
