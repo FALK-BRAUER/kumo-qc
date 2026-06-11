@@ -1,0 +1,43 @@
+{
+  "generated_at": "2026-06-11T18:28:07.408377+00:00",
+  "issue": "https://github.com/FALK-BRAUER/kumo-qc/issues/492",
+  "config": {
+    "universe": "/Users/falk/projects/kumo-qc-492-scan-time-ranking/sweeps/reports/scanner_trade_universe_482/scanner_trade_universe.csv.gz",
+    "panel": "/Users/falk/projects/kumo-qc-492-scan-time-ranking/sweeps/reports/scanner_opportunity_panel_463/opportunity_panel.csv.gz",
+    "output_dir": "/Users/falk/projects/kumo-qc-492-scan-time-ranking/sweeps/reports/scan_time_scanner_ranker_492",
+    "candidate_filter": "kumo_ranked",
+    "n_folds": 6,
+    "min_train_folds": 1,
+    "max_iter": 180,
+    "learning_rate": 0.02,
+    "l2": 0.01,
+    "negatives_per_positive": 25,
+    "limit": null
+  },
+  "feature_version": "scan_time_scanner_ranker_492_v1",
+  "feature_hash": "5c8a52bd0f8314bbdf161a26c78a0c1449f1e1e3b9faf6cb9e3387937d295b4a",
+  "outputs": {
+    "oof_predictions.csv.gz": {
+      "rows": 25585
+    },
+    "fold_summary.csv": {
+      "rows": 10
+    },
+    "topk_metrics.csv": {
+      "rows": 48
+    },
+    "monthly_stability.csv": {
+      "rows": 43
+    },
+    "daily_rank_examples.csv": {
+      "rows": 120
+    },
+    "feature_importance.csv": {
+      "rows": 86
+    },
+    "model_artifact.json": {
+      "schema_version": 1
+    },
+    "scan_time_ranker_report.md": {}
+  }
+}
