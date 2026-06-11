@@ -1,0 +1,40 @@
+{
+  "generated_at": "2026-06-11T04:42:19.907061+00:00",
+  "issue": "https://github.com/FALK-BRAUER/kumo-qc/issues/467",
+  "config": {
+    "labels": "/Users/falk/projects/kumo-qc-467-opportunity-ranker/sweeps/reports/scanner_opportunity_paths_464/opportunity_path_labels.csv.gz",
+    "panel": "/Users/falk/projects/kumo-qc-467-opportunity-ranker/sweeps/reports/scanner_opportunity_panel_463/opportunity_panel.csv.gz",
+    "output_dir": "/Users/falk/projects/kumo-qc-467-opportunity-ranker/sweeps/reports/scanner_opportunity_ranker_467",
+    "candidate_filter": "kumo_top100_or_george",
+    "n_folds": 6,
+    "min_train_folds": 1,
+    "max_iter": 250,
+    "learning_rate": 0.02,
+    "l2": 0.01,
+    "negatives_per_positive": 25,
+    "limit": null
+  },
+  "feature_version": "scanner_opportunity_scan_time_v1",
+  "feature_hash": "96eda175c8439bc9b988e5823e37a4d7c11b46d3f33fb008f70087b0add2896e",
+  "outputs": {
+    "oof_predictions.csv.gz": {
+      "rows": 23455
+    },
+    "fold_summary.csv": {
+      "rows": 10
+    },
+    "topk_metrics.csv": {
+      "rows": 48
+    },
+    "monthly_stability.csv": {
+      "rows": 30
+    },
+    "feature_importance.csv": {
+      "rows": 68
+    },
+    "model_artifact.json": {
+      "schema_version": 1
+    },
+    "opportunity_ranker_report.md": {}
+  }
+}
