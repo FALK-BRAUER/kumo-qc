@@ -1,0 +1,5 @@
+source_bucket,opportunities,dates,symbols,triggered_rows,optimal_rows,bad_rows,watch_rows,runner_rows,bad_entry_rows,avg_best_entry_ret20_pct,avg_best_entry_mfe20_pct,avg_best_entry_mae20_pct,avg_best_deployable_exit_total40_pct,avg_model_combined_score,median_kumo_rank,median_george_rank,trigger_rate_pct,optimal_pct,bad_pct,watch_pct,runner_pct,bad_entry_pct,share_of_all_opportunities_pct,share_of_all_optimal_pct,share_of_all_bad_pct
+kumo_only,24817,255,1409,22591,6005,14820,3992,4596,8539,2.3392,9.3423,-6.601,6.3757,-0.0006,51.0,,91.03,24.197,59.717,16.086,18.52,34.408,94.997,96.265,96.065
+kumo_with_george_video_context,595,136,193,562,174,368,53,115,200,2.9891,8.9343,-5.859,7.7988,0.0564,37.0,13.0,94.454,29.244,61.849,8.908,19.328,33.613,2.278,2.789,2.385
+both_george_and_kumo,366,60,232,149,30,118,218,31,79,0.9335,8.9836,-8.6287,4.2028,0.1685,100.0,5.0,40.71,8.197,32.24,59.563,8.47,21.585,1.401,0.481,0.765
+george_only,346,49,238,153,29,121,196,42,72,0.2784,9.4082,-10.2069,5.897,0.0569,,7.0,44.22,8.382,34.971,56.647,12.139,20.809,1.324,0.465,0.784
