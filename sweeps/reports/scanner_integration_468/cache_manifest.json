@@ -1,0 +1,26 @@
+{
+  "issue": "https://github.com/FALK-BRAUER/kumo-qc/issues/468",
+  "opportunity_artifact": {
+    "source": "sweeps/reports/scanner_opportunity_ranker_467/model_artifact.json",
+    "cloud_objectstore_key": "scanner_opportunity_ranker_467_v1.json",
+    "model_type": "linear_pairwise_ranker",
+    "feature_version": "scanner_opportunity_scan_time_v1",
+    "feature_hash": "96eda175c8439bc9b988e5823e37a4d7c11b46d3f33fb008f70087b0add2896e"
+  },
+  "runtime_cache_dimensions": [
+    "artifact_hash",
+    "feature_hash",
+    "panel_date",
+    "tickers",
+    "top_x",
+    "min_score",
+    "taxonomy_hash"
+  ],
+  "sweep_pack": "opportunity_ranker",
+  "local_staging": {
+    "objectstore_storage_dir": "storage/",
+    "staged_filename": "scanner_opportunity_ranker_467_v1.json",
+    "staged_by": "scripts/run_scanner_ranker_sweep.py"
+  },
+  "cloud_status": "artifact upload required before QC Cloud run"
+}

@@ -6,11 +6,17 @@ Top-X is deliberately explicit because George/BCT does not appear to use one fix
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from sweeps.types import PhaseChoice, SweepConfig
 
+ROOT = Path(__file__).resolve().parents[2]
 BASE_MODULE = "strategies.champion_intraday_gapvol"
 DEFAULT_MODEL_KEY = "objectstore://bct_lambdamart_qc_safe_v1.json"
+DEFAULT_OPPORTUNITY_MODEL_KEY = "objectstore://scanner_opportunity_ranker_467_v1.json"
+DEFAULT_OPPORTUNITY_ARTIFACT_PATH = (
+    ROOT / "sweeps" / "reports" / "scanner_opportunity_ranker_467" / "model_artifact.json"
+)
 REAL_STRATEGY_BASES = (
     (
         "giveback_no_bull",
@@ -38,6 +44,7 @@ class ScannerRankerVariant:
     config: SweepConfig
     wave: int = 0
     base_module: str = BASE_MODULE
+    local_artifact_path: str | None = None
 
     @property
     def config_hash(self) -> str:
@@ -90,8 +97,21 @@ def _exit(impl_name: str, *, free_params: int | None = None, **params: object) -
     )
 
 
+def _trail(impl_name: str, *, free_params: int | None = None, **params: object) -> PhaseChoice:
+    return PhaseChoice(
+        kind="trail",
+        impl_name=impl_name,
+        params=_pairs(**params),
+        free_params=len(params) if free_params is None else free_params,
+    )
+
+
 def _base_proactive_exit() -> PhaseChoice:
     return _exit("proactive_strength_exit", free_params=0)
+
+
+def _base_cloud_exit() -> PhaseChoice:
+    return _exit("cloud_adherence_trail", free_params=0)
 
 
 def _config(
@@ -122,6 +142,44 @@ def _ranker_runtime(
     if min_score is not None:
         fields["scanner_ranker_min_score"] = min_score
     return _pairs(**fields)
+
+
+def _opportunity_runtime(top_x: int) -> tuple[tuple[str, object], ...]:
+    return _ranker_runtime(
+        top_x=top_x,
+        model_path=DEFAULT_OPPORTUNITY_MODEL_KEY,
+        fallback="raise",
+    )
+
+
+def _opportunity_variant(
+    *,
+    variant_id: str,
+    family: str,
+    top_x: int | None,
+    hypothesis: str,
+    choices: tuple[PhaseChoice, ...] = (),
+) -> ScannerRankerVariant:
+    if top_x is None:
+        return ScannerRankerVariant(
+            variant_id=variant_id,
+            family=family,
+            wave=6,
+            hypothesis=hypothesis,
+            config=_config(runtime_overrides=_pairs(scanner_ranker_enabled=False)),
+        )
+    return ScannerRankerVariant(
+        variant_id=variant_id,
+        family=family,
+        wave=6,
+        hypothesis=hypothesis,
+        config=_config(
+            _ranking(free_params=1),
+            *choices,
+            runtime_overrides=_opportunity_runtime(top_x),
+        ),
+        local_artifact_path=str(DEFAULT_OPPORTUNITY_ARTIFACT_PATH),
+    )
 
 
 def first_pack() -> list[ScannerRankerVariant]:
@@ -619,6 +677,66 @@ def rank_aware_sizing_pack() -> list[ScannerRankerVariant]:
     ]
 
 
+def opportunity_ranker_pack() -> list[ScannerRankerVariant]:
+    """#468 deployment bridge for the #467 linear opportunity-ranker artifact.
+
+    This pack keeps the production champion untouched and tests the new artifact as an opt-in
+    scanner gate. Local runs stage the committed #467 `model_artifact.json` into repo `storage/`
+    under `DEFAULT_OPPORTUNITY_MODEL_KEY`; QC Cloud runs must upload the same JSON to ObjectStore.
+    """
+    return [
+        _opportunity_variant(
+            variant_id="opportunity_champion_baseline",
+            family="opportunity_control",
+            top_x=None,
+            hypothesis="Current champion scanner flow with no learned opportunity artifact.",
+        ),
+        _opportunity_variant(
+            variant_id="opportunity_linear_top10",
+            family="opportunity_top_x",
+            top_x=10,
+            hypothesis="Strict Top-10 daily gate using the #467 linear opportunity ranker.",
+        ),
+        _opportunity_variant(
+            variant_id="opportunity_linear_top20",
+            family="opportunity_top_x",
+            top_x=20,
+            hypothesis="Balanced Top-20 daily gate using the #467 linear opportunity ranker.",
+        ),
+        _opportunity_variant(
+            variant_id="opportunity_linear_top50",
+            family="opportunity_top_x",
+            top_x=50,
+            hypothesis="Wider Top-50 gate; tests whether the #467 ranker helps without starving entries.",
+        ),
+        _opportunity_variant(
+            variant_id="opportunity_linear_top20_rankaware_entry",
+            family="opportunity_rank_aware_entry",
+            top_x=20,
+            hypothesis="Top-20 opportunity ranker plus rank-bucketed first-hour/gap confirmation.",
+            choices=(_rank_aware_entry(),),
+        ),
+        _opportunity_variant(
+            variant_id="opportunity_linear_top20_giveback35_exit",
+            family="opportunity_exit_policy",
+            top_x=20,
+            hypothesis="Top-20 opportunity ranker plus the #466 giveback35_after8 realization policy.",
+            choices=(
+                _trail("position_path_tracker", free_params=0),
+                _base_cloud_exit(),
+                _exit(
+                    "mfe_intraday_exit",
+                    min_mfe_pct=0.08,
+                    giveback_fraction=0.35,
+                    min_giveback_pct=0.0,
+                    min_exit_return_pct=0.0,
+                    min_hold_bars=2,
+                ),
+            ),
+        ),
+    ]
+
+
 PACKS = {
     "first": first_pack,
     "top_x_expansion": top_x_expansion_pack,
@@ -626,6 +744,7 @@ PACKS = {
     "top20_realized_exit": top20_realized_exit_pack,
     "rank_aware_intraday": rank_aware_intraday_pack,
     "rank_aware_sizing": rank_aware_sizing_pack,
+    "opportunity_ranker": opportunity_ranker_pack,
 }
 
 

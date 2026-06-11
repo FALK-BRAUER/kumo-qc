@@ -142,7 +142,7 @@ class LambdamartScannerRanker(BasePhase):
             top_x=self._top_x(ctx.qc),
             min_score=self._min_score(ctx.qc),
             taxonomy_hash=self._taxonomy_hash(ctx.qc),
-            feature_hash=feature_contract_hash(model.feature_names),
+            feature_hash=model.feature_hash or feature_contract_hash(model.feature_names),
         )
         ctx.qc._scanner_ranker_cache_key = cache_key
 
@@ -157,8 +157,9 @@ class LambdamartScannerRanker(BasePhase):
                 "top_x": self._top_x(ctx.qc),
                 "min_score": self._min_score(ctx.qc),
                 "model_source": self._model_source,
+                "model_type": model.model_type,
                 "artifact_hash": model.artifact_hash[:12],
-                "feature_hash": feature_contract_hash(model.feature_names)[:12],
+                "feature_hash": (model.feature_hash or feature_contract_hash(model.feature_names))[:12],
                 "cache_key": cache_key[:16],
                 "top": [intent.ticker for intent in selected[:5]],
             },

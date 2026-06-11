@@ -24,6 +24,7 @@ from phases.shared.sector_breadth import BreadthCandidate, sector_industry_bread
 
 FEATURE_CONTRACT_VERSION = "bct_lambdamart_qc_safe_v1"
 DENOMINATOR_CONTRACT_VERSION = "live_signal_candidate_panel_v1"
+OPPORTUNITY_FEATURE_CONTRACT_VERSION = "scanner_opportunity_scan_time_v1"
 ARTIFACT_SCHEMA_VERSION = 1
 
 SECTOR_BREADTH_FEATURES: tuple[str, ...] = (
@@ -65,6 +66,48 @@ DENOMINATOR_RANK_FEATURES: tuple[str, ...] = tuple(
         f"{prefix}_rank_in_panel",
         f"{prefix}_pctile_in_panel",
     )
+)
+
+OPPORTUNITY_RANK_SPECS: tuple[tuple[str, str, bool], ...] = (
+    ("kumo_score", "score", False),
+    ("kumo_rank_by_score", "rank", True),
+    ("kumo_gap_pct", "gap", False),
+    ("kumo_gap_abs", "gap_abs", True),
+    ("kumo_vol_ratio_20d", "relvol", False),
+    ("kumo_dollar_vol_log", "dollar_vol", False),
+)
+
+OPPORTUNITY_SCANNER_FEATURES: tuple[str, ...] = (
+    "kumo_rank_by_score",
+    "kumo_rank_inverse",
+    "kumo_score",
+    "kumo_gap_pct",
+    "kumo_gap_abs",
+    "kumo_gap_positive",
+    "kumo_gap_negative_abs",
+    "kumo_vol_ratio_20d",
+    "kumo_dollar_vol_log",
+    "kumo_volume_log",
+    "kumo_close_log",
+    "rank_le_10",
+    "rank_le_20",
+    "rank_le_50",
+    "score_ge_7",
+    "score_ge_8",
+    "gap_between_minus2_5",
+    "gap_gt_8",
+    "gap_lt_minus5",
+    "has_sector_proxy",
+    "is_kumo_top_n",
+    "is_kumo_scanner",
+    *(
+        feature
+        for _source, prefix, _ascending in OPPORTUNITY_RANK_SPECS
+        for feature in (
+            f"{prefix}_rank_in_day",
+            f"{prefix}_pctile_in_day",
+        )
+    ),
 )
 
 DEPLOYABLE_SCANNER_FEATURES: tuple[str, ...] = tuple(
@@ -159,12 +202,24 @@ class RankedScannerCandidate:
 
 
 @dataclass(frozen=True, slots=True)
+class LinearScannerSubModel:
+    coef: tuple[float, ...]
+    intercept: float
+
+
+@dataclass(frozen=True, slots=True)
 class ScannerModelArtifact:
     feature_names: tuple[str, ...]
-    trees: tuple[dict[str, Any], ...]
-    base_score: float
+    model_type: str
     artifact_hash: str
     metadata: dict[str, Any]
+    trees: tuple[dict[str, Any], ...] = ()
+    base_score: float = 0.0
+    standardizer_mean: tuple[float, ...] = ()
+    standardizer_scale: tuple[float, ...] = ()
+    linear_models: dict[str, LinearScannerSubModel] | None = None
+    combined_weights: dict[str, float] | None = None
+    feature_hash: str = ""
 
 
 def _stable_json(value: Any) -> str:
@@ -175,6 +230,14 @@ def feature_contract_hash(feature_names: tuple[str, ...] = DEPLOYABLE_SCANNER_FE
     payload = {
         "feature_contract_version": FEATURE_CONTRACT_VERSION,
         "denominator_contract_version": DENOMINATOR_CONTRACT_VERSION,
+        "feature_names": list(feature_names),
+    }
+    return hashlib.sha256(_stable_json(payload).encode("utf-8")).hexdigest()
+
+
+def opportunity_feature_contract_hash(feature_names: tuple[str, ...] = OPPORTUNITY_SCANNER_FEATURES) -> str:
+    payload = {
+        "feature_version": OPPORTUNITY_FEATURE_CONTRACT_VERSION,
         "feature_names": list(feature_names),
     }
     return hashlib.sha256(_stable_json(payload).encode("utf-8")).hexdigest()
@@ -218,6 +281,22 @@ def _validate_feature_names(feature_names: tuple[str, ...]) -> None:
     unknown = sorted(set(feature_names) - allowed)
     if unknown:
         raise ScannerRankerError(f"scanner ranker artifact uses features outside deployable contract: {unknown}")
+
+
+def _validate_opportunity_feature_names(feature_names: tuple[str, ...]) -> None:
+    if not feature_names:
+        raise ScannerRankerError("opportunity ranker artifact has no feature_names")
+    allowed = set(OPPORTUNITY_SCANNER_FEATURES)
+    denied = [
+        name
+        for name in feature_names
+        if any(token in name.lower() for token in DENIED_FEATURE_TOKENS)
+    ]
+    if denied:
+        raise ScannerRankerError(f"opportunity ranker artifact uses denied runtime features: {denied}")
+    unknown = sorted(set(feature_names) - allowed)
+    if unknown:
+        raise ScannerRankerError(f"opportunity ranker artifact uses features outside deployable contract: {unknown}")
 
 
 def _object_store_contains(object_store: Any, key: str) -> bool:
@@ -268,7 +347,7 @@ def _load_artifact_text(path_or_key: str, object_store: Any | None) -> str:
 
 
 def load_scanner_model_artifact(path_or_key: str, object_store: Any | None = None) -> ScannerModelArtifact:
-    """Load and validate an exported LambdaMART JSON tree artifact."""
+    """Load and validate an exported scanner-ranker artifact."""
     text = _load_artifact_text(path_or_key, object_store)
     try:
         raw = json.loads(text)
@@ -281,17 +360,27 @@ def load_scanner_model_artifact(path_or_key: str, object_store: Any | None = Non
             f"scanner ranker artifact schema_version must be {ARTIFACT_SCHEMA_VERSION}"
         )
     model_type = str(raw.get("model_type", ""))
-    if model_type not in {"lambdamart_tree_ensemble", "lightgbm_lambdamart_json"}:
+    if model_type not in {"lambdamart_tree_ensemble", "lightgbm_lambdamart_json", "linear_pairwise_ranker"}:
         raise ScannerRankerError(f"unsupported scanner ranker model_type: {model_type!r}")
     feature_names = tuple(str(name) for name in raw.get("feature_names", ()))
+    metadata = raw.get("metadata", {})
+    if not isinstance(metadata, dict):
+        metadata = {}
+    artifact_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+    if model_type == "linear_pairwise_ranker":
+        return _load_linear_opportunity_artifact(
+            raw,
+            feature_names=feature_names,
+            artifact_hash=artifact_hash,
+            metadata=metadata,
+        )
+
     _validate_feature_names(feature_names)
     trees_raw = raw.get("trees", ())
     if not isinstance(trees_raw, list) or not trees_raw:
         raise ScannerRankerError("scanner ranker artifact must contain at least one tree")
     base_score = _finite_float(raw.get("base_score"), default=0.0)
-    metadata = raw.get("metadata", {})
-    if not isinstance(metadata, dict):
-        metadata = {}
     expected_hash = raw.get("feature_list_hash")
     if expected_hash is not None:
         actual_hash = feature_contract_hash(feature_names)
@@ -301,14 +390,18 @@ def load_scanner_model_artifact(path_or_key: str, object_store: Any | None = Non
             )
     return ScannerModelArtifact(
         feature_names=feature_names,
+        model_type=model_type,
         trees=tuple(dict(tree) for tree in trees_raw),
         base_score=base_score,
-        artifact_hash=hashlib.sha256(text.encode("utf-8")).hexdigest(),
+        artifact_hash=artifact_hash,
         metadata=metadata,
+        feature_hash=feature_contract_hash(feature_names),
     )
 
 
 def score_features(model: ScannerModelArtifact, features: dict[str, float | bool]) -> float:
+    if model.model_type == "linear_pairwise_ranker":
+        return _score_linear_opportunity_artifact(model, features)
     score = float(model.base_score)
     for tree in model.trees:
         score += _finite_float(tree.get("shrinkage"), default=1.0) * _eval_tree(
@@ -317,6 +410,106 @@ def score_features(model: ScannerModelArtifact, features: dict[str, float | bool
             features,
         )
     return score
+
+
+def _load_linear_opportunity_artifact(
+    raw: dict[str, Any],
+    *,
+    feature_names: tuple[str, ...],
+    artifact_hash: str,
+    metadata: dict[str, Any],
+) -> ScannerModelArtifact:
+    feature_version = str(raw.get("feature_version", ""))
+    if feature_version != OPPORTUNITY_FEATURE_CONTRACT_VERSION:
+        raise ScannerRankerError(
+            f"linear opportunity artifact feature_version must be "
+            f"{OPPORTUNITY_FEATURE_CONTRACT_VERSION}, got {feature_version!r}"
+        )
+    _validate_opportunity_feature_names(feature_names)
+    expected_hash = raw.get("feature_hash")
+    actual_hash = opportunity_feature_contract_hash(feature_names)
+    if expected_hash is not None and str(expected_hash) != actual_hash:
+        raise ScannerRankerError(
+            f"opportunity ranker feature_hash mismatch: expected {expected_hash}, actual {actual_hash}"
+        )
+    standardizer = raw.get("standardizer", {})
+    if not isinstance(standardizer, dict):
+        raise ScannerRankerError("linear opportunity artifact standardizer must be an object")
+    mean = _float_tuple(standardizer.get("mean", ()))
+    scale = _float_tuple(standardizer.get("scale", ()))
+    if len(mean) != len(feature_names) or len(scale) != len(feature_names):
+        raise ScannerRankerError(
+            "linear opportunity artifact standardizer length must match feature_names "
+            f"({len(mean)} mean, {len(scale)} scale, {len(feature_names)} features)"
+        )
+    models_raw = raw.get("models", {})
+    if not isinstance(models_raw, dict):
+        raise ScannerRankerError("linear opportunity artifact models must be an object")
+    linear_models: dict[str, LinearScannerSubModel] = {}
+    for target in ("trade_worthy", "runner"):
+        item = models_raw.get(target)
+        if not isinstance(item, dict):
+            raise ScannerRankerError(f"linear opportunity artifact missing {target!r} model")
+        coef = _float_tuple(item.get("coef", ()))
+        if len(coef) != len(feature_names):
+            raise ScannerRankerError(
+                f"linear opportunity artifact {target!r} coef length {len(coef)} "
+                f"does not match {len(feature_names)} features"
+            )
+        linear_models[target] = LinearScannerSubModel(
+            coef=coef,
+            intercept=_finite_float(item.get("intercept"), default=0.0),
+        )
+    weights_raw = raw.get("combined_score", {})
+    if not isinstance(weights_raw, dict):
+        weights_raw = {}
+    combined_weights = {
+        "trade_worthy": _finite_float(weights_raw.get("trade_worthy_weight"), default=0.70),
+        "runner": _finite_float(weights_raw.get("runner_weight"), default=0.30),
+    }
+    return ScannerModelArtifact(
+        feature_names=feature_names,
+        model_type="linear_pairwise_ranker",
+        artifact_hash=artifact_hash,
+        metadata=metadata,
+        standardizer_mean=mean,
+        standardizer_scale=scale,
+        linear_models=linear_models,
+        combined_weights=combined_weights,
+        feature_hash=actual_hash,
+    )
+
+
+def _float_tuple(values: Any) -> tuple[float, ...]:
+    if not isinstance(values, list):
+        raise ScannerRankerError("linear opportunity artifact numeric arrays must be lists")
+    return tuple(_finite_float(value, default=0.0) for value in values)
+
+
+def _score_linear_opportunity_artifact(model: ScannerModelArtifact, features: dict[str, float | bool]) -> float:
+    if model.linear_models is None:
+        raise ScannerRankerError("linear opportunity artifact has no loaded models")
+    z_values: list[float] = []
+    for name, mean, scale in zip(
+        model.feature_names,
+        model.standardizer_mean,
+        model.standardizer_scale,
+        strict=False,
+    ):
+        value = _numeric(features.get(name))
+        if not _is_finite(value):
+            value = mean
+        denom = scale if _is_finite(scale) and abs(scale) > 1e-9 else 1.0
+        z_values.append((value - mean) / denom)
+    weights = model.combined_weights or {"trade_worthy": 0.70, "runner": 0.30}
+    score = 0.0
+    for target, weight in weights.items():
+        submodel = model.linear_models.get(target)
+        if submodel is None:
+            continue
+        target_score = submodel.intercept + sum(coef * value for coef, value in zip(submodel.coef, z_values, strict=False))
+        score += float(weight) * target_score
+    return _finite_float(score, default=0.0)
 
 
 def rank_scanner_panel(
@@ -372,7 +565,7 @@ def build_scanner_candidate_rows(qc: Any, intents: list[Any]) -> list[ScannerCan
             features[name] = _finite_float(breadth.get(name), default=0.0)
         rows_with_breadth.append(ScannerCandidateRow(ticker=row.ticker, features=features))
 
-    return _add_denominator_ranks(rows_with_breadth)
+    return _add_opportunity_features(_add_denominator_ranks(rows_with_breadth))
 
 
 def _base_features(qc: Any, intent: Any, ticker: str) -> dict[str, float | bool]:
@@ -478,6 +671,8 @@ def _base_features(qc: Any, intent: Any, ticker: str) -> dict[str, float | bool]
         "w_chikou_ok": _weekly_chikou_ok(ind.get("w_close")),
         "w_cloud_distance_pct": _pct_distance(close, w_cloud_top),
         "w_tenkan_extension_pct": _pct_distance(close, w_tenkan),
+        "_runtime_close": close,
+        "_runtime_volume": volume if volume is not None else math.nan,
     }
     for index in range(8):
         name = (
@@ -504,6 +699,60 @@ def _add_denominator_ranks(rows: list[ScannerCandidateRow]) -> list[ScannerCandi
         for row, rank, pctile_rank in zip(out, descending_ranks, ascending_pctiles, strict=False):
             row.features[f"{prefix}_rank_in_panel"] = rank
             row.features[f"{prefix}_pctile_in_panel"] = (
+                pctile_rank / float(finite_n) if finite_n and _is_finite(pctile_rank) else math.nan
+            )
+    return out
+
+
+def _add_opportunity_features(rows: list[ScannerCandidateRow]) -> list[ScannerCandidateRow]:
+    out: list[ScannerCandidateRow] = []
+    for index, row in enumerate(rows, start=1):
+        features = dict(row.features)
+        rank = float(index)
+        score = _numeric(features.get("bct_score"))
+        gap = _numeric(features.get("gap_pct"))
+        relvol = _numeric(features.get("rel_volume20"))
+        close = _numeric(features.get("_runtime_close"))
+        volume = _numeric(features.get("_runtime_volume"))
+        dollar_vol = _numeric(features.get("day_dollar_vol"))
+        if not _is_finite(gap):
+            gap = 0.0
+        features.update(
+            {
+                "kumo_rank_by_score": rank,
+                "kumo_rank_inverse": -rank,
+                "kumo_score": score,
+                "kumo_gap_pct": gap,
+                "kumo_gap_abs": abs(gap),
+                "kumo_gap_positive": max(gap, 0.0),
+                "kumo_gap_negative_abs": max(-gap, 0.0),
+                "kumo_vol_ratio_20d": relvol,
+                "kumo_dollar_vol_log": _safe_log1p_float(dollar_vol),
+                "kumo_volume_log": _safe_log1p_float(volume),
+                "kumo_close_log": _safe_log1p_float(close),
+                "rank_le_10": rank <= 10.0,
+                "rank_le_20": rank <= 20.0,
+                "rank_le_50": rank <= 50.0,
+                "score_ge_7": score >= 7.0 if _is_finite(score) else False,
+                "score_ge_8": score >= 8.0 if _is_finite(score) else False,
+                "gap_between_minus2_5": -2.0 <= gap <= 5.0,
+                "gap_gt_8": gap > 8.0,
+                "gap_lt_minus5": gap < -5.0,
+                "has_sector_proxy": _numeric(features.get("sector_denominator_count")) > 0.0,
+                "is_kumo_top_n": True,
+                "is_kumo_scanner": True,
+            }
+        )
+        out.append(ScannerCandidateRow(row.ticker, features))
+
+    for source, prefix, ascending in OPPORTUNITY_RANK_SPECS:
+        values = [_numeric(row.features.get(source)) for row in out]
+        ranks = _average_ranks(values, ascending=ascending)
+        pctile_ranks = _average_ranks(values, ascending=not ascending)
+        finite_n = sum(1 for value in values if _is_finite(value))
+        for row, rank, pctile_rank in zip(out, ranks, pctile_ranks, strict=False):
+            row.features[f"{prefix}_rank_in_day"] = rank
+            row.features[f"{prefix}_pctile_in_day"] = (
                 pctile_rank / float(finite_n) if finite_n and _is_finite(pctile_rank) else math.nan
             )
     return out
@@ -632,6 +881,13 @@ def _numeric(value: Any) -> float:
         return 1.0 if value else 0.0
     number = _optional_float(value)
     return number if number is not None else math.nan
+
+
+def _safe_log1p_float(value: Any) -> float:
+    number = _numeric(value)
+    if not _is_finite(number):
+        return math.nan
+    return math.log1p(max(float(number), 0.0))
 
 
 def _is_finite(value: Any) -> bool:

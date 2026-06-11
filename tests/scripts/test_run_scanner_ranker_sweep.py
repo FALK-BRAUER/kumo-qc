@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-from runtime.scanner_ranker import ARTIFACT_SCHEMA_VERSION, feature_contract_hash
+from runtime.scanner_ranker import ARTIFACT_SCHEMA_VERSION, feature_contract_hash, opportunity_feature_contract_hash
 from scripts import run_scanner_ranker_sweep as M
 from sweeps.grids.scanner_ranker import (
+    DEFAULT_OPPORTUNITY_MODEL_KEY,
     first_pack,
+    opportunity_ranker_pack,
     rank_aware_intraday_pack,
     real_strategy_scanner_pack,
     top20_realized_exit_pack,
@@ -79,7 +82,25 @@ def test_variants_selects_rank_aware_intraday_pack() -> None:
     ]
 
 
-def test_default_artifact_required_only_for_default_model_variants(tmp_path) -> None:
+def test_variants_selects_opportunity_ranker_pack() -> None:
+    args = SimpleNamespace(pack="opportunity_ranker", only="", limit=None)
+
+    variants = M._variants(args)
+
+    assert [variant.variant_id for variant in variants] == [
+        variant.variant_id for variant in opportunity_ranker_pack()
+    ]
+
+
+def _artifact_args(tmp_path: Path, *, artifact: Path | None = None, opportunity_artifact: Path | None = None) -> SimpleNamespace:
+    return SimpleNamespace(
+        artifact=artifact or tmp_path / "missing.json",
+        opportunity_artifact=opportunity_artifact or tmp_path / "missing-opportunity.json",
+        allow_missing_artifact=False,
+    )
+
+
+def test_default_artifact_required_only_for_default_model_variants(tmp_path: Path) -> None:
     default_variants = [
         variant for variant in first_pack() if variant.variant_id == "scanner_lambdamart_top10"
     ]
@@ -88,23 +109,9 @@ def test_default_artifact_required_only_for_default_model_variants(tmp_path) -> 
     ]
 
     with pytest.raises(SystemExit, match="artifact missing"):
-        M._validate_artifact(
-            SimpleNamespace(
-                artifact=tmp_path / "missing.json",
-                allow_missing_artifact=False,
-            ),
-            default_variants,
-        )
+        M._validate_artifacts(_artifact_args(tmp_path), default_variants)
 
-    artifact, artifact_hash = M._validate_artifact(
-        SimpleNamespace(
-            artifact=tmp_path / "missing.json",
-            allow_missing_artifact=False,
-        ),
-        fallback_variants,
-    )
-    assert artifact.name == "missing.json"
-    assert artifact_hash == ""
+    assert M._validate_artifacts(_artifact_args(tmp_path), fallback_variants) == {}
 
 
 def _write_artifact(path: Path, *, feature_names: tuple[str, ...]) -> None:
@@ -130,32 +137,65 @@ def _write_artifact(path: Path, *, feature_names: tuple[str, ...]) -> None:
     )
 
 
+def _write_linear_artifact(path: Path, *, feature_names: tuple[str, ...] = ("kumo_score",)) -> None:
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": ARTIFACT_SCHEMA_VERSION,
+                "model_type": "linear_pairwise_ranker",
+                "feature_version": "scanner_opportunity_scan_time_v1",
+                "feature_hash": opportunity_feature_contract_hash(feature_names),
+                "feature_names": list(feature_names),
+                "standardizer": {"mean": [0.0 for _ in feature_names], "scale": [1.0 for _ in feature_names]},
+                "models": {
+                    "trade_worthy": {"coef": [1.0 for _ in feature_names], "intercept": 0.0},
+                    "runner": {"coef": [1.0 for _ in feature_names], "intercept": 0.0},
+                },
+                "combined_score": {"trade_worthy_weight": 0.7, "runner_weight": 0.3},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 def test_validate_artifact_preflights_default_model_artifact(tmp_path: Path, monkeypatch) -> None:
     artifact_path = tmp_path / "bct_lambdamart_qc_safe_v1.json"
     _write_artifact(artifact_path, feature_names=("gap_pct",))
-    monkeypatch.setattr(M, "DEFAULT_ARTIFACT_PATH", artifact_path)
+    monkeypatch.setattr(M, "ROOT", tmp_path)
     variants = [variant for variant in first_pack() if variant.variant_id == "scanner_lambdamart_top10"]
 
-    artifact, artifact_hash = M._validate_artifact(
-        SimpleNamespace(artifact=artifact_path, allow_missing_artifact=False),
-        variants,
-    )
+    bindings = M._validate_artifacts(_artifact_args(tmp_path, artifact=artifact_path), variants)
+    binding = bindings["scanner_lambdamart_top10"]
 
-    assert artifact == artifact_path.resolve()
-    assert artifact_hash
+    assert Path(binding["artifact_path"]) == artifact_path.resolve()
+    assert binding["artifact_sha256"]
+    assert Path(binding["staged_path"]) == tmp_path / "storage" / "bct_lambdamart_qc_safe_v1.json"
+
+
+def test_validate_artifact_stages_opportunity_model_artifact(tmp_path: Path, monkeypatch) -> None:
+    artifact_path = tmp_path / "scanner_opportunity_ranker_467_v1.json"
+    _write_linear_artifact(artifact_path)
+    monkeypatch.setattr(M, "ROOT", tmp_path)
+    variant = next(item for item in opportunity_ranker_pack() if item.variant_id == "opportunity_linear_top20")
+    variant = replace(variant, local_artifact_path=str(artifact_path))
+
+    bindings = M._validate_artifacts(_artifact_args(tmp_path), [variant])
+    binding = bindings["opportunity_linear_top20"]
+
+    assert binding["model_path"] == DEFAULT_OPPORTUNITY_MODEL_KEY
+    assert Path(binding["artifact_path"]) == artifact_path.resolve()
+    assert Path(binding["staged_path"]) == tmp_path / "storage" / "scanner_opportunity_ranker_467_v1.json"
 
 
 def test_validate_artifact_rejects_denied_runtime_feature(tmp_path: Path, monkeypatch) -> None:
     artifact_path = tmp_path / "bct_lambdamart_qc_safe_v1.json"
     _write_artifact(artifact_path, feature_names=("george_label",))
-    monkeypatch.setattr(M, "DEFAULT_ARTIFACT_PATH", artifact_path)
+    monkeypatch.setattr(M, "ROOT", tmp_path)
     variants = [variant for variant in first_pack() if variant.variant_id == "scanner_lambdamart_top10"]
 
     with pytest.raises(SystemExit, match="artifact invalid.*denied"):
-        M._validate_artifact(
-            SimpleNamespace(artifact=artifact_path, allow_missing_artifact=False),
-            variants,
-        )
+        M._validate_artifacts(_artifact_args(tmp_path, artifact=artifact_path), variants)
 
 
 def test_data_fingerprint_uses_requested_data_folder(tmp_path: Path) -> None:

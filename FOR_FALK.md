@@ -1,5 +1,31 @@
 # FOR_FALK - BCT/George scanner-alignment implementation pass, 2026-06-09
 
+## #468 opportunity-ranker LEAN/QC integration bridge, 2026-06-11
+
+Goal: turn the #467 scanner-opportunity ranker into a deployable, opt-in scanner gate without
+changing the production champion.
+
+What changed:
+- `runtime.scanner_ranker` can now load the #467 `linear_pairwise_ranker` artifact in addition to
+  the older LambdaMART/tree artifact.
+- Live candidate rows now expose the #467 feature contract (`kumo_score`, `kumo_gap_pct`, panel
+  ranks/percentiles, volume/price logs) from scan-time runtime data only.
+- Added `strategies.bct_opportunity_ranker_scanner`, defaulting to
+  `objectstore://scanner_opportunity_ranker_467_v1.json` and Top-20.
+- Added `opportunity_ranker` to `sweeps/grids/scanner_ranker.py`: baseline, top10/top20/top50,
+  top20 rank-aware entry, and top20 + #466 `giveback35_after8` exit-policy candidate.
+- `scripts/run_scanner_ranker_sweep.py` now validates/stages per-variant artifacts, so local LEAN
+  runs copy the committed #467 JSON into `storage/scanner_opportunity_ranker_467_v1.json`.
+- Tracked integration note: `sweeps/reports/scanner_integration_468/`.
+
+Run locally:
+`uv run --python 3.12 python scripts/run_scanner_ranker_sweep.py --pack opportunity_ranker --window jan --workers 1 --only opportunity_linear_top20 --data-folder /Users/falk/projects/kumo-qc/data --no-cache-ensure`
+
+Cloud constraint:
+- Upload `sweeps/reports/scanner_opportunity_ranker_467/model_artifact.json` to QC ObjectStore key
+  `scanner_opportunity_ranker_467_v1.json` before running cloud.
+- Cloud was not run in this PR; this is the local/cloud wiring bridge and smoke-ready pack.
+
 ## #469 rank-aware intraday scanner, 2026-06-11
 
 Goal: use LambdaMART scanner rank as live intraday context beyond a Top-X cutoff, without changing
