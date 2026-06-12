@@ -1,0 +1,11 @@
+row_type,action_label,rows,dates,symbols,pct
+entry_decision,avoid_bad_entry,92562,234,1252,59.053
+entry_decision,enter_now,37294,234,838,23.793
+entry_decision,wait,26864,260,692,17.139
+entry_decision,missing_intraday,24,1,4,0.015
+position_management,scratch_or_reduce,71686,234,1252,50.996
+position_management,hold_winner,35988,234,838,25.601
+position_management,exit_loser,20859,234,1053,14.839
+position_management,hold_or_wait,10734,213,295,7.636
+position_management,do_not_cut_runner,1134,178,194,0.807
+position_management,protect_profit,172,61,86,0.122

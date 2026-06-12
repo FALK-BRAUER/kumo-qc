@@ -1,0 +1,17 @@
+row_type,feature_group,rows,available_rows,missing_rows,available_pct
+entry_decision,etf_intraday_available,156744,63510,93234,40.518
+entry_decision,etf_last_15m_available,156744,52925,103819,33.765
+entry_decision,etf_last_hour_available,156744,31755,124989,20.259
+entry_decision,ichimoku_15m_available,156744,0,156744,0.0
+entry_decision,ichimoku_hour_available,156744,0,156744,0.0
+entry_decision,intraday_available,156744,156666,78,99.95
+entry_decision,last_15m_available,156744,130335,26409,83.152
+entry_decision,last_hour_available,156744,77856,78888,49.671
+position_management,etf_intraday_available,140573,54621,85952,38.856
+position_management,etf_last_15m_available,140573,45521,95052,32.382
+position_management,etf_last_hour_available,140573,27319,113254,19.434
+position_management,ichimoku_15m_available,140573,0,140573,0.0
+position_management,ichimoku_hour_available,140573,0,140573,0.0
+position_management,intraday_available,140573,140573,0,100.0
+position_management,last_15m_available,140573,116959,23614,83.202
+position_management,last_hour_available,140573,69868,70705,49.702

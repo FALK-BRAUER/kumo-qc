@@ -1,0 +1,161 @@
+{
+  "generated_at": "2026-06-12T01:56:56.599106+00:00",
+  "issue": "https://github.com/FALK-BRAUER/kumo-qc/issues/491",
+  "feature_version": "intraday_decision_panel_491_v1",
+  "config": {
+    "universe": "/Users/falk/projects/kumo-qc-491-intraday-decision-panel/sweeps/reports/scanner_trade_universe_482/scanner_trade_universe.csv.gz",
+    "entry_labels": "/Users/falk/projects/kumo-qc-491-intraday-decision-panel/sweeps/reports/scanner_entry_replay_465/alternate_entry_labels.csv.gz",
+    "exit_labels": "/Users/falk/projects/kumo-qc-491-intraday-decision-panel/sweeps/reports/scanner_exit_policies_466/exit_policy_labels.csv.gz",
+    "parquet_root": "/Users/falk/projects/kumo-trader/data/intraday",
+    "output_dir": "/Users/falk/projects/kumo-qc-491-intraday-decision-panel/sweeps/reports/intraday_decision_panel_491",
+    "candidate_filter": "kumo_or_george",
+    "limit": null,
+    "checkpoints": [
+      [
+        "open",
+        "09:30:00"
+      ],
+      [
+        "after_15m",
+        "09:45:00"
+      ],
+      [
+        "after_30m",
+        "10:00:00"
+      ],
+      [
+        "first_hour",
+        "10:30:00"
+      ],
+      [
+        "midday",
+        "12:00:00"
+      ],
+      [
+        "close",
+        "16:00:00"
+      ]
+    ]
+  },
+  "outputs": {
+    "intraday_decision_panel.csv.gz": {
+      "rows": 297317,
+      "columns": [
+        "feature_version",
+        "row_type",
+        "scan_date",
+        "entry_session_date",
+        "symbol",
+        "opportunity_id",
+        "checkpoint",
+        "as_of_timestamp",
+        "scanner_source_bucket",
+        "trade_bucket",
+        "reason_codes",
+        "kumo_signal_seen",
+        "kumo_top_n",
+        "kumo_scanner",
+        "kumo_rank_by_score",
+        "kumo_score",
+        "george_signal_seen",
+        "george_scanner_positive",
+        "george_watchlist",
+        "george_video_mention",
+        "george_rank",
+        "george_watchlist_rank",
+        "company_sector",
+        "company_industry",
+        "sector_category",
+        "sector_etf_proxy",
+        "source_tags",
+        "prior_model_combined_score",
+        "triggered_entry_assumptions",
+        "bad_entry_assumptions",
+        "next_open_prior_close",
+        "next_open_prior_session_high",
+        "next_open_entry_gap_pct",
+        "oracle_best_entry_assumption",
+        "oracle_best_entry_time",
+        "oracle_best_entry_price",
+        "oracle_best_entry_ret_20d_close_pct",
+        "oracle_best_entry_mfe_20d_pct",
+        "oracle_best_entry_mae_20d_pct",
+        "oracle_best_entry_outcome_20d",
+        "oracle_best_deployable_exit_policy_id",
+        "oracle_best_deployable_exit_reason",
+        "oracle_best_deployable_total_equity_ret_40d_pct",
+        "entry_action_label",
+        "entry_action_reason",
+        "management_action_label",
+        "management_action_reason",
+        "intraday_available",
+        "bars_completed",
+        "session_open",
+        "current_price",
+        "return_from_open_pct",
+        "gap_from_prior_close_pct",
+        "high_so_far",
+        "low_so_far",
+        "mfe_from_open_pct",
+        "mae_from_open_pct",
+        "volume_so_far",
+        "vwap_so_far",
+        "distance_from_vwap_pct",
+        "last_15m_available",
+        "last_15m_ret_pct",
+        "last_15m_range_pct",
+        "last_15m_volume",
+        "last_hour_available",
+        "last_hour_ret_pct",
+        "last_hour_range_pct",
+        "last_hour_volume",
+        "ichimoku_15m_available",
+        "ichimoku_hour_available",
+        "etf_intraday_available",
+        "etf_bars_completed",
+        "etf_session_open",
+        "etf_current_price",
+        "etf_return_from_open_pct",
+        "etf_gap_from_prior_close_pct",
+        "etf_high_so_far",
+        "etf_low_so_far",
+        "etf_mfe_from_open_pct",
+        "etf_mae_from_open_pct",
+        "etf_volume_so_far",
+        "etf_vwap_so_far",
+        "etf_distance_from_vwap_pct",
+        "etf_last_15m_available",
+        "etf_last_15m_ret_pct",
+        "etf_last_15m_range_pct",
+        "etf_last_15m_volume",
+        "etf_last_hour_available",
+        "etf_last_hour_ret_pct",
+        "etf_last_hour_range_pct",
+        "etf_last_hour_volume",
+        "etf_ichimoku_15m_available",
+        "etf_ichimoku_hour_available",
+        "position_entry_price",
+        "position_entry_time",
+        "position_minutes_since_entry",
+        "position_bars_completed_since_entry",
+        "position_current_return_pct",
+        "position_mfe_so_far_pct",
+        "position_mae_so_far_pct",
+        "position_drawdown_from_peak_pct"
+      ]
+    },
+    "coverage_summary.csv": {
+      "rows": 16
+    },
+    "label_summary.csv": {
+      "rows": 10
+    },
+    "checkpoint_summary.csv": {
+      "rows": 12
+    },
+    "sample_rows.csv": {
+      "rows": 200
+    },
+    "intraday_decision_panel_report.md": {}
+  }
+}
