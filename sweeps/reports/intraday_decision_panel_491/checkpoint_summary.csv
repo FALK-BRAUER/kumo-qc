@@ -1,0 +1,13 @@
+row_type,checkpoint,rows,intraday_available_pct,avg_bars_completed
+entry_decision,open,26124,99.95,0.0
+entry_decision,after_15m,26124,99.95,2.99
+entry_decision,after_30m,26124,99.95,5.978
+entry_decision,first_hour,26124,99.95,11.958
+entry_decision,midday,26124,99.95,29.874
+entry_decision,close,26124,99.95,77.238
+position_management,open,23414,100.0,0.0
+position_management,after_15m,23419,100.0,2.992
+position_management,after_30m,23420,100.0,5.981
+position_management,first_hour,23428,100.0,11.962
+position_management,midday,23437,100.0,29.884
+position_management,close,23455,100.0,77.22
