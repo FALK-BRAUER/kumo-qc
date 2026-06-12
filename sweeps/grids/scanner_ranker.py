@@ -34,6 +34,11 @@ REAL_STRATEGY_BASES = (
         "Patient realized candidate from #408: fewer trades and higher average closed return.",
     ),
 )
+DYNAMIC_SCORE_THRESHOLDS = (
+    ("score_loose", -0.25, "loose dynamic LambdaMART score threshold; no fixed Top-X cap"),
+    ("score_medium", -0.20, "balanced dynamic LambdaMART score threshold; no fixed Top-X cap"),
+    ("score_strict", -0.16, "strict dynamic LambdaMART score threshold; no fixed Top-X cap"),
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -325,6 +330,73 @@ def real_strategy_scanner_pack() -> list[ScannerRankerVariant]:
                     base_module=base_module,
                     base_hypothesis=base_hypothesis,
                     top_x=top_x,
+                )
+            )
+    return variants
+
+
+def _dynamic_realized_variant(
+    *,
+    strategy_id: str,
+    base_module: str,
+    base_hypothesis: str,
+    threshold_id: str | None,
+    min_score: float | None = None,
+    threshold_hypothesis: str = "",
+) -> ScannerRankerVariant:
+    if threshold_id is None:
+        return ScannerRankerVariant(
+            variant_id=f"{strategy_id}_dynamic_off",
+            family="dynamic_realized_control",
+            wave=6,
+            base_module=base_module,
+            hypothesis=f"{base_hypothesis} Scanner disabled dynamic-threshold control.",
+            config=_config(runtime_overrides=_pairs(scanner_ranker_enabled=False)),
+        )
+    if min_score is None:
+        raise ValueError("dynamic scanner variant requires min_score")
+    return ScannerRankerVariant(
+        variant_id=f"{strategy_id}_dynamic_{threshold_id}",
+        family="dynamic_realized_scanner",
+        wave=6,
+        base_module=base_module,
+        hypothesis=(
+            f"{base_hypothesis} {threshold_hypothesis}: keep candidates with "
+            f"scanner score >= {min_score:.2f}; scanner_ranker_top_x=0 means no fixed Top-X cap."
+        ),
+        config=_config(
+            _ranking(free_params=1),
+            runtime_overrides=_ranker_runtime(top_x=0, min_score=min_score),
+        ),
+    )
+
+
+def dynamic_realized_scanner_pack() -> list[ScannerRankerVariant]:
+    """#479 dynamic LambdaMART score gates across real strategies.
+
+    These variants deliberately avoid fixed Top-X slots and fixed holding-day/session exits.
+    The base strategy entry/exit stack is unchanged; only the ranking phase becomes a learned
+    score-threshold filter.
+    """
+    variants: list[ScannerRankerVariant] = []
+    for strategy_id, base_module, base_hypothesis in REAL_STRATEGY_BASES:
+        variants.append(
+            _dynamic_realized_variant(
+                strategy_id=strategy_id,
+                base_module=base_module,
+                base_hypothesis=base_hypothesis,
+                threshold_id=None,
+            )
+        )
+        for threshold_id, min_score, threshold_hypothesis in DYNAMIC_SCORE_THRESHOLDS:
+            variants.append(
+                _dynamic_realized_variant(
+                    strategy_id=strategy_id,
+                    base_module=base_module,
+                    base_hypothesis=base_hypothesis,
+                    threshold_id=threshold_id,
+                    min_score=min_score,
+                    threshold_hypothesis=threshold_hypothesis,
                 )
             )
     return variants
@@ -741,6 +813,7 @@ PACKS = {
     "first": first_pack,
     "top_x_expansion": top_x_expansion_pack,
     "real_strategy_scanner": real_strategy_scanner_pack,
+    "dynamic_realized_scanner": dynamic_realized_scanner_pack,
     "top20_realized_exit": top20_realized_exit_pack,
     "rank_aware_intraday": rank_aware_intraday_pack,
     "rank_aware_sizing": rank_aware_sizing_pack,

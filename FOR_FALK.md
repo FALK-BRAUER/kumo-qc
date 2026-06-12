@@ -1,5 +1,43 @@
 # FOR_FALK - BCT/George scanner-alignment implementation pass, 2026-06-09
 
+## #479 dynamic scanner realized sweep, 2026-06-11
+
+Goal: test LambdaMART scanner score thresholds on the three real realized strategy bases without
+using deployable fixed Top-X slots or fixed day/session exits. Worktree:
+`kumo-qc-479-dynamic-scanner-realized`, branch `codex/479-dynamic-scanner-realized`.
+
+What changed:
+- Added `dynamic_realized_scanner` to `sweeps/grids/scanner_ranker.py`.
+- The pack runs 3 bases x scanner off / score loose / score medium / score strict.
+- Scanner rows use `scanner_ranker_top_x=0` and `scanner_ranker_min_score` values `-0.25`,
+  `-0.20`, and `-0.16`.
+- Existing entry/exit phase stacks stay unchanged.
+
+Verification:
+- `uv run --python 3.12 pytest tests/sweeps/test_scanner_ranker_grid.py tests/scripts/test_run_scanner_ranker_sweep.py`
+  -> 39 passed.
+- January smoke: 12/12 OK.
+- FY2025: 12/12 OK with `workers=3`.
+
+FY2025 read:
+- Best total/DD row: `target08_let_run_dynamic_score_medium`, return `11.113%`, DD `15.100%`,
+  Sharpe `0.710`, orders `161`, realized `16281.73`, unrealized `$-5,019.06`.
+- Versus `target08_let_run_dynamic_off`, it improves return by `+0.426` points and DD by `-2.2`
+  points, but realized net falls by `8098.14` while unrealized drag improves by `8447.54`.
+- Best drawdown-quality row: `target04_fast_take_dynamic_score_strict`, return `10.061%`,
+  DD `7.600%`, Sharpe `1.020`, orders `118`, unrealized `$-1,111.86`, but realized net is far
+  below its off control.
+- Do not promote this yet. The scanner threshold mostly trades realized PnL for lower open drag.
+  The follow-up should inspect trade history for `target08_let_run_dynamic_score_medium` and test
+  scanner-aware exits/revalidation to recover realized PnL.
+
+Operational note:
+- Dynamic no-Top-X thresholds are slow in local LEAN even with complete weekly cache because broad
+  rows keep large daily candidate panels and still pay daily active-universe traversal.
+- Reports:
+  - `sweeps/reports/dynamic_realized_scanner_jan_smoke_479/`
+  - `sweeps/reports/dynamic_realized_scanner_fy2025_479/`
+
 ## #468 opportunity-ranker LEAN/QC integration bridge, 2026-06-11
 
 Goal: turn the #467 scanner-opportunity ranker into a deployable, opt-in scanner gate without
