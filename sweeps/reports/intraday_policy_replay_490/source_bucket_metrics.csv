@@ -1,0 +1,9 @@
+variant,group_col,group_value,eligible_candidates,trades,entry_rate_pct,bad_entry_rate_pct,avg_intraday_ret_pct,win_rate_pct
+baseline_rules,scanner_source_bucket,both_george_and_kumo,362,150,41.436,33.051,0.309,60.0
+baseline_rules,scanner_source_bucket,george_only,345,0,0.0,0.0,0.0,0.0
+baseline_rules,scanner_source_bucket,kumo_only,20332,12608,62.011,52.884,-0.0138,47.002
+baseline_rules,scanner_source_bucket,kumo_with_george_video_context,473,267,56.448,47.423,0.0074,52.06
+model_policy,scanner_source_bucket,both_george_and_kumo,362,95,26.243,32.203,0.4116,44.211
+model_policy,scanner_source_bucket,george_only,345,115,33.333,44.628,0.1732,42.609
+model_policy,scanner_source_bucket,kumo_only,20332,6995,34.404,30.82,0.0235,41.015
+model_policy,scanner_source_bucket,kumo_with_george_video_context,473,264,55.814,53.265,-0.123,40.152

@@ -1,0 +1,3 @@
+variant,eligible_candidates,trades,entry_rate_pct,bad_candidates,bad_entries,bad_entry_rate_pct,optimal_candidates,optimal_entries,optimal_entry_rate_pct,runner_candidates,runner_entries,runner_entry_rate_pct,sum_intraday_ret_pct,avg_intraday_ret_pct,median_intraday_ret_pct,win_rate_pct,avg_mfe_pct,avg_mae_pct,close_mark_exits,exit_loser_exits,scratch_or_reduce_exits,protect_profit_exits
+baseline_rules,21512,13025,60.548,12613,6567,52.065,4903,3952,80.604,1985,1506,75.869,-125.777,-0.0097,0.0,47.255,0.8755,-0.903,11931,1066,0,28
+model_policy,21512,7469,34.72,12613,3971,31.483,4903,2631,53.661,1985,1440,72.544,190.9062,0.0256,0.0,41.05,0.9469,-0.8135,2526,1251,3692,0
