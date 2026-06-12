@@ -1,0 +1,5 @@
+policy_name,score_type,rows,accuracy_pct,macro_f1
+entry_policy,predicted_action,129120,58.187,0.4482
+entry_policy,baseline_action,129120,32.196,0.3275
+management_policy,predicted_action,117372,59.38,0.4151
+management_policy,baseline_action,117372,20.611,0.195

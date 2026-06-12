@@ -1,0 +1,11 @@
+policy_name,fold,train_start,train_end,valid_start,valid_end,train_rows,valid_rows,train_classes
+entry_policy,1,2025-05-05,2025-07-10,2025-07-11,2025-09-15,27600,27600,avoid_bad_entry=16884;enter_now=7983;wait=2733
+entry_policy,2,2025-05-05,2025-09-15,2025-09-16,2025-11-18,55200,27600,avoid_bad_entry=33684;enter_now=15272;wait=6244
+entry_policy,3,2025-05-05,2025-11-18,2025-11-19,2026-01-27,82800,27600,avoid_bad_entry=53106;enter_now=20923;wait=8771
+entry_policy,4,2025-05-05,2026-01-27,2026-01-28,2026-04-01,110400,28332,avoid_bad_entry=69024;enter_now=30034;wait=11342
+entry_policy,5,2025-05-05,2026-04-01,2026-04-02,2026-06-04,138732,17988,avoid_bad_entry=90738;enter_now=36122;wait=11872
+management_policy,1,2025-05-05,2025-06-30,2025-07-01,2025-08-25,23201,23185,do_not_cut_runner=197;exit_loser=2834;hold_or_wait=1866;hold_winner=6709;protect_profit=30;scratch_or_reduce=11565
+management_policy,2,2025-05-05,2025-08-25,2025-08-26,2025-10-20,46386,23171,do_not_cut_runner=344;exit_loser=5641;hold_or_wait=4563;hold_winner=12074;protect_profit=62;scratch_or_reduce=23702
+management_policy,3,2025-05-05,2025-10-20,2025-10-21,2025-12-15,69557,23079,do_not_cut_runner=552;exit_loser=9842;hold_or_wait=7086;hold_winner=17286;protect_profit=70;scratch_or_reduce=34721
+management_policy,4,2025-05-05,2025-12-15,2025-12-16,2026-02-11,92636,23372,do_not_cut_runner=756;exit_loser=13394;hold_or_wait=9072;hold_winner=23431;protect_profit=126;scratch_or_reduce=45857
+management_policy,5,2025-05-05,2026-02-11,2026-02-12,2026-04-09,116008,24565,do_not_cut_runner=922;exit_loser=16938;hold_or_wait=10512;hold_winner=31011;protect_profit=147;scratch_or_reduce=56478
