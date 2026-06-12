@@ -24,8 +24,15 @@ from runtime.scanner_ranker import (
     rank_scanner_panel,
     scanner_cache_key,
 )
+from runtime.scanner_rank_history import (
+    RankHistoryInput,
+    RankHistoryParams,
+    update_rank_history,
+)
 
 _FALLBACK_VALUES = frozenset({"raise", "off", "bct_order"})
+_OVERLAP_RANKS = (10, 20, 50)
+_OVERLAP_WINDOWS = (1, 5, 20)
 
 
 class LambdamartScannerRanker(BasePhase):
@@ -45,6 +52,14 @@ class LambdamartScannerRanker(BasePhase):
         scanner_ranker_top_x: int | None = None
         scanner_ranker_min_score: float | None = None
         scanner_ranker_fallback: str | None = None
+        scanner_rank_history_enabled: bool | None = None
+        scanner_rank_history_short_window: int = 5
+        scanner_rank_history_long_window: int = 20
+        scanner_rank_history_focus_rank: int = 10
+        scanner_rank_history_core_rank: int = 20
+        scanner_rank_history_min_seen_short: int = 2
+        scanner_rank_history_min_seen_long: int = 3
+        scanner_rank_history_min_persistence_score: float = 0.85
         enabled: bool = True
 
         @classmethod
@@ -89,7 +104,13 @@ class LambdamartScannerRanker(BasePhase):
             rows = build_scanner_candidate_rows(ctx.qc, intents)
             top_x = self._top_x(ctx.qc)
             min_score = self._min_score(ctx.qc)
-            ranked = rank_scanner_panel(rows, model, top_x=top_x, min_score=min_score)
+            history_enabled = self._rank_history_enabled(ctx.qc)
+            if history_enabled:
+                all_ranked = rank_scanner_panel(rows, model, top_x=0, min_score=None)
+                ranked = self._rank_history_selection(ctx, all_ranked, top_x=top_x, min_score=min_score)
+            else:
+                all_ranked = rank_scanner_panel(rows, model, top_x=0, min_score=None)
+                ranked = rank_scanner_panel(rows, model, top_x=top_x, min_score=min_score)
         except ScannerRankerError as exc:
             if fallback == "raise":
                 raise
@@ -97,6 +118,7 @@ class LambdamartScannerRanker(BasePhase):
             ctx.qc._scanner_ranker_context = {}
             ctx.qc._scanner_ranker_features = {}
             ctx.qc._scanner_ranker_scores = []
+            ctx.qc._scanner_rank_history_context = {}
             return PhaseResult(
                 decision=intents,
                 blocked=False,
@@ -114,26 +136,49 @@ class LambdamartScannerRanker(BasePhase):
         by_ticker: dict[str, OrderIntent] = {row.ticker: intent for row, intent in zip(rows, intents, strict=False)}
         selected = [by_ticker[row.ticker] for row in ranked if row.ticker in by_ticker]
         ctx.bar_state.sized_orders = selected
+        full_rank_by_ticker = {row.ticker: index for index, row in enumerate(all_ranked, start=1)}
+        history_context = getattr(ctx.qc, "_scanner_rank_history_context", {})
+        rank_history_eligible = self._rank_history_eligible_count(all_ranked, history_context, history_enabled)
+        self._record_scanner_funnel(
+            ctx.qc,
+            raw_candidates=len(intents),
+            ranked_candidates=len(all_ranked),
+            rank_history_eligible=rank_history_eligible,
+            selected=len(selected),
+            all_ranked=all_ranked,
+        )
         diagnostics = [
             {
                 "ticker": row.ticker,
                 "score": row.score,
-                "rank": index,
+                "rank": full_rank_by_ticker.get(row.ticker, index),
                 "original_index": row.original_index,
+                "rank_history_state": self._rank_history_state(row.ticker, history_context),
             }
             for index, row in enumerate(ranked, start=1)
         ]
         context = {
             canonical_symbol_key(row.ticker): {
-                "scanner_rank": index,
+                "scanner_rank": full_rank_by_ticker.get(row.ticker, index),
                 "scanner_score": float(row.score),
                 "scanner_original_index": int(row.original_index),
                 "scanner_features": dict(row.features),
+                "scanner_rank_history": dict(history_context.get(canonical_symbol_key(row.ticker), {})),
             }
             for index, row in enumerate(ranked, start=1)
         }
         ctx.qc._scanner_ranker_features = {row.ticker: row.features for row in ranked}
         ctx.qc._scanner_ranker_scores = diagnostics
+        ctx.qc._scanner_ranker_all_scores = [
+            {
+                "ticker": row.ticker,
+                "score": row.score,
+                "rank": index,
+                "original_index": row.original_index,
+                "rank_history_state": self._rank_history_state(row.ticker, history_context),
+            }
+            for index, row in enumerate(all_ranked, start=1)
+        ]
         ctx.qc._scanner_ranker_context = context
         cache_key = scanner_cache_key(
             artifact_hash=model.artifact_hash,
@@ -154,6 +199,9 @@ class LambdamartScannerRanker(BasePhase):
                 "enabled": True,
                 "ranked": len(intents),
                 "selected": len(selected),
+                "scanner_ranked": len(all_ranked),
+                "rank_history_eligible": rank_history_eligible,
+                "rank_history_enabled": self._rank_history_enabled(ctx.qc),
                 "top_x": self._top_x(ctx.qc),
                 "min_score": self._min_score(ctx.qc),
                 "model_source": self._model_source,
@@ -202,6 +250,126 @@ class LambdamartScannerRanker(BasePhase):
                 f"scanner_ranker_fallback must be one of {sorted(_FALLBACK_VALUES)}, got {fallback!r}"
             )
         return fallback
+
+    def _rank_history_enabled(self, qc: Any) -> bool:
+        if self.p.scanner_rank_history_enabled is not None:
+            return bool(self.p.scanner_rank_history_enabled)
+        return bool(getattr(qc, "SCANNER_RANK_HISTORY_ENABLED", False))
+
+    def _rank_history_params(self) -> RankHistoryParams:
+        return RankHistoryParams(
+            short_window=int(self.p.scanner_rank_history_short_window),
+            long_window=int(self.p.scanner_rank_history_long_window),
+            focus_rank=int(self.p.scanner_rank_history_focus_rank),
+            core_rank=int(self.p.scanner_rank_history_core_rank),
+            min_seen_short=int(self.p.scanner_rank_history_min_seen_short),
+            min_seen_long=int(self.p.scanner_rank_history_min_seen_long),
+            min_persistence_score=float(self.p.scanner_rank_history_min_persistence_score),
+        )
+
+    def _rank_history_selection(
+        self,
+        ctx: PhaseContext,
+        all_ranked: list[Any],
+        *,
+        top_x: int,
+        min_score: float | None,
+    ) -> list[Any]:
+        params = self._rank_history_params()
+        inputs = [
+            RankHistoryInput(ticker=row.ticker, rank=index, score=float(row.score))
+            for index, row in enumerate(all_ranked, start=1)
+        ]
+        state, history_context = update_rank_history(
+            getattr(ctx.qc, "_scanner_rank_history_state", None),
+            inputs,
+            ctx.time.date(),
+            params=params,
+        )
+        ctx.qc._scanner_rank_history_state = state
+        ctx.qc._scanner_rank_history_context = history_context
+        selected = [
+            row
+            for row in all_ranked
+            if (min_score is None or row.score >= min_score)
+            and bool(history_context.get(canonical_symbol_key(row.ticker), {}).get("rank_requalified"))
+        ]
+        return selected[:top_x] if top_x else selected
+
+    @staticmethod
+    def _rank_history_state(ticker: str, history_context: Any) -> str:
+        if not isinstance(history_context, dict):
+            return ""
+        item = history_context.get(canonical_symbol_key(ticker), {})
+        if not isinstance(item, dict):
+            return ""
+        return str(item.get("rank_requalification_state") or "")
+
+    @staticmethod
+    def _rank_history_eligible_count(
+        all_ranked: list[Any],
+        history_context: Any,
+        history_enabled: bool,
+    ) -> int:
+        if not history_enabled or not isinstance(history_context, dict):
+            return 0
+        count = 0
+        for row in all_ranked:
+            item = history_context.get(canonical_symbol_key(row.ticker), {})
+            if isinstance(item, dict) and bool(item.get("rank_requalified")):
+                count += 1
+        return count
+
+    @staticmethod
+    def _record_scanner_funnel(
+        qc: Any,
+        *,
+        raw_candidates: int,
+        ranked_candidates: int,
+        rank_history_eligible: int,
+        selected: int,
+        all_ranked: list[Any],
+    ) -> None:
+        funnel = getattr(qc, "_scanner_ranker_funnel", None)
+        if not isinstance(funnel, dict):
+            funnel = {
+                "days": 0,
+                "raw_candidates": 0,
+                "ranked_candidates": 0,
+                "rank_history_eligible": 0,
+                "selected": 0,
+            }
+            qc._scanner_ranker_funnel = funnel
+        funnel["days"] = int(funnel.get("days", 0)) + 1
+        funnel["raw_candidates"] = int(funnel.get("raw_candidates", 0)) + int(raw_candidates)
+        funnel["ranked_candidates"] = int(funnel.get("ranked_candidates", 0)) + int(ranked_candidates)
+        funnel["rank_history_eligible"] = int(funnel.get("rank_history_eligible", 0)) + int(rank_history_eligible)
+        funnel["selected"] = int(funnel.get("selected", 0)) + int(selected)
+
+        prior = getattr(qc, "_scanner_ranker_rank_sets", None)
+        if not isinstance(prior, dict):
+            prior = {rank: [] for rank in _OVERLAP_RANKS}
+            qc._scanner_ranker_rank_sets = prior
+        ranked_keys = [canonical_symbol_key(row.ticker) for row in all_ranked]
+        for rank in _OVERLAP_RANKS:
+            current = set(ranked_keys[:rank])
+            funnel[f"top{rank}_observations"] = int(funnel.get(f"top{rank}_observations", 0)) + len(current)
+            history = prior.setdefault(rank, [])
+            for window in _OVERLAP_WINDOWS:
+                window_sets = history[-window:]
+                seen: set[str] = set()
+                for prior_set in window_sets:
+                    seen.update(prior_set)
+                funnel[f"top{rank}_seen_last_{window}"] = int(
+                    funnel.get(f"top{rank}_seen_last_{window}", 0)
+                ) + len(current & seen)
+            history.append(current)
+            del history[:-max(_OVERLAP_WINDOWS)]
+
+        setter = getattr(qc, "set_runtime_statistic", None) or getattr(qc, "SetRuntimeStatistic", None)
+        if callable(setter):
+            for key, value in sorted(funnel.items()):
+                setter(f"scanner_funnel.{key}", str(value))
 
     def _load_model(self, qc: Any) -> ScannerModelArtifact:
         source = self._model_path(qc)

@@ -1,0 +1,112 @@
+{
+  "artifacts": {
+    "giveback_no_bull_rh_dynamic_score_medium": {
+      "artifact_path": "storage/bct_lambdamart_qc_safe_v1.json",
+      "artifact_sha256": "8efd413bb3d05a98bc7fbd6fecd04489e1137d6c15bd845cb3bed7b29f58d4ed",
+      "model_path": "objectstore://bct_lambdamart_qc_safe_v1.json",
+      "staged_path": "storage/bct_lambdamart_qc_safe_v1.json"
+    },
+    "giveback_no_bull_rh_requal_core50": {
+      "artifact_path": "storage/bct_lambdamart_qc_safe_v1.json",
+      "artifact_sha256": "8efd413bb3d05a98bc7fbd6fecd04489e1137d6c15bd845cb3bed7b29f58d4ed",
+      "model_path": "objectstore://bct_lambdamart_qc_safe_v1.json",
+      "staged_path": "storage/bct_lambdamart_qc_safe_v1.json"
+    },
+    "giveback_no_bull_rh_requal_entry": {
+      "artifact_path": "storage/bct_lambdamart_qc_safe_v1.json",
+      "artifact_sha256": "8efd413bb3d05a98bc7fbd6fecd04489e1137d6c15bd845cb3bed7b29f58d4ed",
+      "model_path": "objectstore://bct_lambdamart_qc_safe_v1.json",
+      "staged_path": "storage/bct_lambdamart_qc_safe_v1.json"
+    },
+    "giveback_no_bull_rh_requal_entry_sizing": {
+      "artifact_path": "storage/bct_lambdamart_qc_safe_v1.json",
+      "artifact_sha256": "8efd413bb3d05a98bc7fbd6fecd04489e1137d6c15bd845cb3bed7b29f58d4ed",
+      "model_path": "objectstore://bct_lambdamart_qc_safe_v1.json",
+      "staged_path": "storage/bct_lambdamart_qc_safe_v1.json"
+    },
+    "giveback_no_bull_rh_requal_sizing": {
+      "artifact_path": "storage/bct_lambdamart_qc_safe_v1.json",
+      "artifact_sha256": "8efd413bb3d05a98bc7fbd6fecd04489e1137d6c15bd845cb3bed7b29f58d4ed",
+      "model_path": "objectstore://bct_lambdamart_qc_safe_v1.json",
+      "staged_path": "storage/bct_lambdamart_qc_safe_v1.json"
+    },
+    "target04_fast_take_rh_dynamic_score_medium": {
+      "artifact_path": "storage/bct_lambdamart_qc_safe_v1.json",
+      "artifact_sha256": "8efd413bb3d05a98bc7fbd6fecd04489e1137d6c15bd845cb3bed7b29f58d4ed",
+      "model_path": "objectstore://bct_lambdamart_qc_safe_v1.json",
+      "staged_path": "storage/bct_lambdamart_qc_safe_v1.json"
+    },
+    "target04_fast_take_rh_requal_core50": {
+      "artifact_path": "storage/bct_lambdamart_qc_safe_v1.json",
+      "artifact_sha256": "8efd413bb3d05a98bc7fbd6fecd04489e1137d6c15bd845cb3bed7b29f58d4ed",
+      "model_path": "objectstore://bct_lambdamart_qc_safe_v1.json",
+      "staged_path": "storage/bct_lambdamart_qc_safe_v1.json"
+    },
+    "target04_fast_take_rh_requal_entry": {
+      "artifact_path": "storage/bct_lambdamart_qc_safe_v1.json",
+      "artifact_sha256": "8efd413bb3d05a98bc7fbd6fecd04489e1137d6c15bd845cb3bed7b29f58d4ed",
+      "model_path": "objectstore://bct_lambdamart_qc_safe_v1.json",
+      "staged_path": "storage/bct_lambdamart_qc_safe_v1.json"
+    },
+    "target04_fast_take_rh_requal_entry_sizing": {
+      "artifact_path": "storage/bct_lambdamart_qc_safe_v1.json",
+      "artifact_sha256": "8efd413bb3d05a98bc7fbd6fecd04489e1137d6c15bd845cb3bed7b29f58d4ed",
+      "model_path": "objectstore://bct_lambdamart_qc_safe_v1.json",
+      "staged_path": "storage/bct_lambdamart_qc_safe_v1.json"
+    },
+    "target04_fast_take_rh_requal_sizing": {
+      "artifact_path": "storage/bct_lambdamart_qc_safe_v1.json",
+      "artifact_sha256": "8efd413bb3d05a98bc7fbd6fecd04489e1137d6c15bd845cb3bed7b29f58d4ed",
+      "model_path": "objectstore://bct_lambdamart_qc_safe_v1.json",
+      "staged_path": "storage/bct_lambdamart_qc_safe_v1.json"
+    },
+    "target08_let_run_rh_dynamic_score_medium": {
+      "artifact_path": "storage/bct_lambdamart_qc_safe_v1.json",
+      "artifact_sha256": "8efd413bb3d05a98bc7fbd6fecd04489e1137d6c15bd845cb3bed7b29f58d4ed",
+      "model_path": "objectstore://bct_lambdamart_qc_safe_v1.json",
+      "staged_path": "storage/bct_lambdamart_qc_safe_v1.json"
+    },
+    "target08_let_run_rh_requal_core50": {
+      "artifact_path": "storage/bct_lambdamart_qc_safe_v1.json",
+      "artifact_sha256": "8efd413bb3d05a98bc7fbd6fecd04489e1137d6c15bd845cb3bed7b29f58d4ed",
+      "model_path": "objectstore://bct_lambdamart_qc_safe_v1.json",
+      "staged_path": "storage/bct_lambdamart_qc_safe_v1.json"
+    },
+    "target08_let_run_rh_requal_entry": {
+      "artifact_path": "storage/bct_lambdamart_qc_safe_v1.json",
+      "artifact_sha256": "8efd413bb3d05a98bc7fbd6fecd04489e1137d6c15bd845cb3bed7b29f58d4ed",
+      "model_path": "objectstore://bct_lambdamart_qc_safe_v1.json",
+      "staged_path": "storage/bct_lambdamart_qc_safe_v1.json"
+    },
+    "target08_let_run_rh_requal_entry_sizing": {
+      "artifact_path": "storage/bct_lambdamart_qc_safe_v1.json",
+      "artifact_sha256": "8efd413bb3d05a98bc7fbd6fecd04489e1137d6c15bd845cb3bed7b29f58d4ed",
+      "model_path": "objectstore://bct_lambdamart_qc_safe_v1.json",
+      "staged_path": "storage/bct_lambdamart_qc_safe_v1.json"
+    },
+    "target08_let_run_rh_requal_sizing": {
+      "artifact_path": "storage/bct_lambdamart_qc_safe_v1.json",
+      "artifact_sha256": "8efd413bb3d05a98bc7fbd6fecd04489e1137d6c15bd845cb3bed7b29f58d4ed",
+      "model_path": "objectstore://bct_lambdamart_qc_safe_v1.json",
+      "staged_path": "storage/bct_lambdamart_qc_safe_v1.json"
+    }
+  },
+  "data_fingerprint": "90f2d7e3fb80d0a4d2eb286f6a43199e1519495a3ce9d787a4d7d0dfc70c535c",
+  "default_model_key": "objectstore://bct_lambdamart_qc_safe_v1.json",
+  "default_opportunity_model_key": "objectstore://scanner_opportunity_ranker_467_v1.json",
+  "generated_at": "2026-06-11T18:24:44.659463+00:00",
+  "ok_count": 18,
+  "reports": {
+    "summary_csv": "sweeps/reports/rank_history_requalification_jan_smoke_487_fix1/summary.csv",
+    "summary_md": "sweeps/reports/rank_history_requalification_jan_smoke_487_fix1/summary.md"
+  },
+  "sweep_id": "rank_history_requalification_jan_smoke_487_fix1",
+  "variant_count": 18,
+  "window": {
+    "end": "2025-01-31",
+    "name": "jan2025_proof",
+    "runnable_locally": true,
+    "start": "2025-01-13"
+  },
+  "workers": 3
+}

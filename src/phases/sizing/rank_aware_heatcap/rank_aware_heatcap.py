@@ -10,7 +10,7 @@ context after the entry candidate has survived the existing intraday confirmatio
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, ClassVar
 
 from engine.base import BasePhase, PhaseResult
@@ -104,10 +104,7 @@ class RankAwareHeatcap(BasePhase):
                 declined_zero_target += 1
                 continue
 
-            try:
-                price = float(qc.securities[sym].price)
-            except Exception:
-                continue
+            price = self._price(qc, sym, intent)
             if price <= 0.0:
                 continue
 
@@ -124,15 +121,12 @@ class RankAwareHeatcap(BasePhase):
             committed_cash += target_value
             ctx.record_funnel("sized", sym)
             filled.append(
-                OrderIntent(
-                    ticker=intent.ticker,
+                replace(
+                    intent,
                     qty=quantity,
                     price=price,
-                    stop=0.0,
-                    module="sizing.rank_aware_heatcap",
+                    module=f"{intent.module}|sizing.rank_aware_heatcap",
                     risk_dollars=target_value,
-                    order_type=intent.order_type,
-                    protective_stop=intent.protective_stop,
                 )
             )
 
@@ -182,6 +176,19 @@ class RankAwareHeatcap(BasePhase):
             return int(value)
         except (TypeError, ValueError):
             return None
+
+    @staticmethod
+    def _price(qc: Any, sym: Any, intent: OrderIntent) -> float:
+        try:
+            fire_price = float(intent.price)
+        except (TypeError, ValueError):
+            fire_price = 0.0
+        if fire_price > 0.0:
+            return fire_price
+        try:
+            return float(qc.securities[sym].price)
+        except Exception:
+            return 0.0
 
     @property
     def version_marker(self) -> str:

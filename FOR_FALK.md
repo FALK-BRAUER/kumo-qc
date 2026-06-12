@@ -1,5 +1,48 @@
 # FOR_FALK - BCT/George scanner-alignment implementation pass, 2026-06-09
 
+## #487 scanner rank-history requalification, 2026-06-12
+
+Goal: test whether repeated daily LambdaMART rank evidence can act like a George-style watchlist
+without changing the production champion or using George/OCR/watchlist/post/video labels at runtime.
+
+What changed:
+- Added `runtime.scanner_rank_history`, a bounded observed-session memory over runtime scanner
+  ranks/scores only.
+- Extended `lambdamart_scanner_ranker` with opt-in rank-history selection and scanner-funnel runtime
+  stats.
+- Candidate snapshots now carry rank-history context into intraday phases.
+- Added an `intraday_sizing.rank_aware_heatcap` adapter so two-clock strategies can consume scanner
+  rank without adding a second daily sizing axis.
+- Added `rank_history_requalification` to `sweeps/grids/scanner_ranker.py` across the three real
+  realized bases.
+
+Reports:
+- Jan smoke: `sweeps/reports/rank_history_requalification_jan_smoke_487_fix1/`
+- FY2025 combined final: `sweeps/reports/rank_history_requalification_fy2025_487_final/`
+- Retry source for the one transient Docker/Lean failure:
+  `sweeps/reports/rank_history_requalification_fy2025_487_retries/`
+
+FY2025 read:
+- Dynamic score-medium still starves participation: orders fell about 41-52% versus scanner-off.
+- Rank-history `core50` restores participation, but the funnel shows why: with about 23 signal
+  candidates/day, `core_rank=50` is effectively pass-through after repeat appearances.
+- Cleanest non-sizing rows:
+  - `giveback_no_bull_rh_requal_core50`: return `10.321%`, DD `17.3%`, orders `301`,
+    realized `24191.16`, unrealized `$-13,592.17`.
+  - `target04_fast_take_rh_requal_core50`: return `9.631%`, DD `17.5%`, orders `263`,
+    realized `23804.23`, unrealized `$-13,932.87`.
+- Best realized-PnL sizing rows are not risk-clean:
+  - `giveback_no_bull_rh_requal_sizing`: return `17.908%`, DD `21.0%`, orders `265`,
+    realized `31848.02`, unrealized `$-13,696.16`.
+  - `target04_fast_take_rh_requal_sizing`: return `16.428%`, DD `21.3%`, orders `221`,
+    realized `30978.23`, unrealized `$-14,351.89`.
+
+Decision:
+- Keep the opt-in rank-history infrastructure as experimental plumbing.
+- Do not promote `core50`, rank-aware entry, or rank-aware sizing to the production champion.
+- Next experiment should rank a broader scanner/universe panel before signal collapse, or test
+  narrower rank-history states such as current top10 plus repeated top20/top30.
+
 ## #468 opportunity-ranker LEAN/QC integration bridge, 2026-06-11
 
 Goal: turn the #467 scanner-opportunity ranker into a deployable, opt-in scanner gate without

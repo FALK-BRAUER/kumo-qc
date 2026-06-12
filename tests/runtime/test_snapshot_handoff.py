@@ -150,6 +150,13 @@ def test_snapshot_captures_scanner_context_from_ranker() -> None:
             "scanner_score": 1.2345,
             "scanner_original_index": 12,
             "scanner_features": {"gap_pct": 0.052, "rel_volume20": 1.8},
+            "scanner_rank_history": {
+                "days_seen_last_5": 3,
+                "days_seen_last_20": 7,
+                "rank_trend": 2,
+                "rank_persistence_score": 1.35,
+                "rank_requalification_state": "short_persistent_core",
+            },
         }
     }
 
@@ -160,6 +167,12 @@ def test_snapshot_captures_scanner_context_from_ranker() -> None:
     assert snap["scanner_score"] == 1.2345
     assert snap["scanner_original_index"] == 12
     assert snap["scanner_features"] == {"gap_pct": 0.052, "rel_volume20": 1.8}
+    assert snap["scanner_rank_history"]["days_seen_last_5"] == 3
+    assert snap["scanner_days_seen_last_5"] == 3
+    assert snap["scanner_days_seen_last_20"] == 7
+    assert snap["scanner_rank_trend"] == 2
+    assert snap["scanner_rank_persistence_score"] == 1.35
+    assert snap["scanner_rank_requalification_state"] == "short_persistent_core"
 
 
 def test_snapshot_drops_drifted_rescore_below_min_score(monkeypatch) -> None:

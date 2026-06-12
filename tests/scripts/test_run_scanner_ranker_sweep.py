@@ -327,6 +327,89 @@ def test_result_diagnostics_falls_back_to_archive_closed_trade_count(tmp_path: P
     assert diagnostics["closed_win_rate"] == ""
 
 
+def test_result_funnel_stats_parses_engine_and_scanner_runtime_stats(tmp_path: Path) -> None:
+    result_path = tmp_path / "result.json"
+    result_path.write_text(
+        json.dumps(
+            {
+                "runtimeStatistics": {
+                    "funnel.signal_winners": "123",
+                    "funnel.orders": "17",
+                    "scanner_funnel.ranked_candidates": "120",
+                    "scanner_funnel.rank_history_eligible": "78",
+                    "scanner_funnel.top20_seen_last_20": "65",
+                }
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    stats = M._result_funnel_stats(result_path)
+
+    assert stats["funnel_signal_winners"] == 123
+    assert stats["funnel_orders"] == 17
+    assert stats["scanner_funnel_ranked_candidates"] == 120
+    assert stats["scanner_funnel_rank_history_eligible"] == 78
+    assert stats["scanner_funnel_top20_seen_last_20"] == 65
+
+
+def test_write_summary_emits_funnel_summary(tmp_path: Path) -> None:
+    result_path = tmp_path / "result.json"
+    result_path.write_text(
+        json.dumps(
+            {
+                "runtimeStatistics": {
+                    "funnel.signal_winners": "10",
+                    "funnel.cash_ok": "3",
+                    "funnel.orders": "2",
+                    "scanner_funnel.ranked_candidates": "10",
+                    "scanner_funnel.rank_history_eligible": "6",
+                    "scanner_funnel.selected": "6",
+                    "scanner_funnel.top20_seen_last_20": "4",
+                }
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    rows = [
+        {
+            "variant_id": "v1",
+            "family": "rank_history",
+            "wave": 7,
+            "base_module": "strategies.example",
+            "hypothesis": "test",
+            "sweep_config_hash": "abc",
+            "window": "jan",
+            "ok": True,
+            "sharpe": 1.2,
+            "ret_pct": 3.4,
+            "dd_pct": 1.1,
+            "orders": 2,
+            "realized_net": "100",
+            "unrealized": "0",
+            "closed_trades": 1,
+            "closed_wins": 1,
+            "closed_losses": 0,
+            "closed_win_rate": 100.0,
+            "artifact_key": "",
+            "artifact_path": "",
+            "artifact_sha256": "",
+            "run_dir": "",
+            "result_path": str(result_path),
+            "error": "",
+        }
+    ]
+    manifest = {"reports": {}}
+
+    M._write_summary(tmp_path, rows, manifest)
+
+    assert (tmp_path / "funnel_summary.csv").exists()
+    assert (tmp_path / "funnel_summary.md").exists()
+    assert "funnel_summary_csv" in manifest["reports"]
+
+
 def test_repo_ref_relativizes_repo_paths() -> None:
     path = M.ROOT / "sweeps" / "reports" / "example" / "summary.csv"
 

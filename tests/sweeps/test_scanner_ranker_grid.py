@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from build.sweep_build import build_sweep_dist, sweep_to_strategy_config
@@ -13,6 +14,7 @@ from sweeps.grids.scanner_ranker import (
     opportunity_ranker_pack,
     rank_aware_intraday_pack,
     rank_aware_sizing_pack,
+    rank_history_requalification_pack,
     real_strategy_scanner_pack,
     top20_realized_exit_pack,
     top_x_expansion_pack,
@@ -151,6 +153,35 @@ def test_opportunity_ranker_pack_shape() -> None:
         DEFAULT_OPPORTUNITY_MODEL_KEY
     }
     assert {variant.local_artifact_path for variant in variants[1:]} == {str(DEFAULT_OPPORTUNITY_ARTIFACT_PATH)}
+    assert len({variant.variant_id for variant in all_variants()}) == len(all_variants())
+
+
+def test_rank_history_requalification_pack_shape() -> None:
+    variants = rank_history_requalification_pack()
+
+    assert len(variants) == 18
+    assert [variant.variant_id for variant in variants[:6]] == [
+        "giveback_no_bull_rh_off",
+        "giveback_no_bull_rh_dynamic_score_medium",
+        "giveback_no_bull_rh_requal_core50",
+        "giveback_no_bull_rh_requal_entry",
+        "giveback_no_bull_rh_requal_sizing",
+        "giveback_no_bull_rh_requal_entry_sizing",
+    ]
+    assert {variant.wave for variant in variants} == {7}
+    assert {variant.base_module for variant in variants} == {
+        base_module for _, base_module, _ in REAL_STRATEGY_BASES
+    }
+    history_variants = [variant for variant in variants if "rh_requal" in variant.variant_id]
+    assert len(history_variants) == 12
+    assert {variant.config.runtime_dict()["scanner_ranker_top_x"] for variant in history_variants} == {0}
+    assert all(
+        next(choice for choice in variant.config.choices if choice.kind == "ranking").param_dict()[
+            "scanner_rank_history_enabled"
+        ]
+        is True
+        for variant in history_variants
+    )
     assert len({variant.variant_id for variant in all_variants()}) == len(all_variants())
 
 
@@ -346,6 +377,45 @@ def test_opportunity_giveback35_variant_composes_trail_and_exit() -> None:
     assert exits[1].params.diagnostic_log is True
 
 
+def test_rank_history_variant_maps_history_params_without_top_x_gate() -> None:
+    variant = next(
+        item
+        for item in rank_history_requalification_pack()
+        if item.variant_id == "target08_let_run_rh_requal_core50"
+    )
+
+    cfg = sweep_to_strategy_config(variant.config, base_module=variant.base_module)
+
+    ranking = cfg.phases["ranking"]
+    assert not isinstance(ranking, list)
+    assert ranking.impl.__name__ == "LambdamartScannerRanker"
+    assert ranking.params.scanner_rank_history_enabled is True
+    assert ranking.params.scanner_rank_history_focus_rank == 10
+    assert ranking.params.scanner_rank_history_core_rank == 50
+    assert cfg.runtime.scanner_ranker_enabled is True
+    assert cfg.runtime.scanner_ranker_top_x == 0
+
+
+def test_rank_history_entry_sizing_variant_composes_existing_rank_aware_phases() -> None:
+    variant = next(
+        item
+        for item in rank_history_requalification_pack()
+        if item.variant_id == "target04_fast_take_rh_requal_entry_sizing"
+    )
+
+    cfg = sweep_to_strategy_config(variant.config, base_module=variant.base_module)
+
+    entries = cfg.phases["entry_selection"]
+    sizing = cfg.phases.get("sizing")
+    intraday_sizing = cfg.phases["intraday_sizing"]
+    assert [slot.impl.__name__ for slot in entries] == ["RankAwareGapConfirm"]
+    assert sizing is None
+    assert not isinstance(intraday_sizing, list)
+    assert intraday_sizing.impl.__name__ == "RankAwareHeatcap"
+    assert intraday_sizing.impl.PHASE_KIND == "intraday_sizing"
+    assert cfg.runtime.scanner_ranker_top_x == 0
+
+
 def test_top25_expansion_variant_maps_ranker_runtime_and_phase() -> None:
     variant = next(item for item in top_x_expansion_pack() if item.variant_id == "scanner_lambdamart_top25")
 
@@ -383,3 +453,20 @@ def test_opportunity_ranker_dist_build_emits_cloud_attrs(tmp_path: Path) -> None
     assert "SCANNER_RANKER_ENABLED = True" in main
     assert "SCANNER_RANKER_TOP_X = 20" in main
     assert f"SCANNER_RANKER_MODEL_PATH = '{DEFAULT_OPPORTUNITY_MODEL_KEY}'" in main
+
+
+def test_rank_history_entry_sizing_dist_replaces_intraday_sizer(tmp_path: Path) -> None:
+    variant = next(
+        item
+        for item in rank_history_requalification_pack()
+        if item.variant_id == "giveback_no_bull_rh_requal_entry_sizing"
+    )
+
+    result = build_sweep_dist(variant.config, dist_dir=tmp_path / "dist", base_module=variant.base_module)
+    manifest = json.loads((tmp_path / "dist" / "_manifest.json").read_text(encoding="utf-8"))
+
+    assert result.config_hash
+    assert "phase_intraday_sizing_rank_aware_heatcap.py" in manifest["files"]
+    assert "phase_intraday_sizing_stub_intraday_sizer.py" not in manifest["files"]
+    assert manifest["phase_markers"]["intraday_sizing"] == "intraday_rank_aware_heatcap_v1"
+    assert "sizing" not in manifest["phase_markers"]
