@@ -1,5 +1,38 @@
 # FOR_FALK - BCT/George scanner-alignment implementation pass, 2026-06-09
 
+## #490 replay-shaped intraday policy economics, 2026-06-12
+
+Goal: correct the #490 shortcut by turning entry/management predictions into a same-day trade
+ledger and economic diagnostics, instead of stopping at classifier accuracy.
+
+What changed:
+- Reopened #490 because PR #496 was only a supervised baseline, not completion.
+- Added `scripts/replay_intraday_entry_exit_policy.py`.
+- Added focused replay tests in `tests/scripts/test_replay_intraday_entry_exit_policy.py`.
+- Generated `sweeps/reports/intraday_policy_replay_490/`.
+
+Replay method:
+- Uses #490 OOF fold models by validation date.
+- Picks the earliest predicted `enter_now` checkpoint for each scanner opportunity.
+- Reconstructs post-entry position state from completed 5-minute bars.
+- Starts management after the entry checkpoint; same-checkpoint exits were explicitly fixed out.
+- Exits on `exit_loser`, `scratch_or_reduce`, or `protect_profit`; otherwise marks at close.
+- Compares `model_policy` against `baseline_rules` on the same OOF-eligible candidate set.
+
+Result read:
+- Eligible candidates: `21,512`.
+- Baseline rules: `13,025` trades, bad-entry rate `52.065%`, optimal-entry rate `80.604%`,
+  runner-entry rate `75.869%`, summed same-day return `-125.777`, average trade return `-0.0097%`.
+- Model policy: `7,469` trades, bad-entry rate `31.483%`, optimal-entry rate `53.661%`,
+  runner-entry rate `72.544%`, summed same-day return `190.9062`, average trade return `0.0256%`.
+- Interpretation: the model is genuinely filtering bad entries and improves same-day economics,
+  but it throws away too many optimal candidates. This is signal, not promotion.
+
+Decision:
+- Keep #490 open until this is wired into local LEAN semantics or superseded by #484.
+- Next work should calibrate thresholds/objective so we keep runner participation while retaining
+  the bad-entry reduction, then replay through local LEAN order semantics.
+
 ## #490 intraday entry/exit policy baseline, 2026-06-12
 
 Goal: train the later-stage policy for the real deployment question: given a ranked scanner

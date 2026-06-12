@@ -1,0 +1,40 @@
+{
+  "generated_at": "2026-06-12T07:24:24.391231+00:00",
+  "issue": "https://github.com/FALK-BRAUER/kumo-qc/issues/490",
+  "replay_version": "intraday_policy_replay_490_v1",
+  "config": {
+    "panel": "/Users/falk/projects/kumo-qc-490-replay-shaped-policy/sweeps/reports/intraday_decision_panel_491/intraday_decision_panel.csv.gz",
+    "model_artifact": "/Users/falk/projects/kumo-qc-490-replay-shaped-policy/sweeps/reports/intraday_entry_exit_policy_490/model_artifact.json",
+    "parquet_root": "/Users/falk/projects/kumo-trader/data/intraday",
+    "output_dir": "/Users/falk/projects/kumo-qc-490-replay-shaped-policy/sweeps/reports/intraday_policy_replay_490",
+    "limit_opportunities": null,
+    "variants": [
+      "model_policy",
+      "baseline_rules"
+    ]
+  },
+  "outputs": {
+    "candidate_outcomes.csv.gz": {
+      "rows": 52222
+    },
+    "trade_ledger.csv.gz": {
+      "rows": 20494
+    },
+    "management_decision_rows.csv.gz": {
+      "rows": 56178
+    },
+    "summary_metrics.csv": {
+      "rows": 2
+    },
+    "grouped_metrics.csv": {
+      "rows": 32
+    },
+    "source_bucket_metrics.csv": {
+      "rows": 8
+    },
+    "month_metrics.csv": {
+      "rows": 24
+    },
+    "intraday_policy_replay_report.md": {}
+  }
+}
