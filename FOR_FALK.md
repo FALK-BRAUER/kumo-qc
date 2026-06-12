@@ -1,5 +1,38 @@
 # FOR_FALK - BCT/George scanner-alignment implementation pass, 2026-06-09
 
+## #490 intraday entry/exit policy baseline, 2026-06-12
+
+Goal: train the later-stage policy for the real deployment question: given a ranked scanner
+candidate and as-of intraday/ETF/position state, decide whether to enter, wait, avoid, exit a
+loser, protect profit, hold a winner, or avoid cutting a runner.
+
+What changed:
+- Added `scripts/train_intraday_entry_exit_policy.py`.
+- Added focused tests in `tests/scripts/test_train_intraday_entry_exit_policy.py`.
+- Generated the #490 artifact under `sweeps/reports/intraday_entry_exit_policy_490/`.
+
+Safety:
+- Uses expanding-window date validation, not random splits.
+- Excludes oracle/future/label fields, route assumption counts, `next_open_*` label-provenance
+  fields, `source_tags`, and the upstream learned opportunity score from the core feature set.
+- Keeps scanner rank/score/source flags, checkpoint, ticker intraday state, ETF context, sector
+  bucket, Ichimoku availability flags, and position state.
+
+Result read:
+- Entry policy OOF: accuracy `58.187%`, macro F1 `0.4482` versus baseline accuracy `32.196%`,
+  macro F1 `0.3275`.
+- Management policy OOF: accuracy `59.380%`, macro F1 `0.4151` versus baseline accuracy `20.611%`,
+  macro F1 `0.1950`.
+- Important caveat: entry fold 5 collapses (`12.036%` accuracy versus `52.079%` baseline) because
+  April-June 2026 labels shift heavily to `wait` while the model keeps predicting `avoid_bad_entry`.
+- `protect_profit` remains too sparse for the linear baseline to learn.
+
+Decision:
+- Iterate, do not promote.
+- Next step should be local replay or a replay-shaped objective with regime/date calibration,
+  calibrated thresholds, and real 15m/hour Ichimoku history rather than treating aggregate
+  classifier accuracy as a trading edge.
+
 ## #487 scanner rank-history requalification, 2026-06-12
 
 Goal: test whether repeated daily LambdaMART rank evidence can act like a George-style watchlist

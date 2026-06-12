@@ -1,0 +1,39 @@
+{
+  "generated_at": "2026-06-12T02:14:08.530085+00:00",
+  "issue": "https://github.com/FALK-BRAUER/kumo-qc/issues/490",
+  "feature_version": "intraday_entry_exit_policy_490_v1",
+  "config": {
+    "panel": "/Users/falk/projects/kumo-qc-490-intraday-entry-exit-policy/sweeps/reports/intraday_decision_panel_491/intraday_decision_panel.csv.gz",
+    "output_dir": "/Users/falk/projects/kumo-qc-490-intraday-entry-exit-policy/sweeps/reports/intraday_entry_exit_policy_490",
+    "n_folds": 6,
+    "min_train_folds": 1,
+    "max_iter": 140,
+    "learning_rate": 0.05,
+    "l2": 0.01,
+    "limit": null
+  },
+  "outputs": {
+    "oof_predictions.csv.gz": {
+      "rows": 297293
+    },
+    "fold_summary.csv": {
+      "rows": 10
+    },
+    "summary_metrics.csv": {
+      "rows": 4
+    },
+    "action_metrics.csv": {
+      "rows": 18
+    },
+    "grouped_metrics.csv": {
+      "rows": 40
+    },
+    "feature_importance.csv": {
+      "rows": 684
+    },
+    "model_artifact.json": {
+      "schema_version": 1
+    },
+    "intraday_entry_exit_policy_report.md": {}
+  }
+}
