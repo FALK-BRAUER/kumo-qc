@@ -1,5 +1,34 @@
 # FOR_FALK - BCT/George scanner-alignment implementation pass, 2026-06-09
 
+## #490 entry policy v2 replay, 2026-06-13
+
+Goal: keep the #490 v1 bad-entry reduction while recovering more optimal/runner entries from the
+scanner candidate stream.
+
+What changed:
+- Added `entry_policy_v2` to `scripts/replay_intraday_entry_exit_policy.py`.
+- v2 keeps v1 model `enter_now` actions, then allows a baseline-rule winner-preservation override
+  only when avoid-risk is not decisive: avoid probability `<= 0.35`, avoid-minus-enter probability
+  `<= 0.10`, return from open `>= 0`, and MAE from open `>= -3%`.
+- v2 reuses the learned management policy after entry, so the comparison is entry-thresholding only.
+- Replay artifacts under `sweeps/reports/intraday_policy_replay_490/` now compare baseline rules,
+  v1 `model_policy`, and v2 `entry_policy_v2`.
+
+Replay result:
+- Baseline: `13,025` trades, `52.065%` bad-entry rate, `80.604%` optimal-entry capture, `75.869%`
+  runner-entry capture, `-125.7770` summed same-day return.
+- v1 model policy: `7,469` trades, `31.483%` bad-entry rate, `53.661%` optimal-entry capture,
+  `72.544%` runner-entry capture, `190.9062` summed same-day return.
+- v2 policy: `9,535` trades, `36.914%` bad-entry rate, `64.817%` optimal-entry capture,
+  `76.121%` runner-entry capture, `175.6031` summed same-day return.
+
+Decision:
+- v2 is useful but not promotable under the gate: bad-entry improvement is `-15.151` points, runner
+  capture passes at `76.121%`, but optimal-entry capture is only `64.817%` versus the `70%` promotion
+  threshold.
+- Next #490 pass should improve winner recovery without using future labels as features; this likely
+  needs either richer scan-time priors in the policy features or a separate winner-preservation head.
+
 ## #490 replay-shaped intraday policy economics, 2026-06-12
 
 Goal: correct the #490 shortcut by turning entry/management predictions into a same-day trade

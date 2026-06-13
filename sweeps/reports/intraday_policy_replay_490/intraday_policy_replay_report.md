@@ -5,8 +5,8 @@ Entry/exit prices are completed-bar checkpoint marks from the #491 intraday pane
 
 ## Inputs
 
-- Panel: `/Users/falk/projects/kumo-qc-490-replay-shaped-policy/sweeps/reports/intraday_decision_panel_491/intraday_decision_panel.csv.gz`
-- Model artifact: `/Users/falk/projects/kumo-qc-490-replay-shaped-policy/sweeps/reports/intraday_entry_exit_policy_490/model_artifact.json`
+- Panel: `/Users/falk/projects/kumo-qc-490-entry-policy-v2/sweeps/reports/intraday_decision_panel_491/intraday_decision_panel.csv.gz`
+- Model artifact: `/Users/falk/projects/kumo-qc-490-entry-policy-v2/sweeps/reports/intraday_entry_exit_policy_490/model_artifact.json`
 - Parquet root: `/Users/falk/projects/kumo-trader/data/intraday`
 
 ## Summary
@@ -14,14 +14,20 @@ Entry/exit prices are completed-bar checkpoint marks from the #491 intraday pane
 | variant | eligible_candidates | trades | entry_rate_pct | bad_entry_rate_pct | optimal_entry_rate_pct | runner_entry_rate_pct | sum_intraday_ret_pct | avg_intraday_ret_pct | win_rate_pct |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | baseline_rules | 21512 | 13025 | 60.548 | 52.065 | 80.604 | 75.869 | -125.777 | -0.0097 | 47.255 |
+| entry_policy_v2 | 21512 | 9535 | 44.324 | 36.914 | 64.817 | 76.121 | 175.6031 | 0.0184 | 42.202 |
 | model_policy | 21512 | 7469 | 34.72 | 31.483 | 53.661 | 72.544 | 190.9062 | 0.0256 | 41.05 |
 
 ## Result Read
 
-- Model trades `7469` candidates versus baseline `13025`.
-- Bad-entry rate changes by `-20.582` points versus baseline.
-- Optimal-entry rate changes by `-26.943` points; runner-entry rate changes by `-3.325` points.
-- Same-day summed return changes by `316.6832` points; average trade return changes by `0.0353` points.
+- `model_policy` trades `7469` candidates versus baseline `13025`.
+- `model_policy` bad-entry rate changes by `-20.582` points versus baseline.
+- `model_policy` optimal-entry rate changes by `-26.943` points; runner-entry rate changes by `-3.325` points.
+- `model_policy` same-day summed return changes by `316.6832` points; average trade return changes by `0.0353` points.
+- `entry_policy_v2` trades `9535` candidates versus baseline `13025`.
+- `entry_policy_v2` bad-entry rate changes by `-15.151` points versus baseline.
+- `entry_policy_v2` optimal-entry rate changes by `-15.787` points; runner-entry rate changes by `0.252` points.
+- `entry_policy_v2` same-day summed return changes by `301.3801` points; average trade return changes by `0.0281` points.
+- Promotion gate for `entry_policy_v2`: `iterate` (bad delta `-15.151`, optimal capture `64.817`, runner capture `76.121`).
 - Read: useful diagnostic signal, not a promotion result until replayed through local LEAN order semantics.
 
 ## Grouped Diagnostics
@@ -32,6 +38,10 @@ Entry/exit prices are completed-bar checkpoint marks from the #491 intraday pane
 | baseline_rules | scanner_source_bucket | george_only | 345 | 0 | 0.0 | 0.0 | 0.0 | 0.0 |
 | baseline_rules | scanner_source_bucket | kumo_only | 20332 | 12608 | 62.011 | 52.884 | -0.0138 | 47.002 |
 | baseline_rules | scanner_source_bucket | kumo_with_george_video_context | 473 | 267 | 56.448 | 47.423 | 0.0074 | 52.06 |
+| entry_policy_v2 | scanner_source_bucket | both_george_and_kumo | 362 | 98 | 27.072 | 34.746 | 0.3933 | 43.878 |
+| entry_policy_v2 | scanner_source_bucket | george_only | 345 | 115 | 33.333 | 44.628 | 0.1732 | 42.609 |
+| entry_policy_v2 | scanner_source_bucket | kumo_only | 20332 | 9058 | 44.55 | 36.464 | 0.0165 | 42.239 |
+| entry_policy_v2 | scanner_source_bucket | kumo_with_george_video_context | 473 | 264 | 55.814 | 53.265 | -0.123 | 40.152 |
 | model_policy | scanner_source_bucket | both_george_and_kumo | 362 | 95 | 26.243 | 32.203 | 0.4116 | 44.211 |
 | model_policy | scanner_source_bucket | george_only | 345 | 115 | 33.333 | 44.628 | 0.1732 | 42.609 |
 | model_policy | scanner_source_bucket | kumo_only | 20332 | 6995 | 34.404 | 30.82 | 0.0235 | 41.015 |
@@ -48,6 +58,18 @@ Entry/exit prices are completed-bar checkpoint marks from the #491 intraday pane
 | baseline_rules | month | 2026-04 | 2138 | 1348 | 63.05 | 57.759 | 0.1347 | 49.703 |
 | baseline_rules | month | 2026-05 | 914 | 440 | 48.14 | 0.0 | 0.2325 | 54.545 |
 | baseline_rules | month | 2026-06 | 50 | 20 | 40.0 | 0.0 | 0.1184 | 50.0 |
+| entry_policy_v2 | month | 2025-07 | 1497 | 676 | 45.157 | 39.444 | -0.0216 | 41.124 |
+| entry_policy_v2 | month | 2025-08 | 2100 | 961 | 45.762 | 32.072 | 0.0381 | 44.121 |
+| entry_policy_v2 | month | 2025-09 | 2100 | 1047 | 49.857 | 35.96 | 0.0802 | 41.834 |
+| entry_policy_v2 | month | 2025-10 | 2299 | 1080 | 46.977 | 41.283 | -0.1553 | 37.407 |
+| entry_policy_v2 | month | 2025-11 | 1900 | 1008 | 53.053 | 43.165 | -0.0722 | 42.56 |
+| entry_policy_v2 | month | 2025-12 | 2198 | 903 | 41.083 | 29.515 | -0.089 | 37.763 |
+| entry_policy_v2 | month | 2026-01 | 1999 | 960 | 48.024 | 34.174 | 0.0197 | 47.5 |
+| entry_policy_v2 | month | 2026-02 | 2011 | 956 | 47.539 | 43.269 | 0.0019 | 40.377 |
+| entry_policy_v2 | month | 2026-03 | 2306 | 962 | 41.717 | 35.578 | 0.0623 | 43.139 |
+| entry_policy_v2 | month | 2026-04 | 2138 | 721 | 33.723 | 19.828 | 0.2908 | 47.712 |
+| entry_policy_v2 | month | 2026-05 | 914 | 258 | 28.228 | 0.0 | 0.391 | 42.248 |
+| entry_policy_v2 | month | 2026-06 | 50 | 3 | 6.0 | 0.0 | -0.1872 | 0.0 |
 | model_policy | month | 2025-07 | 1497 | 406 | 27.121 | 23.611 | -0.019 | 39.655 |
 | model_policy | month | 2025-08 | 2100 | 665 | 31.667 | 25.987 | 0.0283 | 39.398 |
 | model_policy | month | 2025-09 | 2100 | 727 | 34.619 | 29.17 | 0.1364 | 40.715 |

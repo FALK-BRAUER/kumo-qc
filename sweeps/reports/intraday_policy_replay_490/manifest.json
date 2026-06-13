@@ -1,39 +1,59 @@
 {
-  "generated_at": "2026-06-12T07:24:24.391231+00:00",
+  "generated_at": "2026-06-13T06:01:54.208465+00:00",
   "issue": "https://github.com/FALK-BRAUER/kumo-qc/issues/490",
   "replay_version": "intraday_policy_replay_490_v1",
   "config": {
-    "panel": "/Users/falk/projects/kumo-qc-490-replay-shaped-policy/sweeps/reports/intraday_decision_panel_491/intraday_decision_panel.csv.gz",
-    "model_artifact": "/Users/falk/projects/kumo-qc-490-replay-shaped-policy/sweeps/reports/intraday_entry_exit_policy_490/model_artifact.json",
+    "panel": "/Users/falk/projects/kumo-qc-490-entry-policy-v2/sweeps/reports/intraday_decision_panel_491/intraday_decision_panel.csv.gz",
+    "model_artifact": "/Users/falk/projects/kumo-qc-490-entry-policy-v2/sweeps/reports/intraday_entry_exit_policy_490/model_artifact.json",
     "parquet_root": "/Users/falk/projects/kumo-trader/data/intraday",
-    "output_dir": "/Users/falk/projects/kumo-qc-490-replay-shaped-policy/sweeps/reports/intraday_policy_replay_490",
+    "output_dir": "/Users/falk/projects/kumo-qc-490-entry-policy-v2/sweeps/reports/intraday_policy_replay_490",
     "limit_opportunities": null,
     "variants": [
       "model_policy",
+      "entry_policy_v2",
       "baseline_rules"
     ]
   },
+  "entry_policy_v2": {
+    "max_avoid_prob": 0.35,
+    "max_risk_enter_gap": 0.1,
+    "min_enter_prob": 0.0,
+    "min_return_from_open_pct": 0.0,
+    "min_mae_from_open_pct": -3.0
+  },
+  "promotion_gate": {
+    "variant": "entry_policy_v2",
+    "status": "iterate",
+    "bad_entry_delta_pct": -15.151,
+    "optimal_entry_rate_pct": 64.817,
+    "runner_entry_rate_pct": 76.121,
+    "thresholds": {
+      "max_bad_entry_rate_delta": -15.0,
+      "min_optimal_entry_rate": 70.0,
+      "min_runner_entry_rate": 72.0
+    }
+  },
   "outputs": {
     "candidate_outcomes.csv.gz": {
-      "rows": 52222
+      "rows": 78333
     },
     "trade_ledger.csv.gz": {
-      "rows": 20494
+      "rows": 30029
     },
     "management_decision_rows.csv.gz": {
-      "rows": 56178
+      "rows": 83581
     },
     "summary_metrics.csv": {
-      "rows": 2
+      "rows": 3
     },
     "grouped_metrics.csv": {
-      "rows": 32
+      "rows": 48
     },
     "source_bucket_metrics.csv": {
-      "rows": 8
+      "rows": 12
     },
     "month_metrics.csv": {
-      "rows": 24
+      "rows": 36
     },
     "intraday_policy_replay_report.md": {}
   }

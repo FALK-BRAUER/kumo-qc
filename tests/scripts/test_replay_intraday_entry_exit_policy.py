@@ -115,6 +115,65 @@ def test_selected_entries_picks_first_enter_now_checkpoint() -> None:
     assert selected.loc[0, "entry_price"] == 102.5
 
 
+def test_entry_policy_v2_preserves_baseline_enter_when_risk_is_not_decisive() -> None:
+    rows = pd.DataFrame(
+        [
+            _entry_row(
+                entry_model_action="avoid_bad_entry",
+                baseline_entry_action="enter_now",
+                policy_prob_avoid_bad_entry=0.30,
+                policy_prob_enter_now=0.25,
+                return_from_open_pct=0.2,
+                mae_from_open_pct=-0.5,
+            )
+        ]
+    )
+
+    action = M.entry_policy_v2_action(rows)
+
+    assert action.loc[0] == "enter_now"
+
+
+def test_entry_policy_v2_keeps_avoid_when_risk_is_decisive() -> None:
+    rows = pd.DataFrame(
+        [
+            _entry_row(
+                entry_model_action="avoid_bad_entry",
+                baseline_entry_action="enter_now",
+                policy_prob_avoid_bad_entry=0.72,
+                policy_prob_enter_now=0.10,
+                return_from_open_pct=1.0,
+                mae_from_open_pct=-0.2,
+            )
+        ]
+    )
+
+    action = M.entry_policy_v2_action(rows)
+
+    assert action.loc[0] == "avoid_bad_entry"
+
+
+def test_selected_entries_supports_entry_policy_v2_variant() -> None:
+    rows = pd.DataFrame(
+        [
+            _entry_row(checkpoint="open", checkpoint_order=0, entry_model_available=True, entry_policy_v2_action="wait"),
+            _entry_row(
+                checkpoint="after_15m",
+                checkpoint_order=1,
+                as_of_timestamp="2025-01-02 09:45:00",
+                entry_model_available=True,
+                entry_policy_v2_action="enter_now",
+                current_price=102.5,
+            ),
+        ]
+    )
+
+    selected = M.selected_entries(rows, variant=M.ENTRY_POLICY_V2_VARIANT)
+
+    assert bool(selected.loc[0, "entered"]) is True
+    assert selected.loc[0, "entry_checkpoint"] == "after_15m"
+
+
 def test_build_management_decision_rows_reconstructs_position_features(monkeypatch) -> None:
     entry_rows = pd.DataFrame(
         [
@@ -146,6 +205,29 @@ def test_build_management_decision_rows_reconstructs_position_features(monkeypat
     assert after_15m["position_bars_completed_since_entry"] == 2
     assert after_15m["position_current_return_pct"] == 2.5
     assert after_15m["position_mfe_so_far_pct"] == 3.0
+
+
+def test_entry_policy_v2_uses_model_management_actions() -> None:
+    rows = pd.DataFrame(
+        [
+            _entry_row(
+                variant=M.ENTRY_POLICY_V2_VARIANT,
+                row_type="position_management",
+                management_action_label="",
+                checkpoint="after_15m",
+                checkpoint_order=1,
+            )
+        ]
+    )
+    artifact = _policy_artifact(
+        entry_intercept=[0.0, 5.0, 0.0],
+        management_intercept=[0.0, 5.0, 0.0, 0.0, 0.0, 0.0],
+    )
+
+    scored = M.add_management_actions(rows, artifact)
+
+    assert bool(scored.loc[0, "management_model_available"]) is True
+    assert scored.loc[0, "management_model_action"] == "exit_loser"
 
 
 def test_finalize_candidate_outcomes_exits_on_first_policy_exit() -> None:
