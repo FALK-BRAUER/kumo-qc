@@ -1,0 +1,11 @@
+head_name,action,support,predicted,precision_pct,recall_pct,f1
+entry_bad_risk_head,bad_entry_risk,75678,84777,65.176,73.012,0.6887
+entry_bad_risk_head,not_bad_entry_risk,53442,44343,53.941,44.757,0.4892
+entry_ready_head,entry_ready,29311,17690,40.588,24.496,0.3055
+entry_ready_head,not_entry_ready,99809,111430,80.139,89.47,0.8455
+entry_winner_preservation_head,not_winner_preserve,98370,109234,79.733,88.538,0.839
+entry_winner_preservation_head,winner_preserve,30750,19886,43.302,28.003,0.3401
+management_exit_risk_head,exit_risk,78288,74701,76.988,73.461,0.7518
+management_exit_risk_head,not_exit_risk,39084,42671,51.309,56.018,0.5356
+management_runner_preservation_head,not_runner_preserve,87156,99997,77.623,89.06,0.8295
+management_runner_preservation_head,runner_preserve,30216,17375,45.122,25.947,0.3295

@@ -24,14 +24,17 @@ from scripts import train_intraday_entry_exit_policy as policy_train  # noqa: E4
 
 DEFAULT_PANEL = policy_train.DEFAULT_PANEL
 DEFAULT_MODEL = policy_train.DEFAULT_OUTPUT_DIR / "model_artifact.json"
+DEFAULT_DUAL_HEAD_MODEL = ROOT / "sweeps" / "reports" / "intraday_entry_exit_policy_490_dual_head" / "model_artifact.json"
 DEFAULT_PARQUET_ROOT = decision_panel.DEFAULT_PARQUET_ROOT
 DEFAULT_OUTPUT_DIR = ROOT / "sweeps" / "reports" / "intraday_policy_replay_490"
 DEFAULT_SCAN_TIME_PREDICTIONS = ROOT / "sweeps" / "reports" / "scan_time_scanner_ranker_492" / "oof_predictions.csv.gz"
 REPLAY_VERSION = "intraday_policy_replay_490_v1"
 ENTRY_POLICY_V2_VARIANT = "entry_policy_v2"
 ENTRY_POLICY_V3_VARIANT = "entry_policy_v3"
-VARIANTS = ("model_policy", ENTRY_POLICY_V2_VARIANT, ENTRY_POLICY_V3_VARIANT, "baseline_rules")
-MODEL_MANAGED_VARIANTS = {"model_policy", ENTRY_POLICY_V2_VARIANT, ENTRY_POLICY_V3_VARIANT}
+DUAL_HEAD_VARIANT = "dual_head_policy"
+VARIANTS = ("model_policy", ENTRY_POLICY_V2_VARIANT, ENTRY_POLICY_V3_VARIANT, DUAL_HEAD_VARIANT, "baseline_rules")
+MODEL_MANAGED_VARIANTS = {"model_policy", ENTRY_POLICY_V2_VARIANT, ENTRY_POLICY_V3_VARIANT, DUAL_HEAD_VARIANT}
+V1_MANAGED_VARIANTS = {"model_policy", ENTRY_POLICY_V2_VARIANT, ENTRY_POLICY_V3_VARIANT}
 EXIT_ACTIONS = {"exit_loser", "scratch_or_reduce", "protect_profit"}
 CHECKPOINT_ORDER = {name: idx for idx, (name, _time_text) in enumerate(decision_panel.CHECKPOINTS)}
 
@@ -46,6 +49,13 @@ ENTRY_V3_MIN_RETURN_FROM_OPEN_PCT = 0.0
 ENTRY_V3_MIN_MAE_FROM_OPEN_PCT = -3.0
 ENTRY_V3_MIN_SCAN_OPTIMAL_SCORE = 0.15
 ENTRY_V3_MAX_SCAN_BAD_RISK_SCORE = -0.20
+DUAL_ENTRY_MAX_BAD_RISK_PROB = 0.58
+DUAL_ENTRY_MIN_WINNER_PROB = 0.48
+DUAL_ENTRY_MIN_READY_PROB = 0.45
+DUAL_ENTRY_STRONG_WINNER_PROB = 0.60
+DUAL_ENTRY_MAX_STRONG_WINNER_BAD_RISK_PROB = 0.52
+DUAL_MGMT_EXIT_RISK_PROB = 0.62
+DUAL_MGMT_RUNNER_PRESERVE_PROB = 0.58
 SCAN_TIME_PRIOR_COLUMNS = (
     "oof_available_492",
     "model_492_optimal_score",
@@ -63,6 +73,7 @@ PROMOTION_MIN_RUNNER_ENTRY_RATE = 72.0
 class ReplayConfig:
     panel: str
     model_artifact: str
+    dual_head_model_artifact: str
     parquet_root: str
     scan_time_predictions: str
     output_dir: str
@@ -74,6 +85,7 @@ def _args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--panel", type=Path, default=DEFAULT_PANEL)
     parser.add_argument("--model-artifact", type=Path, default=DEFAULT_MODEL)
+    parser.add_argument("--dual-head-model-artifact", type=Path, default=DEFAULT_DUAL_HEAD_MODEL)
     parser.add_argument("--parquet-root", type=Path, default=DEFAULT_PARQUET_ROOT)
     parser.add_argument("--scan-time-predictions", type=Path, default=DEFAULT_SCAN_TIME_PREDICTIONS)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
@@ -175,6 +187,20 @@ def score_policy_rows(frame: pd.DataFrame, artifact: dict[str, Any], policy_name
     return pd.concat(scored_parts, ignore_index=True).sort_values(["opportunity_id", "checkpoint"]).reset_index(drop=True)
 
 
+def add_head_scores(frame: pd.DataFrame, artifact: dict[str, Any], *, head_name: str, prefix: str) -> pd.DataFrame:
+    scored = score_policy_rows(frame, artifact, head_name)
+    policy_artifact = artifact["policies"][head_name]
+    rename = {
+        "policy_oof_available": f"{prefix}_available",
+        "policy_fold": f"{prefix}_fold",
+        "policy_action": f"{prefix}_action",
+        "policy_confidence": f"{prefix}_confidence",
+    }
+    for action in policy_artifact["classes"]:
+        rename[f"policy_prob_{action}"] = f"{prefix}_prob_{action}"
+    return scored.rename(columns=rename)
+
+
 def read_entry_rows(panel_path: Path, *, limit_opportunities: int | None = None) -> pd.DataFrame:
     panel = policy_train.read_panel(panel_path)
     entry = panel[panel["row_type"].eq("entry_decision")].copy()
@@ -214,7 +240,7 @@ def _bool_series(series: pd.Series) -> pd.Series:
     return series.astype(str).str.strip().str.lower().isin({"1", "true", "yes", "y"})
 
 
-def add_entry_actions(entry_rows: pd.DataFrame, artifact: dict[str, Any]) -> pd.DataFrame:
+def add_entry_actions(entry_rows: pd.DataFrame, artifact: dict[str, Any], dual_head_artifact: dict[str, Any] | None = None) -> pd.DataFrame:
     scored = score_policy_rows(entry_rows, artifact, "entry_policy")
     scored = scored.rename(
         columns={
@@ -227,6 +253,8 @@ def add_entry_actions(entry_rows: pd.DataFrame, artifact: dict[str, Any]) -> pd.
     scored["baseline_entry_action"] = policy_train.baseline_entry_action(scored)
     scored["entry_policy_v2_action"] = entry_policy_v2_action(scored)
     scored["entry_policy_v3_action"] = entry_policy_v3_action(scored)
+    if dual_head_artifact is not None:
+        scored = add_dual_head_entry_actions(scored, dual_head_artifact)
     return scored
 
 
@@ -279,6 +307,54 @@ def entry_policy_v3_action(frame: pd.DataFrame) -> pd.Series:
     return pd.Series(np.select([enter_now, avoid], ["enter_now", "avoid_bad_entry"], default="wait"), index=frame.index)
 
 
+def add_dual_head_entry_actions(entry_rows: pd.DataFrame, dual_head_artifact: dict[str, Any]) -> pd.DataFrame:
+    scored = entry_rows.copy()
+    for head_name, prefix in (
+        ("entry_bad_risk_head", "entry_bad_risk"),
+        ("entry_winner_preservation_head", "entry_winner_preservation"),
+        ("entry_ready_head", "entry_ready"),
+    ):
+        scored = add_head_scores(scored, dual_head_artifact, head_name=head_name, prefix=prefix)
+    scored["dual_head_entry_action"] = dual_head_entry_action(scored)
+    return scored
+
+
+def dual_head_entry_action(frame: pd.DataFrame) -> pd.Series:
+    bad_risk = pd.to_numeric(
+        frame.get("entry_bad_risk_prob_bad_entry_risk", pd.Series(np.nan, index=frame.index)),
+        errors="coerce",
+    )
+    winner = pd.to_numeric(
+        frame.get("entry_winner_preservation_prob_winner_preserve", pd.Series(np.nan, index=frame.index)),
+        errors="coerce",
+    )
+    ready = pd.to_numeric(
+        frame.get("entry_ready_prob_entry_ready", pd.Series(np.nan, index=frame.index)),
+        errors="coerce",
+    )
+    baseline_action = frame.get("baseline_entry_action", policy_train.baseline_entry_action(frame)).astype(str)
+    all_heads_available = (
+        frame.get("entry_bad_risk_available", pd.Series(False, index=frame.index)).astype(bool)
+        & frame.get("entry_winner_preservation_available", pd.Series(False, index=frame.index)).astype(bool)
+        & frame.get("entry_ready_available", pd.Series(False, index=frame.index)).astype(bool)
+    )
+    enter_by_heads = (
+        all_heads_available
+        & ready.ge(DUAL_ENTRY_MIN_READY_PROB)
+        & winner.ge(DUAL_ENTRY_MIN_WINNER_PROB)
+        & bad_risk.le(DUAL_ENTRY_MAX_BAD_RISK_PROB)
+    )
+    enter_by_preservation = (
+        all_heads_available
+        & baseline_action.eq("enter_now")
+        & winner.ge(DUAL_ENTRY_STRONG_WINNER_PROB)
+        & bad_risk.le(DUAL_ENTRY_MAX_STRONG_WINNER_BAD_RISK_PROB)
+    )
+    enter_now = enter_by_heads | enter_by_preservation
+    avoid = all_heads_available & bad_risk.gt(DUAL_ENTRY_MAX_BAD_RISK_PROB) & ~enter_now
+    return pd.Series(np.select([enter_now, avoid], ["enter_now", "avoid_bad_entry"], default="wait"), index=frame.index)
+
+
 def entry_action_column(variant: str) -> str:
     if variant == "model_policy":
         return "entry_model_action"
@@ -286,6 +362,8 @@ def entry_action_column(variant: str) -> str:
         return "entry_policy_v2_action"
     if variant == ENTRY_POLICY_V3_VARIANT:
         return "entry_policy_v3_action"
+    if variant == DUAL_HEAD_VARIANT:
+        return "dual_head_entry_action"
     if variant == "baseline_rules":
         return "baseline_entry_action"
     raise ValueError(f"unknown replay variant: {variant}")
@@ -343,6 +421,9 @@ def selected_entries(entry_rows: pd.DataFrame, *, variant: str) -> pd.DataFrame:
                 "entry_scan_time_optimal_score": _round(entry.get("model_492_optimal_score")),
                 "entry_scan_time_bad_risk_score": _round(entry.get("model_492_bad_risk_score")),
                 "entry_scan_time_combined_score": _round(entry.get("model_492_combined_score")),
+                "entry_dual_bad_risk_prob": _round(entry.get("entry_bad_risk_prob_bad_entry_risk")),
+                "entry_dual_winner_preserve_prob": _round(entry.get("entry_winner_preservation_prob_winner_preserve")),
+                "entry_dual_ready_prob": _round(entry.get("entry_ready_prob_entry_ready")),
             }
         )
         rows.append(row)
@@ -414,12 +495,65 @@ def build_management_decision_rows(
     return pd.DataFrame(rows).sort_values(["variant", "opportunity_id", "checkpoint_order"]).reset_index(drop=True)
 
 
-def add_management_actions(management_rows: pd.DataFrame, artifact: dict[str, Any]) -> pd.DataFrame:
+def add_dual_head_management_actions(management_rows: pd.DataFrame, dual_head_artifact: dict[str, Any]) -> pd.DataFrame:
+    scored = management_rows.copy()
+    for head_name, prefix in (
+        ("management_exit_risk_head", "management_exit_risk"),
+        ("management_runner_preservation_head", "management_runner_preservation"),
+    ):
+        scored = add_head_scores(scored, dual_head_artifact, head_name=head_name, prefix=prefix)
+    scored["management_model_action"] = dual_head_management_action(scored)
+    scored["management_model_available"] = (
+        scored.get("management_exit_risk_available", pd.Series(False, index=scored.index)).astype(bool)
+        & scored.get("management_runner_preservation_available", pd.Series(False, index=scored.index)).astype(bool)
+    )
+    scored["management_model_fold"] = scored.get("management_exit_risk_fold", pd.Series(np.nan, index=scored.index))
+    scored["management_model_confidence"] = scored[
+        ["management_exit_risk_confidence", "management_runner_preservation_confidence"]
+    ].max(axis=1)
+    return scored
+
+
+def dual_head_management_action(frame: pd.DataFrame) -> pd.Series:
+    exit_risk = pd.to_numeric(
+        frame.get("management_exit_risk_prob_exit_risk", pd.Series(np.nan, index=frame.index)),
+        errors="coerce",
+    )
+    preserve = pd.to_numeric(
+        frame.get("management_runner_preservation_prob_runner_preserve", pd.Series(np.nan, index=frame.index)),
+        errors="coerce",
+    )
+    ret = pd.to_numeric(frame.get("position_current_return_pct", pd.Series(np.nan, index=frame.index)), errors="coerce").fillna(0.0)
+    drawdown = pd.to_numeric(frame.get("position_drawdown_from_peak_pct", pd.Series(np.nan, index=frame.index)), errors="coerce").fillna(0.0)
+    available = (
+        frame.get("management_exit_risk_available", pd.Series(False, index=frame.index)).astype(bool)
+        & frame.get("management_runner_preservation_available", pd.Series(False, index=frame.index)).astype(bool)
+    )
+    do_not_cut_runner = available & preserve.ge(DUAL_MGMT_RUNNER_PRESERVE_PROB) & ret.ge(4.0)
+    hold_winner = available & preserve.ge(DUAL_MGMT_RUNNER_PRESERVE_PROB) & ret.ge(1.0)
+    protect_profit = available & exit_risk.ge(DUAL_MGMT_EXIT_RISK_PROB) & preserve.lt(DUAL_MGMT_RUNNER_PRESERVE_PROB) & ret.ge(3.0) & drawdown.ge(1.5)
+    exit_loser = available & exit_risk.ge(DUAL_MGMT_EXIT_RISK_PROB) & preserve.lt(DUAL_MGMT_RUNNER_PRESERVE_PROB) & ret.lt(3.0)
+    return pd.Series(
+        np.select(
+            [do_not_cut_runner, hold_winner, protect_profit, exit_loser],
+            ["do_not_cut_runner", "hold_winner", "protect_profit", "exit_loser"],
+            default="hold_or_wait",
+        ),
+        index=frame.index,
+    )
+
+
+def add_management_actions(
+    management_rows: pd.DataFrame,
+    artifact: dict[str, Any],
+    dual_head_artifact: dict[str, Any] | None = None,
+) -> pd.DataFrame:
     if management_rows.empty:
         return management_rows.copy()
     scored = management_rows.copy()
     scored["baseline_management_action"] = policy_train.baseline_management_action(scored)
-    model_rows = scored[scored["variant"].isin(MODEL_MANAGED_VARIANTS)].copy()
+    model_rows = scored[scored["variant"].isin(V1_MANAGED_VARIANTS)].copy()
+    dual_rows = scored[scored["variant"].eq(DUAL_HEAD_VARIANT)].copy()
     other_rows = scored[~scored["variant"].isin(MODEL_MANAGED_VARIANTS)].copy()
     if not model_rows.empty:
         model_scored = score_policy_rows(model_rows, artifact, "management_policy").rename(
@@ -437,6 +571,15 @@ def add_management_actions(management_rows: pd.DataFrame, artifact: dict[str, An
             management_model_action="",
             management_model_confidence=np.nan,
         )
+    if not dual_rows.empty and dual_head_artifact is not None:
+        dual_scored = add_dual_head_management_actions(dual_rows, dual_head_artifact)
+    else:
+        dual_scored = dual_rows.assign(
+            management_model_available=False,
+            management_model_fold=np.nan,
+            management_model_action="",
+            management_model_confidence=np.nan,
+        )
     if not other_rows.empty:
         other_rows = other_rows.assign(
             management_model_available=False,
@@ -444,7 +587,7 @@ def add_management_actions(management_rows: pd.DataFrame, artifact: dict[str, An
             management_model_action="",
             management_model_confidence=np.nan,
         )
-    return pd.concat([model_scored, other_rows], ignore_index=True).sort_values(
+    return pd.concat([model_scored, dual_scored, other_rows], ignore_index=True).sort_values(
         ["variant", "opportunity_id", "checkpoint_order"]
     )
 
@@ -623,7 +766,7 @@ def _summary_read(summary: pd.DataFrame) -> list[str]:
         return ["- Not enough variant coverage to compare model policy against baseline rules."]
     baseline = summary[summary["variant"].eq("baseline_rules")].iloc[0]
     lines: list[str] = []
-    for variant in ("model_policy", ENTRY_POLICY_V2_VARIANT, ENTRY_POLICY_V3_VARIANT):
+    for variant in ("model_policy", ENTRY_POLICY_V2_VARIANT, ENTRY_POLICY_V3_VARIANT, DUAL_HEAD_VARIANT):
         if variant not in set(summary["variant"]):
             continue
         row = summary[summary["variant"].eq(variant)].iloc[0]
@@ -640,7 +783,7 @@ def _summary_read(summary: pd.DataFrame) -> list[str]:
                 f"- `{variant}` same-day summed return changes by `{return_delta:.4f}` points; average trade return changes by `{avg_delta:.4f}` points.",
             ]
         )
-    for variant in (ENTRY_POLICY_V2_VARIANT, ENTRY_POLICY_V3_VARIANT):
+    for variant in (ENTRY_POLICY_V2_VARIANT, ENTRY_POLICY_V3_VARIANT, DUAL_HEAD_VARIANT):
         if variant not in set(summary["variant"]):
             continue
         gate = promotion_gate(summary, variant=variant)
@@ -725,6 +868,7 @@ def write_outputs(
         "",
         f"- Panel: `{config.panel}`",
         f"- Model artifact: `{config.model_artifact}`",
+        f"- Dual-head model artifact: `{config.dual_head_model_artifact}`",
         f"- Scan-time predictions: `{config.scan_time_predictions}`",
         f"- Parquet root: `{config.parquet_root}`",
         "",
@@ -795,10 +939,20 @@ def write_outputs(
             "min_scan_optimal_score": ENTRY_V3_MIN_SCAN_OPTIMAL_SCORE,
             "max_scan_bad_risk_score": ENTRY_V3_MAX_SCAN_BAD_RISK_SCORE,
         },
-        "promotion_gate": promotion_gate(summary, variant=ENTRY_POLICY_V3_VARIANT),
+        "dual_head_policy": {
+            "entry_max_bad_risk_prob": DUAL_ENTRY_MAX_BAD_RISK_PROB,
+            "entry_min_winner_prob": DUAL_ENTRY_MIN_WINNER_PROB,
+            "entry_min_ready_prob": DUAL_ENTRY_MIN_READY_PROB,
+            "entry_strong_winner_prob": DUAL_ENTRY_STRONG_WINNER_PROB,
+            "entry_max_strong_winner_bad_risk_prob": DUAL_ENTRY_MAX_STRONG_WINNER_BAD_RISK_PROB,
+            "management_exit_risk_prob": DUAL_MGMT_EXIT_RISK_PROB,
+            "management_runner_preserve_prob": DUAL_MGMT_RUNNER_PRESERVE_PROB,
+        },
+        "promotion_gate": promotion_gate(summary, variant=DUAL_HEAD_VARIANT),
         "promotion_gates": {
             ENTRY_POLICY_V2_VARIANT: promotion_gate(summary, variant=ENTRY_POLICY_V2_VARIANT),
             ENTRY_POLICY_V3_VARIANT: promotion_gate(summary, variant=ENTRY_POLICY_V3_VARIANT),
+            DUAL_HEAD_VARIANT: promotion_gate(summary, variant=DUAL_HEAD_VARIANT),
         },
         "outputs": {
             "candidate_outcomes.csv.gz": {"rows": int(len(outcomes))},
@@ -827,6 +981,7 @@ def run(
     *,
     panel_path: Path = DEFAULT_PANEL,
     model_artifact_path: Path = DEFAULT_MODEL,
+    dual_head_model_artifact_path: Path = DEFAULT_DUAL_HEAD_MODEL,
     parquet_root: Path = DEFAULT_PARQUET_ROOT,
     scan_time_predictions_path: Path = DEFAULT_SCAN_TIME_PREDICTIONS,
     output_dir: Path = DEFAULT_OUTPUT_DIR,
@@ -836,6 +991,7 @@ def run(
     config = ReplayConfig(
         panel=str(panel_path),
         model_artifact=str(model_artifact_path),
+        dual_head_model_artifact=str(dual_head_model_artifact_path),
         parquet_root=str(parquet_root),
         scan_time_predictions=str(scan_time_predictions_path),
         output_dir=str(output_dir),
@@ -843,17 +999,18 @@ def run(
         variants=tuple(variants),
     )
     artifact = read_model_artifact(model_artifact_path)
+    dual_head_artifact = read_model_artifact(dual_head_model_artifact_path) if DUAL_HEAD_VARIANT in variants else None
     entry_rows = read_entry_rows(panel_path, limit_opportunities=limit_opportunities)
     print(f"loaded entry rows={len(entry_rows)} opportunities={entry_rows['opportunity_id'].nunique()}", file=sys.stderr, flush=True)
     if ENTRY_POLICY_V3_VARIANT in variants:
         entry_rows = add_scan_time_priors(entry_rows, scan_time_predictions_path)
         print(f"joined scan-time #492 priors from {scan_time_predictions_path}", file=sys.stderr, flush=True)
-    entry_rows = add_entry_actions(entry_rows, artifact)
+    entry_rows = add_entry_actions(entry_rows, artifact, dual_head_artifact=dual_head_artifact)
     selected = pd.concat([selected_entries(entry_rows, variant=variant) for variant in variants], ignore_index=True)
     print(f"selected rows={len(selected)} trades={int(selected['entered'].astype(bool).sum())}", file=sys.stderr, flush=True)
     management_rows = build_management_decision_rows(entry_rows, selected, parquet_root=parquet_root)
     print(f"management replay rows={len(management_rows)}", file=sys.stderr, flush=True)
-    management_rows = add_management_actions(management_rows, artifact)
+    management_rows = add_management_actions(management_rows, artifact, dual_head_artifact=dual_head_artifact)
     outcomes = finalize_candidate_outcomes(selected, management_rows)
     summary = summary_metrics(outcomes)
     grouped = pd.concat(
@@ -878,6 +1035,7 @@ def main() -> None:
     outputs = run(
         panel_path=args.panel,
         model_artifact_path=args.model_artifact,
+        dual_head_model_artifact_path=args.dual_head_model_artifact,
         parquet_root=args.parquet_root,
         scan_time_predictions_path=args.scan_time_predictions,
         output_dir=args.output_dir,

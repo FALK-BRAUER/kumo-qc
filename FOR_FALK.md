@@ -1059,3 +1059,21 @@ from `64.817%` to `64.940%`, while bad-entry rate worsens from `36.914%` to `37.
 paper-thin `-15.008` point bad-entry delta versus baseline. The 70% optimal-capture gate is still far
 away. Conclusion: thresholding is exhausted; next useful work is an actual intraday entry/exit retrain
 with a winner-preservation objective or new intraday signal, not more scanner/rule threshold tuning.
+
+## #490 Dual-Head Entry/Exit Retrain
+
+Built `codex/490-dual-head-policy` as the real retrain follow-up, not another threshold tweak. It
+adds a new dual-head artifact with separate entry bad-risk, entry winner-preservation, entry-readiness,
+management exit-risk, and management runner-preservation heads. Replay consumes it as
+`dual_head_policy`.
+
+Replay result: **not promotable**. Dual-head cuts bad entries hard (`30.096%`, a `-21.969` point delta
+versus baseline) and improves same-day average return to `0.0470%`, but optimal capture falls to
+`50.928%`, far below the `70%` gate. It preserves runners at `72.695%`, barely above the runner gate.
+Compared with v2, dual-head drops `777` optimal entries and only adds `96`, while the classifier
+diagnostics show why: entry winner-preservation recall is only `28.003%` and entry-readiness recall is
+only `24.496%`.
+
+Conclusion: the current #491 intraday feature set can identify bad-entry risk better than it can recover
+good entries. The missing signal is a stronger entry-timing/winner-preservation feature, not another
+scanner retrain and not another threshold pass.

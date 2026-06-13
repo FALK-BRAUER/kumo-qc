@@ -1,0 +1,71 @@
+{
+  "generated_at": "2026-06-13T06:38:14.989788+00:00",
+  "issue": "https://github.com/FALK-BRAUER/kumo-qc/issues/490",
+  "dual_head_version": "intraday_entry_exit_policy_490_dual_head_v1",
+  "config": {
+    "panel": "/Users/falk/projects/kumo-qc-490-dual-head-policy/sweeps/reports/intraday_decision_panel_491/intraday_decision_panel.csv.gz",
+    "output_dir": "/Users/falk/projects/kumo-qc-490-dual-head-policy/sweeps/reports/intraday_entry_exit_policy_490_dual_head",
+    "n_folds": 6,
+    "min_train_folds": 1,
+    "max_iter": 120,
+    "learning_rate": 0.05,
+    "l2": 0.01,
+    "limit": null
+  },
+  "heads": {
+    "entry_bad_risk_head": {
+      "row_type": "entry_decision",
+      "negative_class": "not_bad_entry_risk",
+      "positive_class": "bad_entry_risk",
+      "description": "Predicts whether the candidate is a bad-entry route label, independent of entry timing."
+    },
+    "entry_winner_preservation_head": {
+      "row_type": "entry_decision",
+      "negative_class": "not_winner_preserve",
+      "positive_class": "winner_preserve",
+      "description": "Predicts whether the candidate should be preserved as an optimal or runner opportunity."
+    },
+    "entry_ready_head": {
+      "row_type": "entry_decision",
+      "negative_class": "not_entry_ready",
+      "positive_class": "entry_ready",
+      "description": "Predicts whether the current checkpoint is at or after the oracle best-entry trigger."
+    },
+    "management_exit_risk_head": {
+      "row_type": "position_management",
+      "negative_class": "not_exit_risk",
+      "positive_class": "exit_risk",
+      "description": "Predicts whether the position-management state calls for an exit, scratch, or protect action."
+    },
+    "management_runner_preservation_head": {
+      "row_type": "position_management",
+      "negative_class": "not_runner_preserve",
+      "positive_class": "runner_preserve",
+      "description": "Predicts whether the position state should preserve a runner or active winner."
+    }
+  },
+  "outputs": {
+    "oof_predictions.csv.gz": {
+      "rows": 751306
+    },
+    "fold_summary.csv": {
+      "rows": 25
+    },
+    "summary_metrics.csv": {
+      "rows": 5
+    },
+    "action_metrics.csv": {
+      "rows": 10
+    },
+    "grouped_metrics.csv": {
+      "rows": 101
+    },
+    "feature_importance.csv": {
+      "rows": 760
+    },
+    "model_artifact.json": {
+      "schema_version": 1
+    },
+    "intraday_entry_exit_dual_head_policy_report.md": {}
+  }
+}
