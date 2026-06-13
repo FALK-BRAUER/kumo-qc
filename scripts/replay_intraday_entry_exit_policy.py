@@ -27,9 +27,21 @@ DEFAULT_MODEL = policy_train.DEFAULT_OUTPUT_DIR / "model_artifact.json"
 DEFAULT_PARQUET_ROOT = decision_panel.DEFAULT_PARQUET_ROOT
 DEFAULT_OUTPUT_DIR = ROOT / "sweeps" / "reports" / "intraday_policy_replay_490"
 REPLAY_VERSION = "intraday_policy_replay_490_v1"
-VARIANTS = ("model_policy", "baseline_rules")
+ENTRY_POLICY_V2_VARIANT = "entry_policy_v2"
+VARIANTS = ("model_policy", ENTRY_POLICY_V2_VARIANT, "baseline_rules")
+MODEL_MANAGED_VARIANTS = {"model_policy", ENTRY_POLICY_V2_VARIANT}
 EXIT_ACTIONS = {"exit_loser", "scratch_or_reduce", "protect_profit"}
 CHECKPOINT_ORDER = {name: idx for idx, (name, _time_text) in enumerate(decision_panel.CHECKPOINTS)}
+
+ENTRY_V2_MAX_AVOID_PROB = 0.35
+ENTRY_V2_MAX_RISK_ENTER_GAP = 0.10
+ENTRY_V2_MIN_ENTER_PROB = 0.0
+ENTRY_V2_MIN_RETURN_FROM_OPEN_PCT = 0.0
+ENTRY_V2_MIN_MAE_FROM_OPEN_PCT = -3.0
+
+PROMOTION_MAX_BAD_ENTRY_RATE_DELTA = -15.0
+PROMOTION_MIN_OPTIMAL_ENTRY_RATE = 70.0
+PROMOTION_MIN_RUNNER_ENTRY_RATE = 72.0
 
 
 @dataclass(frozen=True)
@@ -174,11 +186,44 @@ def add_entry_actions(entry_rows: pd.DataFrame, artifact: dict[str, Any]) -> pd.
         }
     )
     scored["baseline_entry_action"] = policy_train.baseline_entry_action(scored)
+    scored["entry_policy_v2_action"] = entry_policy_v2_action(scored)
     return scored
 
 
+def entry_policy_v2_action(frame: pd.DataFrame) -> pd.Series:
+    """Recover winners by overriding v1 avoid/wait only when model risk is not decisive."""
+    model_action = frame.get("entry_model_action", pd.Series("", index=frame.index)).astype(str)
+    baseline_action = frame.get("baseline_entry_action", policy_train.baseline_entry_action(frame)).astype(str)
+    avoid_prob = pd.to_numeric(frame.get("policy_prob_avoid_bad_entry", pd.Series(np.nan, index=frame.index)), errors="coerce")
+    enter_prob = pd.to_numeric(frame.get("policy_prob_enter_now", pd.Series(np.nan, index=frame.index)), errors="coerce")
+    ret_from_open = pd.to_numeric(frame.get("return_from_open_pct", pd.Series(np.nan, index=frame.index)), errors="coerce")
+    mae_from_open = pd.to_numeric(frame.get("mae_from_open_pct", pd.Series(np.nan, index=frame.index)), errors="coerce")
+
+    winner_preserve = (
+        baseline_action.eq("enter_now")
+        & avoid_prob.le(ENTRY_V2_MAX_AVOID_PROB)
+        & (avoid_prob - enter_prob).le(ENTRY_V2_MAX_RISK_ENTER_GAP)
+        & enter_prob.ge(ENTRY_V2_MIN_ENTER_PROB)
+        & ret_from_open.ge(ENTRY_V2_MIN_RETURN_FROM_OPEN_PCT)
+        & mae_from_open.ge(ENTRY_V2_MIN_MAE_FROM_OPEN_PCT)
+    )
+    enter_now = model_action.eq("enter_now") | winner_preserve
+    avoid = model_action.eq("avoid_bad_entry") & ~winner_preserve
+    return pd.Series(np.select([enter_now, avoid], ["enter_now", "avoid_bad_entry"], default="wait"), index=frame.index)
+
+
+def entry_action_column(variant: str) -> str:
+    if variant == "model_policy":
+        return "entry_model_action"
+    if variant == ENTRY_POLICY_V2_VARIANT:
+        return "entry_policy_v2_action"
+    if variant == "baseline_rules":
+        return "baseline_entry_action"
+    raise ValueError(f"unknown replay variant: {variant}")
+
+
 def selected_entries(entry_rows: pd.DataFrame, *, variant: str) -> pd.DataFrame:
-    action_col = "entry_model_action" if variant == "model_policy" else "baseline_entry_action"
+    action_col = entry_action_column(variant)
     rows: list[dict[str, Any]] = []
     for opportunity_id, group in entry_rows.groupby("opportunity_id", sort=False):
         candidate = group.sort_values("checkpoint_order")
@@ -299,8 +344,8 @@ def add_management_actions(management_rows: pd.DataFrame, artifact: dict[str, An
         return management_rows.copy()
     scored = management_rows.copy()
     scored["baseline_management_action"] = policy_train.baseline_management_action(scored)
-    model_rows = scored[scored["variant"].eq("model_policy")].copy()
-    other_rows = scored[~scored["variant"].eq("model_policy")].copy()
+    model_rows = scored[scored["variant"].isin(MODEL_MANAGED_VARIANTS)].copy()
+    other_rows = scored[~scored["variant"].isin(MODEL_MANAGED_VARIANTS)].copy()
     if not model_rows.empty:
         model_scored = score_policy_rows(model_rows, artifact, "management_policy").rename(
             columns={
@@ -345,7 +390,7 @@ def finalize_candidate_outcomes(selected: pd.DataFrame, management_rows: pd.Data
             row.update({"entered": False, "skip_reason": "missing_intraday_bars_after_entry"})
             rows.append(row)
             continue
-        if row["variant"] == "model_policy":
+        if row["variant"] in MODEL_MANAGED_VARIANTS:
             action_col = "management_model_action"
             available_col = "management_model_available"
             action_rows = group[group[available_col].astype(bool)].copy()
@@ -501,20 +546,66 @@ def _markdown_table(frame: pd.DataFrame, columns: list[str], *, limit: int | Non
 def _summary_read(summary: pd.DataFrame) -> list[str]:
     if summary.empty or not {"model_policy", "baseline_rules"}.issubset(set(summary["variant"])):
         return ["- Not enough variant coverage to compare model policy against baseline rules."]
-    model = summary[summary["variant"].eq("model_policy")].iloc[0]
     baseline = summary[summary["variant"].eq("baseline_rules")].iloc[0]
-    bad_delta = float(model["bad_entry_rate_pct"]) - float(baseline["bad_entry_rate_pct"])
-    optimal_delta = float(model["optimal_entry_rate_pct"]) - float(baseline["optimal_entry_rate_pct"])
-    runner_delta = float(model["runner_entry_rate_pct"]) - float(baseline["runner_entry_rate_pct"])
-    return_delta = float(model["sum_intraday_ret_pct"]) - float(baseline["sum_intraday_ret_pct"])
-    avg_delta = float(model["avg_intraday_ret_pct"]) - float(baseline["avg_intraday_ret_pct"])
-    return [
-        f"- Model trades `{int(model['trades'])}` candidates versus baseline `{int(baseline['trades'])}`.",
-        f"- Bad-entry rate changes by `{bad_delta:.3f}` points versus baseline.",
-        f"- Optimal-entry rate changes by `{optimal_delta:.3f}` points; runner-entry rate changes by `{runner_delta:.3f}` points.",
-        f"- Same-day summed return changes by `{return_delta:.4f}` points; average trade return changes by `{avg_delta:.4f}` points.",
-        "- Read: useful diagnostic signal, not a promotion result until replayed through local LEAN order semantics.",
-    ]
+    lines: list[str] = []
+    for variant in ("model_policy", ENTRY_POLICY_V2_VARIANT):
+        if variant not in set(summary["variant"]):
+            continue
+        row = summary[summary["variant"].eq(variant)].iloc[0]
+        bad_delta = float(row["bad_entry_rate_pct"]) - float(baseline["bad_entry_rate_pct"])
+        optimal_delta = float(row["optimal_entry_rate_pct"]) - float(baseline["optimal_entry_rate_pct"])
+        runner_delta = float(row["runner_entry_rate_pct"]) - float(baseline["runner_entry_rate_pct"])
+        return_delta = float(row["sum_intraday_ret_pct"]) - float(baseline["sum_intraday_ret_pct"])
+        avg_delta = float(row["avg_intraday_ret_pct"]) - float(baseline["avg_intraday_ret_pct"])
+        lines.extend(
+            [
+                f"- `{variant}` trades `{int(row['trades'])}` candidates versus baseline `{int(baseline['trades'])}`.",
+                f"- `{variant}` bad-entry rate changes by `{bad_delta:.3f}` points versus baseline.",
+                f"- `{variant}` optimal-entry rate changes by `{optimal_delta:.3f}` points; runner-entry rate changes by `{runner_delta:.3f}` points.",
+                f"- `{variant}` same-day summed return changes by `{return_delta:.4f}` points; average trade return changes by `{avg_delta:.4f}` points.",
+            ]
+        )
+    gate = promotion_gate(summary, variant=ENTRY_POLICY_V2_VARIANT)
+    lines.append(
+        f"- Promotion gate for `{ENTRY_POLICY_V2_VARIANT}`: `{gate['status']}` "
+        f"(bad delta `{gate['bad_entry_delta_pct']}`, optimal capture `{gate['optimal_entry_rate_pct']}`, "
+        f"runner capture `{gate['runner_entry_rate_pct']}`)."
+    )
+    lines.append("- Read: useful diagnostic signal, not a promotion result until replayed through local LEAN order semantics.")
+    return lines
+
+
+def promotion_gate(summary: pd.DataFrame, *, variant: str) -> dict[str, Any]:
+    if summary.empty or variant not in set(summary["variant"]) or "baseline_rules" not in set(summary["variant"]):
+        return {
+            "variant": variant,
+            "status": "missing_metrics",
+            "bad_entry_delta_pct": None,
+            "optimal_entry_rate_pct": None,
+            "runner_entry_rate_pct": None,
+        }
+    baseline = summary[summary["variant"].eq("baseline_rules")].iloc[0]
+    row = summary[summary["variant"].eq(variant)].iloc[0]
+    bad_delta = round(float(row["bad_entry_rate_pct"]) - float(baseline["bad_entry_rate_pct"]), 3)
+    optimal_rate = round(float(row["optimal_entry_rate_pct"]), 3)
+    runner_rate = round(float(row["runner_entry_rate_pct"]), 3)
+    passed = (
+        bad_delta <= PROMOTION_MAX_BAD_ENTRY_RATE_DELTA
+        and optimal_rate >= PROMOTION_MIN_OPTIMAL_ENTRY_RATE
+        and runner_rate >= PROMOTION_MIN_RUNNER_ENTRY_RATE
+    )
+    return {
+        "variant": variant,
+        "status": "promote" if passed else "iterate",
+        "bad_entry_delta_pct": bad_delta,
+        "optimal_entry_rate_pct": optimal_rate,
+        "runner_entry_rate_pct": runner_rate,
+        "thresholds": {
+            "max_bad_entry_rate_delta": PROMOTION_MAX_BAD_ENTRY_RATE_DELTA,
+            "min_optimal_entry_rate": PROMOTION_MIN_OPTIMAL_ENTRY_RATE,
+            "min_runner_entry_rate": PROMOTION_MIN_RUNNER_ENTRY_RATE,
+        },
+    }
 
 
 def write_outputs(
@@ -611,6 +702,14 @@ def write_outputs(
         "issue": "https://github.com/FALK-BRAUER/kumo-qc/issues/490",
         "replay_version": REPLAY_VERSION,
         "config": asdict(config),
+        "entry_policy_v2": {
+            "max_avoid_prob": ENTRY_V2_MAX_AVOID_PROB,
+            "max_risk_enter_gap": ENTRY_V2_MAX_RISK_ENTER_GAP,
+            "min_enter_prob": ENTRY_V2_MIN_ENTER_PROB,
+            "min_return_from_open_pct": ENTRY_V2_MIN_RETURN_FROM_OPEN_PCT,
+            "min_mae_from_open_pct": ENTRY_V2_MIN_MAE_FROM_OPEN_PCT,
+        },
+        "promotion_gate": promotion_gate(summary, variant=ENTRY_POLICY_V2_VARIANT),
         "outputs": {
             "candidate_outcomes.csv.gz": {"rows": int(len(outcomes))},
             "trade_ledger.csv.gz": {"rows": int(len(trade_ledger))},

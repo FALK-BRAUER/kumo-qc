@@ -44,6 +44,9 @@ macOS keychain at runtime.
 - **Scanner entry research:** `analyze_scanner_entry_triggers.py` consumes the #464 path labels and
   compares leakage-safe next-open rank/score/gap/source gates for #465. It does not replay alternate
   first-hour, breakout, or pullback entry prices; that is the next extension once simple gates are measured.
+- **Intraday policy replay:** `replay_intraday_entry_exit_policy.py` evaluates #490 entry/management
+  policies against same-day checkpoint economics. It compares baseline rules, v1 argmax policy actions,
+  and the v2 winner-preservation threshold layer over the v1 entry probabilities.
 - **Sweep analysis:** `analyze_408_george_range_30.py` regenerates confidence tables, indicator
   ranges, and Markdown analysis from the George-range aggregate CSVs. `analyze_416_george_context_trades.py`
   reads completed #416 LEAN result JSONs and writes per-variant, per-symbol, and baseline-delta
