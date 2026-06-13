@@ -1,0 +1,44 @@
+{
+  "generated_at": "2026-06-13T04:55:10.932787+00:00",
+  "issue": "https://github.com/FALK-BRAUER/kumo-qc/issues/489",
+  "config": {
+    "panel": "/Users/falk/projects/kumo-qc-489-george-scanner-trade-universe/sweeps/reports/scanner_opportunity_panel_463/opportunity_panel.csv.gz",
+    "entry_labels": "/Users/falk/projects/kumo-qc-489-george-scanner-trade-universe/sweeps/reports/scanner_entry_replay_465/alternate_entry_labels.csv.gz",
+    "exit_labels": "/Users/falk/projects/kumo-qc-489-george-scanner-trade-universe/sweeps/reports/scanner_exit_policies_466/exit_policy_labels.csv.gz",
+    "output_dir": "/Users/falk/projects/kumo-qc-489-george-scanner-trade-universe/sweeps/reports/george_scanner_trade_universe_489",
+    "limit": null,
+    "classification_version": "george_scanner_trade_universe_v1",
+    "training_min_class_rows": 100
+  },
+  "training_readiness": {
+    "min_class_rows": 100,
+    "optimal_rows": 59,
+    "bad_rows": 239,
+    "ready_for_george_model": false,
+    "status": "insufficient_labeled_examples"
+  },
+  "outputs": {
+    "george_scanner_trade_universe.csv.gz": {
+      "rows": 712
+    },
+    "george_optimal_trades.csv": {
+      "rows": 59
+    },
+    "george_bad_trades.csv": {
+      "rows": 239
+    },
+    "george_watch_trades.csv": {
+      "rows": 414
+    },
+    "george_source_summary.csv": {
+      "rows": 3
+    },
+    "george_coverage_summary.csv": {
+      "rows": 12
+    },
+    "george_reason_code_summary.csv": {
+      "rows": 25
+    },
+    "george_scanner_trade_universe_report.md": {}
+  }
+}

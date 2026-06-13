@@ -44,6 +44,9 @@ macOS keychain at runtime.
 - **Scanner entry research:** `analyze_scanner_entry_triggers.py` consumes the #464 path labels and
   compares leakage-safe next-open rank/score/gap/source gates for #465. It does not replay alternate
   first-hour, breakout, or pullback entry prices; that is the next extension once simple gates are measured.
+- **Scanner trade universes:** `build_scanner_trade_universe.py` synthesizes the #482 Kumo-centered
+  optimal/bad/watch universe. `build_george_scanner_trade_universe.py` builds the #489 George-first
+  scanner/watchlist universe without treating George video-only context as scanner evidence.
 - **Sweep analysis:** `analyze_408_george_range_30.py` regenerates confidence tables, indicator
   ranges, and Markdown analysis from the George-range aggregate CSVs. `analyze_416_george_context_trades.py`
   reads completed #416 LEAN result JSONs and writes per-variant, per-symbol, and baseline-delta

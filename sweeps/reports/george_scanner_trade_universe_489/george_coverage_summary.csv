@@ -1,0 +1,13 @@
+category,opportunities,included_in_universe,trainable_scanner_evidence,with_entry_labels,with_exit_policy_labels,in_universe,note
+all_panel_opportunities,313332,False,False,26124,23455,712,Full #463 denominator.
+george_scanner_or_watchlist_candidates,712,True,True,712,302,712,Rows where george_scanner_positive or george_watchlist is true.
+george_scanner_positive,511,True,True,511,302,511,Scanner-positive subset.
+george_watchlist,201,True,True,201,0,201,Watchlist subset.
+both_george_and_kumo,366,True,True,366,149,366,George evidence overlaps Kumo scanner.
+george_only,290,True,True,290,153,290,George evidence with no Kumo scanner flag.
+george_with_video_context,56,True,True,56,0,56,George scanner/watchlist evidence plus video context.
+video_only_context_excluded,5565,False,False,595,562,0,George video mention without scanner/watchlist evidence; excluded from trainable universe.
+non_george_context_excluded,307055,False,False,24817,22591,0,No George scanner/watchlist or video context.
+candidate_missing_entry_labels,0,False,False,0,0,0,George candidates lacking #465 realistic-entry labels.
+candidate_missing_exit_policy_labels,410,False,False,410,0,410,George candidates lacking #466 exit-policy labels.
+universe_no_realistic_entry,410,True,True,410,0,410,Included candidates with no realistic entry trigger; labeled watch.

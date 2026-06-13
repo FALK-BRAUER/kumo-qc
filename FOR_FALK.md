@@ -1,5 +1,35 @@
 # FOR_FALK - BCT/George scanner-alignment implementation pass, 2026-06-09
 
+## #489 George-first scanner trade universe, 2026-06-13
+
+Goal: build the fair George scanner/watchlist denominator for optimal/bad/watch labels without
+reusing the Kumo-centered #482 universe or #492 Kumo ranker as George evidence.
+
+What changed:
+- Added `scripts/build_george_scanner_trade_universe.py`.
+- Added focused tests in `tests/scripts/test_build_george_scanner_trade_universe.py`.
+- Generated the #489 artifact under `sweeps/reports/george_scanner_trade_universe_489/`.
+
+Rules enforced:
+- Candidate denominator is `george_scanner_positive OR george_watchlist` from the #463 panel.
+- `george_video_mention` is context only; video-only rows are excluded from the trainable universe.
+- #465 realistic-entry labels and #466 deployable exit-policy labels are attached with the same
+  meaning used by #482.
+- Kumo rank/score/model fields are not required and are not used for classification.
+- No #492 scan-time Kumo ranker predictions are joined.
+
+Generated counts:
+- Trade buckets: `59` optimal, `239` bad, `414` watch, `712` total.
+- Source buckets: `366` both George and Kumo, `290` George-only, `56` George with video context.
+- Coverage gaps: `0` George candidates missing #465 entry labels; `410` candidates missing #466
+  exit-policy labels because they had no realistic entry trigger and are labeled watch.
+- Video-only context excluded: `5,565` #463 panel rows, including `595` rows with #465 entry labels.
+
+Decision:
+- #489 artifact is complete as a fair George-first label universe.
+- #483 George-only training is not unblocked under the documented pragmatic threshold of at least
+  `100` optimal and `100` bad examples: George has only `59` optimal rows, despite `239` bad rows.
+
 ## #490 intraday entry/exit policy baseline, 2026-06-12
 
 Goal: train the later-stage policy for the real deployment question: given a ranked scanner
