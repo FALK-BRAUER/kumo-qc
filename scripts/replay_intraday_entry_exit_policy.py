@@ -26,10 +26,12 @@ DEFAULT_PANEL = policy_train.DEFAULT_PANEL
 DEFAULT_MODEL = policy_train.DEFAULT_OUTPUT_DIR / "model_artifact.json"
 DEFAULT_PARQUET_ROOT = decision_panel.DEFAULT_PARQUET_ROOT
 DEFAULT_OUTPUT_DIR = ROOT / "sweeps" / "reports" / "intraday_policy_replay_490"
+DEFAULT_SCAN_TIME_PREDICTIONS = ROOT / "sweeps" / "reports" / "scan_time_scanner_ranker_492" / "oof_predictions.csv.gz"
 REPLAY_VERSION = "intraday_policy_replay_490_v1"
 ENTRY_POLICY_V2_VARIANT = "entry_policy_v2"
-VARIANTS = ("model_policy", ENTRY_POLICY_V2_VARIANT, "baseline_rules")
-MODEL_MANAGED_VARIANTS = {"model_policy", ENTRY_POLICY_V2_VARIANT}
+ENTRY_POLICY_V3_VARIANT = "entry_policy_v3"
+VARIANTS = ("model_policy", ENTRY_POLICY_V2_VARIANT, ENTRY_POLICY_V3_VARIANT, "baseline_rules")
+MODEL_MANAGED_VARIANTS = {"model_policy", ENTRY_POLICY_V2_VARIANT, ENTRY_POLICY_V3_VARIANT}
 EXIT_ACTIONS = {"exit_loser", "scratch_or_reduce", "protect_profit"}
 CHECKPOINT_ORDER = {name: idx for idx, (name, _time_text) in enumerate(decision_panel.CHECKPOINTS)}
 
@@ -38,6 +40,19 @@ ENTRY_V2_MAX_RISK_ENTER_GAP = 0.10
 ENTRY_V2_MIN_ENTER_PROB = 0.0
 ENTRY_V2_MIN_RETURN_FROM_OPEN_PCT = 0.0
 ENTRY_V2_MIN_MAE_FROM_OPEN_PCT = -3.0
+
+ENTRY_V3_MAX_AVOID_PROB = 0.40
+ENTRY_V3_MIN_RETURN_FROM_OPEN_PCT = 0.0
+ENTRY_V3_MIN_MAE_FROM_OPEN_PCT = -3.0
+ENTRY_V3_MIN_SCAN_OPTIMAL_SCORE = 0.15
+ENTRY_V3_MAX_SCAN_BAD_RISK_SCORE = -0.20
+SCAN_TIME_PRIOR_COLUMNS = (
+    "oof_available_492",
+    "model_492_optimal_score",
+    "model_492_bad_risk_score",
+    "model_492_risk_avoidance_score",
+    "model_492_combined_score",
+)
 
 PROMOTION_MAX_BAD_ENTRY_RATE_DELTA = -15.0
 PROMOTION_MIN_OPTIMAL_ENTRY_RATE = 70.0
@@ -49,6 +64,7 @@ class ReplayConfig:
     panel: str
     model_artifact: str
     parquet_root: str
+    scan_time_predictions: str
     output_dir: str
     limit_opportunities: int | None
     variants: tuple[str, ...]
@@ -59,6 +75,7 @@ def _args() -> argparse.Namespace:
     parser.add_argument("--panel", type=Path, default=DEFAULT_PANEL)
     parser.add_argument("--model-artifact", type=Path, default=DEFAULT_MODEL)
     parser.add_argument("--parquet-root", type=Path, default=DEFAULT_PARQUET_ROOT)
+    parser.add_argument("--scan-time-predictions", type=Path, default=DEFAULT_SCAN_TIME_PREDICTIONS)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--limit-opportunities", type=int, default=None)
     parser.add_argument("--variants", nargs="+", choices=VARIANTS, default=list(VARIANTS))
@@ -171,6 +188,28 @@ def read_entry_rows(panel_path: Path, *, limit_opportunities: int | None = None)
     return entry.sort_values(["entry_session_date", "opportunity_id", "checkpoint_order"]).reset_index(drop=True)
 
 
+def read_scan_time_predictions(path: Path) -> pd.DataFrame:
+    if not path.exists():
+        raise FileNotFoundError(path)
+    frame = pd.read_csv(path)
+    required = {"opportunity_id", *SCAN_TIME_PRIOR_COLUMNS}
+    missing = sorted(required - set(frame.columns))
+    if missing:
+        raise ValueError(f"scan-time predictions missing columns: {missing}")
+    return frame.loc[:, ["opportunity_id", *SCAN_TIME_PRIOR_COLUMNS]].drop_duplicates("opportunity_id")
+
+
+def add_scan_time_priors(entry_rows: pd.DataFrame, scan_time_predictions_path: Path) -> pd.DataFrame:
+    priors = read_scan_time_predictions(scan_time_predictions_path)
+    out = entry_rows.merge(priors, on="opportunity_id", how="left")
+    out["oof_available_492"] = _bool_series(out.get("oof_available_492", pd.Series(False, index=out.index)))
+    for column in SCAN_TIME_PRIOR_COLUMNS:
+        if column == "oof_available_492":
+            continue
+        out[column] = pd.to_numeric(out.get(column, pd.Series(np.nan, index=out.index)), errors="coerce")
+    return out
+
+
 def _bool_series(series: pd.Series) -> pd.Series:
     return series.astype(str).str.strip().str.lower().isin({"1", "true", "yes", "y"})
 
@@ -187,6 +226,7 @@ def add_entry_actions(entry_rows: pd.DataFrame, artifact: dict[str, Any]) -> pd.
     )
     scored["baseline_entry_action"] = policy_train.baseline_entry_action(scored)
     scored["entry_policy_v2_action"] = entry_policy_v2_action(scored)
+    scored["entry_policy_v3_action"] = entry_policy_v3_action(scored)
     return scored
 
 
@@ -212,11 +252,40 @@ def entry_policy_v2_action(frame: pd.DataFrame) -> pd.Series:
     return pd.Series(np.select([enter_now, avoid], ["enter_now", "avoid_bad_entry"], default="wait"), index=frame.index)
 
 
+def entry_policy_v3_action(frame: pd.DataFrame) -> pd.Series:
+    """Extend v2 only for scan-confirmed winner recovery; never discard v2 winners."""
+    model_action = frame.get("entry_model_action", pd.Series("", index=frame.index)).astype(str)
+    baseline_action = frame.get("baseline_entry_action", policy_train.baseline_entry_action(frame)).astype(str)
+    v2_action = frame.get("entry_policy_v2_action", entry_policy_v2_action(frame)).astype(str)
+    avoid_prob = pd.to_numeric(frame.get("policy_prob_avoid_bad_entry", pd.Series(np.nan, index=frame.index)), errors="coerce")
+    ret_from_open = pd.to_numeric(frame.get("return_from_open_pct", pd.Series(np.nan, index=frame.index)), errors="coerce")
+    mae_from_open = pd.to_numeric(frame.get("mae_from_open_pct", pd.Series(np.nan, index=frame.index)), errors="coerce")
+    scan_oof = _bool_series(frame.get("oof_available_492", pd.Series(False, index=frame.index)))
+    scan_optimal_score = pd.to_numeric(frame.get("model_492_optimal_score", pd.Series(np.nan, index=frame.index)), errors="coerce")
+    scan_bad_risk_score = pd.to_numeric(frame.get("model_492_bad_risk_score", pd.Series(np.nan, index=frame.index)), errors="coerce")
+
+    scan_recovery = (
+        v2_action.ne("enter_now")
+        & baseline_action.eq("enter_now")
+        & avoid_prob.le(ENTRY_V3_MAX_AVOID_PROB)
+        & ret_from_open.ge(ENTRY_V3_MIN_RETURN_FROM_OPEN_PCT)
+        & mae_from_open.ge(ENTRY_V3_MIN_MAE_FROM_OPEN_PCT)
+        & scan_oof
+        & scan_optimal_score.ge(ENTRY_V3_MIN_SCAN_OPTIMAL_SCORE)
+        & scan_bad_risk_score.le(ENTRY_V3_MAX_SCAN_BAD_RISK_SCORE)
+    )
+    enter_now = v2_action.eq("enter_now") | scan_recovery
+    avoid = model_action.eq("avoid_bad_entry") & ~enter_now
+    return pd.Series(np.select([enter_now, avoid], ["enter_now", "avoid_bad_entry"], default="wait"), index=frame.index)
+
+
 def entry_action_column(variant: str) -> str:
     if variant == "model_policy":
         return "entry_model_action"
     if variant == ENTRY_POLICY_V2_VARIANT:
         return "entry_policy_v2_action"
+    if variant == ENTRY_POLICY_V3_VARIANT:
+        return "entry_policy_v3_action"
     if variant == "baseline_rules":
         return "baseline_entry_action"
     raise ValueError(f"unknown replay variant: {variant}")
@@ -268,6 +337,12 @@ def selected_entries(entry_rows: pd.DataFrame, *, variant: str) -> pd.DataFrame:
                 "entry_action": entry.get(action_col, ""),
                 "entry_confidence": _round(entry.get("entry_model_confidence")),
                 "entry_model_fold": entry.get("entry_model_fold", np.nan),
+                "entry_policy_prob_avoid_bad_entry": _round(entry.get("policy_prob_avoid_bad_entry")),
+                "entry_policy_prob_enter_now": _round(entry.get("policy_prob_enter_now")),
+                "entry_scan_time_oof_available": bool(entry.get("oof_available_492", False)),
+                "entry_scan_time_optimal_score": _round(entry.get("model_492_optimal_score")),
+                "entry_scan_time_bad_risk_score": _round(entry.get("model_492_bad_risk_score")),
+                "entry_scan_time_combined_score": _round(entry.get("model_492_combined_score")),
             }
         )
         rows.append(row)
@@ -548,7 +623,7 @@ def _summary_read(summary: pd.DataFrame) -> list[str]:
         return ["- Not enough variant coverage to compare model policy against baseline rules."]
     baseline = summary[summary["variant"].eq("baseline_rules")].iloc[0]
     lines: list[str] = []
-    for variant in ("model_policy", ENTRY_POLICY_V2_VARIANT):
+    for variant in ("model_policy", ENTRY_POLICY_V2_VARIANT, ENTRY_POLICY_V3_VARIANT):
         if variant not in set(summary["variant"]):
             continue
         row = summary[summary["variant"].eq(variant)].iloc[0]
@@ -565,12 +640,15 @@ def _summary_read(summary: pd.DataFrame) -> list[str]:
                 f"- `{variant}` same-day summed return changes by `{return_delta:.4f}` points; average trade return changes by `{avg_delta:.4f}` points.",
             ]
         )
-    gate = promotion_gate(summary, variant=ENTRY_POLICY_V2_VARIANT)
-    lines.append(
-        f"- Promotion gate for `{ENTRY_POLICY_V2_VARIANT}`: `{gate['status']}` "
-        f"(bad delta `{gate['bad_entry_delta_pct']}`, optimal capture `{gate['optimal_entry_rate_pct']}`, "
-        f"runner capture `{gate['runner_entry_rate_pct']}`)."
-    )
+    for variant in (ENTRY_POLICY_V2_VARIANT, ENTRY_POLICY_V3_VARIANT):
+        if variant not in set(summary["variant"]):
+            continue
+        gate = promotion_gate(summary, variant=variant)
+        lines.append(
+            f"- Promotion gate for `{variant}`: `{gate['status']}` "
+            f"(bad delta `{gate['bad_entry_delta_pct']}`, optimal capture `{gate['optimal_entry_rate_pct']}`, "
+            f"runner capture `{gate['runner_entry_rate_pct']}`)."
+        )
     lines.append("- Read: useful diagnostic signal, not a promotion result until replayed through local LEAN order semantics.")
     return lines
 
@@ -647,6 +725,7 @@ def write_outputs(
         "",
         f"- Panel: `{config.panel}`",
         f"- Model artifact: `{config.model_artifact}`",
+        f"- Scan-time predictions: `{config.scan_time_predictions}`",
         f"- Parquet root: `{config.parquet_root}`",
         "",
         "## Summary",
@@ -709,7 +788,18 @@ def write_outputs(
             "min_return_from_open_pct": ENTRY_V2_MIN_RETURN_FROM_OPEN_PCT,
             "min_mae_from_open_pct": ENTRY_V2_MIN_MAE_FROM_OPEN_PCT,
         },
-        "promotion_gate": promotion_gate(summary, variant=ENTRY_POLICY_V2_VARIANT),
+        "entry_policy_v3": {
+            "max_avoid_prob": ENTRY_V3_MAX_AVOID_PROB,
+            "min_return_from_open_pct": ENTRY_V3_MIN_RETURN_FROM_OPEN_PCT,
+            "min_mae_from_open_pct": ENTRY_V3_MIN_MAE_FROM_OPEN_PCT,
+            "min_scan_optimal_score": ENTRY_V3_MIN_SCAN_OPTIMAL_SCORE,
+            "max_scan_bad_risk_score": ENTRY_V3_MAX_SCAN_BAD_RISK_SCORE,
+        },
+        "promotion_gate": promotion_gate(summary, variant=ENTRY_POLICY_V3_VARIANT),
+        "promotion_gates": {
+            ENTRY_POLICY_V2_VARIANT: promotion_gate(summary, variant=ENTRY_POLICY_V2_VARIANT),
+            ENTRY_POLICY_V3_VARIANT: promotion_gate(summary, variant=ENTRY_POLICY_V3_VARIANT),
+        },
         "outputs": {
             "candidate_outcomes.csv.gz": {"rows": int(len(outcomes))},
             "trade_ledger.csv.gz": {"rows": int(len(trade_ledger))},
@@ -738,6 +828,7 @@ def run(
     panel_path: Path = DEFAULT_PANEL,
     model_artifact_path: Path = DEFAULT_MODEL,
     parquet_root: Path = DEFAULT_PARQUET_ROOT,
+    scan_time_predictions_path: Path = DEFAULT_SCAN_TIME_PREDICTIONS,
     output_dir: Path = DEFAULT_OUTPUT_DIR,
     limit_opportunities: int | None = None,
     variants: Sequence[str] = VARIANTS,
@@ -746,6 +837,7 @@ def run(
         panel=str(panel_path),
         model_artifact=str(model_artifact_path),
         parquet_root=str(parquet_root),
+        scan_time_predictions=str(scan_time_predictions_path),
         output_dir=str(output_dir),
         limit_opportunities=limit_opportunities,
         variants=tuple(variants),
@@ -753,6 +845,9 @@ def run(
     artifact = read_model_artifact(model_artifact_path)
     entry_rows = read_entry_rows(panel_path, limit_opportunities=limit_opportunities)
     print(f"loaded entry rows={len(entry_rows)} opportunities={entry_rows['opportunity_id'].nunique()}", file=sys.stderr, flush=True)
+    if ENTRY_POLICY_V3_VARIANT in variants:
+        entry_rows = add_scan_time_priors(entry_rows, scan_time_predictions_path)
+        print(f"joined scan-time #492 priors from {scan_time_predictions_path}", file=sys.stderr, flush=True)
     entry_rows = add_entry_actions(entry_rows, artifact)
     selected = pd.concat([selected_entries(entry_rows, variant=variant) for variant in variants], ignore_index=True)
     print(f"selected rows={len(selected)} trades={int(selected['entered'].astype(bool).sum())}", file=sys.stderr, flush=True)
@@ -784,6 +879,7 @@ def main() -> None:
         panel_path=args.panel,
         model_artifact_path=args.model_artifact,
         parquet_root=args.parquet_root,
+        scan_time_predictions_path=args.scan_time_predictions,
         output_dir=args.output_dir,
         limit_opportunities=args.limit_opportunities,
         variants=tuple(args.variants),

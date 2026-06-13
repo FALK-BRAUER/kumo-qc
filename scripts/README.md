@@ -46,7 +46,8 @@ macOS keychain at runtime.
   first-hour, breakout, or pullback entry prices; that is the next extension once simple gates are measured.
 - **Intraday policy replay:** `replay_intraday_entry_exit_policy.py` evaluates #490 entry/management
   policies against same-day checkpoint economics. It compares baseline rules, v1 argmax policy actions,
-  and the v2 winner-preservation threshold layer over the v1 entry probabilities.
+  the v2 winner-preservation threshold layer over v1 entry probabilities, and v3 scan-time winner
+  recovery using #492 OOF priors. v3 is diagnostic only unless its manifest promotion gate passes.
 - **Sweep analysis:** `analyze_408_george_range_30.py` regenerates confidence tables, indicator
   ranges, and Markdown analysis from the George-range aggregate CSVs. `analyze_416_george_context_trades.py`
   reads completed #416 LEAN result JSONs and writes per-variant, per-symbol, and baseline-delta
