@@ -1,0 +1,4 @@
+source_bucket,opportunities,dates,symbols,triggered_rows,deployable_exit_rows,optimal_rows,bad_rows,watch_rows,video_context_rows,missing_kumo_rank_rows,missing_kumo_score_rows,avg_best_entry_ret20_pct,avg_best_entry_mae20_pct,avg_best_deployable_exit_total40_pct,trigger_rate_pct,deployable_exit_coverage_pct,optimal_pct,bad_pct,watch_pct,missing_kumo_rank_pct,missing_kumo_score_pct
+both_george_and_kumo,366,60,232,149,149,30,118,218,8,193,0,0.9335,-8.6287,4.2028,40.71,40.71,8.197,32.24,59.563,52.732,0.0
+george_only,290,49,199,153,153,29,121,140,0,290,290,0.2784,-10.2069,5.897,52.759,52.759,10.0,41.724,48.276,100.0,100.0
+george_with_video_context,56,2,54,0,0,0,0,56,56,56,56,,,,0.0,0.0,0.0,0.0,100.0,100.0,100.0
