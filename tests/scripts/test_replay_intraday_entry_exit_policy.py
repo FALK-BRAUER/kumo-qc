@@ -153,6 +153,52 @@ def test_entry_policy_v2_keeps_avoid_when_risk_is_decisive() -> None:
     assert action.loc[0] == "avoid_bad_entry"
 
 
+def test_entry_policy_v3_preserves_scan_confirmed_winner() -> None:
+    rows = pd.DataFrame(
+        [
+            _entry_row(
+                entry_model_action="avoid_bad_entry",
+                baseline_entry_action="enter_now",
+                entry_policy_v2_action="avoid_bad_entry",
+                policy_prob_avoid_bad_entry=0.38,
+                policy_prob_enter_now=0.26,
+                return_from_open_pct=0.4,
+                mae_from_open_pct=-0.4,
+                oof_available_492=True,
+                model_492_optimal_score=0.20,
+                model_492_bad_risk_score=-0.30,
+            )
+        ]
+    )
+
+    action = M.entry_policy_v3_action(rows)
+
+    assert action.loc[0] == "enter_now"
+
+
+def test_entry_policy_v3_rejects_recovery_when_scan_bad_risk_is_not_clean() -> None:
+    rows = pd.DataFrame(
+        [
+            _entry_row(
+                entry_model_action="avoid_bad_entry",
+                baseline_entry_action="enter_now",
+                entry_policy_v2_action="avoid_bad_entry",
+                policy_prob_avoid_bad_entry=0.38,
+                policy_prob_enter_now=0.26,
+                return_from_open_pct=1.0,
+                mae_from_open_pct=-0.1,
+                oof_available_492=True,
+                model_492_optimal_score=0.45,
+                model_492_bad_risk_score=0.10,
+            )
+        ]
+    )
+
+    action = M.entry_policy_v3_action(rows)
+
+    assert action.loc[0] == "avoid_bad_entry"
+
+
 def test_selected_entries_supports_entry_policy_v2_variant() -> None:
     rows = pd.DataFrame(
         [
@@ -172,6 +218,31 @@ def test_selected_entries_supports_entry_policy_v2_variant() -> None:
 
     assert bool(selected.loc[0, "entered"]) is True
     assert selected.loc[0, "entry_checkpoint"] == "after_15m"
+
+
+def test_selected_entries_supports_entry_policy_v3_variant() -> None:
+    rows = pd.DataFrame(
+        [
+            _entry_row(checkpoint="open", checkpoint_order=0, entry_model_available=True, entry_policy_v3_action="wait"),
+            _entry_row(
+                checkpoint="after_15m",
+                checkpoint_order=1,
+                as_of_timestamp="2025-01-02 09:45:00",
+                entry_model_available=True,
+                entry_policy_v3_action="enter_now",
+                current_price=102.5,
+                oof_available_492=True,
+                model_492_optimal_score=0.4,
+                model_492_bad_risk_score=0.2,
+            ),
+        ]
+    )
+
+    selected = M.selected_entries(rows, variant=M.ENTRY_POLICY_V3_VARIANT)
+
+    assert bool(selected.loc[0, "entered"]) is True
+    assert selected.loc[0, "entry_checkpoint"] == "after_15m"
+    assert selected.loc[0, "entry_scan_time_optimal_score"] == 0.4
 
 
 def test_build_management_decision_rows_reconstructs_position_features(monkeypatch) -> None:

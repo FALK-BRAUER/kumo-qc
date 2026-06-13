@@ -1047,3 +1047,15 @@ Important mechanism: shrinking weaker-rank sizes can free cash and allow more en
 increased churn in the tail-tiny/top-heavy variants. Next useful slice is not "smaller tail"
 again; it is top50 balanced plus an entry-count cap, stricter rank>20 revalidation, or realized-exit
 overlay. No champion switch.
+
+## #490 Entry Policy v3 Follow-Up
+
+I pushed the #489 George universe PR and preserved #490 v2 as a draft benchmark, then built
+`codex/490-entry-policy-v3` as a corrected follow-up: v3 keeps every v2 winner-preservation entry and
+only adds scan-time-confirmed recoveries from the #492 OOF ranker priors.
+
+Replay result: v3 is **not promotable**. It recovers only 27 extra trades over v2. Optimal capture moves
+from `64.817%` to `64.940%`, while bad-entry rate worsens from `36.914%` to `37.057%`, leaving only a
+paper-thin `-15.008` point bad-entry delta versus baseline. The 70% optimal-capture gate is still far
+away. Conclusion: thresholding is exhausted; next useful work is an actual intraday entry/exit retrain
+with a winner-preservation objective or new intraday signal, not more scanner/rule threshold tuning.

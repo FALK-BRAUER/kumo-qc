@@ -7,6 +7,10 @@ entry_policy_v2,scanner_source_bucket,both_george_and_kumo,362,98,27.072,34.746,
 entry_policy_v2,scanner_source_bucket,george_only,345,115,33.333,44.628,0.1732,42.609
 entry_policy_v2,scanner_source_bucket,kumo_only,20332,9058,44.55,36.464,0.0165,42.239
 entry_policy_v2,scanner_source_bucket,kumo_with_george_video_context,473,264,55.814,53.265,-0.123,40.152
+entry_policy_v3,scanner_source_bucket,both_george_and_kumo,362,98,27.072,34.746,0.3933,43.878
+entry_policy_v3,scanner_source_bucket,george_only,345,115,33.333,44.628,0.1732,42.609
+entry_policy_v3,scanner_source_bucket,kumo_only,20332,9085,44.683,36.613,0.0161,42.245
+entry_policy_v3,scanner_source_bucket,kumo_with_george_video_context,473,264,55.814,53.265,-0.123,40.152
 model_policy,scanner_source_bucket,both_george_and_kumo,362,95,26.243,32.203,0.4116,44.211
 model_policy,scanner_source_bucket,george_only,345,115,33.333,44.628,0.1732,42.609
 model_policy,scanner_source_bucket,kumo_only,20332,6995,34.404,30.82,0.0235,41.015

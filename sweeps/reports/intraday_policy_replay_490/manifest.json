@@ -1,16 +1,18 @@
 {
-  "generated_at": "2026-06-13T06:01:54.208465+00:00",
+  "generated_at": "2026-06-13T06:25:32.613255+00:00",
   "issue": "https://github.com/FALK-BRAUER/kumo-qc/issues/490",
   "replay_version": "intraday_policy_replay_490_v1",
   "config": {
-    "panel": "/Users/falk/projects/kumo-qc-490-entry-policy-v2/sweeps/reports/intraday_decision_panel_491/intraday_decision_panel.csv.gz",
-    "model_artifact": "/Users/falk/projects/kumo-qc-490-entry-policy-v2/sweeps/reports/intraday_entry_exit_policy_490/model_artifact.json",
+    "panel": "/Users/falk/projects/kumo-qc-490-entry-policy-v3/sweeps/reports/intraday_decision_panel_491/intraday_decision_panel.csv.gz",
+    "model_artifact": "/Users/falk/projects/kumo-qc-490-entry-policy-v3/sweeps/reports/intraday_entry_exit_policy_490/model_artifact.json",
     "parquet_root": "/Users/falk/projects/kumo-trader/data/intraday",
-    "output_dir": "/Users/falk/projects/kumo-qc-490-entry-policy-v2/sweeps/reports/intraday_policy_replay_490",
+    "scan_time_predictions": "/Users/falk/projects/kumo-qc-490-entry-policy-v3/sweeps/reports/scan_time_scanner_ranker_492/oof_predictions.csv.gz",
+    "output_dir": "/Users/falk/projects/kumo-qc-490-entry-policy-v3/sweeps/reports/intraday_policy_replay_490",
     "limit_opportunities": null,
     "variants": [
       "model_policy",
       "entry_policy_v2",
+      "entry_policy_v3",
       "baseline_rules"
     ]
   },
@@ -21,39 +23,72 @@
     "min_return_from_open_pct": 0.0,
     "min_mae_from_open_pct": -3.0
   },
+  "entry_policy_v3": {
+    "max_avoid_prob": 0.4,
+    "min_return_from_open_pct": 0.0,
+    "min_mae_from_open_pct": -3.0,
+    "min_scan_optimal_score": 0.15,
+    "max_scan_bad_risk_score": -0.2
+  },
   "promotion_gate": {
-    "variant": "entry_policy_v2",
+    "variant": "entry_policy_v3",
     "status": "iterate",
-    "bad_entry_delta_pct": -15.151,
-    "optimal_entry_rate_pct": 64.817,
-    "runner_entry_rate_pct": 76.121,
+    "bad_entry_delta_pct": -15.008,
+    "optimal_entry_rate_pct": 64.94,
+    "runner_entry_rate_pct": 76.322,
     "thresholds": {
       "max_bad_entry_rate_delta": -15.0,
       "min_optimal_entry_rate": 70.0,
       "min_runner_entry_rate": 72.0
     }
   },
+  "promotion_gates": {
+    "entry_policy_v2": {
+      "variant": "entry_policy_v2",
+      "status": "iterate",
+      "bad_entry_delta_pct": -15.151,
+      "optimal_entry_rate_pct": 64.817,
+      "runner_entry_rate_pct": 76.121,
+      "thresholds": {
+        "max_bad_entry_rate_delta": -15.0,
+        "min_optimal_entry_rate": 70.0,
+        "min_runner_entry_rate": 72.0
+      }
+    },
+    "entry_policy_v3": {
+      "variant": "entry_policy_v3",
+      "status": "iterate",
+      "bad_entry_delta_pct": -15.008,
+      "optimal_entry_rate_pct": 64.94,
+      "runner_entry_rate_pct": 76.322,
+      "thresholds": {
+        "max_bad_entry_rate_delta": -15.0,
+        "min_optimal_entry_rate": 70.0,
+        "min_runner_entry_rate": 72.0
+      }
+    }
+  },
   "outputs": {
     "candidate_outcomes.csv.gz": {
-      "rows": 78333
+      "rows": 104444
     },
     "trade_ledger.csv.gz": {
-      "rows": 30029
+      "rows": 39591
     },
     "management_decision_rows.csv.gz": {
-      "rows": 83581
+      "rows": 111062
     },
     "summary_metrics.csv": {
-      "rows": 3
+      "rows": 4
     },
     "grouped_metrics.csv": {
-      "rows": 48
+      "rows": 64
     },
     "source_bucket_metrics.csv": {
-      "rows": 12
+      "rows": 16
     },
     "month_metrics.csv": {
-      "rows": 36
+      "rows": 48
     },
     "intraday_policy_replay_report.md": {}
   }
