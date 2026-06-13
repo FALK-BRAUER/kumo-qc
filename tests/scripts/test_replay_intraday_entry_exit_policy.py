@@ -199,6 +199,65 @@ def test_entry_policy_v3_rejects_recovery_when_scan_bad_risk_is_not_clean() -> N
     assert action.loc[0] == "avoid_bad_entry"
 
 
+def test_dual_head_entry_action_enters_when_risk_winner_and_ready_agree() -> None:
+    rows = pd.DataFrame(
+        [
+            _entry_row(
+                baseline_entry_action="wait",
+                entry_bad_risk_available=True,
+                entry_winner_preservation_available=True,
+                entry_ready_available=True,
+                entry_bad_risk_prob_bad_entry_risk=0.30,
+                entry_winner_preservation_prob_winner_preserve=0.62,
+                entry_ready_prob_entry_ready=0.55,
+            )
+        ]
+    )
+
+    action = M.dual_head_entry_action(rows)
+
+    assert action.loc[0] == "enter_now"
+
+
+def test_dual_head_entry_action_avoids_when_bad_risk_dominates() -> None:
+    rows = pd.DataFrame(
+        [
+            _entry_row(
+                baseline_entry_action="enter_now",
+                entry_bad_risk_available=True,
+                entry_winner_preservation_available=True,
+                entry_ready_available=True,
+                entry_bad_risk_prob_bad_entry_risk=0.72,
+                entry_winner_preservation_prob_winner_preserve=0.40,
+                entry_ready_prob_entry_ready=0.60,
+            )
+        ]
+    )
+
+    action = M.dual_head_entry_action(rows)
+
+    assert action.loc[0] == "avoid_bad_entry"
+
+
+def test_dual_head_management_action_preserves_runner_before_exit_risk() -> None:
+    rows = pd.DataFrame(
+        [
+            _entry_row(
+                management_exit_risk_available=True,
+                management_runner_preservation_available=True,
+                management_exit_risk_prob_exit_risk=0.80,
+                management_runner_preservation_prob_runner_preserve=0.70,
+                position_current_return_pct=5.0,
+                position_drawdown_from_peak_pct=2.0,
+            )
+        ]
+    )
+
+    action = M.dual_head_management_action(rows)
+
+    assert action.loc[0] == "do_not_cut_runner"
+
+
 def test_selected_entries_supports_entry_policy_v2_variant() -> None:
     rows = pd.DataFrame(
         [
@@ -243,6 +302,31 @@ def test_selected_entries_supports_entry_policy_v3_variant() -> None:
     assert bool(selected.loc[0, "entered"]) is True
     assert selected.loc[0, "entry_checkpoint"] == "after_15m"
     assert selected.loc[0, "entry_scan_time_optimal_score"] == 0.4
+
+
+def test_selected_entries_supports_dual_head_variant() -> None:
+    rows = pd.DataFrame(
+        [
+            _entry_row(checkpoint="open", checkpoint_order=0, entry_model_available=True, dual_head_entry_action="wait"),
+            _entry_row(
+                checkpoint="after_15m",
+                checkpoint_order=1,
+                as_of_timestamp="2025-01-02 09:45:00",
+                entry_model_available=True,
+                dual_head_entry_action="enter_now",
+                current_price=102.5,
+                entry_bad_risk_prob_bad_entry_risk=0.2,
+                entry_winner_preservation_prob_winner_preserve=0.7,
+                entry_ready_prob_entry_ready=0.8,
+            ),
+        ]
+    )
+
+    selected = M.selected_entries(rows, variant=M.DUAL_HEAD_VARIANT)
+
+    assert bool(selected.loc[0, "entered"]) is True
+    assert selected.loc[0, "entry_checkpoint"] == "after_15m"
+    assert selected.loc[0, "entry_dual_winner_preserve_prob"] == 0.7
 
 
 def test_build_management_decision_rows_reconstructs_position_features(monkeypatch) -> None:

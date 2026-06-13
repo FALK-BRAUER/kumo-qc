@@ -1,0 +1,6 @@
+head_name,rows,positive_class,positive_rate_pct,accuracy_pct,macro_f1,positive_precision_pct,positive_recall_pct
+entry_bad_risk_head,129120,bad_entry_risk,58.611,61.317,0.5889,65.176,73.012
+entry_ready_head,129120,entry_ready,22.701,74.72,0.5755,40.588,24.496
+entry_winner_preservation_head,129120,winner_preserve,23.815,74.122,0.5896,43.302,28.003
+management_exit_risk_head,117372,exit_risk,66.701,67.652,0.6437,76.988,73.461
+management_runner_preservation_head,117372,runner_preserve,25.744,72.812,0.5795,45.122,25.947

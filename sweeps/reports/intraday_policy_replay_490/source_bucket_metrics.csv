@@ -3,6 +3,10 @@ baseline_rules,scanner_source_bucket,both_george_and_kumo,362,150,41.436,33.051,
 baseline_rules,scanner_source_bucket,george_only,345,0,0.0,0.0,0.0,0.0
 baseline_rules,scanner_source_bucket,kumo_only,20332,12608,62.011,52.884,-0.0138,47.002
 baseline_rules,scanner_source_bucket,kumo_with_george_video_context,473,267,56.448,47.423,0.0074,52.06
+dual_head_policy,scanner_source_bucket,both_george_and_kumo,362,99,27.348,33.051,0.454,45.455
+dual_head_policy,scanner_source_bucket,george_only,345,115,33.333,38.843,0.1155,37.391
+dual_head_policy,scanner_source_bucket,kumo_only,20332,6690,32.904,29.488,0.0445,40.433
+dual_head_policy,scanner_source_bucket,kumo_with_george_video_context,473,238,50.317,50.515,-0.085,39.916
 entry_policy_v2,scanner_source_bucket,both_george_and_kumo,362,98,27.072,34.746,0.3933,43.878
 entry_policy_v2,scanner_source_bucket,george_only,345,115,33.333,44.628,0.1732,42.609
 entry_policy_v2,scanner_source_bucket,kumo_only,20332,9058,44.55,36.464,0.0165,42.239

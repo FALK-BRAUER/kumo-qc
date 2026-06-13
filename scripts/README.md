@@ -48,6 +48,10 @@ macOS keychain at runtime.
   policies against same-day checkpoint economics. It compares baseline rules, v1 argmax policy actions,
   the v2 winner-preservation threshold layer over v1 entry probabilities, and v3 scan-time winner
   recovery using #492 OOF priors. v3 is diagnostic only unless its manifest promotion gate passes.
+- **Intraday dual-head policy training:** `train_intraday_entry_exit_dual_head_policy.py` trains the
+  #490 follow-up artifact with separate entry bad-risk, entry winner-preservation, entry-readiness,
+  management exit-risk, and management runner-preservation heads. Replay consumes it as
+  `dual_head_policy`; promotion still depends on economic replay gates, not classifier metrics.
 - **Sweep analysis:** `analyze_408_george_range_30.py` regenerates confidence tables, indicator
   ranges, and Markdown analysis from the George-range aggregate CSVs. `analyze_416_george_context_trades.py`
   reads completed #416 LEAN result JSONs and writes per-variant, per-symbol, and baseline-delta
